@@ -293,10 +293,10 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../../../../../index.html">Index</a>
  <a href="../Model/DataSource.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 53.96%<br>
-TER2 (Branch): 42.39%<br>
-TER3 (LCSAJ): 65.0% (13/20)<br>
-Approximate LCSAJ segments: 93<br>
+TER1 (Statement): 82.92%<br>
+TER2 (Branch): 46.43%<br>
+TER3 (LCSAJ): 100.0% (27/27)<br>
+Approximate LCSAJ segments: 141<br>
 </div>
 
     <div class="legend">
@@ -343,109 +343,67 @@ Approximate LCSAJ segments: 93<br>
 </span><span class="">    2: 
 </span><span class="">    3: use Mojo::Base &#39;Mojolicious::Controller&#39;, -strict, -signatures;
 </span><span class="">    4: use Mojo::File;
-</span><span class="">    5: use Mojo::Util qw(url_escape);
-</span><span class="">    6: 
-</span><span class="">    7: # Supported file extensions that Database::Abstraction can read.
-</span><span class="">    8: my @SUPPORTED_EXT = qw( csv db sqlite xml psv );
-</span><span class="">    9: my $EXT_RE = do { my $pat = join &#39;|&#39;, @SUPPORTED_EXT; qr/\.(?:$pat)$/i };
-</span><span class="">   10: 
-</span><span class="">   11: # ---------------------------------------------------------------------------
-</span><span class="">   12: # Private helpers
+</span><span class="">    5: use Mojo::JSON qw(encode_json);
+</span><span class="">    6: use Mojo::Util qw(url_escape encode);
+</span><span class="">    7: use File::Temp qw(tempfile);
+</span><span class="">    8: 
+</span><span class="">    9: # Supported file extensions that Database::Abstraction can read.
+</span><span class="">   10: my @SUPPORTED_EXT = qw( csv db sqlite xml psv );
+</span><span class="">   11: my $EXT_RE = do { my $pat = join &#39;|&#39;, @SUPPORTED_EXT; qr/\.(?:$pat)$/i };
+</span><span class="">   12: 
 </span><span class="">   13: # ---------------------------------------------------------------------------
-</span><span class="">   14: 
-</span><span class="">   15: # Return arrayref of { name, file } for every supported file in data_dir.
-</span><span class="">   16: sub _scan_data_dir ($self) {
-</span><span class="">   17:     my $dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class="">   18:     return [] unless -d $dir;
-</span><span class="">   19:     return [
-</span><span class="">   20:         $dir-&gt;list
-</span><span class="">   21:             -&gt;grep(sub { $_-&gt;basename =~ $EXT_RE })
-</span><span class="">   22:             -&gt;map(sub {
-</span><span class="">   23:                 my $base = $_-&gt;basename;
-</span><span class="">   24:                 (my $name = $base) =~ s/\.[^.]+$//;
-</span><span class="">   25:                 { name =&gt; $name, file =&gt; $base }
-</span><span class="">   26:             })-&gt;each
-</span><span class="">   27:     ];
-</span><span class="">   28: }
-</span><span class="">   29: 
-</span><span class="">   30: # Parse a spec string (&quot;table:name&quot; or &quot;path:/abs/path&quot;) and return
-</span><span class="">   31: # (DataSource, display-label).  Returns () on any failure.
-</span><span class="">   32: sub _open_spec ($self, $spec) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">33 → 33 → 52</span></span>   33:     if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">   34:         my $table    = lc $1;
-</span><span class="">   35:         my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class="">   36:         # Database::Abstraction silently creates an empty object for missing files,
-</span><span class="">   37:         # so we must check for the file ourselves before calling open_table.
-</span><span class="">   38:         return () unless grep { -f $data_dir-&gt;child(&quot;$table.$_&quot;) } @SUPPORTED_EXT;
-</span><span class="">   39:         my $src = eval { $self-&gt;open_table($table, directory =&gt; $data_dir-&gt;to_string) };
-</span><span class="">   40:         return ($src, $table) if $src &amp;&amp; !$@;
-</span><span class="">   41:     }
-</span><span class="">   42:     elsif ($spec =~ /\Apath:(.+)\z/) {
-</span><span class="">   43:         my $path = $1;
-</span><span class="">   44:         my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">   45:         if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
+</span><span class="">   14: # Private helpers
+</span><span class="">   15: # ---------------------------------------------------------------------------
+</span><span class="">   16: 
+</span><span class="">   17: # Return arrayref of { name, file } for every supported file in data_dir.
+</span><span class="">   18: sub _scan_data_dir ($self) {
+</span><span class="">   19:     my $dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
+</span><span class="">   20:     return [] unless -d $dir;
+</span><span class="">   21:     return [
+</span><span class="">   22:         $dir-&gt;list
+</span><span class="">   23:             -&gt;grep(sub { $_-&gt;basename =~ $EXT_RE })
+</span><span class="">   24:             -&gt;map(sub {
+</span><span class="">   25:                 my $base = $_-&gt;basename;
+</span><span class="">   26:                 (my $name = $base) =~ s/\.[^.]+$//;
+</span><span class="">   27:                 { name =&gt; $name, file =&gt; $base }
+</span><span class="">   28:             })-&gt;each
+</span><span class="">   29:     ];
+</span><span class="">   30: }
+</span><span class="">   31: 
+</span><span class="">   32: # Parse a spec string (&quot;table:name&quot; or &quot;path:/abs/path&quot;) and return
+</span><span class="">   33: # (DataSource, display-label).  Returns () on any failure.
+</span><span class="">   34: sub _open_spec ($self, $spec) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">35 → 35 → 54</span></span>   35:     if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">   36:         my $table    = lc $1;
+</span><span class="">   37:         my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
+</span><span class="">   38:         # Database::Abstraction silently creates an empty object for missing files,
+</span><span class="">   39:         # so we must check for the file ourselves before calling open_table.
+</span><span class="">   40:         return () unless grep { -f $data_dir-&gt;child(&quot;$table.$_&quot;) } @SUPPORTED_EXT;
+</span><span class="">   41:         my $src = eval { $self-&gt;open_table($table, directory =&gt; $data_dir-&gt;to_string) };
+</span><span class="">   42:         return ($src, $table) if $src &amp;&amp; !$@;
+</span><span class="">   43:     }
+</span><span class="">   44:     elsif ($spec =~ /\Apath:(.+)\z/) {
+</span><span class="">   45:         my $path = $1;
+</span><span class="">   46:         my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">   47:         if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_45_9: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_47_9: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">   46:             my $dir = $file-&gt;dirname-&gt;to_string;
-</span><span class="">   47:             (my $table = $file-&gt;basename) =~ s/\.[^.]+$//;
-</span><span class="">   48:             my $src = eval { $self-&gt;open_table(lc $table, directory =&gt; $dir) };
-</span><span class="">   49:             return ($src, $file-&gt;basename) if $src &amp;&amp; !$@;
-</span><span class="">   50:         }
-</span><span class="">   51:     }
-</span><span class="">   52:     return ();
-</span><span class="">   53: }
-</span><span class="">   54: 
-</span><span class="">   55: # Convert a spec string back to a browseable URL.
-</span><span class="">   56: sub _spec_to_url ($self, $spec) {
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   57:     return &quot;/view/$1&quot;                               if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_57_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_57_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   58:     return &#39;/open?path=&#39; . url_escape($1)           if $spec =~ /\Apath:(.+)\z/;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_58_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_58_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   59:     return &#39;/&#39;;
+<span class="">   48:             my $dir = $file-&gt;dirname-&gt;to_string;
+</span><span class="">   49:             (my $table = $file-&gt;basename) =~ s/\.[^.]+$//;
+</span><span class="">   50:             my $src = eval { $self-&gt;open_table(lc $table, directory =&gt; $dir) };
+</span><span class="">   51:             return ($src, $file-&gt;basename) if $src &amp;&amp; !$@;
+</span><span class="">   52:         }
+</span><span class="">   53:     }
+</span><span class="">   54:     return ();
+</span><span class="">   55: }
+</span><span class="">   56: 
+</span><span class="">   57: # Convert a spec string back to a browseable URL.
+</span><span class="">   58: sub _spec_to_url ($self, $spec) {
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   59:     return &quot;/view/$1&quot;                               if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -467,25 +425,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">   60: }
-</span><span class="">   61: 
-</span><span class="">   62: # Extract ordered column list from a DataSource + its fetched records.
-</span><span class="">   63: # (standalone sub, not a method)
-</span><span class="">   64: sub _get_columns {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 65 → 66 → 75</span></span>   65:     my ($source, $records) = @_;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">   66:     if ($source-&gt;columns) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_66_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   67:         return @{ $source-&gt;columns };
+<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   60:     return &#39;/open?path=&#39; . url_escape($1)           if $spec =~ /\Apath:(.+)\z/;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_67_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_60_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -493,7 +438,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_67_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_60_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -502,106 +447,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">   68:     }
-</span><span class="">   69:     elsif ($records-&gt;[0]) {
-</span><span class="">   70:         my $id  = $source-&gt;id_column // (sort keys %{ $records-&gt;[0] })[0];
-</span><span class="">   71:         my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
-</span><span class="">   72:         delete $all{$id};
-</span><span class="">   73:         return ($id, sort keys %all);
-</span><span class="">   74:     }
-</span><span class="">   75:     return ();
-</span><span class="">   76: }
-</span><span class="">   77: 
-</span><span class="">   78: # Left join: every left row is kept; matching right row&#39;s columns are appended.
-</span><span class="">   79: # Columns shared between the two tables (other than the join key) are prefixed
-</span><span class="">   80: # with right_label to avoid collisions.
-</span><span class="">   81: # Returns (\@merged_records, \@merged_columns).
-</span><span class="">   82: sub _left_join {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 83 → 88 → 94</span></span>   83:     my ($left_recs, $left_cols, $left_key,
-</span><span class="">   84:         $right_recs, $right_cols, $right_key, $right_label) = @_;
-</span><span class="">   85: 
-</span><span class="">   86:     # Index right records by join key (first match wins).
-</span><span class="">   87:     my %right_idx;
-</span><span class="">   88:     for my $row (@$right_recs) {
-</span><span class="">   89:         my $k = $row-&gt;{$right_key} // &#39;&#39;;
-</span><span class="">   90:         $right_idx{$k} //= $row;
-</span><span class="">   91:     }
-</span><span class="">   92: 
-</span><span class="">   93:     # Map right column names: skip the join key (redundant), prefix collisions.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 94 → 97 → 103</span></span>   94:     my %left_set = map { $_ =&gt; 1 } @$left_cols;
-</span><span class="">   95:     my @add_cols;
-</span><span class="">   96:     my %col_map;
-</span><span class="">   97:     for my $col (grep { $_ ne $right_key } @$right_cols) {
-</span><span class="">   98:         my $out = $left_set{$col} ? &quot;${right_label}.${col}&quot; : $col;
-</span><span class="">   99:         $col_map{$col} = $out;
-</span><span class="">  100:         push @add_cols, $out;
-</span><span class="">  101:     }
-</span><span class="">  102: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 103 → 104 → 114</span></span>  103:     my @merged;
-</span><span class="">  104:     for my $left_row (@$left_recs) {
-</span><span class="">  105:         my $k         = $left_row-&gt;{$left_key} // &#39;&#39;;
-</span><span class="">  106:         my $right_row = $right_idx{$k} // {};
-</span><span class="">  107:         my %row       = %$left_row;
-</span><span class="">  108:         for my $rcol (grep { $_ ne $right_key } @$right_cols) {
-</span><span class="">  109:             $row{ $col_map{$rcol} } = $right_row-&gt;{$rcol};
-</span><span class="">  110:         }
-</span><span class="">  111:         push @merged, \%row;
-</span><span class="">  112:     }
-</span><span class="">  113: 
-</span><span class="">  114:     return (\@merged, [@$left_cols, @add_cols]);
-</span><span class="">  115: }
-</span><span class="">  116: 
-</span><span class="">  117: # ---------------------------------------------------------------------------
-</span><span class="">  118: # Actions
-</span><span class="">  119: # ---------------------------------------------------------------------------
-</span><span class="">  120: 
-</span><span class="">  121: # GET / &acirc;&#128;&#148; scan data_dir and present a list of available tables.
-</span><span class="">  122: sub index ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">123 → 129 → 139</span></span>  123:     my $conf     = $self-&gt;app-&gt;config;
-</span><span class="">  124:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
-</span><span class="">  125:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
-</span><span class="">  126: 
-</span><span class="">  127:     my $dir_path = $self-&gt;app-&gt;home-&gt;child($conf-&gt;{data_dir});
-</span><span class="">  128:     my @tables;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  129:     if (-d $dir_path) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_129_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="">  130:         @tables = $dir_path-&gt;list
-</span><span class="">  131:             -&gt;grep(sub { $_-&gt;basename =~ $EXT_RE })
-</span><span class="">  132:             -&gt;map(sub {
-</span><span class="">  133:                 my $base = $_-&gt;basename;
-</span><span class="">  134:                 (my $name = $base) =~ s/\.[^.]+$//;
-</span><span class="">  135:                 { name =&gt; $name, file =&gt; $base }
-</span><span class="">  136:             })-&gt;each;
-</span><span class="">  137:     }
-</span><span class="">  138: 
-</span><span class="">  139:     $self-&gt;render(
-</span><span class="">  140:         template =&gt; &quot;$platform/$language/home&quot;,
-</span><span class="">  141:         handler  =&gt; &#39;tt&#39;,
-</span><span class="">  142:         format   =&gt; &#39;html&#39;,
-</span><span class="">  143:         tables   =&gt; \@tables,
-</span><span class="">  144:         title    =&gt; &#39;Choose a Database&#39;,
-</span><span class="">  145:     );
-</span><span class="">  146: }
-</span><span class="">  147: 
-</span><span class="">  148: # GET /view/:table &acirc;&#128;&#148; open and display the chosen table.
-</span><span class="">  149: sub view ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">150 → 155 → 159</span></span>  150:     my $conf     = $self-&gt;app-&gt;config;
-</span><span class="">  151:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
-</span><span class="">  152:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
-</span><span class="">  153:     my $table    = $self-&gt;stash(&#39;table&#39;);
-</span><span class="">  154: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  155:     unless (defined $table &amp;&amp; $table =~ /\A[A-Za-z0-9_]+\z/) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  156:         return $self-&gt;reply-&gt;not_found;
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   61:     return &#39;/&#39;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_156_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_61_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -609,7 +460,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_156_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_61_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -618,75 +469,362 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  157:     }
-</span><span class="">  158: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">159 → 161 → 173</span></span>  159:     my $source  = $self-&gt;open_table($table);
-</span><span class="">  160:     my $records = eval { $source-&gt;fetch_all };
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  161:     if ($@) {
+<span class="">   62: }
+</span><span class="">   63: 
+</span><span class="">   64: # Extract ordered column list from a DataSource + its fetched records.
+</span><span class="">   65: # (standalone sub, not a method)
+</span><span class="">   66: sub _get_columns {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">67 → 68 → 77</span></span>   67:     my ($source, $records) = @_;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">   68:     if ($source-&gt;columns) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_161_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_68_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  162:         $self-&gt;render(
-</span><span class="">  163:             template =&gt; &quot;$platform/$language/home&quot;,
-</span><span class="">  164:             handler  =&gt; &#39;tt&#39;,
-</span><span class="">  165:             format   =&gt; &#39;html&#39;,
-</span><span class="">  166:             tables   =&gt; [],
-</span><span class="">  167:             title    =&gt; &#39;Choose a Database&#39;,
-</span><span class="">  168:             error    =&gt; &quot;Could not open table &#39;$table&#39;: $@&quot;,
-</span><span class="">  169:         );
-</span><span class="">  170:         return;
-</span><span class="">  171:     }
-</span><span class="">  172: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 173 → 174 → 184</span></span>  173:     my @columns;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  174:     if ($source-&gt;columns) {
+<span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   69:         return @{ $source-&gt;columns };
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   70:     }
+</span><span class="">   71:     elsif ($records-&gt;[0]) {
+</span><span class="">   72:         my $id  = $source-&gt;id_column // (sort keys %{ $records-&gt;[0] })[0];
+</span><span class="">   73:         my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
+</span><span class="">   74:         delete $all{$id};
+</span><span class="">   75:         return ($id, sort keys %all);
+</span><span class="">   76:     }
+</span><span class="">   77:     return ();
+</span><span class="">   78: }
+</span><span class="">   79: 
+</span><span class="">   80: # Apply one filter spec (&quot;col:op:val&quot;) to an arrayref of record hashrefs.
+</span><span class="">   81: # Returns a new (possibly shorter) arrayref.
+</span><span class="">   82: sub _apply_filter_spec {
+</span><span class="">   83:     my ($records, $spec) = @_;
+</span><span class="">   84:     my ($col, $op, $val) = split /:/, $spec, 3;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   85:     return $records unless defined $col &amp;&amp; length $col
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_85_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_85_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">   86:                         &amp;&amp; defined $op  &amp;&amp; length $op;
+</span><span class="">   87:     $val //= &#39;&#39;;
+</span><span class="">   88:     return [grep {
+</span><span class="">   89:         my $cell = defined $_-&gt;{$col} ? $_-&gt;{$col} : &#39;&#39;;
+</span><span class="">   90:         $op eq &#39;eq&#39;       ? lc($cell) eq lc($val)            :
+</span><span class="">   91:         $op eq &#39;ne&#39;       ? lc($cell) ne lc($val)            :
+</span><span class="survived-1 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">   92:         $op eq &#39;contains&#39; ? index(lc($cell), lc($val)) != -1 :
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_174_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>NUM_BOUNDARY_92_56_==: Numeric boundary flip != to ==</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-1 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">   93:         $op eq &#39;starts&#39;   ? index(lc($cell), lc($val)) == 0  :
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_93_56_!=: Numeric boundary flip == to !=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">   94:         $op eq &#39;lt&#39;       ? $cell &lt;  $val                    :
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_94_35_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_94_35_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_94_35_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">   95:         $op eq &#39;le&#39;       ? $cell &lt;= $val                    :
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_95_35_&lt;: Numeric boundary flip &lt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_95_35_&gt;: Numeric boundary flip &lt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_95_35_&gt;=: Numeric boundary flip &lt;= to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">   96:         $op eq &#39;gt&#39;       ? $cell &gt;  $val                    :
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_96_35_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_96_35_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_96_35_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">   97:         $op eq &#39;ge&#39;       ? $cell &gt;= $val                    :
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_97_35_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_97_35_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_97_35_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">   98:         $op eq &#39;empty&#39;    ? $cell eq &#39;&#39;                      :
+</span><span class="">   99:         $op eq &#39;notempty&#39; ? $cell ne &#39;&#39;                      :
+</span><span class="">  100:         1
+</span><span class="">  101:     } @$records];
+</span><span class="">  102: }
+</span><span class="">  103: 
+</span><span class="">  104: # Read &quot;f&quot; query params, apply them to $records, and return the filtered
+</span><span class="">  105: # arrayref plus a JSON string for the template (for pre-populating the UI).
+</span><span class="">  106: sub _apply_filters ($self, $records) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">107 → 108 → 111</span></span>  107:     my @specs = @{ $self-&gt;every_param(&#39;f&#39;) // [] };
+</span><span class="">  108:     for my $s (@specs) {
+</span><span class="">  109:         $records = _apply_filter_spec($records, $s);
+</span><span class="">  110:     }
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">111 → 112 → 117</span></span>  111:     my @parsed;
+</span><span class="">  112:     for my $s (@specs) {
+</span><span class="">  113:         my ($col, $op, $val) = split /:/, $s, 3;
+</span><span class="">  114:         next unless defined $col &amp;&amp; length $col &amp;&amp; defined $op &amp;&amp; length $op;
+</span><span class="">  115:         push @parsed, { col =&gt; $col, op =&gt; $op, val =&gt; $val // &#39;&#39; };
+</span><span class="">  116:     }
+</span><span class="">  117:     my $json = encode_json(\@parsed);
+</span><span class="">  118:     $json =~ s{&lt;/}{&lt;\\/}g;
+</span><span class="">  119:     return ($records, \@specs, $json);
+</span><span class="">  120: }
+</span><span class="">  121: 
+</span><span class="">  122: # Left join: every left row is kept; matching right row&#39;s columns are appended.
+</span><span class="">  123: # Columns shared between the two tables (other than the join key) are prefixed
+</span><span class="">  124: # with right_label to avoid collisions.
+</span><span class="">  125: # Returns (\@merged_records, \@merged_columns).
+</span><span class="">  126: sub _left_join {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">127 → 132 → 138</span></span>  127:     my ($left_recs, $left_cols, $left_key,
+</span><span class="">  128:         $right_recs, $right_cols, $right_key, $right_label) = @_;
+</span><span class="">  129: 
+</span><span class="">  130:     # Index right records by join key (first match wins).
+</span><span class="">  131:     my %right_idx;
+</span><span class="">  132:     for my $row (@$right_recs) {
+</span><span class="">  133:         my $k = $row-&gt;{$right_key} // &#39;&#39;;
+</span><span class="">  134:         $right_idx{$k} //= $row;
+</span><span class="">  135:     }
+</span><span class="">  136: 
+</span><span class="">  137:     # Map right column names: skip the join key (redundant), prefix collisions.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">138 → 141 → 147</span></span>  138:     my %left_set = map { $_ =&gt; 1 } @$left_cols;
+</span><span class="">  139:     my @add_cols;
+</span><span class="">  140:     my %col_map;
+</span><span class="">  141:     for my $col (grep { $_ ne $right_key } @$right_cols) {
+</span><span class="">  142:         my $out = $left_set{$col} ? &quot;${right_label}.${col}&quot; : $col;
+</span><span class="">  143:         $col_map{$col} = $out;
+</span><span class="">  144:         push @add_cols, $out;
+</span><span class="">  145:     }
+</span><span class="">  146: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">147 → 148 → 158</span></span>  147:     my @merged;
+</span><span class="">  148:     for my $left_row (@$left_recs) {
+</span><span class="">  149:         my $k         = $left_row-&gt;{$left_key} // &#39;&#39;;
+</span><span class="">  150:         my $right_row = $right_idx{$k} // {};
+</span><span class="">  151:         my %row       = %$left_row;
+</span><span class="">  152:         for my $rcol (grep { $_ ne $right_key } @$right_cols) {
+</span><span class="">  153:             $row{ $col_map{$rcol} } = $right_row-&gt;{$rcol};
+</span><span class="">  154:         }
+</span><span class="">  155:         push @merged, \%row;
+</span><span class="">  156:     }
+</span><span class="">  157: 
+</span><span class="">  158:     return (\@merged, [@$left_cols, @add_cols]);
+</span><span class="">  159: }
+</span><span class="">  160: 
+</span><span class="">  161: # Encode one row as an RFC 4180 CSV line.
+</span><span class="">  162: sub _csv_row {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  163:     return join(&#39;,&#39;, map {
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  164:         my $f = $_ // &#39;&#39;;
+</span><span class="">  165:         $f =~ /[,&quot;\r\n]/ ? do { (my $q = $f) =~ s/&quot;/&quot;&quot;/g; qq{&quot;$q&quot;} } : $f;
+</span><span class="">  166:     } @_) . &quot;\r\n&quot;;
+</span><span class="">  167: }
+</span><span class="">  168: 
+</span><span class="">  169: # Build a base export URL for the current view (without &amp;format=).
+</span><span class="">  170: sub _build_export_url ($self, $left_spec, $join_specs, $filter_specs) {
+</span><span class="">  171:     my $u = &#39;/export?l=&#39; . url_escape($left_spec);
+</span><span class="">  172:     $u .= &#39;&amp;j=&#39; . url_escape($_) for @$join_specs;
+</span><span class="">  173:     $u .= &#39;&amp;f=&#39; . url_escape($_) for @$filter_specs;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  174:     return $u;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_174_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_174_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  175: }
+</span><span class="">  176: 
+</span><span class="">  177: # ---------------------------------------------------------------------------
+</span><span class="">  178: # Actions
+</span><span class="">  179: # ---------------------------------------------------------------------------
+</span><span class="">  180: 
+</span><span class="">  181: # GET / - scan data_dir and present a list of available tables.
+</span><span class="">  182: sub index ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">183 → 189 → 199</span></span>  183:     my $conf     = $self-&gt;app-&gt;config;
+</span><span class="">  184:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
+</span><span class="">  185:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
+</span><span class="">  186: 
+</span><span class="">  187:     my $dir_path = $self-&gt;app-&gt;home-&gt;child($conf-&gt;{data_dir});
+</span><span class="">  188:     my @tables;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  189:     if (-d $dir_path) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_189_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  175:         @columns = @{ $source-&gt;columns };
-</span><span class="">  176:     }
-</span><span class="">  177:     elsif ($records-&gt;[0]) {
-</span><span class="">  178:         my $id  = $source-&gt;id_column // (sort keys %{ $records-&gt;[0] })[0];
-</span><span class="">  179:         my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
-</span><span class="">  180:         delete $all{$id};
-</span><span class="">  181:         @columns = ($id, sort keys %all);
-</span><span class="">  182:     }
-</span><span class="">  183: 
-</span><span class="">  184:     $self-&gt;render(
-</span><span class="">  185:         template         =&gt; &quot;$platform/$language/dashboard&quot;,
-</span><span class="">  186:         handler          =&gt; &#39;tt&#39;,
-</span><span class="">  187:         format           =&gt; &#39;html&#39;,
-</span><span class="">  188:         records          =&gt; $records,
-</span><span class="">  189:         columns          =&gt; \@columns,
-</span><span class="">  190:         table            =&gt; $table,
-</span><span class="">  191:         title            =&gt; ucfirst($table),
-</span><span class="">  192:         left_spec        =&gt; &quot;table:$table&quot;,
-</span><span class="">  193:         current_joins    =&gt; [],
-</span><span class="">  194:         available_tables =&gt; $self-&gt;_scan_data_dir,
-</span><span class="">  195:         join_summaries   =&gt; [],
-</span><span class="">  196:     );
-</span><span class="">  197: }
+<span class="">  190:         @tables = $dir_path-&gt;list
+</span><span class="">  191:             -&gt;grep(sub { $_-&gt;basename =~ $EXT_RE })
+</span><span class="">  192:             -&gt;map(sub {
+</span><span class="">  193:                 my $base = $_-&gt;basename;
+</span><span class="">  194:                 (my $name = $base) =~ s/\.[^.]+$//;
+</span><span class="">  195:                 { name =&gt; $name, file =&gt; $base }
+</span><span class="">  196:             })-&gt;each;
+</span><span class="">  197:     }
 </span><span class="">  198: 
-</span><span class="">  199: # GET /browse &acirc;&#128;&#148; navigate the filesystem and pick a data file.
-</span><span class="">  200: sub browse ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">201 → 207 → 211</span></span>  201:     my $conf     = $self-&gt;app-&gt;config;
-</span><span class="">  202:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
-</span><span class="">  203:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
-</span><span class="">  204: 
-</span><span class="">  205:     my $raw_path = $self-&gt;param(&#39;path&#39;) // $ENV{HOME} // &#39;/&#39;;
-</span><span class="">  206:     my $dir      = eval { Mojo::File-&gt;new($raw_path)-&gt;realpath };
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  207:     unless (defined $dir &amp;&amp; -d $dir) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  208:         return $self-&gt;reply-&gt;not_found;
+</span><span class="">  199:     $self-&gt;render(
+</span><span class="">  200:         template =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="">  201:         handler  =&gt; &#39;tt&#39;,
+</span><span class="">  202:         format   =&gt; &#39;html&#39;,
+</span><span class="">  203:         tables   =&gt; \@tables,
+</span><span class="">  204:         title    =&gt; &#39;Choose a Database&#39;,
+</span><span class="">  205:     );
+</span><span class="">  206: }
+</span><span class="">  207: 
+</span><span class="">  208: # GET /view/:table - open and display the chosen table.
+</span><span class="">  209: sub view ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">210 → 215 → 219</span></span>  210:     my $conf     = $self-&gt;app-&gt;config;
+</span><span class="">  211:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
+</span><span class="">  212:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
+</span><span class="">  213:     my $table    = $self-&gt;stash(&#39;table&#39;);
+</span><span class="">  214: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  215:     unless (defined $table &amp;&amp; $table =~ /\A[A-Za-z0-9_]+\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  216:         return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_208_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_216_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -694,7 +832,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_208_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_216_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -703,214 +841,176 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  209:     }
-</span><span class="">  210: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">211 → 212 → 232</span></span>  211:     my (@dirs, @files);
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  212:     if (opendir my $dh, $dir-&gt;to_string) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_212_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="">  213:         while (my $entry = readdir $dh) {
-</span><span class="">  214:             next if $entry eq &#39;.&#39; || $entry eq &#39;..&#39;;
-</span><span class="">  215:             next if $entry =~ /\A\./;
-</span><span class="">  216:             my $f = $dir-&gt;child($entry);
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  217:             if (-d $f) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_217_13: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="">  218:                 push @dirs, {
-</span><span class="">  219:                     name =&gt; $entry,
-</span><span class="">  220:                     href =&gt; &#39;/browse?path=&#39; . url_escape($f-&gt;to_string),
-</span><span class="">  221:                 };
-</span><span class="">  222:             }
-</span><span class="">  223:             elsif ($entry =~ $EXT_RE) {
-</span><span class="">  224:                 push @files, {
-</span><span class="">  225:                     name =&gt; $entry,
-</span><span class="">  226:                     href =&gt; &#39;/open?path=&#39; . url_escape($f-&gt;to_string),
-</span><span class="">  227:                 };
-</span><span class="">  228:             }
-</span><span class="">  229:         }
-</span><span class="">  230:         closedir $dh;
+<span class="">  217:     }
+</span><span class="">  218: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">219 → 221 → 233</span></span>  219:     my $source  = $self-&gt;open_table($table);
+</span><span class="">  220:     my $records = eval { $source-&gt;fetch_all };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  221:     if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  222:         $self-&gt;render(
+</span><span class="">  223:             template =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="">  224:             handler  =&gt; &#39;tt&#39;,
+</span><span class="">  225:             format   =&gt; &#39;html&#39;,
+</span><span class="">  226:             tables   =&gt; [],
+</span><span class="">  227:             title    =&gt; &#39;Choose a Database&#39;,
+</span><span class="">  228:             error    =&gt; &quot;Could not open table &#39;$table&#39;: $@&quot;,
+</span><span class="">  229:         );
+</span><span class="">  230:         return;
 </span><span class="">  231:     }
-</span><span class="">  232:     @dirs  = sort { lc $a-&gt;{name} cmp lc $b-&gt;{name} } @dirs;
-</span><span class="">  233:     @files = sort { lc $a-&gt;{name} cmp lc $b-&gt;{name} } @files;
-</span><span class="">  234: 
-</span><span class="">  235:     my @crumbs;
-</span><span class="">  236:     {
-</span><span class="">  237:         my $f = $dir;
-</span><span class="">  238:         while (1) {
-</span><span class="">  239:             my $name = $f-&gt;basename;
-</span><span class="">  240:             $name    = &#39;/&#39; unless length $name;
-</span><span class="">  241:             unshift @crumbs, {
-</span><span class="">  242:                 name =&gt; $name,
-</span><span class="">  243:                 href =&gt; &#39;/browse?path=&#39; . url_escape($f-&gt;to_string),
-</span><span class="">  244:             };
-</span><span class="">  245:             my $parent = $f-&gt;dirname;
-</span><span class="">  246:             last if $parent-&gt;to_string eq $f-&gt;to_string;
-</span><span class="">  247:             $f = $parent;
-</span><span class="">  248:         }
-</span><span class="">  249:     }
-</span><span class="">  250: 
-</span><span class="">  251:     my $parent      = $dir-&gt;dirname;
-</span><span class="">  252:     my $parent_href = $parent-&gt;to_string ne $dir-&gt;to_string
-</span><span class="">  253:         ? &#39;/browse?path=&#39; . url_escape($parent-&gt;to_string)
-</span><span class="">  254:         : undef;
-</span><span class="">  255: 
-</span><span class="">  256:     $self-&gt;render(
-</span><span class="">  257:         template     =&gt; &quot;$platform/$language/browse&quot;,
-</span><span class="">  258:         handler      =&gt; &#39;tt&#39;,
-</span><span class="">  259:         format       =&gt; &#39;html&#39;,
-</span><span class="">  260:         title        =&gt; &#39;Browse Files&#39;,
-</span><span class="">  261:         current_path =&gt; $dir-&gt;to_string,
-</span><span class="">  262:         parent_href  =&gt; $parent_href,
-</span><span class="">  263:         crumbs       =&gt; \@crumbs,
-</span><span class="">  264:         dirs         =&gt; \@dirs,
-</span><span class="">  265:         files        =&gt; \@files,
-</span><span class="">  266:     );
-</span><span class="">  267: }
-</span><span class="">  268: 
-</span><span class="">  269: # GET /open &acirc;&#128;&#148; open a data file from any absolute filesystem path.
-</span><span class="">  270: sub open_file ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">271 → 276 → 280</span></span>  271:     my $conf      = $self-&gt;app-&gt;config;
-</span><span class="">  272:     my $platform  = $conf-&gt;{platform} // &#39;web&#39;;
-</span><span class="">  273:     my $language  = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
-</span><span class="">  274:     my $file_path = $self-&gt;param(&#39;path&#39;);
+</span><span class="">  232: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">233 → 234 → 244</span></span>  233:     my @columns;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  234:     if ($source-&gt;columns) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_234_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  235:         @columns = @{ $source-&gt;columns };
+</span><span class="">  236:     }
+</span><span class="">  237:     elsif ($records-&gt;[0]) {
+</span><span class="">  238:         my $id  = $source-&gt;id_column // (sort keys %{ $records-&gt;[0] })[0];
+</span><span class="">  239:         my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
+</span><span class="">  240:         delete $all{$id};
+</span><span class="">  241:         @columns = ($id, sort keys %all);
+</span><span class="">  242:     }
+</span><span class="">  243: 
+</span><span class="">  244:     my ($filtered, $filter_specs, $filters_json) = $self-&gt;_apply_filters($records);
+</span><span class="">  245: 
+</span><span class="">  246:     $self-&gt;render(
+</span><span class="">  247:         template         =&gt; &quot;$platform/$language/dashboard&quot;,
+</span><span class="">  248:         handler          =&gt; &#39;tt&#39;,
+</span><span class="">  249:         format           =&gt; &#39;html&#39;,
+</span><span class="">  250:         records          =&gt; $filtered,
+</span><span class="">  251:         columns          =&gt; \@columns,
+</span><span class="">  252:         table            =&gt; $table,
+</span><span class="">  253:         title            =&gt; ucfirst($table),
+</span><span class="">  254:         left_spec        =&gt; &quot;table:$table&quot;,
+</span><span class="">  255:         current_joins    =&gt; [],
+</span><span class="">  256:         available_tables =&gt; $self-&gt;_scan_data_dir,
+</span><span class="">  257:         join_summaries   =&gt; [],
+</span><span class="">  258:         filter_specs     =&gt; $filter_specs,
+</span><span class="">  259:         filters_json     =&gt; $filters_json,
+</span><span class="">  260:         export_url       =&gt; $self-&gt;_build_export_url(&quot;table:$table&quot;, [], $filter_specs),
+</span><span class="">  261:     );
+</span><span class="">  262: }
+</span><span class="">  263: 
+</span><span class="">  264: # GET /browse - navigate the filesystem and pick a data file.
+</span><span class="">  265: sub browse ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">266 → 272 → 276</span></span>  266:     my $conf     = $self-&gt;app-&gt;config;
+</span><span class="">  267:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
+</span><span class="">  268:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
+</span><span class="">  269: 
+</span><span class="">  270:     my $raw_path = $self-&gt;param(&#39;path&#39;) // $ENV{HOME} // &#39;/&#39;;
+</span><span class="">  271:     my $dir      = eval { Mojo::File-&gt;new($raw_path)-&gt;realpath };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  272:     unless (defined $dir &amp;&amp; -d $dir) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  273:         return $self-&gt;reply-&gt;not_found;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_273_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_273_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  274:     }
 </span><span class="">  275: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  276:     unless (defined $file_path) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  277:         return $self-&gt;reply-&gt;not_found;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_277_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_277_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  278:     }
-</span><span class="">  279: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">280 → 281 → 285</span></span>  280:     my $file = eval { Mojo::File-&gt;new($file_path)-&gt;realpath };
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  281:     unless (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  282:         return $self-&gt;reply-&gt;not_found;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_282_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_282_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  283:     }
-</span><span class="">  284: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">285 → 293 → 307</span></span>  285:     my $dir      = $file-&gt;dirname;
-</span><span class="">  286:     (my $table   = $file-&gt;basename) =~ s/\.[^.]+$//;
-</span><span class="">  287:     $table       = lc $table;
-</span><span class="">  288:     my $back     = &#39;/browse?path=&#39; . url_escape($dir-&gt;to_string);
-</span><span class="">  289:     my $filename = $file-&gt;basename;
-</span><span class="">  290: 
-</span><span class="">  291:     my $source  = $self-&gt;open_table($table, directory =&gt; $dir-&gt;to_string);
-</span><span class="">  292:     my $records = eval { $source-&gt;fetch_all };
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  293:     if ($@) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">276 → 277 → 297</span></span>  276:     my (@dirs, @files);
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  277:     if (opendir my $dh, $dir-&gt;to_string) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_293_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_277_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  294:         $self-&gt;render(
-</span><span class="">  295:             template   =&gt; &quot;$platform/$language/home&quot;,
-</span><span class="">  296:             handler    =&gt; &#39;tt&#39;,
-</span><span class="">  297:             format     =&gt; &#39;html&#39;,
-</span><span class="">  298:             tables     =&gt; [],
-</span><span class="">  299:             title      =&gt; &#39;Error&#39;,
-</span><span class="">  300:             error      =&gt; &quot;Could not open &#39;$filename&#39;: $@&quot;,
-</span><span class="">  301:             back_url   =&gt; $back,
-</span><span class="">  302:             back_label =&gt; &#39;Back to browser&#39;,
-</span><span class="">  303:         );
-</span><span class="">  304:         return;
-</span><span class="">  305:     }
-</span><span class="">  306: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 307 → 308 → 318</span></span>  307:     my @columns;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  308:     if ($source-&gt;columns) {
+<span class="">  278:         while (my $entry = readdir $dh) {
+</span><span class="">  279:             next if $entry eq &#39;.&#39; || $entry eq &#39;..&#39;;
+</span><span class="">  280:             next if $entry =~ /\A\./;
+</span><span class="">  281:             my $f = $dir-&gt;child($entry);
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  282:             if (-d $f) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_308_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_282_13: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  309:         @columns = @{ $source-&gt;columns };
-</span><span class="">  310:     }
-</span><span class="">  311:     elsif ($records-&gt;[0]) {
-</span><span class="">  312:         my $id  = $source-&gt;id_column // (sort keys %{ $records-&gt;[0] })[0];
-</span><span class="">  313:         my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
-</span><span class="">  314:         delete $all{$id};
-</span><span class="">  315:         @columns = ($id, sort keys %all);
-</span><span class="">  316:     }
-</span><span class="">  317: 
-</span><span class="">  318:     $self-&gt;render(
-</span><span class="">  319:         template         =&gt; &quot;$platform/$language/dashboard&quot;,
-</span><span class="">  320:         handler          =&gt; &#39;tt&#39;,
-</span><span class="">  321:         format           =&gt; &#39;html&#39;,
-</span><span class="">  322:         records          =&gt; $records,
-</span><span class="">  323:         columns          =&gt; \@columns,
-</span><span class="">  324:         table            =&gt; $table,
-</span><span class="">  325:         title            =&gt; $filename,
-</span><span class="">  326:         back_url         =&gt; $back,
-</span><span class="">  327:         back_label       =&gt; &#39;Back to browser&#39;,
-</span><span class="">  328:         file_path        =&gt; $file-&gt;to_string,
-</span><span class="">  329:         left_spec        =&gt; &#39;path:&#39; . $file-&gt;to_string,
-</span><span class="">  330:         current_joins    =&gt; [],
-</span><span class="">  331:         available_tables =&gt; $self-&gt;_scan_data_dir,
-</span><span class="">  332:         join_summaries   =&gt; [],
-</span><span class="">  333:     );
-</span><span class="">  334: }
-</span><span class="">  335: 
-</span><span class="">  336: # GET /api/columns &acirc;&#128;&#148; return column names for a table as JSON.
-</span><span class="">  337: # Used by the join UI to populate the right-key dropdown without a page reload.
-</span><span class="">  338: sub columns_api ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">339 → 343 → 358</span></span>  339:     my $table_name = $self-&gt;param(&#39;table&#39;);
-</span><span class="">  340:     my $path       = $self-&gt;param(&#39;path&#39;);
-</span><span class="">  341: 
-</span><span class="">  342:     my $source;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  343:     if (defined $table_name &amp;&amp; $table_name =~ /\A[A-Za-z0-9_]+\z/) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  344:         my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  345:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
+<span class="">  283:                 push @dirs, {
+</span><span class="">  284:                     name =&gt; $entry,
+</span><span class="">  285:                     href =&gt; &#39;/browse?path=&#39; . url_escape($f-&gt;to_string),
+</span><span class="">  286:                 };
+</span><span class="">  287:             }
+</span><span class="">  288:             elsif ($entry =~ $EXT_RE) {
+</span><span class="">  289:                 push @files, {
+</span><span class="">  290:                     name =&gt; $entry,
+</span><span class="">  291:                     href =&gt; &#39;/open?path=&#39; . url_escape($f-&gt;to_string),
+</span><span class="">  292:                 };
+</span><span class="">  293:             }
+</span><span class="">  294:         }
+</span><span class="">  295:         closedir $dh;
+</span><span class="">  296:     }
+</span><span class="">  297:     @dirs  = sort { lc $a-&gt;{name} cmp lc $b-&gt;{name} } @dirs;
+</span><span class="">  298:     @files = sort { lc $a-&gt;{name} cmp lc $b-&gt;{name} } @files;
+</span><span class="">  299: 
+</span><span class="">  300:     my @crumbs;
+</span><span class="">  301:     {
+</span><span class="">  302:         my $f = $dir;
+</span><span class="">  303:         while (1) {
+</span><span class="">  304:             my $name = $f-&gt;basename;
+</span><span class="">  305:             $name    = &#39;/&#39; unless length $name;
+</span><span class="">  306:             unshift @crumbs, {
+</span><span class="">  307:                 name =&gt; $name,
+</span><span class="">  308:                 href =&gt; &#39;/browse?path=&#39; . url_escape($f-&gt;to_string),
+</span><span class="">  309:             };
+</span><span class="">  310:             my $parent = $f-&gt;dirname;
+</span><span class="">  311:             last if $parent-&gt;to_string eq $f-&gt;to_string;
+</span><span class="">  312:             $f = $parent;
+</span><span class="">  313:         }
+</span><span class="">  314:     }
+</span><span class="">  315: 
+</span><span class="">  316:     my $parent      = $dir-&gt;dirname;
+</span><span class="">  317:     my $parent_href = $parent-&gt;to_string ne $dir-&gt;to_string
+</span><span class="">  318:         ? &#39;/browse?path=&#39; . url_escape($parent-&gt;to_string)
+</span><span class="">  319:         : undef;
+</span><span class="">  320: 
+</span><span class="">  321:     $self-&gt;render(
+</span><span class="">  322:         template     =&gt; &quot;$platform/$language/browse&quot;,
+</span><span class="">  323:         handler      =&gt; &#39;tt&#39;,
+</span><span class="">  324:         format       =&gt; &#39;html&#39;,
+</span><span class="">  325:         title        =&gt; &#39;Browse Files&#39;,
+</span><span class="">  326:         current_path =&gt; $dir-&gt;to_string,
+</span><span class="">  327:         parent_href  =&gt; $parent_href,
+</span><span class="">  328:         crumbs       =&gt; \@crumbs,
+</span><span class="">  329:         dirs         =&gt; \@dirs,
+</span><span class="">  330:         files        =&gt; \@files,
+</span><span class="">  331:     );
+</span><span class="">  332: }
+</span><span class="">  333: 
+</span><span class="">  334: # GET /open - open a data file from any absolute filesystem path.
+</span><span class="">  335: sub open_file ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">336 → 341 → 345</span></span>  336:     my $conf      = $self-&gt;app-&gt;config;
+</span><span class="">  337:     my $platform  = $conf-&gt;{platform} // &#39;web&#39;;
+</span><span class="">  338:     my $language  = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
+</span><span class="">  339:     my $file_path = $self-&gt;param(&#39;path&#39;);
+</span><span class="">  340: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  341:     unless (defined $file_path) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  342:         return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_345_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_342_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -918,7 +1018,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_345_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_342_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -927,31 +1027,16 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  346:             unless grep { -f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;) } @SUPPORTED_EXT;
-</span><span class="">  347:         $source = eval { $self-&gt;open_table(lc $table_name, directory =&gt; $data_dir-&gt;to_string) };
-</span><span class="">  348:     }
-</span><span class="">  349:     elsif (defined $path) {
-</span><span class="">  350:         my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  351:         if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_351_9: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="">  352:             my $dir = $file-&gt;dirname-&gt;to_string;
-</span><span class="">  353:             (my $tbl = $file-&gt;basename) =~ s/\.[^.]+$//;
-</span><span class="">  354:             $source = eval { $self-&gt;open_table(lc $tbl, directory =&gt; $dir) };
-</span><span class="">  355:         }
-</span><span class="">  356:     }
-</span><span class="">  357: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">358 → 358 → 362</span></span>  358:     unless ($source) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  359:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404);
+<span class="">  343:     }
+</span><span class="">  344: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">345 → 346 → 350</span></span>  345:     my $file = eval { Mojo::File-&gt;new($file_path)-&gt;realpath };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  346:     unless (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  347:         return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_359_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_347_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -959,7 +1044,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_359_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_347_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -968,180 +1053,651 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  360:     }
-</span><span class="">  361: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">362 → 363 → 371</span></span>  362:     my @cols;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  363:     if ($source-&gt;columns) {
+<span class="">  348:     }
+</span><span class="">  349: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">350 → 358 → 372</span></span>  350:     my $dir      = $file-&gt;dirname;
+</span><span class="">  351:     (my $table   = $file-&gt;basename) =~ s/\.[^.]+$//;
+</span><span class="">  352:     $table       = lc $table;
+</span><span class="">  353:     my $back     = &#39;/browse?path=&#39; . url_escape($dir-&gt;to_string);
+</span><span class="">  354:     my $filename = $file-&gt;basename;
+</span><span class="">  355: 
+</span><span class="">  356:     my $source  = $self-&gt;open_table($table, directory =&gt; $dir-&gt;to_string);
+</span><span class="">  357:     my $records = eval { $source-&gt;fetch_all };
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  358:     if ($@) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_363_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_358_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  364:         @cols = @{ $source-&gt;columns };
-</span><span class="">  365:     }
-</span><span class="">  366:     else {
-</span><span class="">  367:         my $recs = eval { $source-&gt;fetch_all } // [];
-</span><span class="">  368:         @cols = $recs-&gt;[0] ? sort keys %{ $recs-&gt;[0] } : ();
-</span><span class="">  369:     }
-</span><span class="">  370: 
-</span><span class="">  371:     $self-&gt;render(json =&gt; { columns =&gt; \@cols });
-</span><span class="">  372: }
-</span><span class="">  373: 
-</span><span class="">  374: # GET /join &acirc;&#128;&#148; perform one or more left joins and render the merged table.
-</span><span class="">  375: #
-</span><span class="">  376: # Query parameters:
-</span><span class="">  377: #   l   = left table spec: &quot;table:name&quot; or &quot;path:/abs/path&quot;
-</span><span class="">  378: #   j   = join spec (repeatable): &quot;&lt;right-spec&gt;|&lt;left-key&gt;|&lt;right-key&gt;&quot;
-</span><span class="">  379: #
-</span><span class="">  380: # Join semantics: left join &acirc;&#128;&#148; every left row is kept; columns from the right
-</span><span class="">  381: # table are appended for matching rows, or left undef when there is no match.
-</span><span class="">  382: sub join_tables ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">383 → 392 → 398</span></span>  383:     my $conf     = $self-&gt;app-&gt;config;
-</span><span class="">  384:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
-</span><span class="">  385:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
-</span><span class="">  386: 
-</span><span class="">  387:     my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
-</span><span class="">  388:     my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  389:     return $self-&gt;reply-&gt;not_found unless $left_src;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_389_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_389_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  390: 
-</span><span class="">  391:     my $left_recs = eval { $left_src-&gt;fetch_all };
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  392:     if ($@) {
+<span class="">  359:         $self-&gt;render(
+</span><span class="">  360:             template   =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="">  361:             handler    =&gt; &#39;tt&#39;,
+</span><span class="">  362:             format     =&gt; &#39;html&#39;,
+</span><span class="">  363:             tables     =&gt; [],
+</span><span class="">  364:             title      =&gt; &#39;Error&#39;,
+</span><span class="">  365:             error      =&gt; &quot;Could not open &#39;$filename&#39;: $@&quot;,
+</span><span class="">  366:             back_url   =&gt; $back,
+</span><span class="">  367:             back_label =&gt; &#39;Back to browser&#39;,
+</span><span class="">  368:         );
+</span><span class="">  369:         return;
+</span><span class="">  370:     }
+</span><span class="">  371: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">372 → 373 → 383</span></span>  372:     my @columns;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  373:     if ($source-&gt;columns) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_392_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_373_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  393:         return $self-&gt;render(
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_393_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_393_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  394:             template =&gt; &quot;$platform/$language/home&quot;, handler =&gt; &#39;tt&#39;, format =&gt; &#39;html&#39;,
-</span><span class="">  395:             tables =&gt; [], title =&gt; &#39;Error&#39;, error =&gt; &quot;Could not open table: $@&quot;,
-</span><span class="">  396:         );
-</span><span class="">  397:     }
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 398 → 407 → 428</span></span>  398:     $left_recs //= [];
-</span><span class="">  399: 
-</span><span class="">  400:     my @left_cols = _get_columns($left_src, $left_recs);
-</span><span class="">  401:     my @join_specs = @{ $self-&gt;every_param(&#39;j&#39;) };
-</span><span class="">  402: 
-</span><span class="">  403:     my $records    = $left_recs;
-</span><span class="">  404:     my @columns    = @left_cols;
-</span><span class="">  405:     my @summaries;
+<span class="">  374:         @columns = @{ $source-&gt;columns };
+</span><span class="">  375:     }
+</span><span class="">  376:     elsif ($records-&gt;[0]) {
+</span><span class="">  377:         my $id  = $source-&gt;id_column // (sort keys %{ $records-&gt;[0] })[0];
+</span><span class="">  378:         my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
+</span><span class="">  379:         delete $all{$id};
+</span><span class="">  380:         @columns = ($id, sort keys %all);
+</span><span class="">  381:     }
+</span><span class="">  382: 
+</span><span class="">  383:     my ($filtered, $filter_specs, $filters_json) = $self-&gt;_apply_filters($records);
+</span><span class="">  384:     my $lspec = &#39;path:&#39; . $file-&gt;to_string;
+</span><span class="">  385: 
+</span><span class="">  386:     $self-&gt;render(
+</span><span class="">  387:         template         =&gt; &quot;$platform/$language/dashboard&quot;,
+</span><span class="">  388:         handler          =&gt; &#39;tt&#39;,
+</span><span class="">  389:         format           =&gt; &#39;html&#39;,
+</span><span class="">  390:         records          =&gt; $filtered,
+</span><span class="">  391:         columns          =&gt; \@columns,
+</span><span class="">  392:         table            =&gt; $table,
+</span><span class="">  393:         title            =&gt; $filename,
+</span><span class="">  394:         back_url         =&gt; $back,
+</span><span class="">  395:         back_label       =&gt; &#39;Back to browser&#39;,
+</span><span class="">  396:         file_path        =&gt; $file-&gt;to_string,
+</span><span class="">  397:         left_spec        =&gt; $lspec,
+</span><span class="">  398:         current_joins    =&gt; [],
+</span><span class="">  399:         available_tables =&gt; $self-&gt;_scan_data_dir,
+</span><span class="">  400:         join_summaries   =&gt; [],
+</span><span class="">  401:         filter_specs     =&gt; $filter_specs,
+</span><span class="">  402:         filters_json     =&gt; $filters_json,
+</span><span class="">  403:         export_url       =&gt; $self-&gt;_build_export_url($lspec, [], $filter_specs),
+</span><span class="">  404:     );
+</span><span class="">  405: }
 </span><span class="">  406: 
-</span><span class="">  407:     for my $jspec (@join_specs) {
-</span><span class="">  408:         my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
-</span><span class="">  409:         next unless defined $right_spec &amp;&amp; defined $left_key &amp;&amp; defined $right_key;
-</span><span class="">  410:         next unless grep { $_ eq $left_key } @columns;
-</span><span class="">  411: 
-</span><span class="">  412:         my ($right_src, $right_label) = $self-&gt;_open_spec($right_spec);
-</span><span class="">  413:         next unless $right_src;
-</span><span class="">  414: 
-</span><span class="">  415:         my $right_recs = eval { $right_src-&gt;fetch_all } // [];
-</span><span class="">  416:         next if $@;
-</span><span class="">  417:         my @right_cols = _get_columns($right_src, $right_recs);
-</span><span class="">  418:         next unless grep { $_ eq $right_key } @right_cols;
-</span><span class="">  419: 
-</span><span class="">  420:         ($records, my $new_cols) = _left_join(
-</span><span class="">  421:             $records, \@columns, $left_key,
-</span><span class="">  422:             $right_recs, \@right_cols, $right_key, $right_label,
-</span><span class="">  423:         );
-</span><span class="">  424:         @columns = @$new_cols;
-</span><span class="">  425:         push @summaries, { label =&gt; $right_label, left_key =&gt; $left_key, right_key =&gt; $right_key };
-</span><span class="">  426:     }
-</span><span class="">  427: 
-</span><span class="">  428:     my $title = $left_label;
-</span><span class="">  429:     $title .= &#39; + &#39; . join(&#39; + &#39;, map { $_-&gt;{label} } @summaries) if @summaries;
-</span><span class="">  430: 
-</span><span class="">  431:     # Stable localStorage key: join:left:right1:right2:...
-</span><span class="">  432:     my $table_key = &#39;join:&#39; . lc($left_label);
-</span><span class="">  433:     $table_key   .= &#39;:&#39; . lc($_-&gt;{label}) for @summaries;
-</span><span class="">  434: 
-</span><span class="">  435:     $self-&gt;render(
-</span><span class="">  436:         template         =&gt; &quot;$platform/$language/dashboard&quot;,
-</span><span class="">  437:         handler          =&gt; &#39;tt&#39;,
-</span><span class="">  438:         format           =&gt; &#39;html&#39;,
-</span><span class="">  439:         records          =&gt; $records,
-</span><span class="">  440:         columns          =&gt; \@columns,
-</span><span class="">  441:         table            =&gt; $table_key,
-</span><span class="">  442:         title            =&gt; $title,
-</span><span class="">  443:         back_url         =&gt; $self-&gt;_spec_to_url($left_spec),
-</span><span class="">  444:         back_label       =&gt; &quot;Back to $left_label&quot;,
-</span><span class="">  445:         left_spec        =&gt; $left_spec,
-</span><span class="">  446:         current_joins    =&gt; \@join_specs,
-</span><span class="">  447:         available_tables =&gt; $self-&gt;_scan_data_dir,
-</span><span class="">  448:         join_summaries   =&gt; \@summaries,
-</span><span class="">  449:     );
-</span><span class="">  450: }
-</span><span class="">  451: 
-</span><span class="">  452: sub _resolve_language ($self, $default) {
-</span><span class="">  453:     my $accept = $self-&gt;req-&gt;headers-&gt;accept_language // &#39;&#39;;
-</span><span class="">  454:     my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  455:     return $lang // $default;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  456: }
+</span><span class="">  407: # GET /api/columns - return column names for a table as JSON.
+</span><span class="">  408: # Used by the join UI to populate the right-key dropdown without a page reload.
+</span><span class="">  409: sub columns_api ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">410 → 414 → 429</span></span>  410:     my $table_name = $self-&gt;param(&#39;table&#39;);
+</span><span class="">  411:     my $path       = $self-&gt;param(&#39;path&#39;);
+</span><span class="">  412: 
+</span><span class="">  413:     my $source;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  414:     if (defined $table_name &amp;&amp; $table_name =~ /\A[A-Za-z0-9_]+\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  415:         my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  416:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_416_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_416_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  417:             unless grep { -f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;) } @SUPPORTED_EXT;
+</span><span class="">  418:         $source = eval { $self-&gt;open_table(lc $table_name, directory =&gt; $data_dir-&gt;to_string) };
+</span><span class="">  419:     }
+</span><span class="">  420:     elsif (defined $path) {
+</span><span class="">  421:         my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  422:         if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_422_9: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  423:             my $dir = $file-&gt;dirname-&gt;to_string;
+</span><span class="">  424:             (my $tbl = $file-&gt;basename) =~ s/\.[^.]+$//;
+</span><span class="">  425:             $source = eval { $self-&gt;open_table(lc $tbl, directory =&gt; $dir) };
+</span><span class="">  426:         }
+</span><span class="">  427:     }
+</span><span class="">  428: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">429 → 429 → 433</span></span>  429:     unless ($source) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  430:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404);
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_430_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_430_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  431:     }
+</span><span class="">  432: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">433 → 434 → 442</span></span>  433:     my @cols;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  434:     if ($source-&gt;columns) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_434_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  435:         @cols = @{ $source-&gt;columns };
+</span><span class="">  436:     }
+</span><span class="">  437:     else {
+</span><span class="">  438:         my $recs = eval { $source-&gt;fetch_all } // [];
+</span><span class="">  439:         @cols = $recs-&gt;[0] ? sort keys %{ $recs-&gt;[0] } : ();
+</span><span class="">  440:     }
+</span><span class="">  441: 
+</span><span class="">  442:     $self-&gt;render(json =&gt; { columns =&gt; \@cols });
+</span><span class="">  443: }
+</span><span class="">  444: 
+</span><span class="">  445: # GET /join - perform one or more left joins and render the merged table.
+</span><span class="">  446: #
+</span><span class="">  447: # Query parameters:
+</span><span class="">  448: #   l   = left table spec: &quot;table:name&quot; or &quot;path:/abs/path&quot;
+</span><span class="">  449: #   j   = join spec (repeatable): &quot;&lt;right-spec&gt;|&lt;left-key&gt;|&lt;right-key&gt;&quot;
+</span><span class="">  450: #
+</span><span class="">  451: # Join semantics: left join - every left row is kept; columns from the right
+</span><span class="">  452: # table are appended for matching rows, or left undef when there is no match.
+</span><span class="">  453: sub join_tables ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">454 → 463 → 469</span></span>  454:     my $conf     = $self-&gt;app-&gt;config;
+</span><span class="">  455:     my $platform = $conf-&gt;{platform} // &#39;web&#39;;
+</span><span class="">  456:     my $language = $self-&gt;_resolve_language($conf-&gt;{language} // &#39;en&#39;);
 </span><span class="">  457: 
-</span><span class="">  458: 1;
-</span><span class="">  459: 
-</span><span class="">  460: =head1 NAME
-</span><span class="">  461: 
-</span><span class="">  462: Database::BI::Controller::Dashboard - Home picker, table viewer, and join engine
-</span><span class="">  463: 
-</span><span class="">  464: =head1 DESCRIPTION
-</span><span class="">  465: 
-</span><span class="">  466: C&lt;index&gt; scans the configured C&lt;data_dir&gt; and presents clickable links for
-</span><span class="">  467: every supported data file it finds.
-</span><span class="">  468: 
-</span><span class="">  469: C&lt;view&gt; opens the selected table via the C&lt;open_table&gt; helper and renders it
-</span><span class="">  470: using the VWF-style path C&lt;templates/[platform]/[language]/dashboard.html.tt&gt;.
-</span><span class="">  471: 
-</span><span class="">  472: C&lt;join_tables&gt; accepts a left table spec (C&lt;l=&gt;) and zero or more join specs
-</span><span class="">  473: (C&lt;j=&gt;), performs left joins in sequence, and renders the merged result using
-</span><span class="">  474: the same dashboard template.
-</span><span class="">  475: 
-</span><span class="">  476: C&lt;columns_api&gt; returns a JSON array of column names for a given table or path,
-</span><span class="">  477: used by the join UI to populate the right-key dropdown.
-</span><span class="">  478: 
-</span><span class="">  479: =cut
+</span><span class="">  458:     my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
+</span><span class="">  459:     my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  460:     return $self-&gt;reply-&gt;not_found unless $left_src;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_460_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_460_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  461: 
+</span><span class="">  462:     my $left_recs = eval { $left_src-&gt;fetch_all };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  463:     if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  464:         return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_464_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_464_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  465:             template =&gt; &quot;$platform/$language/home&quot;, handler =&gt; &#39;tt&#39;, format =&gt; &#39;html&#39;,
+</span><span class="">  466:             tables =&gt; [], title =&gt; &#39;Error&#39;, error =&gt; &quot;Could not open table: $@&quot;,
+</span><span class="">  467:         );
+</span><span class="">  468:     }
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">469 → 478 → 499</span></span>  469:     $left_recs //= [];
+</span><span class="">  470: 
+</span><span class="">  471:     my @left_cols = _get_columns($left_src, $left_recs);
+</span><span class="">  472:     my @join_specs = @{ $self-&gt;every_param(&#39;j&#39;) };
+</span><span class="">  473: 
+</span><span class="">  474:     my $records    = $left_recs;
+</span><span class="">  475:     my @columns    = @left_cols;
+</span><span class="">  476:     my @summaries;
+</span><span class="">  477: 
+</span><span class="">  478:     for my $jspec (@join_specs) {
+</span><span class="">  479:         my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
+</span><span class="">  480:         next unless defined $right_spec &amp;&amp; defined $left_key &amp;&amp; defined $right_key;
+</span><span class="">  481:         next unless grep { $_ eq $left_key } @columns;
+</span><span class="">  482: 
+</span><span class="">  483:         my ($right_src, $right_label) = $self-&gt;_open_spec($right_spec);
+</span><span class="">  484:         next unless $right_src;
+</span><span class="">  485: 
+</span><span class="">  486:         my $right_recs = eval { $right_src-&gt;fetch_all } // [];
+</span><span class="">  487:         next if $@;
+</span><span class="">  488:         my @right_cols = _get_columns($right_src, $right_recs);
+</span><span class="">  489:         next unless grep { $_ eq $right_key } @right_cols;
+</span><span class="">  490: 
+</span><span class="">  491:         ($records, my $new_cols) = _left_join(
+</span><span class="">  492:             $records, \@columns, $left_key,
+</span><span class="">  493:             $right_recs, \@right_cols, $right_key, $right_label,
+</span><span class="">  494:         );
+</span><span class="">  495:         @columns = @$new_cols;
+</span><span class="">  496:         push @summaries, { label =&gt; $right_label, left_key =&gt; $left_key, right_key =&gt; $right_key };
+</span><span class="">  497:     }
+</span><span class="">  498: 
+</span><span class="">  499:     my ($filtered, $filter_specs, $filters_json) = $self-&gt;_apply_filters($records);
+</span><span class="">  500: 
+</span><span class="">  501:     my $title = $left_label;
+</span><span class="">  502:     $title .= &#39; + &#39; . join(&#39; + &#39;, map { $_-&gt;{label} } @summaries) if @summaries;
+</span><span class="">  503: 
+</span><span class="">  504:     # Stable localStorage key: join:left:right1:right2:...
+</span><span class="">  505:     my $table_key = &#39;join:&#39; . lc($left_label);
+</span><span class="">  506:     $table_key   .= &#39;:&#39; . lc($_-&gt;{label}) for @summaries;
+</span><span class="">  507: 
+</span><span class="">  508:     $self-&gt;render(
+</span><span class="">  509:         template         =&gt; &quot;$platform/$language/dashboard&quot;,
+</span><span class="">  510:         handler          =&gt; &#39;tt&#39;,
+</span><span class="">  511:         format           =&gt; &#39;html&#39;,
+</span><span class="">  512:         records          =&gt; $filtered,
+</span><span class="">  513:         columns          =&gt; \@columns,
+</span><span class="">  514:         table            =&gt; $table_key,
+</span><span class="">  515:         title            =&gt; $title,
+</span><span class="">  516:         back_url         =&gt; $self-&gt;_spec_to_url($left_spec),
+</span><span class="">  517:         back_label       =&gt; &quot;Back to $left_label&quot;,
+</span><span class="">  518:         left_spec        =&gt; $left_spec,
+</span><span class="">  519:         current_joins    =&gt; \@join_specs,
+</span><span class="">  520:         available_tables =&gt; $self-&gt;_scan_data_dir,
+</span><span class="">  521:         join_summaries   =&gt; \@summaries,
+</span><span class="">  522:         filter_specs     =&gt; $filter_specs,
+</span><span class="">  523:         filters_json     =&gt; $filters_json,
+</span><span class="">  524:         export_url       =&gt; $self-&gt;_build_export_url($left_spec, \@join_specs, $filter_specs),
+</span><span class="">  525:     );
+</span><span class="">  526: }
+</span><span class="">  527: 
+</span><span class="">  528: # GET /export &acirc;&#128;&#148; export the current logical view as CSV or SQLite.
+</span><span class="">  529: #
+</span><span class="">  530: # Accepts the same l=, j=, f= parameters as /join, plus:
+</span><span class="">  531: #   format=csv     (default) &acirc;&#128;&#148; RFC 4180 CSV download
+</span><span class="">  532: #   format=sqlite  &acirc;&#128;&#148; SQLite database with a single &quot;data&quot; table
+</span><span class="">  533: sub export_data ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">534 → 548 → 565</span></span>  534:     my $format    = $self-&gt;param(&#39;format&#39;) // &#39;csv&#39;;
+</span><span class="">  535:     $format       = &#39;csv&#39; unless $format eq &#39;sqlite&#39;;
+</span><span class="">  536:     my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
+</span><span class="">  537: 
+</span><span class="">  538:     my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  539:     return $self-&gt;reply-&gt;not_found unless $left_src;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_539_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_539_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  540: 
+</span><span class="">  541:     my $left_recs = eval { $left_src-&gt;fetch_all };
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  542:     return $self-&gt;reply-&gt;not_found if $@;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_542_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_542_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  543:     $left_recs //= [];
+</span><span class="">  544: 
+</span><span class="">  545:     my @columns = _get_columns($left_src, $left_recs);
+</span><span class="">  546:     my $records  = $left_recs;
+</span><span class="">  547: 
+</span><span class="">  548:     for my $jspec (@{ $self-&gt;every_param(&#39;j&#39;) }) {
+</span><span class="">  549:         my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
+</span><span class="">  550:         next unless defined $right_spec &amp;&amp; defined $left_key &amp;&amp; defined $right_key;
+</span><span class="">  551:         next unless grep { $_ eq $left_key } @columns;
+</span><span class="">  552:         my ($right_src, $right_label) = $self-&gt;_open_spec($right_spec);
+</span><span class="">  553:         next unless $right_src;
+</span><span class="">  554:         my $right_recs = eval { $right_src-&gt;fetch_all } // [];
+</span><span class="">  555:         next if $@;
+</span><span class="">  556:         my @right_cols = _get_columns($right_src, $right_recs);
+</span><span class="">  557:         next unless grep { $_ eq $right_key } @right_cols;
+</span><span class="">  558:         ($records, my $new_cols) = _left_join(
+</span><span class="">  559:             $records, \@columns, $left_key,
+</span><span class="">  560:             $right_recs, \@right_cols, $right_key, $right_label,
+</span><span class="">  561:         );
+</span><span class="">  562:         @columns = @$new_cols;
+</span><span class="">  563:     }
+</span><span class="">  564: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">565 → 565 → 567</span></span>  565:     for my $s (@{ $self-&gt;every_param(&#39;f&#39;) }) {
+</span><span class="">  566:         $records = _apply_filter_spec($records, $s);
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">567 → 571 → 574</span></span>  567:     }
+</span><span class="">  568: 
+</span><span class="">  569:     (my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
+</span><span class="">  570: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  571:     if ($format eq &#39;sqlite&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  572:         return $self-&gt;_render_sqlite($records, \@columns, $safe_name);
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_572_9: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_572_9: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  573:     }
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  574:     return $self-&gt;_render_csv($records, \@columns, $safe_name);
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_574_5: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_574_5: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  575: }
+</span><span class="">  576: 
+</span><span class="">  577: sub _render_csv ($self, $records, $columns, $name) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">578 → 579 → 582</span></span>  578:     my $out = _csv_row(@$columns);
+</span><span class="">  579:     for my $row (@$records) {
+</span><span class="">  580:         $out .= _csv_row(map { $row-&gt;{$_} } @$columns);
+</span><span class="">  581:     }
+</span><span class="">  582:     $self-&gt;res-&gt;headers-&gt;content_type(&#39;text/csv; charset=UTF-8&#39;);
+</span><span class="">  583:     $self-&gt;res-&gt;headers-&gt;content_disposition(qq{attachment; filename=&quot;${name}.csv&quot;});
+</span><span class="">  584:     $self-&gt;render(data =&gt; encode(&#39;UTF-8&#39;, $out));
+</span><span class="">  585: }
+</span><span class="">  586: 
+</span><span class="">  587: sub _render_sqlite ($self, $records, $columns, $name) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">588 → 601 → 611</span></span>  588:     require DBI;
+</span><span class="">  589: 
+</span><span class="">  590:     my ($tmp_fh, $tmpfile) = tempfile(SUFFIX =&gt; &#39;.db&#39;, UNLINK =&gt; 0);
+</span><span class="">  591:     close $tmp_fh;
+</span><span class="">  592: 
+</span><span class="">  593:     my $dbh = DBI-&gt;connect(&quot;dbi:SQLite:dbname=$tmpfile&quot;, &#39;&#39;, &#39;&#39;, {
+</span><span class="">  594:         RaiseError =&gt; 1,
+</span><span class="">  595:         AutoCommit =&gt; 1,
+</span><span class="">  596:     });
+</span><span class="">  597: 
+</span><span class="">  598:     my @quoted = map { my $c = $_; $c =~ s/&quot;/&quot;&quot;/g; qq{&quot;$c&quot;} } @$columns;
+</span><span class="">  599:     $dbh-&gt;do(&#39;CREATE TABLE &quot;data&quot; (&#39; . join(&#39;, &#39;, map { &quot;$_ TEXT&quot; } @quoted) . &#39;)&#39;);
+</span><span class="">  600: 
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  601:     if (@$records) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_601_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  602:         my $ph  = join(&#39;, &#39;, (&#39;?&#39;) x scalar @$columns);
+</span><span class="">  603:         my $sth = $dbh-&gt;prepare(
+</span><span class="">  604:             &#39;INSERT INTO &quot;data&quot; (&#39; . join(&#39;, &#39;, @quoted) . &quot;) VALUES ($ph)&quot;
+</span><span class="">  605:         );
+</span><span class="">  606:         for my $row (@$records) {
+</span><span class="">  607:             $sth-&gt;execute(map { $row-&gt;{$_} } @$columns);
+</span><span class="">  608:         }
+</span><span class="">  609:     }
+</span><span class="">  610: 
+</span><span class="">  611:     $dbh-&gt;disconnect;
+</span><span class="">  612:     my $data = Mojo::File-&gt;new($tmpfile)-&gt;slurp;
+</span><span class="">  613:     unlink $tmpfile;
+</span><span class="">  614: 
+</span><span class="">  615:     $self-&gt;res-&gt;headers-&gt;content_type(&#39;application/vnd.sqlite3&#39;);
+</span><span class="">  616:     $self-&gt;res-&gt;headers-&gt;content_disposition(qq{attachment; filename=&quot;${name}.db&quot;});
+</span><span class="">  617:     $self-&gt;render(data =&gt; $data);
+</span><span class="">  618: }
+</span><span class="">  619: 
+</span><span class="">  620: sub _resolve_language ($self, $default) {
+</span><span class="">  621:     my $accept = $self-&gt;req-&gt;headers-&gt;accept_language // &#39;&#39;;
+</span><span class="">  622:     my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  623:     return $lang // $default;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  624: }
+</span><span class="">  625: 
+</span><span class="">  626: 1;
+</span><span class="">  627: 
+</span><span class="">  628: =head1 NAME
+</span><span class="">  629: 
+</span><span class="">  630: Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
+</span><span class="">  631: viewer, left-join engine, and result filter
+</span><span class="">  632: 
+</span><span class="">  633: =head1 DESCRIPTION
+</span><span class="">  634: 
+</span><span class="">  635: All user-facing routes in C&lt;Database::BI&gt; are handled by this controller.
+</span><span class="">  636: 
+</span><span class="">  637: =head2 Actions
+</span><span class="">  638: 
+</span><span class="">  639: =over 4
+</span><span class="">  640: 
+</span><span class="">  641: =item C&lt;index&gt; - C&lt;GET /&gt;
+</span><span class="">  642: 
+</span><span class="">  643: Scans the configured C&lt;data_dir&gt; for supported data files (CSV, PSV, SQLite,
+</span><span class="">  644: XML) and renders a card grid.  The template also renders a &quot;Recently opened&quot;
+</span><span class="">  645: section from C&lt;localStorage&gt; (client-side only; the server supplies an empty
+</span><span class="">  646: placeholder).
+</span><span class="">  647: 
+</span><span class="">  648: =item C&lt;view&gt; - C&lt;GET /view/:table&gt;
+</span><span class="">  649: 
+</span><span class="">  650: Opens the named table from C&lt;data_dir&gt; via the C&lt;open_table&gt; helper, applies
+</span><span class="">  651: any C&lt;?f=col:op:val&gt; filters from the query string, and renders
+</span><span class="">  652: C&lt;dashboard.html.tt&gt;.  Table names must match C&lt;[A-Za-z0-9_]+&gt;; anything
+</span><span class="">  653: else returns 404.
+</span><span class="">  654: 
+</span><span class="">  655: =item C&lt;browse&gt; - C&lt;GET /browse&gt;
+</span><span class="">  656: 
+</span><span class="">  657: Filesystem navigator.  Resolves C&lt;?path=&gt; through C&lt;realpath&gt; (returns 404
+</span><span class="">  658: for non-existent or non-directory paths), then lists directories and
+</span><span class="">  659: supported files as clickable links.  Defaults to C&lt;$HOME&gt;.
+</span><span class="">  660: 
+</span><span class="">  661: =item C&lt;open_file&gt; - C&lt;GET /open&gt;
+</span><span class="">  662: 
+</span><span class="">  663: Opens a supported data file from an arbitrary absolute path (C&lt;?path=&gt;).
+</span><span class="">  664: The path is resolved through C&lt;realpath&gt; and checked against the supported
+</span><span class="">  665: extension list before instantiating C&lt;DataSource&gt;.  Applies C&lt;?f=&gt; filters.
+</span><span class="">  666: Sets C&lt;file_path&gt; in the stash so the template can record the file in
+</span><span class="">  667: C&lt;localStorage&gt; &quot;recently opened&quot;.
+</span><span class="">  668: 
+</span><span class="">  669: =item C&lt;join_tables&gt; - C&lt;GET /join&gt;
+</span><span class="">  670: 
+</span><span class="">  671: Performs one or more left joins in the order given by repeatable C&lt;j=&gt;
+</span><span class="">  672: parameters, then applies any C&lt;f=&gt; result filters.
+</span><span class="">  673: 
+</span><span class="">  674: Query parameters:
+</span><span class="">  675: 
+</span><span class="">  676:   l=&lt;spec&gt;               Required. Left table spec: &quot;table:name&quot; or
+</span><span class="">  677:                            &quot;path:/abs/path&quot;.  Returns 404 if unresolvable.
+</span><span class="">  678:   j=&lt;spec&gt;|&lt;lk&gt;|&lt;rk&gt;    Repeatable join step.  &lt;spec&gt; is a right-table
+</span><span class="">  679:                            spec; &lt;lk&gt; and &lt;rk&gt; are the left and right key
+</span><span class="">  680:                            column names.  Invalid or non-existent steps are
+</span><span class="">  681:                            silently skipped.
+</span><span class="">  682:   f=&lt;col&gt;:&lt;op&gt;:&lt;val&gt;     Repeatable result filter.  Applied server-side
+</span><span class="">  683:                            after all joins.
+</span><span class="">  684: 
+</span><span class="">  685: Left-join semantics: every left row is kept.  Right-table columns are
+</span><span class="">  686: appended for rows that match on the join key; unmatched rows get C&lt;undef&gt;
+</span><span class="">  687: for all right-table columns.  If a right-table column name collides with a
+</span><span class="">  688: left-table column name the right column is prefixed with
+</span><span class="">  689: C&lt;&lt; right_label.colname &gt;&gt;.
+</span><span class="">  690: 
+</span><span class="">  691: =item C&lt;columns_api&gt; - C&lt;GET /api/columns&gt;
+</span><span class="">  692: 
+</span><span class="">  693: Returns C&lt;{ &quot;columns&quot;: [...] }&gt; as JSON.  Accepts C&lt;?table=name&gt; (table
+</span><span class="">  694: from C&lt;data_dir&gt;) or C&lt;?path=/abs/path&gt; (arbitrary file).  Returns 404
+</span><span class="">  695: when the table or file cannot be found or resolved.  Used by the join panel
+</span><span class="">  696: to populate the right-key dropdown without a page reload.
+</span><span class="">  697: 
+</span><span class="">  698: =item C&lt;export_data&gt; - C&lt;GET /export&gt;
+</span><span class="">  699: 
+</span><span class="">  700: Exports the current logical view as a file download.  Accepts the same
+</span><span class="">  701: C&lt;l=&gt;, C&lt;j=&gt;, and C&lt;f=&gt; parameters as C&lt;join_tables&gt;, plus C&lt;format=&gt;:
+</span><span class="">  702: 
+</span><span class="">  703:   format=csv     (default) - RFC 4180 CSV, UTF-8, CRLF line endings;
+</span><span class="">  704:                    generated without external dependencies.
+</span><span class="">  705:   format=sqlite  - SQLite 3 database written via DBI/DBD::SQLite to a
+</span><span class="">  706:                    temporary file, slurped, and returned as
+</span><span class="">  707:                    application/vnd.sqlite3.  The single table is named
+</span><span class="">  708:                    C&lt;data&gt;; every column is declared C&lt;TEXT&gt;.
+</span><span class="">  709: 
+</span><span class="">  710: Returns 404 if the left table spec is invalid or the table cannot be
+</span><span class="">  711: opened.  An empty result set (all rows filtered out) exports correctly as
+</span><span class="">  712: header-only CSV or an empty SQLite table.
+</span><span class="">  713: 
+</span><span class="">  714: =back
+</span><span class="">  715: 
+</span><span class="">  716: =head2 Filter operators
+</span><span class="">  717: 
+</span><span class="">  718: The C&lt;f=col:op:val&gt; filter spec supports:
+</span><span class="">  719: 
+</span><span class="">  720:   eq        case-insensitive string equality
+</span><span class="">  721:   ne        case-insensitive string inequality
+</span><span class="">  722:   contains  case-insensitive substring match
+</span><span class="">  723:   starts    case-insensitive prefix match
+</span><span class="">  724:   lt        numeric less-than
+</span><span class="">  725:   le        numeric less-than-or-equal
+</span><span class="">  726:   gt        numeric greater-than
+</span><span class="">  727:   ge        numeric greater-than-or-equal
+</span><span class="">  728:   empty     cell is undef or empty string (val ignored)
+</span><span class="">  729:   notempty  cell is defined and non-empty (val ignored)
+</span><span class="">  730: 
+</span><span class="">  731: The colon separator is split with a limit of 3, so values may themselves
+</span><span class="">  732: contain colons (e.g. C&lt;f=sale_date:eq:2025-01-15&gt;).
+</span><span class="">  733: 
+</span><span class="">  734: =head2 Private helpers
+</span><span class="">  735: 
+</span><span class="">  736: =over 4
+</span><span class="">  737: 
+</span><span class="">  738: =item C&lt;_open_spec($spec)&gt;
+</span><span class="">  739: 
+</span><span class="">  740: Parses a C&lt;table:name&gt; or C&lt;path:/abs&gt; spec, checks that the file exists
+</span><span class="">  741: (C&lt;Database::Abstraction&gt; silently creates empty objects for missing files
+</span><span class="">  742: - existence must be tested explicitly), and returns C&lt;($datasource, $label)&gt;
+</span><span class="">  743: or an empty list on failure.
+</span><span class="">  744: 
+</span><span class="">  745: =item C&lt;_apply_filter_spec($records, $spec)&gt;
+</span><span class="">  746: 
+</span><span class="">  747: Standalone sub.  Parses C&lt;col:op:val&gt; and returns a filtered copy of the
+</span><span class="">  748: records arrayref.
+</span><span class="">  749: 
+</span><span class="">  750: =item C&lt;_apply_filters($self, $records)&gt;
+</span><span class="">  751: 
+</span><span class="">  752: Reads all C&lt;f=&gt; query params, applies them in order via
+</span><span class="">  753: C&lt;_apply_filter_spec&gt;, and returns C&lt;($filtered, \@raw_specs, $json)&gt;.
+</span><span class="">  754: C&lt;$json&gt; is a script-safe JSON array of C&lt;{col,op,val}&gt; objects used to
+</span><span class="">  755: pre-populate filter rows in the join panel.
+</span><span class="">  756: 
+</span><span class="">  757: =item C&lt;_left_join(...)&gt;
+</span><span class="">  758: 
+</span><span class="">  759: Standalone sub.  Performs a single left join and returns
+</span><span class="">  760: C&lt;(\@merged_records, \@merged_columns)&gt;.
+</span><span class="">  761: 
+</span><span class="">  762: =item C&lt;_get_columns($source, $records)&gt;
+</span><span class="">  763: 
+</span><span class="">  764: Standalone sub.  Returns the ordered column list from the C&lt;DataSource&gt;
+</span><span class="">  765: object, falling back to C&lt;id_column&gt;-first alphabetic order when the
+</span><span class="">  766: backend does not expose column order (SQLite, XML).
+</span><span class="">  767: 
+</span><span class="">  768: =item C&lt;_csv_row(@fields)&gt;
+</span><span class="">  769: 
+</span><span class="">  770: Standalone sub.  Formats one row of values as an RFC 4180 CSV line (CRLF
+</span><span class="">  771: terminated).  Fields containing commas, double-quotes, or newlines are
+</span><span class="">  772: quoted; embedded double-quotes are doubled.
+</span><span class="">  773: 
+</span><span class="">  774: =item C&lt;_build_export_url($self, $left_spec, \@join_specs, \@filter_specs)&gt;
+</span><span class="">  775: 
+</span><span class="">  776: Method.  Builds a C&lt;/export?l=...&amp;j=...&amp;f=...&gt; URL string from the current
+</span><span class="">  777: view&#39;s parameters, suitable for use in HTML C&lt;href&gt; attributes (the caller
+</span><span class="">  778: must apply C&lt;| html&gt; in TT to escape C&lt;&amp;&gt; to C&lt;&amp;amp;&gt;).
+</span><span class="">  779: 
+</span><span class="">  780: =item C&lt;_render_csv($self, $records, \@columns, $name)&gt;
+</span><span class="">  781: 
+</span><span class="">  782: Method.  Serialises C&lt;$records&gt; to RFC 4180 CSV and renders it as a UTF-8
+</span><span class="">  783: download with C&lt;Content-Disposition: attachment; filename=&quot;${name}.csv&quot;&gt;.
+</span><span class="">  784: 
+</span><span class="">  785: =item C&lt;_render_sqlite($self, $records, \@columns, $name)&gt;
+</span><span class="">  786: 
+</span><span class="">  787: Method.  Creates a temporary SQLite database, inserts all records into a
+</span><span class="">  788: table named C&lt;data&gt;, slurps the file, and renders it as a binary download
+</span><span class="">  789: with C&lt;Content-Disposition: attachment; filename=&quot;${name}.db&quot;&gt;.  The
+</span><span class="">  790: temporary file is unlinked immediately after reading.
+</span><span class="">  791: 
+</span><span class="">  792: =back
+</span><span class="">  793: 
+</span><span class="">  794: =cut
 </span></pre>
 
 <script>

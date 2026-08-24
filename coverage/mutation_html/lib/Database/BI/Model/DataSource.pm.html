@@ -293,9 +293,9 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../Controller/Dashboard.pm.html">⬅ Previous</a> <a href="../../../../../index.html">Index</a>
 </div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 83.65%<br>
-TER2 (Branch): 44.12%<br>
-TER3 (LCSAJ): 66.7% (4/6)<br>
+TER1 (Statement): 81.73%<br>
+TER2 (Branch): 47.06%<br>
+TER3 (LCSAJ): 83.3% (5/6)<br>
 Approximate LCSAJ segments: 35<br>
 </div>
 
@@ -399,9 +399,9 @@ Approximate LCSAJ segments: 35<br>
 </span><span class="">   58: # (if any) before falling back to _fmt(). The i18n object must implement
 </span><span class="">   59: # maketext($key, @args).
 </span><span class="">   60: sub _msg {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">61 → 62 → 65</span></span>   61: 	my ($self, $key, @args) = @_;
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 61 → 62 → 65</span></span>   61: 	my ($self, $key, @args) = @_;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   62: 	if (my $i18n = $self-&gt;{_i18n}) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   63: 		return $i18n-&gt;maketext($key, @args);
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   63: 		return $i18n-&gt;maketext($key, @args);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -645,7 +645,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  270: 
 </span><span class="">  271: sub table_name {
 </span><span class="">  272: 	my $self = shift;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  273: 	return $self-&gt;{_table};
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  273: 	return $self-&gt;{_table};
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -710,7 +710,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  293: 
 </span><span class="">  294: sub id_column {
 </span><span class="">  295: 	my $self = shift;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  296: 	return $self-&gt;{_id_col};
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  296: 	return $self-&gt;{_id_col};
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -746,8 +746,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  308: 
 </span><span class="">  309: =head4 INPUT
 </span><span class="">  310: 
-</span><span class="">  311: None. (Phase 2 will accept an optional C&lt;$filter&gt; argument compatible with
-</span><span class="">  312: C&lt;Database::BI::Model::Filter&gt; without changing the return type.)
+</span><span class="">  311: None.  Filtering is performed at the controller layer (C&lt;Dashboard::_apply_filter_spec&gt;)
+</span><span class="">  312: after C&lt;fetch_all&gt; returns, not inside C&lt;DataSource&gt;.
 </span><span class="">  313: 
 </span><span class="">  314: =head4 OUTPUT
 </span><span class="">  315: 
@@ -789,7 +789,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class="">  345: 		croak $self-&gt;_msg(&#39;error_fetch_failed&#39;, $table, $@);
 </span><span class="">  346: 	}
 </span><span class="">  347: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 348 → 354 → 359</span></span>  348: 	return [] unless defined $data;
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">348 → 354 → 359</span></span>  348: 	return [] unless defined $data;
 </span><span class="">  349: 
 </span><span class="">  350: 	# Strategy: Database::Abstraction can return either an arrayref (when the
 </span><span class="">  351: 	# underlying driver iterates rows) or a hashref keyed by primary key (when
@@ -806,7 +806,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  356: 		$data = [ values %{$data} ];
 </span><span class="">  357: 	}
 </span><span class="">  358: 
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 359 → 359 → 363</span></span>  359: 	if (!@{$data}) {
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">359 → 359 → 363</span></span>  359: 	if (!@{$data}) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
@@ -816,7 +816,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class="">  360: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
 </span><span class="">  361: 	}
 </span><span class="">  362: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  363: 	return $data;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  363: 	return $data;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -877,80 +877,94 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  400: =head1 DESCRIPTION
 </span><span class="">  401: 
 </span><span class="">  402: C&lt;Database::BI::Model::DataSource&gt; is a thin, table-agnostic adapter that
-</span><span class="">  403: wraps L&lt;Database::Abstraction&gt; and exposes a single C&lt;fetch_all&gt; method
-</span><span class="">  404: returning an arrayref of hashrefs.
+</span><span class="">  403: wraps L&lt;Database::Abstraction&gt; and exposes three accessors (C&lt;fetch_all&gt;,
+</span><span class="">  404: C&lt;columns&gt;, C&lt;id_column&gt;) used by the controller.
 </span><span class="">  405: 
 </span><span class="">  406: L&lt;Database::Abstraction&gt; is a read-only ORM that discovers data files
-</span><span class="">  407: (CSV, SQLite, XML, PSV, etc.) automatically from a directory based on the
+</span><span class="">  407: (CSV, PSV, SQLite, XML, etc.) automatically from a directory based on the
 </span><span class="">  408: calling class name.  C&lt;DataSource&gt; generates an ephemeral subclass at
-</span><span class="">  409: construction time so that callers never interact with
-</span><span class="">  410: L&lt;Database::Abstraction&gt; directly and so that the backend can be swapped
-</span><span class="">  411: for L&lt;Database::Join&gt; in Phase 2 without any change to the controller.
-</span><span class="">  412: 
-</span><span class="">  413: All user-visible strings and exception messages are keyed through the
-</span><span class="">  414: C&lt;%MESSAGES&gt; dictionary and routed via C&lt;_msg()&gt;, making every diagnostic
-</span><span class="">  415: replaceable by an i18n object at instantiation time.
-</span><span class="">  416: 
-</span><span class="">  417: =head1 LIMITATIONS
-</span><span class="">  418: 
-</span><span class="">  419: =over 4
-</span><span class="">  420: 
-</span><span class="">  421: =item *
-</span><span class="">  422: 
-</span><span class="">  423: Only read operations are supported.  Write-back is not in scope.
-</span><span class="">  424: 
-</span><span class="">  425: =item *
-</span><span class="">  426: 
-</span><span class="">  427: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Use
-</span><span class="">  428: C&lt;Database::Join&gt; (Phase 2) to query across multiple tables.
+</span><span class="">  409: construction time so callers never interact with L&lt;Database::Abstraction&gt;
+</span><span class="">  410: directly.  To swap the backend for L&lt;Database::Join&gt; in Phase 2, only the
+</span><span class="">  411: C&lt;open_table&gt; helper in C&lt;Database::BI&gt; needs to change; the controller and
+</span><span class="">  412: C&lt;DataSource&gt; are untouched.
+</span><span class="">  413: 
+</span><span class="">  414: C&lt;_detect_file_info&gt; peeks at the first header line of CSV/PSV files to
+</span><span class="">  415: extract the correct separator character, the primary-key column name, and
+</span><span class="">  416: the full ordered column list.  Without this, two silent L&lt;Database::Abstraction&gt;
+</span><span class="">  417: defaults corrupt every result: C&lt;sep_char&gt; defaults to C&lt;&#39;!&#39;&gt; (turning a
+</span><span class="">  418: comma-separated file into a single-field table) and C&lt;id&gt; defaults to
+</span><span class="">  419: C&lt;&#39;entry&#39;&gt; (causing every row to be discarded when no C&lt;entry&gt; column
+</span><span class="">  420: exists).
+</span><span class="">  421: 
+</span><span class="">  422: Result filtering (C&lt;eq&gt;, C&lt;contains&gt;, C&lt;gt&gt;, etc.) is performed at the
+</span><span class="">  423: controller layer by C&lt;Dashboard::_apply_filter_spec&gt; after C&lt;fetch_all&gt;
+</span><span class="">  424: returns.  C&lt;DataSource&gt; itself is filter-unaware.
+</span><span class="">  425: 
+</span><span class="">  426: All user-visible strings and exception messages are keyed through the
+</span><span class="">  427: C&lt;%MESSAGES&gt; dictionary and routed via C&lt;_msg()&gt;, making every diagnostic
+</span><span class="">  428: replaceable by an i18n object at instantiation time.
 </span><span class="">  429: 
-</span><span class="">  430: =item *
+</span><span class="">  430: =head1 LIMITATIONS
 </span><span class="">  431: 
-</span><span class="">  432: The ephemeral backend class is generated into a package namespace
-</span><span class="">  433: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
-</span><span class="">  434: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
-</span><span class="">  435: the same ephemeral class.
-</span><span class="">  436: 
-</span><span class="">  437: =item *
-</span><span class="">  438: 
-</span><span class="">  439: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
-</span><span class="">  440: compatible with L&lt;Locale::Maketext&gt;.
-</span><span class="">  441: 
-</span><span class="">  442: =back
+</span><span class="">  432: =over 4
+</span><span class="">  433: 
+</span><span class="">  434: =item *
+</span><span class="">  435: 
+</span><span class="">  436: Only read operations are supported.  Write-back is not in scope.
+</span><span class="">  437: 
+</span><span class="">  438: =item *
+</span><span class="">  439: 
+</span><span class="">  440: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Multi-table
+</span><span class="">  441: left joins are composed at the controller layer by C&lt;Dashboard::_left_join&gt;;
+</span><span class="">  442: C&lt;Database::Join&gt; (Phase 2) is not yet in use.
 </span><span class="">  443: 
-</span><span class="">  444: =head1 CONFIGURATION AND ENVIRONMENT
+</span><span class="">  444: =item *
 </span><span class="">  445: 
-</span><span class="">  446: No environment variables are read.  All configuration is passed through
-</span><span class="">  447: the constructor.
-</span><span class="">  448: 
-</span><span class="">  449: =head1 DEPENDENCIES
+</span><span class="">  446: The ephemeral backend class is generated into a package namespace
+</span><span class="">  447: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
+</span><span class="">  448: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
+</span><span class="">  449: the same ephemeral class.
 </span><span class="">  450: 
-</span><span class="">  451: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
-</span><span class="">  452: L&lt;Database::Abstraction&gt;.
-</span><span class="">  453: 
-</span><span class="">  454: =head1 INCOMPATIBILITIES
+</span><span class="">  451: =item *
+</span><span class="">  452: 
+</span><span class="">  453: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
+</span><span class="">  454: compatible with L&lt;Locale::Maketext&gt;.
 </span><span class="">  455: 
-</span><span class="">  456: None known.
+</span><span class="">  456: =back
 </span><span class="">  457: 
-</span><span class="">  458: =head1 BUGS AND LIMITATIONS
+</span><span class="">  458: =head1 CONFIGURATION AND ENVIRONMENT
 </span><span class="">  459: 
-</span><span class="">  460: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
-</span><span class="">  461: 
-</span><span class="">  462: =head1 AUTHOR
-</span><span class="">  463: 
-</span><span class="">  464: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class="">  465: 
-</span><span class="">  466: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  460: No environment variables are read.  All configuration is passed through
+</span><span class="">  461: the constructor.
+</span><span class="">  462: 
+</span><span class="">  463: =head1 DEPENDENCIES
+</span><span class="">  464: 
+</span><span class="">  465: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
+</span><span class="">  466: L&lt;Database::Abstraction&gt;.
 </span><span class="">  467: 
-</span><span class="">  468: Copyright 2026 Nigel Horne.
+</span><span class="">  468: =head1 INCOMPATIBILITIES
 </span><span class="">  469: 
-</span><span class="">  470: Usage is subject to the GPL2 licence terms.
-</span><span class="">  471: If you use it,
-</span><span class="">  472: please let me know.
+</span><span class="">  470: None known.
+</span><span class="">  471: 
+</span><span class="">  472: =head1 BUGS AND LIMITATIONS
 </span><span class="">  473: 
-</span><span class="">  474: =cut
+</span><span class="">  474: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
 </span><span class="">  475: 
-</span><span class="">  476: 1;
+</span><span class="">  476: =head1 AUTHOR
+</span><span class="">  477: 
+</span><span class="">  478: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  479: 
+</span><span class="">  480: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  481: 
+</span><span class="">  482: Copyright 2026 Nigel Horne.
+</span><span class="">  483: 
+</span><span class="">  484: Usage is subject to the GPL2 licence terms.
+</span><span class="">  485: If you use it,
+</span><span class="">  486: please let me know.
+</span><span class="">  487: 
+</span><span class="">  488: =cut
+</span><span class="">  489: 
+</span><span class="">  490: 1;
 </span></pre>
 
 <script>
