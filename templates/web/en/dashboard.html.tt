@@ -12,7 +12,7 @@
   <thead>
     <tr>
       [% FOREACH col IN columns -%]
-      <th draggable="true">[% col | html %]</th>
+      <th draggable="true" aria-sort="none">[% col | html %]</th>
       [%- END %]
     </tr>
   </thead>
@@ -37,6 +37,8 @@
 
   var headers = Array.from(table.querySelectorAll('thead th'));
   var dragSrcIdx = null;
+  var sortColIdx = -1;
+  var sortAsc    = true;
 
   function colIndex(th) {
     return headers.indexOf(th);
@@ -58,9 +60,56 @@
     // Keep headers array in sync with the new DOM order.
     var moved = headers.splice(from, 1)[0];
     headers.splice(to, 0, moved);
+    // Update tracked sort column index if it moved.
+    if (sortColIdx === from) {
+      sortColIdx = to;
+    } else if (from < to && sortColIdx > from && sortColIdx <= to) {
+      sortColIdx--;
+    } else if (from > to && sortColIdx >= to && sortColIdx < from) {
+      sortColIdx++;
+    }
+  }
+
+  function sortByCol(idx, asc) {
+    var tbody = table.tBodies[0];
+    var rows  = Array.from(tbody.rows);
+    var numeric = rows.every(function (r) {
+      var v = r.cells[idx] ? r.cells[idx].textContent.trim() : '';
+      return v === '' || !isNaN(Number(v));
+    });
+    rows.sort(function (a, b) {
+      var av = a.cells[idx] ? a.cells[idx].textContent.trim() : '';
+      var bv = b.cells[idx] ? b.cells[idx].textContent.trim() : '';
+      var cmp;
+      if (numeric) {
+        cmp = (av === '' ? -Infinity : Number(av)) - (bv === '' ? -Infinity : Number(bv));
+      } else {
+        cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return asc ? cmp : -cmp;
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+
+    // Update aria-sort on all headers.
+    headers.forEach(function (h, i) {
+      h.setAttribute('aria-sort', i === idx ? (asc ? 'ascending' : 'descending') : 'none');
+    });
   }
 
   headers.forEach(function (th) {
+    th.addEventListener('click', function (e) {
+      // Ignore clicks that were part of a drag.
+      if (dragSrcIdx !== null) return;
+      var idx = colIndex(th);
+      if (sortColIdx === idx) {
+        sortAsc = !sortAsc;
+      } else {
+        sortColIdx = idx;
+        sortAsc    = true;
+      }
+      sortByCol(sortColIdx, sortAsc);
+    });
+
     th.addEventListener('dragstart', function (e) {
       dragSrcIdx = colIndex(th);
       e.dataTransfer.effectAllowed = 'move';

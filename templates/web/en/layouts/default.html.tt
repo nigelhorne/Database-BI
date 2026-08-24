@@ -62,6 +62,17 @@
       box-shadow: inset 3px 0 0 #fff;
     }
 
+    thead th[aria-sort]::after {
+      content: '';
+      display: inline-block;
+      width: 0.9em;
+      margin-left: 0.35em;
+      vertical-align: middle;
+      opacity: 0.4;
+    }
+    thead th[aria-sort="ascending"]::after  { content: '▲'; opacity: 1; }
+    thead th[aria-sort="descending"]::after { content: '▼'; opacity: 1; }
+
     tbody tr:nth-child(even) { background: #f8f9fc; }
     tbody tr:hover           { background: #eef1fb; }
 
