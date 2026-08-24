@@ -20,9 +20,9 @@ WriteMakefile(
 	MIN_PERL_VERSION => '5.020',
 	EXE_FILES	=> ['script/database-bi'],
 	PREREQ_PM => {
-		'Carp'							=> 0,
+		'Carp'						=> 0,
 		'Database::Abstraction'	=> '0.38',
-		'Mojolicious'					=> '9.0',
+		'Mojolicious'				=> '9.0',
 		'Mojolicious::Plugin::TemplateToolkit'  => 0,
 		'Params::Validate::Strict'	=> '0.39',
 	}, TEST_REQUIRES => {
@@ -30,8 +30,9 @@ WriteMakefile(
 		'IPC::System::Simple' => 0,
 		'Test::Most' => 0,
 		'Test::Mojo' => 0,
+		'Text::xSV::Slurp' => 0,
 	}, dist => $dist,
-	clean		=> { FILES => 'Database-BI-*' },
+	clean	=> { FILES => 'Database-BI-*' },
 	META_MERGE => {
 		'meta-spec' => { version => 2 },
 		resources => {

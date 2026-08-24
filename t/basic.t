@@ -41,6 +41,17 @@ if (-f $sales) {
       ->status_is(200)->content_like(qr/sales/i);
 }
 
+# Export
+$t->get_ok('/export?l=' . url_escape('table:sales') . '&format=csv')
+  ->status_is(200)
+  ->content_type_like(qr{text/csv})
+  ->content_like(qr/product/i);
+$t->get_ok('/export?l=' . url_escape('table:sales') . '&format=sqlite')
+  ->status_is(200)
+  ->content_type_like(qr{sqlite});
+$t->get_ok('/export')->status_is(404);
+$t->get_ok('/export?l=' . url_escape('table:nonexistent_xyz'))->status_is(404);
+
 # Filter support
 $t->get_ok('/view/sales?f=' . url_escape('region:eq:North'))
   ->status_is(200)->content_like(qr/North/i);

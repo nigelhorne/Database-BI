@@ -3,7 +3,8 @@ package Database::BI::Controller::Dashboard;
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 use Mojo::File;
 use Mojo::JSON qw(encode_json);
-use Mojo::Util qw(url_escape);
+use Mojo::Util qw(url_escape encode);
+use File::Temp qw(tempfile);
 
 # Supported file extensions that Database::Abstraction can read.
 my @SUPPORTED_EXT = qw( csv db sqlite xml psv );
@@ -157,6 +158,22 @@ sub _left_join {
     return (\@merged, [@$left_cols, @add_cols]);
 }
 
+# Encode one row as an RFC 4180 CSV line.
+sub _csv_row {
+    return join(',', map {
+        my $f = $_ // '';
+        $f =~ /[,"\r\n]/ ? do { (my $q = $f) =~ s/"/""/g; qq{"$q"} } : $f;
+    } @_) . "\r\n";
+}
+
+# Build a base export URL for the current view (without &format=).
+sub _build_export_url ($self, $left_spec, $join_specs, $filter_specs) {
+    my $u = '/export?l=' . url_escape($left_spec);
+    $u .= '&j=' . url_escape($_) for @$join_specs;
+    $u .= '&f=' . url_escape($_) for @$filter_specs;
+    return $u;
+}
+
 # ---------------------------------------------------------------------------
 # Actions
 # ---------------------------------------------------------------------------
@@ -240,6 +257,7 @@ sub view ($self) {
         join_summaries   => [],
         filter_specs     => $filter_specs,
         filters_json     => $filters_json,
+        export_url       => $self->_build_export_url("table:$table", [], $filter_specs),
     );
 }
 
@@ -363,6 +381,7 @@ sub open_file ($self) {
     }
 
     my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+    my $lspec = 'path:' . $file->to_string;
 
     $self->render(
         template         => "$platform/$language/dashboard",
@@ -375,12 +394,13 @@ sub open_file ($self) {
         back_url         => $back,
         back_label       => 'Back to browser',
         file_path        => $file->to_string,
-        left_spec        => 'path:' . $file->to_string,
+        left_spec        => $lspec,
         current_joins    => [],
         available_tables => $self->_scan_data_dir,
         join_summaries   => [],
         filter_specs     => $filter_specs,
         filters_json     => $filters_json,
+        export_url       => $self->_build_export_url($lspec, [], $filter_specs),
     );
 }
 
@@ -501,7 +521,100 @@ sub join_tables ($self) {
         join_summaries   => \@summaries,
         filter_specs     => $filter_specs,
         filters_json     => $filters_json,
+        export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs),
     );
+}
+
+# GET /export — export the current logical view as CSV or SQLite.
+#
+# Accepts the same l=, j=, f= parameters as /join, plus:
+#   format=csv     (default) — RFC 4180 CSV download
+#   format=sqlite  — SQLite database with a single "data" table
+sub export_data ($self) {
+    my $format    = $self->param('format') // 'csv';
+    $format       = 'csv' unless $format eq 'sqlite';
+    my $left_spec = $self->param('l') // '';
+
+    my ($left_src, $left_label) = $self->_open_spec($left_spec);
+    return $self->reply->not_found unless $left_src;
+
+    my $left_recs = eval { $left_src->fetch_all };
+    return $self->reply->not_found if $@;
+    $left_recs //= [];
+
+    my @columns = _get_columns($left_src, $left_recs);
+    my $records  = $left_recs;
+
+    for my $jspec (@{ $self->every_param('j') }) {
+        my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
+        next unless defined $right_spec && defined $left_key && defined $right_key;
+        next unless grep { $_ eq $left_key } @columns;
+        my ($right_src, $right_label) = $self->_open_spec($right_spec);
+        next unless $right_src;
+        my $right_recs = eval { $right_src->fetch_all } // [];
+        next if $@;
+        my @right_cols = _get_columns($right_src, $right_recs);
+        next unless grep { $_ eq $right_key } @right_cols;
+        ($records, my $new_cols) = _left_join(
+            $records, \@columns, $left_key,
+            $right_recs, \@right_cols, $right_key, $right_label,
+        );
+        @columns = @$new_cols;
+    }
+
+    for my $s (@{ $self->every_param('f') }) {
+        $records = _apply_filter_spec($records, $s);
+    }
+
+    (my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
+
+    if ($format eq 'sqlite') {
+        return $self->_render_sqlite($records, \@columns, $safe_name);
+    }
+    return $self->_render_csv($records, \@columns, $safe_name);
+}
+
+sub _render_csv ($self, $records, $columns, $name) {
+    my $out = _csv_row(@$columns);
+    for my $row (@$records) {
+        $out .= _csv_row(map { $row->{$_} } @$columns);
+    }
+    $self->res->headers->content_type('text/csv; charset=UTF-8');
+    $self->res->headers->content_disposition(qq{attachment; filename="${name}.csv"});
+    $self->render(data => encode('UTF-8', $out));
+}
+
+sub _render_sqlite ($self, $records, $columns, $name) {
+    require DBI;
+
+    my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
+    close $tmp_fh;
+
+    my $dbh = DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
+        RaiseError => 1,
+        AutoCommit => 1,
+    });
+
+    my @quoted = map { my $c = $_; $c =~ s/"/""/g; qq{"$c"} } @$columns;
+    $dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
+
+    if (@$records) {
+        my $ph  = join(', ', ('?') x scalar @$columns);
+        my $sth = $dbh->prepare(
+            'INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)"
+        );
+        for my $row (@$records) {
+            $sth->execute(map { $row->{$_} } @$columns);
+        }
+    }
+
+    $dbh->disconnect;
+    my $data = Mojo::File->new($tmpfile)->slurp;
+    unlink $tmpfile;
+
+    $self->res->headers->content_type('application/vnd.sqlite3');
+    $self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
+    $self->render(data => $data);
 }
 
 sub _resolve_language ($self, $default) {
@@ -582,6 +695,22 @@ from C<data_dir>) or C<?path=/abs/path> (arbitrary file).  Returns 404
 when the table or file cannot be found or resolved.  Used by the join panel
 to populate the right-key dropdown without a page reload.
 
+=item C<export_data> - C<GET /export>
+
+Exports the current logical view as a file download.  Accepts the same
+C<l=>, C<j=>, and C<f=> parameters as C<join_tables>, plus C<format=>:
+
+  format=csv     (default) - RFC 4180 CSV, UTF-8, CRLF line endings;
+                   generated without external dependencies.
+  format=sqlite  - SQLite 3 database written via DBI/DBD::SQLite to a
+                   temporary file, slurped, and returned as
+                   application/vnd.sqlite3.  The single table is named
+                   C<data>; every column is declared C<TEXT>.
+
+Returns 404 if the left table spec is invalid or the table cannot be
+opened.  An empty result set (all rows filtered out) exports correctly as
+header-only CSV or an empty SQLite table.
+
 =back
 
 =head2 Filter operators
@@ -635,6 +764,30 @@ C<(\@merged_records, \@merged_columns)>.
 Standalone sub.  Returns the ordered column list from the C<DataSource>
 object, falling back to C<id_column>-first alphabetic order when the
 backend does not expose column order (SQLite, XML).
+
+=item C<_csv_row(@fields)>
+
+Standalone sub.  Formats one row of values as an RFC 4180 CSV line (CRLF
+terminated).  Fields containing commas, double-quotes, or newlines are
+quoted; embedded double-quotes are doubled.
+
+=item C<_build_export_url($self, $left_spec, \@join_specs, \@filter_specs)>
+
+Method.  Builds a C</export?l=...&j=...&f=...> URL string from the current
+view's parameters, suitable for use in HTML C<href> attributes (the caller
+must apply C<| html> in TT to escape C<&> to C<&amp;>).
+
+=item C<_render_csv($self, $records, \@columns, $name)>
+
+Method.  Serialises C<$records> to RFC 4180 CSV and renders it as a UTF-8
+download with C<Content-Disposition: attachment; filename="${name}.csv">.
+
+=item C<_render_sqlite($self, $records, \@columns, $name)>
+
+Method.  Creates a temporary SQLite database, inserts all records into a
+table named C<data>, slurps the file, and renders it as a binary download
+with C<Content-Disposition: attachment; filename="${name}.db">.  The
+temporary file is unlinked immediately after reading.
 
 =back
 

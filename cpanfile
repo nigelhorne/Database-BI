@@ -13,6 +13,7 @@ on 'test' => sub {
 	requires 'IPC::System::Simple';
 	requires 'Test::Mojo';
 	requires 'Test::Most';
+	requires 'Text::xSV::Slurp';
 };
 
 on 'develop' => sub {

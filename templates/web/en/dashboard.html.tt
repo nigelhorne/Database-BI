@@ -24,6 +24,12 @@
   </span>
   <a class="btn-clear-filters" id="btn-clear-filters" href="#">&#x2715; Clear filters</a>
   [%- END -%]
+  [%- IF export_url -%]
+  <div class="export-btns">
+    <a class="btn-export" href="[% export_url | html %]&amp;format=csv">&#x2193; CSV</a>
+    <a class="btn-export" href="[% export_url | html %]&amp;format=sqlite">&#x2193; SQLite</a>
+  </div>
+  [%- END -%]
   <button class="btn-add-db" id="btn-add-db" type="button">&#x2295; Add database&hellip;</button>
 </div>
 

@@ -98,6 +98,17 @@ Returns C<{ "columns": [...] }> for a table (C<?table=name>) or file
 (C<?path=/abs/path>).  Used by the join UI to populate the right-key
 dropdown without a page reload.
 
+=item C<GET /export>
+
+Exports the current logical view (same C<l=>, C<j=>, C<f=> parameters as
+C</join>) as a file download.  Additional parameter:
+
+  format=csv      (default) - RFC 4180 CSV; UTF-8; CRLF line endings
+  format=sqlite   - SQLite 3 database with a single table named "data"
+
+The download filename is derived from the left table label with
+non-alphanumeric characters replaced by underscores.
+
 =back
 
 =head1 CONFIGURATION
@@ -158,7 +169,16 @@ sub startup ($self) {
 	$r->get('/open')->to('Dashboard#open_file');
 	$r->get('/join')->to('Dashboard#join_tables');
 	$r->get('/api/columns')->to('Dashboard#columns_api');
+	$r->get('/export')->to('Dashboard#export_data');
 }
+
+=head1 REPOSITORY
+
+L<https://github.com/nigelhorne/Database-BI>
+
+=head1 SUPPORT
+
+This module is provided as-is without any warranty.
 
 =head1 AUTHOR
 
