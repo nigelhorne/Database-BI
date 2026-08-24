@@ -4,11 +4,11 @@
 
 [% IF records.size %]
 <p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]</p>
-<table>
+<table id="bi-table">
   <thead>
     <tr>
       [% FOREACH col IN columns -%]
-      <th>[% col | html %]</th>
+      <th draggable="true">[% col | html %]</th>
       [%- END %]
     </tr>
   </thead>
@@ -25,5 +25,72 @@
 [% ELSE %]
 <p class="empty-state">No records found in <strong>[% table | html %]</strong>.</p>
 [% END %]
+
+<script>
+(function () {
+  var table = document.getElementById('bi-table');
+  if (!table) return;
+
+  var headers = Array.from(table.querySelectorAll('thead th'));
+  var dragSrcIdx = null;
+
+  function colIndex(th) {
+    return headers.indexOf(th);
+  }
+
+  // Move an entire column from index `from` to index `to` across every row.
+  function moveCol(from, to) {
+    Array.from(table.rows).forEach(function (row) {
+      var cells = Array.from(row.children);
+      var moving = cells[from];
+      var target = cells[to];
+      if (!moving || !target) return;
+      if (from < to) {
+        row.insertBefore(moving, target.nextSibling);
+      } else {
+        row.insertBefore(moving, target);
+      }
+    });
+    // Keep headers array in sync with the new DOM order.
+    var moved = headers.splice(from, 1)[0];
+    headers.splice(to, 0, moved);
+  }
+
+  headers.forEach(function (th) {
+    th.addEventListener('dragstart', function (e) {
+      dragSrcIdx = colIndex(th);
+      e.dataTransfer.effectAllowed = 'move';
+      // Defer adding the class so the drag ghost renders before the fade.
+      setTimeout(function () { th.classList.add('dragging'); }, 0);
+    });
+
+    th.addEventListener('dragend', function () {
+      th.classList.remove('dragging');
+      headers.forEach(function (h) { h.classList.remove('drag-over'); });
+      dragSrcIdx = null;
+    });
+
+    th.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+      headers.forEach(function (h) { h.classList.remove('drag-over'); });
+      if (colIndex(th) !== dragSrcIdx) th.classList.add('drag-over');
+    });
+
+    th.addEventListener('dragleave', function () {
+      th.classList.remove('drag-over');
+    });
+
+    th.addEventListener('drop', function (e) {
+      e.preventDefault();
+      var toIdx = colIndex(th);
+      if (dragSrcIdx !== null && dragSrcIdx !== toIdx) {
+        moveCol(dragSrcIdx, toIdx);
+      }
+      headers.forEach(function (h) { h.classList.remove('drag-over'); });
+    });
+  });
+}());
+</script>
 
 [%- END -%]
