@@ -20,86 +20,93 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Controller/Dashboard.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c0">52.7%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c0">68.3%</td></tr>
 </table>
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
-<tr><td class="h"><a id="L21">21</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -d $dir</td></tr>
-<tr><td class="h"><a id="L36">36</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/u) { }</td></tr>
+<tr><td class="h"><a id="L58">58</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@args ? :</td></tr>
+<tr><td class="h"><a id="L94">94</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lang ne $default)</td></tr>
+<tr><td class="h"><a id="L97">97</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless -d $dir</td></tr>
+<tr><td class="h"><a id="L112">112</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -d $dir</td></tr>
+<tr><td class="h"><a id="L135">135</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/u) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($spec =~ /\Apath:(.+)\z/u) { }</td></tr>
-<tr><td class="h"><a id="L41">41</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {-f $data_dir-&gt;child(&quot;$table.$_&quot;);} @SUPPORTED_EXT</td></tr>
-<tr><td class="h"><a id="L43">43</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $src and not $@</td></tr>
-<tr><td class="h"><a id="L48">48</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
-<tr><td class="h"><a id="L52">52</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $src and not $@</td></tr>
-<tr><td class="h"><a id="L60">60</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/u</td></tr>
-<tr><td class="h"><a id="L61">61</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $spec =~ /\Apath:(.+)\z/u</td></tr>
-<tr><td class="h"><a id="L69">69</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($source-&gt;columns) { }</td></tr>
-<tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif ($records-&gt;[0]) { }</td></tr>
-<tr><td class="h"><a id="L76">76</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$c &amp;&amp; $all{$c} ? :</td></tr>
-<tr><td class="h"><a id="L89">89</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $col and length $col and defined $op and length $op</td></tr>
-<tr><td class="h"><a id="L93">93</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $_-&gt;{$col} ? :</td></tr>
-<tr><td class="h"><a id="L94">94</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;notempty&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;empty&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;ge&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;gt&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;le&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;lt&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;starts&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;contains&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$op eq &#39;ne&#39; ? :</td></tr>
-<tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$op eq &#39;eq&#39; ? :</td></tr>
-<tr><td class="h"><a id="L118">118</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $col and length $col and defined $op and length $op</td></tr>
-<tr><td class="h"><a id="L146">146</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$left_set{$col} ? :</td></tr>
-<tr><td class="h"><a id="L169">169</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$f =~ /[,&quot;\r\n]/u ? :</td></tr>
-<tr><td class="h"><a id="L193">193</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (-d $dir_path)</td></tr>
-<tr><td class="h"><a id="L219">219</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $table and $table =~ /\A[A-Za-z0-9_]+\z/u)</td></tr>
-<tr><td class="h"><a id="L225">225</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L238">238</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($source-&gt;columns) { }</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($records-&gt;[0]) { }</td></tr>
-<tr><td class="h"><a id="L245">245</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$c &amp;&amp; $all{$c} ? :</td></tr>
-<tr><td class="h"><a id="L279">279</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $dir and -d $dir)</td></tr>
-<tr><td class="h"><a id="L284">284</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (opendir my $dh, $dir-&gt;to_string)</td></tr>
-<tr><td class="h"><a id="L286">286</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $entry eq &quot;.&quot; or $entry eq &quot;..&quot;</td></tr>
-<tr><td class="h"><a id="L287">287</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $entry =~ /\A\./u</td></tr>
-<tr><td class="h"><a id="L289">289</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-d $f) { }</td></tr>
-<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($entry =~ /$EXT_RE/u) { }</td></tr>
-<tr><td class="h"><a id="L312">312</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $name</td></tr>
-<tr><td class="h"><a id="L318">318</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $parent-&gt;to_string eq $f-&gt;to_string</td></tr>
-<tr><td class="h"><a id="L324">324</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
-<tr><td class="h"><a id="L348">348</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $file_path)</td></tr>
-<tr><td class="h"><a id="L353">353</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
-<tr><td class="h"><a id="L365">365</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L380">380</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($source-&gt;columns) { }</td></tr>
-<tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif ($records-&gt;[0]) { }</td></tr>
-<tr><td class="h"><a id="L387">387</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$c &amp;&amp; $all{$c} ? :</td></tr>
-<tr><td class="h"><a id="L424">424</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $table_name and $table_name =~ /\A[A-Za-z0-9_]+\z/u) { }</td></tr>
+<tr><td class="h"><a id="L138">138</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {-f $data_dir-&gt;child(&quot;$table.$_&quot;);} @SUPPORTED_EXT</td></tr>
+<tr><td class="h"><a id="L140">140</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $src and not $@</td></tr>
+<tr><td class="h"><a id="L144">144</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
+<tr><td class="h"><a id="L148">148</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $src and not $@</td></tr>
+<tr><td class="h"><a id="L162">162</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/u</td></tr>
+<tr><td class="h"><a id="L163">163</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $spec =~ /\Apath:(.+)\z/u</td></tr>
+<tr><td class="h"><a id="L179">179</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $source-&gt;columns</td></tr>
+<tr><td class="h"><a id="L180">180</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $records-&gt;[0]</td></tr>
+<tr><td class="h"><a id="L184">184</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$c &amp;&amp; $all{$c} ? :</td></tr>
+<tr><td class="h"><a id="L200">200</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $col and length $col and defined $op and length $op</td></tr>
+<tr><td class="h"><a id="L204">204</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $_-&gt;{$col} ? :</td></tr>
+<tr><td class="h"><a id="L205">205</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;notempty&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;empty&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;ge&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;gt&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;le&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;lt&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;starts&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;contains&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$op eq &#39;ne&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq &#39;eq&#39; ? :</td></tr>
+<tr><td class="h"><a id="L236">236</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $col and length $col and defined $op and length $op</td></tr>
+<tr><td class="h"><a id="L272">272</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$left_set{$col} ? :</td></tr>
+<tr><td class="h"><a id="L302">302</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$f =~ /[,&quot;\r\n]/u ? :</td></tr>
+<tr><td class="h"><a id="L333">333</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (opendir my $dh, $dir-&gt;to_string)</td></tr>
+<tr><td class="h"><a id="L335">335</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $entry eq &quot;.&quot; or $entry eq &quot;..&quot; or $entry =~ /\A\./u</td></tr>
+<tr><td class="h"><a id="L337">337</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-d $f) { }</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($want_files and $entry =~ /$EXT_RE/u) { }</td></tr>
+<tr><td class="h"><a id="L370">370</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L376">376</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (@$records)</td></tr>
+<tr><td class="h"><a id="L402">402</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
+<tr><td class="h"><a id="L405">405</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L413">413</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless defined $right_spec and defined $left_key and defined $right_key</td></tr>
+<tr><td class="h"><a id="L414">414</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless grep {$_ eq $left_key;} @columns</td></tr>
+<tr><td class="h"><a id="L416">416</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless $right_src</td></tr>
+<tr><td class="h"><a id="L418">418</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L420">420</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless grep {$_ eq $right_key;} @right_cols</td></tr>
+<tr><td class="h"><a id="L559">559</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $table and $table =~ /$TABLE_NAME_RE/u)</td></tr>
+<tr><td class="h"><a id="L565">565</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L643">643</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and -d $dir</td></tr>
+<tr><td class="h"><a id="L662">662</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $name</td></tr>
+<tr><td class="h"><a id="L665">665</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $parent-&gt;to_string eq $f-&gt;to_string</td></tr>
+<tr><td class="h"><a id="L671">671</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
+<tr><td class="h"><a id="L731">731</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file_path</td></tr>
+<tr><td class="h"><a id="L734">734</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
+<tr><td class="h"><a id="L746">746</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L827">827</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $table_name and $table_name =~ /$TABLE_NAME_RE/u) { }</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">elsif (defined $path) { }</td></tr>
-<tr><td class="h"><a id="L427">427</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {-f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;);} @SUPPORTED_EXT</td></tr>
-<tr><td class="h"><a id="L432">432</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
-<tr><td class="h"><a id="L439">439</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($source)</td></tr>
-<tr><td class="h"><a id="L444">444</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($source-&gt;columns) { }</td></tr>
-<tr><td class="h"><a id="L449">449</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$recs-&gt;[0] ? :</td></tr>
-<tr><td class="h"><a id="L470">470</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
-<tr><td class="h"><a id="L473">473</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L490">490</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $right_spec and defined $left_key and defined $right_key</td></tr>
-<tr><td class="h"><a id="L491">491</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless grep {$_ eq $left_key;} @columns</td></tr>
-<tr><td class="h"><a id="L494">494</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $right_src</td></tr>
-<tr><td class="h"><a id="L497">497</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L499">499</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless grep {$_ eq $right_key;} @right_cols</td></tr>
-<tr><td class="h"><a id="L512">512</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @summaries</td></tr>
-<tr><td class="h"><a id="L545">545</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $format eq &quot;sqlite&quot;</td></tr>
-<tr><td class="h"><a id="L549">549</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
-<tr><td class="h"><a id="L552">552</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L560">560</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless defined $right_spec and defined $left_key and defined $right_key</td></tr>
-<tr><td class="h"><a id="L561">561</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless grep {$_ eq $left_key;} @columns</td></tr>
-<tr><td class="h"><a id="L563">563</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless $right_src</td></tr>
-<tr><td class="h"><a id="L565">565</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L567">567</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless grep {$_ eq $right_key;} @right_cols</td></tr>
-<tr><td class="h"><a id="L581">581</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($format eq &quot;sqlite&quot;)</td></tr>
-<tr><td class="h"><a id="L611">611</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (@$records)</td></tr>
-<tr><td class="h"><a id="L638">638</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($upload and $upload-&gt;filename)</td></tr>
-<tr><td class="h"><a id="L644">644</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($filename and $filename =~ /$EXT_RE/u)</td></tr>
+<tr><td class="h"><a id="L830">830</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {-f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;);} @SUPPORTED_EXT</td></tr>
+<tr><td class="h"><a id="L835">835</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
+<tr><td class="h"><a id="L842">842</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $source</td></tr>
+<tr><td class="h"><a id="L845">845</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$source-&gt;columns ? :</td></tr>
+<tr><td class="h"><a id="L907">907</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
+<tr><td class="h"><a id="L910">910</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L929">929</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $right_spec and defined $left_key and defined $right_key</td></tr>
+<tr><td class="h"><a id="L930">930</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless grep {$_ eq $left_key;} @columns</td></tr>
+<tr><td class="h"><a id="L933">933</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $right_src</td></tr>
+<tr><td class="h"><a id="L936">936</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L938">938</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless grep {$_ eq $right_key;} @right_cols</td></tr>
+<tr><td class="h"><a id="L951">951</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @summaries</td></tr>
+<tr><td class="h"><a id="L1014">1014</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L1017">1017</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $format eq &quot;sqlite&quot;</td></tr>
+<tr><td class="h"><a id="L1020">1020</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$format eq &#39;sqlite&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1076">1076</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $dest_dir and -d $dest_dir)</td></tr>
+<tr><td class="h"><a id="L1086">1086</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($filename and $filename =~ /\.csv$/iu) { }</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($filename and $filename =~ /\.sql$/iu) { }</td></tr>
+<tr><td class="h"><a id="L1096">1096</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L1101">1101</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($format eq &#39;csv&#39;) { }</td></tr>
+<tr><td class="h"><a id="L1112">1112</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L1163">1163</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and -d $dir</td></tr>
+<tr><td class="h"><a id="L1173">1173</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
+<tr><td class="h"><a id="L1229">1229</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $path and length $path)</td></tr>
+<tr><td class="h"><a id="L1237">1237</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file</td></tr>
+<tr><td class="h"><a id="L1294">1294</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($upload and $upload-&gt;filename)</td></tr>
+<tr><td class="h"><a id="L1302">1302</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($filename and $filename =~ /$EXT_RE/u)</td></tr>
+<tr><td class="h"><a id="L1314">1314</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_base</td></tr>
 </table>
 </body>
 </html>
