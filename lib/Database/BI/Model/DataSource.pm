@@ -145,14 +145,19 @@ sub new {
 # Private initialisation
 # ---------------------------------------------------------------------------
 
-# _detect_id_column( $dir, $table ) -> $col_name | undef
+# _detect_file_info( $dir, $table ) -> \%info
 #
-# Peek at the first line of a CSV or PSV file to find the first column name.
-# Database::Abstraction's slurp filter greps every row against $self->{'id'}
-# (default: 'entry').  If no column by that name exists, every row is
-# silently discarded.  We detect the actual first column so we can pass it
-# as 'id', making the filter a no-op for all valid data rows.
-sub _detect_id_column {
+# Peek at the first header line of a CSV or PSV file and return a hashref:
+#   sep_char => field separator character (',' or '|')
+#   id       => first column name (used as Database::Abstraction's id key)
+#
+# Two non-obvious defaults in Database::Abstraction make this necessary:
+#   1. sep_char defaults to '!' — so a plain CSV is read as one giant field
+#      per row, producing a single comma-joined string instead of columns.
+#   2. id defaults to 'entry' — the slurp filter greps on that column; if it
+#      doesn't exist every row is silently discarded.
+# Returns an empty hashref for non-CSV/PSV formats (SQLite, XML, etc.).
+sub _detect_file_info {
 	my ($dir, $table) = @_;
 	for my $ext (qw(csv psv)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
@@ -165,9 +170,12 @@ sub _detect_id_column {
 		my $sep = $ext eq 'psv' ? '|' : ',';
 		my ($col) = split /\Q$sep\E/, $line;
 		$col =~ s/\A[\s"]+|[\s"]+\z//g;	# strip whitespace and quotes
-		return $col if length($col // '');
+		return {
+			sep_char => $sep,
+			id       => (length($col // '') ? $col : undef),
+		};
 	}
-	return undef;
+	return {};
 }
 
 # _init_backend( $self ) -> void
@@ -197,10 +205,8 @@ sub _init_backend {
 			unless $pkg->isa('Database::Abstraction');
 	}
 
-	# Detect the first column so the slurp filter has a valid column to check.
-	# Falls back to 'entry' (Database::Abstraction's own default) if detection
-	# fails (e.g. SQLite/XML, which use a different loading path).
-	my $id_col = _detect_id_column($dir, $table) // 'entry';
+	my $info   = _detect_file_info($dir, $table);
+	my $id_col = $info->{id} // 'entry';
 
 	my $db = eval {
 		$pkg->new({
@@ -208,6 +214,7 @@ sub _init_backend {
 			table     => $table,
 			id        => $id_col,
 			no_entry  => 1,
+			defined($info->{sep_char}) ? (sep_char => $info->{sep_char}) : (),
 		});
 	};
 	if ($@) {
