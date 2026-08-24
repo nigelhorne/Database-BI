@@ -1,6 +1,9 @@
 [%- WRAPPER 'web/en/layouts/default.html.tt' -%]
 
+<p class="back-link"><a href="/">&larr; Choose another database</a></p>
+
 [% IF records.size %]
+<p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]</p>
 <table>
   <thead>
     <tr>
@@ -20,7 +23,7 @@
   </tbody>
 </table>
 [% ELSE %]
-<p class="empty-state">No records found.</p>
+<p class="empty-state">No records found in <strong>[% table | html %]</strong>.</p>
 [% END %]
 
 [%- END -%]

@@ -66,6 +66,66 @@
       font-style: italic;
     }
 
+    .error {
+      background: #fdecea;
+      border-left: 4px solid #c0392b;
+      color: #922b21;
+      padding: 0.75rem 1rem;
+      border-radius: 4px;
+      margin-bottom: 1.25rem;
+    }
+
+    .back-link {
+      margin-bottom: 1rem;
+      font-size: 0.875rem;
+    }
+    .back-link a { color: #2c3e7a; text-decoration: none; }
+    .back-link a:hover { text-decoration: underline; }
+
+    .record-count {
+      font-size: 0.8rem;
+      color: #666;
+      margin-bottom: 0.75rem;
+    }
+
+    /* Database picker */
+    .db-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 1rem;
+    }
+
+    .db-card {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.4rem;
+      padding: 1.25rem 1rem;
+      border: 1px solid #dde2f0;
+      border-radius: 8px;
+      text-decoration: none;
+      color: #1a1a2e;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .db-card:hover {
+      background: #eef1fb;
+      box-shadow: 0 2px 6px rgba(44,62,122,.12);
+    }
+
+    .db-icon { font-size: 2rem; }
+
+    .db-name {
+      font-weight: 600;
+      font-size: 1rem;
+      color: #2c3e7a;
+    }
+
+    .db-file {
+      font-size: 0.75rem;
+      color: #888;
+    }
+
     footer {
       margin-top: 1.5rem;
       font-size: 0.75rem;

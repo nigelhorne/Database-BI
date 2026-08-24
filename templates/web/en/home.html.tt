@@ -1,0 +1,26 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt' -%]
+
+[% IF error %]
+<p class="error">[% error | html %]</p>
+[% END %]
+
+[% IF tables.size %]
+<ul class="db-list">
+  [% FOREACH t IN tables %]
+  <li>
+    <a href="/view/[% t.name | uri %]" class="db-card">
+      <span class="db-icon">&#128452;</span>
+      <span class="db-name">[% t.name | html %]</span>
+      <span class="db-file">[% t.file | html %]</span>
+    </a>
+  </li>
+  [% END %]
+</ul>
+[% ELSE %]
+<p class="empty-state">
+  No data files found in the <code>data/</code> directory.<br>
+  Add a <code>.csv</code>, <code>.db</code>, <code>.sqlite</code>, or <code>.xml</code> file there and restart.
+</p>
+[% END %]
+
+[%- END -%]
