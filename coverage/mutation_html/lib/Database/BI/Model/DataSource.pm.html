@@ -1,0 +1,1052 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>File: lib/Database/BI/Model/DataSource.pm</title>
+<style>
+
+/* --------------------------------------------------
+   CSS Variables (Light Mode Default)
+-------------------------------------------------- */
+
+:root {
+    --bg: #ffffff;
+    --text: #000000;
+    --table-header: #333;
+    --table-header-text: #ffffff;
+
+    --survived-1: #f8d7da;
+    --survived-2: #f5b7b1;
+    --survived-3: #ec7063;
+
+    --killed: #d4edda;
+    --border: #cccccc;
+}
+
+/* --------------------------------------------------
+   Dark Mode Overrides
+-------------------------------------------------- */
+
+html[data-theme='dark'] {
+    --bg: #1e1e1e;
+    --text: #dddddd;
+    --table-header: #222;
+    --table-header-text: #ffffff;
+
+    --survived-1: #5c2b2e;
+    --survived-2: #7b2c2f;
+    --survived-3: #a93226;
+
+    --killed: #1e4620;
+    --border: #555;
+}
+
+/* --------------------------------------------------
+   Global Styles
+-------------------------------------------------- */
+
+body {
+	font-family: sans-serif;
+	background: var(--bg);
+	color: var(--text);
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th {
+    background: var(--table-header);
+    color: var(--table-header-text);
+}
+
+.survived-1 { background-color: var(--survived-1); }
+.survived-2 { background-color: var(--survived-2); }
+.survived-3 { background-color: var(--survived-3); }
+
+.killed { background-color: var(--killed); }
+
+.legend {
+    border: 1px solid #ccc;
+    background: #fafafa;
+    padding: 10px;
+    margin: 15px 0;
+    font-size: 0.9em;
+}
+
+.legend pre {
+    background: #f4f4f4;
+    padding: 5px;
+}
+
+.legend-box {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin: 0 6px 0 20px;
+    vertical-align: middle;
+    border: 1px solid var(--border);
+}
+
+/* White box for non-mutated lines */
+.legend-box.none {
+	background-color: var(--bg);
+}
+
+/* --------------------------------------------------
+   Suggested Test Box Styling
+   Theme-aware and readable in light & dark modes
+-------------------------------------------------- */
+
+.suggested-test {
+    margin-top: 6px;
+    margin-bottom: 12px;
+
+    /* Use theme variables instead of hardcoded colors */
+    background: var(--bg);
+    color: var(--text);
+
+    padding: 8px;
+    border-radius: 4px;
+
+    /* Subtle border for visual separation */
+    border: 1px solid var(--border);
+}
+
+/* Label styling */
+.suggest-label {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+/* Ensure the test code block inherits readable colors */
+.suggested-test pre {
+    background: transparent;   /* Prevent nested dark blocks */
+    color: inherit;            /* Match theme text color */
+    margin: 0;
+    font-family: monospace;
+}
+
+pre { line-height: 1.4; }
+
+pre > details {
+    margin: 0.2em 0;
+}
+
+pre > details:first-child {
+    margin-top: 0;
+}
+
+pre > details:last-child {
+    margin-bottom: 0;
+}
+
+pre details,
+pre summary,
+pre ul,
+pre li {
+    white-space: normal;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+}
+
+.nav { margin-bottom: 1em; }
+
+.toggle {
+    float: right;
+    cursor: pointer;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+/* Tooltip container */
+.tooltip {
+	position: relative;
+	cursor: help;
+}
+
+/* Tooltip bubble */
+.tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: var(--table-header);
+    color: var(--table-header-text);
+    padding: 6px 10px;
+    white-space: normal;
+    max-width: 300px;
+    min-width: 30ch;
+    font-size: 12px;
+    border-radius: 6px;
+    z-index: 1000;
+    margin-left: 10ch;   /* move tooltip ~10 characters to the right */
+}
+
+.mutant-details {
+	margin-left: 2em;
+	font-size: 0.9em;
+}
+
+/* Indent the list of mutations that displays when expanding by 8 characters */
+pre details.mutant-details ul {
+	padding-left: 8ch;
+	margin: 0.2em 0;
+}
+
+.mutant-details summary {
+	cursor: pointer;
+	font-weight: bold;
+}
+
+.lcsaj-dot {
+    color: #5555ff;
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+.lcsaj-dot-uncovered {
+    color: #cc4444;
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+.lcsaj-tip {
+	position: relative;
+	display: inline-block;
+}
+
+.lcsaj-tip .lcsaj-tip-text {
+	visibility: hidden;
+	background-color: #333;
+	color: #fff;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	white-space: nowrap;
+	position: fixed;
+	z-index: 9999;
+	pointer-events: none;
+}
+
+.lcsaj-tip:hover .lcsaj-tip-text {
+	visibility: visible;
+}
+
+.cpd-dot {
+    color: #cc8800;
+    font-size: 10px;
+    margin-right: 3px;
+    cursor: help;
+    text-decoration: none;
+}
+a.cpd-dot { cursor: pointer; }
+a.cpd-dot:hover { color: #ff8800; }
+
+.cpd-tip {
+    position: relative;
+    display: inline-block;
+}
+
+.cpd-tip .cpd-tip-text {
+    visibility: hidden;
+    background-color: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.cpd-tip:hover .cpd-tip-text {
+    visibility: visible;
+}
+
+/* CPD drill-down page styles */
+.dup-line { background-color: #fff3cd; display: block; }
+.dup-line:hover { background-color: #ffe082; }
+.intra-dot { color: #9944cc; margin-right: 4px; cursor: help; text-decoration: none; }
+a.intra-dot { cursor: pointer; }
+a.intra-dot:hover { color: #7700bb; }
+.cpd-legend {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin-bottom: 1em;
+    font-size: 0.9em;
+}
+
+</style>
+</head>
+<body>
+<button class="toggle" onclick="toggleTheme()">🌙 Toggle Theme</button>
+<h1>lib/Database/BI/Model/DataSource.pm</h1>
+<div class="nav"><a href="../../../../../index.html">Index</a>
+</div><div class='summary'>
+<strong>Structural Coverage (Approximate)</strong><p>
+TER1 (Statement): 81.90%<br>
+TER2 (Branch): 44.12%<br>
+TER3 (LCSAJ): 66.7% (4/6)<br>
+Approximate LCSAJ segments: 35<br>
+</div>
+
+    <div class="legend">
+        <h3>LCSAJ Legend</h3>
+
+        <p>
+        <span class="lcsaj-dot">●</span>
+        <b>Covered</b> — this LCSAJ path was executed during testing.
+        </p>
+
+        <p>
+        <span class="lcsaj-dot-uncovered">●</span>
+        <b>Not covered</b> — this LCSAJ path was never executed. These are the paths to focus on.
+        </p>
+
+        <p>
+        Multiple dots on a line indicate that multiple control-flow paths begin at that line.
+        Hovering over any dot shows:
+        </p>
+
+        <pre>
+        start → end → jump
+        </pre>
+
+        <ul>
+        <li><b>start</b> – first line of the linear sequence</li>
+        <li><b>end</b> – last line before control flow changes</li>
+        <li><b>jump</b> – line execution jumps to next</li>
+        </ul>
+
+        <p>
+        Uncovered paths show <b>[NOT COVERED]</b> in the tooltip.
+	</p>
+    </div>
+
+		<div class="legend">
+			<h3>Mutant Testing Legend</h3>
+			<span class="legend-box survived-1"></span> Survived (tests missed this)
+			<span class="legend-box killed"></span> Killed (tests detected this)
+			<span class="legend-box none"></span> No mutation
+		</div>
+	<pre>
+<span class="">    1: package Database::BI::Model::DataSource;
+</span><span class="">    2: 
+</span><span class="">    3: use strict;
+</span><span class="">    4: use warnings;
+</span><span class="">    5: use autodie qw(:all);
+</span><span class="">    6: 
+</span><span class="">    7: use Carp		qw(croak carp);
+</span><span class="">    8: use File::Spec		();
+</span><span class="">    9: use Readonly;
+</span><span class="">   10: use Scalar::Util	qw(blessed);
+</span><span class="">   11: use Params::Validate	qw(:all);
+</span><span class="">   12: use Params::Get		();
+</span><span class="">   13: 
+</span><span class="">   14: our $VERSION = &#39;0.01&#39;;
+</span><span class="">   15: 
+</span><span class="">   16: # ---------------------------------------------------------------------------
+</span><span class="">   17: # I18N message dictionary.
+</span><span class="">   18: # All user-visible strings and exception messages are keyed here.
+</span><span class="">   19: # To plug in a real i18n backend (e.g. Locale::Maketext), pass an object
+</span><span class="">   20: # that responds to maketext($key, @args) as the &quot;i18n&quot; constructor argument;
+</span><span class="">   21: # it will be called in preference to this table.
+</span><span class="">   22: # ---------------------------------------------------------------------------
+</span><span class="">   23: 
+</span><span class="">   24: Readonly our %MESSAGES =&gt; (
+</span><span class="">   25: 	error_directory_required	=&gt; &#39;DataSource: argument &quot;directory&quot; is required&#39;,
+</span><span class="">   26: 	error_table_required		=&gt; &#39;DataSource: argument &quot;table&quot; is required&#39;,
+</span><span class="">   27: 	error_directory_missing		=&gt; &#39;DataSource: directory &quot;%s&quot; does not exist or is not readable&#39;,
+</span><span class="">   28: 	error_table_name_invalid	=&gt; &#39;DataSource: table name &quot;%s&quot; contains illegal characters (alphanumeric and underscore only)&#39;,
+</span><span class="">   29: 	error_backend_init		=&gt; &#39;DataSource: failed to initialise database backend for table &quot;%s&quot;: %s&#39;,
+</span><span class="">   30: 	error_fetch_failed		=&gt; &#39;DataSource: fetch_all failed for table &quot;%s&quot;: %s&#39;,
+</span><span class="">   31: 	warn_empty_result		=&gt; &#39;DataSource: fetch_all returned no records for table &quot;%s&quot;&#39;,
+</span><span class="">   32: 	warn_data_normalised		=&gt; &#39;DataSource: result from backend was a hashref; converted to arrayref for table &quot;%s&quot;&#39;,
+</span><span class="">   33: );
+</span><span class="">   34: 
+</span><span class="">   35: # A table name is a bare SQL-safe identifier: starts with a letter or
+</span><span class="">   36: # underscore, followed by zero or more alphanumeric/underscore characters.
+</span><span class="">   37: Readonly my $TABLE_NAME_RE =&gt; qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
+</span><span class="">   38: 
+</span><span class="">   39: # ---------------------------------------------------------------------------
+</span><span class="">   40: # Private helpers
+</span><span class="">   41: # ---------------------------------------------------------------------------
+</span><span class="">   42: 
+</span><span class="">   43: # _fmt( $key [, @sprintf_args] ) -&gt; $string
+</span><span class="">   44: #
+</span><span class="">   45: # Package-level (not a method) i18n formatter. Looks up $key in %MESSAGES and
+</span><span class="">   46: # applies sprintf if positional arguments are supplied. This function is used
+</span><span class="">   47: # in new() before the object exists; instance methods should use _msg() instead
+</span><span class="">   48: # so that a caller-supplied i18n object can override the built-in strings.
+</span><span class="">   49: sub _fmt {
+</span><span class="">   50: 	my ($key, @args) = @_;
+</span><span class="">   51: 	my $tmpl = $MESSAGES{$key} // &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   52: 	return @args ? sprintf($tmpl, @args) : $tmpl;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_52_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_52_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">   53: }
+</span><span class="">   54: 
+</span><span class="">   55: # _msg( $self, $key [, @sprintf_args] ) -&gt; $string
+</span><span class="">   56: #
+</span><span class="">   57: # Instance-level i18n formatter. Delegates to the caller-supplied i18n object
+</span><span class="">   58: # (if any) before falling back to _fmt(). The i18n object must implement
+</span><span class="">   59: # maketext($key, @args).
+</span><span class="">   60: sub _msg {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">61 → 62 → 65</span></span>   61: 	my ($self, $key, @args) = @_;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">   62: 	if (my $i18n = $self-&gt;{_i18n}) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_62_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   63: 		return $i18n-&gt;maketext($key, @args);
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_63_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_63_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">   64: 	}
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   65: 	return _fmt($key, @args);
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_65_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_65_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">   66: }
+</span><span class="">   67: 
+</span><span class="">   68: # ---------------------------------------------------------------------------
+</span><span class="">   69: # Constructor
+</span><span class="">   70: # ---------------------------------------------------------------------------
+</span><span class="">   71: 
+</span><span class="">   72: =head2 new
+</span><span class="">   73: 
+</span><span class="">   74: Creates and returns a new C&lt;Database::BI::Model::DataSource&gt; instance.
+</span><span class="">   75: 
+</span><span class="">   76: =head3 API SPECIFICATION
+</span><span class="">   77: 
+</span><span class="">   78: =head4 INPUT
+</span><span class="">   79: 
+</span><span class="">   80: 	{
+</span><span class="">   81: 	    directory =&gt; SCALAR,           # required; path to the data directory
+</span><span class="">   82: 	    table     =&gt; SCALAR,           # required; bare table/file name (no extension)
+</span><span class="">   83: 	    i18n      =&gt; OBJECT | undef,   # optional; must implement maketext($key, @args)
+</span><span class="">   84: 	}
+</span><span class="">   85: 
+</span><span class="">   86: Accepts a flat key/value list, a hashref, or positional arguments via
+</span><span class="">   87: C&lt;Params::Get&gt;.
+</span><span class="">   88: 
+</span><span class="">   89: =head4 OUTPUT
+</span><span class="">   90: 
+</span><span class="">   91: Returns C&lt;$self&gt; (a blessed hashref). Croaks on invalid arguments.
+</span><span class="">   92: 
+</span><span class="">   93: =head3 MESSAGES
+</span><span class="">   94: 
+</span><span class="">   95:   error_directory_required    -- &quot;directory&quot; argument was not supplied
+</span><span class="">   96:   error_table_required        -- &quot;table&quot; argument was not supplied
+</span><span class="">   97:   error_directory_missing     -- supplied directory does not exist / is unreadable
+</span><span class="">   98:   error_table_name_invalid    -- table name fails the safe-identifier check
+</span><span class="">   99:   error_backend_init          -- Database::Abstraction subclass could not be instantiated
+</span><span class="">  100: 
+</span><span class="">  101: =head3 FORMAL SPECIFICATION
+</span><span class="">  102: 
+</span><span class="">  103:   new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
+</span><span class="">  104:          pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
+</span><span class="">  105:               /\ table =~ TABLE_NAME_RE
+</span><span class="">  106:          post result.class = DataSource
+</span><span class="">  107:               /\ result._db.class = Database::Abstraction
+</span><span class="">  108: 
+</span><span class="">  109: =cut
+</span><span class="">  110: 
+</span><span class="">  111: sub new {
+</span><span class="">  112: 	# Strategy: normalise the argument list with Params::Get so callers may
+</span><span class="">  113: 	# pass a hashref or a flat list interchangeably, then validate strictly
+</span><span class="">  114: 	# with Params::Validate before touching any value.
+</span><span class="">  115: 	my $class = shift;
+</span><span class="">  116: 	my $raw   = Params::Get::get_params(undef, @_);
+</span><span class="">  117: 
+</span><span class="">  118: 	my %args = validate_with(
+</span><span class="">  119: 		params =&gt; $raw,
+</span><span class="">  120: 		spec   =&gt; {
+</span><span class="">  121: 			directory =&gt; { type =&gt; SCALAR },
+</span><span class="">  122: 			table     =&gt; { type =&gt; SCALAR },
+</span><span class="">  123: 			i18n      =&gt; { type =&gt; OBJECT | UNDEF, optional =&gt; 1, default =&gt; undef },
+</span><span class="">  124: 		},
+</span><span class="">  125: 	);
+</span><span class="">  126: 
+</span><span class="">  127: 	croak _fmt(&#39;error_directory_missing&#39;, $args{directory})
+</span><span class="">  128: 		unless -d $args{directory};
+</span><span class="">  129: 
+</span><span class="">  130: 	croak _fmt(&#39;error_table_name_invalid&#39;, $args{table})
+</span><span class="">  131: 		unless $args{table} =~ $TABLE_NAME_RE;
+</span><span class="">  132: 
+</span><span class="">  133: 	my $self = bless {
+</span><span class="">  134: 		_directory =&gt; $args{directory},
+</span><span class="">  135: 		_table     =&gt; lc $args{table},
+</span><span class="">  136: 		_i18n      =&gt; $args{i18n},
+</span><span class="">  137: 		_db        =&gt; undef,
+</span><span class="">  138: 	}, $class;
+</span><span class="">  139: 
+</span><span class="">  140: 	$self-&gt;_init_backend;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  141: 	return $self;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_141_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_141_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  142: }
+</span><span class="">  143: 
+</span><span class="">  144: # ---------------------------------------------------------------------------
+</span><span class="">  145: # Private initialisation
+</span><span class="">  146: # ---------------------------------------------------------------------------
+</span><span class="">  147: 
+</span><span class="">  148: # _detect_file_info( $dir, $table ) -&gt; \%info
+</span><span class="">  149: #
+</span><span class="">  150: # Peek at the first header line of a CSV or PSV file and return a hashref:
+</span><span class="">  151: #   sep_char =&gt; field separator character (&#39;,&#39; or &#39;|&#39;)
+</span><span class="">  152: #   id       =&gt; first column name (used as Database::Abstraction&#39;s id key)
+</span><span class="">  153: #   columns  =&gt; arrayref of all column names in file order
+</span><span class="">  154: #
+</span><span class="">  155: # Two non-obvious defaults in Database::Abstraction make this necessary:
+</span><span class="">  156: #   1. sep_char defaults to &#39;!&#39; &acirc;&#128;&#148; so a plain CSV is read as one giant field
+</span><span class="">  157: #      per row, producing a single comma-joined string instead of columns.
+</span><span class="">  158: #   2. id defaults to &#39;entry&#39; &acirc;&#128;&#148; the slurp filter greps on that column; if it
+</span><span class="">  159: #      doesn&#39;t exist every row is silently discarded.
+</span><span class="">  160: # Returns an empty hashref for non-CSV/PSV formats (SQLite, XML, etc.).
+</span><span class="">  161: sub _detect_file_info {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">162 → 163 → 193</span></span>  162: 	my ($dir, $table) = @_;
+</span><span class="">  163: 	for my $ext (qw(csv psv)) {
+</span><span class="">  164: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.$ext&quot;);
+</span><span class="">  165: 		next unless -r $path;
+</span><span class="">  166: 		open my $fh, &#39;&lt;&#39;, $path or next;
+</span><span class="">  167: 		my $line = &lt;$fh&gt;;
+</span><span class="">  168: 		close $fh;
+</span><span class="">  169: 		next unless defined $line;
+</span><span class="">  170: 		chomp $line;
+</span><span class="">  171: 
+</span><span class="">  172: 		my $sep;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  173: 		if ($ext eq &#39;psv&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  174: 			$sep = &#39;|&#39;;
+</span><span class="">  175: 		} else {
+</span><span class="">  176: 			# Sniff the separator: Database::Abstraction uses &#39;!&#39; natively and
+</span><span class="">  177: 			# sometimes stores those files with a .csv extension.  If splitting
+</span><span class="">  178: 			# on &#39;,&#39; yields a single field that itself contains &#39;!&#39;, the real
+</span><span class="">  179: 			# separator is almost certainly &#39;!&#39;.
+</span><span class="">  180: 			my @probe = split /,/, $line, -1;
+</span><span class="survived-1 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  181: 			$sep = (@probe == 1 &amp;&amp; $line =~ /!/) ? &#39;!&#39; : &#39;,&#39;;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_181_19_!=: Numeric boundary flip == to !=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  182: 		}
+</span><span class="">  183: 
+</span><span class="">  184: 		my @cols = split /\Q$sep\E/, $line;
+</span><span class="">  185: 		for (@cols) { s/\A[\s&quot;]+|[\s&quot;]+\z//g }	# strip whitespace and quotes
+</span><span class="">  186: 		@cols = grep { length } @cols;
+</span><span class="">  187: 		return {
+</span><span class="">  188: 			sep_char =&gt; $sep,
+</span><span class="">  189: 			id       =&gt; (@cols ? $cols[0] : undef),
+</span><span class="">  190: 			columns  =&gt; \@cols,
+</span><span class="">  191: 		};
+</span><span class="">  192: 	}
+</span><span class="">  193: 	return {};
+</span><span class="">  194: }
+</span><span class="">  195: 
+</span><span class="">  196: # _init_backend( $self ) -&gt; void
+</span><span class="">  197: #
+</span><span class="">  198: # Strategy: Database::Abstraction is designed as a base class where the
+</span><span class="">  199: # lowercased package name maps to the data file in the directory
+</span><span class="">  200: # (e.g. &quot;Database::BI::_DB::Sales&quot; -&gt; data/sales.csv or data/sales.db).
+</span><span class="">  201: # We synthesise an ephemeral subclass at runtime so DataSource remains
+</span><span class="">  202: # fully table-agnostic and callers never need to touch Database::Abstraction
+</span><span class="">  203: # directly. In Phase 2, this method can be replaced with Database::Join
+</span><span class="">  204: # instantiation without any change to the public API.
+</span><span class="">  205: #
+</span><span class="">  206: # no_entry =&gt; 1: a BI viewer wants every row; we do not need O(1) keyed
+</span><span class="">  207: # lookups on a primary key.  This stores data as an arrayref instead of a
+</span><span class="">  208: # hashref, which the fast-track path in selectall_arrayref returns directly.
+</span><span class="">  209: sub _init_backend {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">210 → 237 → 241</span></span>  210: 	my $self  = shift;
+</span><span class="">  211: 	my $table = $self-&gt;{_table};
+</span><span class="">  212: 	my $dir   = $self-&gt;{_directory};
+</span><span class="">  213: 
+</span><span class="">  214: 	require Database::Abstraction;
+</span><span class="">  215: 
+</span><span class="">  216: 	my $pkg = &#39;Database::BI::_DB::&#39; . ucfirst($table);
+</span><span class="">  217: 	{
+</span><span class="">  218: 		no strict &#39;refs&#39;;
+</span><span class="">  219: 		push @{&quot;${pkg}::ISA&quot;}, &#39;Database::Abstraction&#39;
+</span><span class="">  220: 			unless $pkg-&gt;isa(&#39;Database::Abstraction&#39;);
+</span><span class="">  221: 	}
+</span><span class="">  222: 
+</span><span class="">  223: 	my $info   = _detect_file_info($dir, $table);
+</span><span class="">  224: 	my $id_col = $info-&gt;{id} // &#39;entry&#39;;
+</span><span class="">  225: 	$self-&gt;{_id_col}  = $id_col;
+</span><span class="">  226: 	$self-&gt;{_columns} = $info-&gt;{columns};	# undef for SQLite/XML
+</span><span class="">  227: 
+</span><span class="">  228: 	my $db = eval {
+</span><span class="">  229: 		$pkg-&gt;new({
+</span><span class="">  230: 			directory =&gt; $dir,
+</span><span class="">  231: 			table     =&gt; $table,
+</span><span class="">  232: 			id        =&gt; $id_col,
+</span><span class="">  233: 			no_entry  =&gt; 1,
+</span><span class="">  234: 			defined($info-&gt;{sep_char}) ? (sep_char =&gt; $info-&gt;{sep_char}) : (),
+</span><span class="">  235: 		});
+</span><span class="">  236: 	};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  237: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  238: 		croak $self-&gt;_msg(&#39;error_backend_init&#39;, $table, $@);
+</span><span class="">  239: 	}
+</span><span class="">  240: 
+</span><span class="">  241: 	$self-&gt;{_db} = $db;
+</span><span class="">  242: 	return;
+</span><span class="">  243: }
+</span><span class="">  244: 
+</span><span class="">  245: # ---------------------------------------------------------------------------
+</span><span class="">  246: # Public accessors
+</span><span class="">  247: # ---------------------------------------------------------------------------
+</span><span class="">  248: 
+</span><span class="">  249: =head2 table_name
+</span><span class="">  250: 
+</span><span class="">  251: Returns the (lowercased) table name this instance was opened against.
+</span><span class="">  252: 
+</span><span class="">  253: =head3 API SPECIFICATION
+</span><span class="">  254: 
+</span><span class="">  255: =head4 INPUT
+</span><span class="">  256: 
+</span><span class="">  257: None.
+</span><span class="">  258: 
+</span><span class="">  259: =head4 OUTPUT
+</span><span class="">  260: 
+</span><span class="">  261: Returns a C&lt;SCALAR&gt; string.
+</span><span class="">  262: 
+</span><span class="">  263: =head3 MESSAGES
+</span><span class="">  264: 
+</span><span class="">  265: None.
+</span><span class="">  266: 
+</span><span class="">  267: =head3 FORMAL SPECIFICATION
+</span><span class="">  268: 
+</span><span class="">  269:   table_name == lambda self . self._table
+</span><span class="">  270: 
+</span><span class="">  271: =cut
+</span><span class="">  272: 
+</span><span class="">  273: sub table_name {
+</span><span class="">  274: 	my $self = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  275: 	return $self-&gt;{_table};
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_275_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_275_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  276: }
+</span><span class="">  277: 
+</span><span class="">  278: =head2 columns
+</span><span class="">  279: 
+</span><span class="">  280: Returns an arrayref of column names in file order, or C&lt;undef&gt; when the
+</span><span class="">  281: backend does not expose a fixed column order (e.g. SQLite, XML).
+</span><span class="">  282: 
+</span><span class="">  283: =cut
+</span><span class="">  284: 
+</span><span class="">  285: sub columns {
+</span><span class="">  286: 	my $self = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  287: 	return $self-&gt;{_columns};
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_287_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_287_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  288: }
+</span><span class="">  289: 
+</span><span class="">  290: =head2 id_column
+</span><span class="">  291: 
+</span><span class="">  292: Returns the name of the column used as the primary key / slurp-filter anchor.
+</span><span class="">  293: 
+</span><span class="">  294: =cut
+</span><span class="">  295: 
+</span><span class="">  296: sub id_column {
+</span><span class="">  297: 	my $self = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  298: 	return $self-&gt;{_id_col};
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_298_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_298_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  299: }
+</span><span class="">  300: 
+</span><span class="">  301: # ---------------------------------------------------------------------------
+</span><span class="">  302: # Public data-access methods
+</span><span class="">  303: # ---------------------------------------------------------------------------
+</span><span class="">  304: 
+</span><span class="">  305: =head2 fetch_all
+</span><span class="">  306: 
+</span><span class="">  307: Returns every record in the table as an arrayref of hashrefs.
+</span><span class="">  308: 
+</span><span class="">  309: =head3 API SPECIFICATION
+</span><span class="">  310: 
+</span><span class="">  311: =head4 INPUT
+</span><span class="">  312: 
+</span><span class="">  313: None. (Phase 2 will accept an optional C&lt;$filter&gt; argument compatible with
+</span><span class="">  314: C&lt;Database::BI::Model::Filter&gt; without changing the return type.)
+</span><span class="">  315: 
+</span><span class="">  316: =head4 OUTPUT
+</span><span class="">  317: 
+</span><span class="">  318: 	ARRAYREF of HASHREF   # one hashref per row, keys are column names
+</span><span class="">  319: 	                      # returns [] when the table exists but is empty
+</span><span class="">  320: 
+</span><span class="">  321: Croaks if the backend raises an exception. Carps (non-fatal) when the result
+</span><span class="">  322: set is empty so the caller can distinguish &quot;open succeeded, no rows&quot; from a
+</span><span class="">  323: silent failure.
+</span><span class="">  324: 
+</span><span class="">  325: =head3 MESSAGES
+</span><span class="">  326: 
+</span><span class="">  327:   error_fetch_failed     -- backend threw an exception during retrieval
+</span><span class="">  328:   warn_empty_result      -- query succeeded but returned zero records
+</span><span class="">  329:   warn_data_normalised   -- backend returned a hashref; converted to arrayref
+</span><span class="">  330: 
+</span><span class="">  331: =head3 FORMAL SPECIFICATION
+</span><span class="">  332: 
+</span><span class="">  333:   fetch_all == lambda self .
+</span><span class="">  334:     let rows = self._db.selectall_hashref() in
+</span><span class="">  335:     pre  self._db /= undef
+</span><span class="">  336:     post result : seq HASHREF
+</span><span class="">  337:          /\ #result &gt;= 0
+</span><span class="">  338: 
+</span><span class="">  339: =cut
+</span><span class="">  340: 
+</span><span class="">  341: sub fetch_all {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">342 → 346 → 350</span></span>  342: 	my $self  = shift;
+</span><span class="">  343: 	my $table = $self-&gt;{_table};
+</span><span class="">  344: 
+</span><span class="">  345: 	my $data = eval { $self-&gt;{_db}-&gt;selectall_hashref() };
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  346: 	if ($@) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_346_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  347: 		croak $self-&gt;_msg(&#39;error_fetch_failed&#39;, $table, $@);
+</span><span class="">  348: 	}
+</span><span class="">  349: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 350 → 356 → 361</span></span>  350: 	return [] unless defined $data;
+</span><span class="">  351: 
+</span><span class="">  352: 	# Strategy: Database::Abstraction can return either an arrayref (when the
+</span><span class="">  353: 	# underlying driver iterates rows) or a hashref keyed by primary key (when
+</span><span class="">  354: 	# it mirrors DBI&#39;s selectall_hashref semantics). We normalise to arrayref
+</span><span class="">  355: 	# here so every caller above this layer sees a uniform structure.
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  356: 	if (ref $data eq &#39;HASH&#39;) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_356_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  357: 		carp $self-&gt;_msg(&#39;warn_data_normalised&#39;, $table);
+</span><span class="">  358: 		$data = [ values %{$data} ];
+</span><span class="">  359: 	}
+</span><span class="">  360: 
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 361 → 361 → 365</span></span>  361: 	if (!@{$data}) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_361_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  362: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
+</span><span class="">  363: 	}
+</span><span class="">  364: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  365: 	return $data;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_365_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_365_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  366: }
+</span><span class="">  367: 
+</span><span class="">  368: 1;
+</span><span class="">  369: 
+</span><span class="">  370: __END__
+</span><span class="">  371: 
+</span><span class="">  372: =head1 NAME
+</span><span class="">  373: 
+</span><span class="">  374: Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstraction
+</span><span class="">  375: 
+</span><span class="">  376: =head1 VERSION
+</span><span class="">  377: 
+</span><span class="">  378: This document describes Database::BI::Model::DataSource version 0.01.
+</span><span class="">  379: 
+</span><span class="">  380: =head1 SYNOPSIS
+</span><span class="">  381: 
+</span><span class="">  382:     use Database::BI::Model::DataSource;
+</span><span class="">  383: 
+</span><span class="">  384:     my $source = Database::BI::Model::DataSource-&gt;new(
+</span><span class="">  385:         directory =&gt; &#39;/path/to/data&#39;,
+</span><span class="">  386:         table     =&gt; &#39;sales&#39;,
+</span><span class="">  387:     );
+</span><span class="">  388: 
+</span><span class="">  389:     my $records = $source-&gt;fetch_all;   # arrayref of hashrefs
+</span><span class="">  390: 
+</span><span class="">  391:     for my $row (@{$records}) {
+</span><span class="">  392:         printf &quot;%s: %s\n&quot;, $row-&gt;{product}, $row-&gt;{amount};
+</span><span class="">  393:     }
+</span><span class="">  394: 
+</span><span class="">  395:     # With an i18n object (must implement maketext):
+</span><span class="">  396:     my $source = Database::BI::Model::DataSource-&gt;new(
+</span><span class="">  397:         directory =&gt; &#39;/path/to/data&#39;,
+</span><span class="">  398:         table     =&gt; &#39;sales&#39;,
+</span><span class="">  399:         i18n      =&gt; My::I18N::Handle-&gt;new,
+</span><span class="">  400:     );
+</span><span class="">  401: 
+</span><span class="">  402: =head1 DESCRIPTION
+</span><span class="">  403: 
+</span><span class="">  404: C&lt;Database::BI::Model::DataSource&gt; is a thin, table-agnostic adapter that
+</span><span class="">  405: wraps L&lt;Database::Abstraction&gt; and exposes a single C&lt;fetch_all&gt; method
+</span><span class="">  406: returning an arrayref of hashrefs.
+</span><span class="">  407: 
+</span><span class="">  408: L&lt;Database::Abstraction&gt; is a read-only ORM that discovers data files
+</span><span class="">  409: (CSV, SQLite, XML, PSV, etc.) automatically from a directory based on the
+</span><span class="">  410: calling class name.  C&lt;DataSource&gt; generates an ephemeral subclass at
+</span><span class="">  411: construction time so that callers never interact with
+</span><span class="">  412: L&lt;Database::Abstraction&gt; directly and so that the backend can be swapped
+</span><span class="">  413: for L&lt;Database::Join&gt; in Phase 2 without any change to the controller.
+</span><span class="">  414: 
+</span><span class="">  415: All user-visible strings and exception messages are keyed through the
+</span><span class="">  416: C&lt;%MESSAGES&gt; dictionary and routed via C&lt;_msg()&gt;, making every diagnostic
+</span><span class="">  417: replaceable by an i18n object at instantiation time.
+</span><span class="">  418: 
+</span><span class="">  419: =head1 LIMITATIONS
+</span><span class="">  420: 
+</span><span class="">  421: =over 4
+</span><span class="">  422: 
+</span><span class="">  423: =item *
+</span><span class="">  424: 
+</span><span class="">  425: Only read operations are supported.  Write-back is not in scope.
+</span><span class="">  426: 
+</span><span class="">  427: =item *
+</span><span class="">  428: 
+</span><span class="">  429: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Use
+</span><span class="">  430: C&lt;Database::Join&gt; (Phase 2) to query across multiple tables.
+</span><span class="">  431: 
+</span><span class="">  432: =item *
+</span><span class="">  433: 
+</span><span class="">  434: The ephemeral backend class is generated into a package namespace
+</span><span class="">  435: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
+</span><span class="">  436: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
+</span><span class="">  437: the same ephemeral class.
+</span><span class="">  438: 
+</span><span class="">  439: =item *
+</span><span class="">  440: 
+</span><span class="">  441: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
+</span><span class="">  442: compatible with L&lt;Locale::Maketext&gt;.
+</span><span class="">  443: 
+</span><span class="">  444: =back
+</span><span class="">  445: 
+</span><span class="">  446: =head1 CONFIGURATION AND ENVIRONMENT
+</span><span class="">  447: 
+</span><span class="">  448: No environment variables are read.  All configuration is passed through
+</span><span class="">  449: the constructor.
+</span><span class="">  450: 
+</span><span class="">  451: =head1 DEPENDENCIES
+</span><span class="">  452: 
+</span><span class="">  453: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate&gt;, L&lt;Params::Get&gt;,
+</span><span class="">  454: L&lt;Database::Abstraction&gt;.
+</span><span class="">  455: 
+</span><span class="">  456: =head1 INCOMPATIBILITIES
+</span><span class="">  457: 
+</span><span class="">  458: None known.
+</span><span class="">  459: 
+</span><span class="">  460: =head1 BUGS AND LIMITATIONS
+</span><span class="">  461: 
+</span><span class="">  462: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
+</span><span class="">  463: 
+</span><span class="">  464: =head1 AUTHOR
+</span><span class="">  465: 
+</span><span class="">  466: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  467: 
+</span><span class="">  468: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  469: 
+</span><span class="">  470: Copyright 2026 Nigel Horne.
+</span><span class="">  471: 
+</span><span class="">  472: Usage is subject to the GPL2 licence terms.
+</span><span class="">  473: If you use it,
+</span><span class="">  474: please let me know.
+</span><span class="">  475: 
+</span><span class="">  476: =cut
+</span><span class="">  477: 
+</span><span class="">  478: 1;
+</span></pre>
+
+<script>
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+}
+
+(function() {
+    const saved = localStorage.getItem('theme');
+    if(saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    }
+})();
+
+document.addEventListener("mousemove", function(e) {
+	document.querySelectorAll(".lcsaj-tip-text, .cpd-tip-text").forEach(function(tip) {
+		tip.style.left = (e.clientX + 12) + "px";
+		tip.style.top  = (e.clientY + 12) + "px";
+	});
+});
+</script>
+</body>
+</html>
+	
