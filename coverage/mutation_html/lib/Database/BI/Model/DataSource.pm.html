@@ -349,7 +349,7 @@ Approximate LCSAJ segments: 35<br>
 </span><span class="">    8: use File::Spec		();
 </span><span class="">    9: use Readonly;
 </span><span class="">   10: use Scalar::Util	qw(blessed);
-</span><span class="">   11: use Params::Validate	qw(:all);
+</span><span class="">   11: use Params::Validate::Strict qw(validate_strict);
 </span><span class="">   12: use Params::Get		();
 </span><span class="">   13: 
 </span><span class="">   14: our $VERSION = &#39;0.01&#39;;
@@ -428,7 +428,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 					<ul>
 				<li><b>COND_INV_62_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   63: 		return $i18n-&gt;maketext($key, @args);
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   63: 		return $i18n-&gt;maketext($key, @args);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -451,7 +451,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 								</div>
 							</li></ul></details>
 <span class="">   64: 	}
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   65: 	return _fmt($key, @args);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   65: 	return _fmt($key, @args);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -525,25 +525,25 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  115: 	my $class = shift;
 </span><span class="">  116: 	my $raw   = Params::Get::get_params(undef, @_);
 </span><span class="">  117: 
-</span><span class="">  118: 	my %args = validate_with(
-</span><span class="">  119: 		params =&gt; $raw,
-</span><span class="">  120: 		spec   =&gt; {
-</span><span class="">  121: 			directory =&gt; { type =&gt; SCALAR },
-</span><span class="">  122: 			table     =&gt; { type =&gt; SCALAR },
-</span><span class="">  123: 			i18n      =&gt; { type =&gt; OBJECT | UNDEF, optional =&gt; 1, default =&gt; undef },
-</span><span class="">  124: 		},
+</span><span class="">  118: 	my $args = validate_strict(
+</span><span class="">  119: 		schema =&gt; {
+</span><span class="">  120: 			directory =&gt; { type =&gt; &#39;scalar&#39; },
+</span><span class="">  121: 			table     =&gt; { type =&gt; &#39;scalar&#39; },
+</span><span class="">  122: 			i18n      =&gt; { type =&gt; &#39;object&#39;, optional =&gt; 1, default =&gt; undef },
+</span><span class="">  123: 		},
+</span><span class="">  124: 		input =&gt; $raw,
 </span><span class="">  125: 	);
 </span><span class="">  126: 
-</span><span class="">  127: 	croak _fmt(&#39;error_directory_missing&#39;, $args{directory})
-</span><span class="">  128: 		unless -d $args{directory};
+</span><span class="">  127: 	croak _fmt(&#39;error_directory_missing&#39;, $args-&gt;{directory})
+</span><span class="">  128: 		unless -d $args-&gt;{directory};
 </span><span class="">  129: 
-</span><span class="">  130: 	croak _fmt(&#39;error_table_name_invalid&#39;, $args{table})
-</span><span class="">  131: 		unless $args{table} =~ $TABLE_NAME_RE;
+</span><span class="">  130: 	croak _fmt(&#39;error_table_name_invalid&#39;, $args-&gt;{table})
+</span><span class="">  131: 		unless $args-&gt;{table} =~ $TABLE_NAME_RE;
 </span><span class="">  132: 
 </span><span class="">  133: 	my $self = bless {
-</span><span class="">  134: 		_directory =&gt; $args{directory},
-</span><span class="">  135: 		_table     =&gt; lc $args{table},
-</span><span class="">  136: 		_i18n      =&gt; $args{i18n},
+</span><span class="">  134: 		_directory =&gt; $args-&gt;{directory},
+</span><span class="">  135: 		_table     =&gt; lc $args-&gt;{table},
+</span><span class="">  136: 		_i18n      =&gt; $args-&gt;{i18n},
 </span><span class="">  137: 		_db        =&gt; undef,
 </span><span class="">  138: 	}, $class;
 </span><span class="">  139: 
@@ -781,7 +781,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  295: 
 </span><span class="">  296: sub id_column {
 </span><span class="">  297: 	my $self = shift;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  298: 	return $self-&gt;{_id_col};
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  298: 	return $self-&gt;{_id_col};
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -996,7 +996,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  450: 
 </span><span class="">  451: =head1 DEPENDENCIES
 </span><span class="">  452: 
-</span><span class="">  453: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate&gt;, L&lt;Params::Get&gt;,
+</span><span class="">  453: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
 </span><span class="">  454: L&lt;Database::Abstraction&gt;.
 </span><span class="">  455: 
 </span><span class="">  456: =head1 INCOMPATIBILITIES
