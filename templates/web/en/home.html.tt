@@ -4,6 +4,10 @@
 <p class="error">[% error | html %]</p>
 [% END %]
 
+[%- IF back_url %]
+<p class="back-link"><a href="[% back_url | html %]">&larr; [% back_label || 'Back' | html %]</a></p>
+[%- END %]
+
 [% IF tables.size %]
 <ul class="db-list">
   [% FOREACH t IN tables %]
@@ -22,5 +26,7 @@
   Add a <code>.csv</code>, <code>.db</code>, <code>.sqlite</code>, or <code>.xml</code> file there and restart.
 </p>
 [% END %]
+
+<p class="browse-link"><a href="/browse" class="btn-browse">&#128269; Browse filesystem&hellip;</a></p>
 
 [%- END -%]

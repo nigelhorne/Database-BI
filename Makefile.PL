@@ -2,6 +2,15 @@ use strict;
 use warnings;
 use ExtUtils::MakeMaker;
 
+my $dist = {
+	COMPRESS => 'gzip -9f',	# Compress tarball using gzip
+	SUFFIX => 'gz',	# File suffix for tarball
+};
+
+if($^O eq 'darwin') {
+	$dist->{'TAR'} = 'gtar';
+}
+
 WriteMakefile(
 	NAME			 => 'Database::BI',
 	VERSION_FROM	 => 'lib/Database/BI.pm',
@@ -15,11 +24,12 @@ WriteMakefile(
 		'Database::Abstraction'				 => 0,
 		'Mojolicious'						=> '9.0',
 		'Mojolicious::Plugin::TemplateToolkit'  => 0,
-	},
-	TEST_REQUIRES => {
-		'Test::More' => 0,
+	}, TEST_REQUIRES => {
+		'IPC::System::Simple' => 0,
+		'Test::Most' => 0,
 		'Test::Mojo' => 0,
-	},
+	}, dist => $dist,
+	clean		=> { FILES => 'Database-BI-*' },
 	META_MERGE => {
 		'meta-spec' => { version => 2 },
 		resources => {

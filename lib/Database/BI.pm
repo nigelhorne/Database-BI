@@ -63,9 +63,12 @@ sub startup ($self) {
     my $conf     = $self->config;
     my $data_dir = $self->home->child($conf->{data_dir})->to_string;
 
-    $self->helper(open_table => sub ($c, $table) {
+    # Pass directory => $path to override the default data_dir.
+    # Phase 2: swap DataSource for Database::Join here only.
+    $self->helper(open_table => sub ($c, $table, %opts) {
+        my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
         Database::BI::Model::DataSource->new(
-            directory => $data_dir,
+            directory => $dir,
             table     => $table,
         );
     });
@@ -73,6 +76,8 @@ sub startup ($self) {
     my $r = $self->routes;
     $r->get('/')->to('Dashboard#index');
     $r->get('/view/:table')->to('Dashboard#view');
+    $r->get('/browse')->to('Dashboard#browse');
+    $r->get('/open')->to('Dashboard#open_file');
 }
 
 =head1 AUTHOR

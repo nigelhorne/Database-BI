@@ -2,6 +2,7 @@ package Database::BI::Controller::Dashboard;
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 use Mojo::File;
+use Mojo::Util qw(url_escape);
 
 # Supported file extensions that Database::Abstraction can read.
 my @SUPPORTED_EXT = qw( csv db sqlite xml psv );
@@ -82,6 +83,137 @@ sub view ($self) {
         columns  => \@columns,
         table    => $table,
         title    => ucfirst($table),
+    );
+}
+
+# GET /browse — navigate the filesystem and pick a data file.
+sub browse ($self) {
+    my $conf     = $self->app->config;
+    my $platform = $conf->{platform} // 'web';
+    my $language = $self->_resolve_language($conf->{language} // 'en');
+
+    my $raw_path = $self->param('path') // $ENV{HOME} // '/';
+    my $dir      = eval { Mojo::File->new($raw_path)->realpath };
+    unless (defined $dir && -d $dir) {
+        return $self->reply->not_found;
+    }
+
+    my (@dirs, @files);
+    if (opendir my $dh, $dir->to_string) {
+        while (my $entry = readdir $dh) {
+            next if $entry eq '.' || $entry eq '..';
+            next if $entry =~ /\A\./;           # skip hidden entries
+            my $f = $dir->child($entry);
+            if (-d $f) {
+                push @dirs, {
+                    name => $entry,
+                    href => '/browse?path=' . url_escape($f->to_string),
+                };
+            } elsif ($entry =~ $EXT_RE) {
+                push @files, {
+                    name => $entry,
+                    href => '/open?path=' . url_escape($f->to_string),
+                };
+            }
+        }
+        closedir $dh;
+    }
+    @dirs  = sort { lc $a->{name} cmp lc $b->{name} } @dirs;
+    @files = sort { lc $a->{name} cmp lc $b->{name} } @files;
+
+    # Build a breadcrumb from the filesystem root down to the current dir.
+    my @crumbs;
+    {
+        my $f = $dir;
+        while (1) {
+            my $name = $f->basename;
+            $name    = '/' unless length $name;
+            unshift @crumbs, {
+                name => $name,
+                href => '/browse?path=' . url_escape($f->to_string),
+            };
+            my $parent = $f->dirname;
+            last if $parent->to_string eq $f->to_string;
+            $f = $parent;
+        }
+    }
+
+    my $parent     = $dir->dirname;
+    my $parent_href = $parent->to_string ne $dir->to_string
+        ? '/browse?path=' . url_escape($parent->to_string)
+        : undef;
+
+    $self->render(
+        template     => "$platform/$language/browse",
+        handler      => 'tt',
+        format       => 'html',
+        title        => 'Browse Files',
+        current_path => $dir->to_string,
+        parent_href  => $parent_href,
+        crumbs       => \@crumbs,
+        dirs         => \@dirs,
+        files        => \@files,
+    );
+}
+
+# GET /open — open a data file from any absolute filesystem path.
+sub open_file ($self) {
+    my $conf      = $self->app->config;
+    my $platform  = $conf->{platform} // 'web';
+    my $language  = $self->_resolve_language($conf->{language} // 'en');
+    my $file_path = $self->param('path');
+
+    unless (defined $file_path) {
+        return $self->reply->not_found;
+    }
+
+    my $file = eval { Mojo::File->new($file_path)->realpath };
+    unless (defined $file && -f $file && $file->basename =~ $EXT_RE) {
+        return $self->reply->not_found;
+    }
+
+    my $dir      = $file->dirname;
+    (my $table   = $file->basename) =~ s/\.[^.]+$//;
+    $table       = lc $table;
+    my $back     = '/browse?path=' . url_escape($dir->to_string);
+    my $filename = $file->basename;
+
+    my $source  = $self->open_table($table, directory => $dir->to_string);
+    my $records = eval { $source->fetch_all };
+    if ($@) {
+        $self->render(
+            template   => "$platform/$language/home",
+            handler    => 'tt',
+            format     => 'html',
+            tables     => [],
+            title      => 'Error',
+            error      => "Could not open '$filename': $@",
+            back_url   => $back,
+            back_label => 'Back to browser',
+        );
+        return;
+    }
+
+    my @columns;
+    if ($source->columns) {
+        @columns = @{ $source->columns };
+    } elsif ($records->[0]) {
+        my $id  = $source->id_column // (sort keys %{ $records->[0] })[0];
+        my %all = map { $_ => 1 } keys %{ $records->[0] };
+        delete $all{$id};
+        @columns = ($id, sort keys %all);
+    }
+
+    $self->render(
+        template   => "$platform/$language/dashboard",
+        handler    => 'tt',
+        format     => 'html',
+        records    => $records,
+        columns    => \@columns,
+        table      => $table,
+        title      => $filename,
+        back_url   => $back,
+        back_label => 'Back to browser',
     );
 }
 

@@ -8,8 +8,9 @@ requires 'Mojolicious', '9.0';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 
 on 'test' => sub {
+	requires 'IPC::System::Simple';
 	requires 'Test::Mojo';
-	requires 'Test::More';
+	requires 'Test::Most';
 };
 
 on 'develop' => sub {

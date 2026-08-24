@@ -1,6 +1,8 @@
 [%- WRAPPER 'web/en/layouts/default.html.tt' -%]
 
-<p class="back-link"><a href="/">&larr; Choose another database</a></p>
+[%- SET _back_href  = back_url  || '/' -%]
+[%- SET _back_text  = back_label || 'Choose another database' -%]
+<p class="back-link"><a href="[% _back_href | html %]">&larr; [% _back_text | html %]</a></p>
 
 [% IF records.size %]
 <p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]</p>
