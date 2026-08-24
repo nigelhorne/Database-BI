@@ -6,6 +6,7 @@ requires 'Carp';
 requires 'Database::Abstraction';
 requires 'Mojolicious', '9.0';
 requires 'Mojolicious::Plugin::TemplateToolkit';
+requires 'Params::Validate::Strict';
 
 on 'test' => sub {
 	requires 'IPC::System::Simple';

@@ -8,7 +8,7 @@ use Carp		qw(croak carp);
 use File::Spec		();
 use Readonly;
 use Scalar::Util	qw(blessed);
-use Params::Validate	qw(:all);
+use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
 our $VERSION = '0.01';
@@ -115,25 +115,25 @@ sub new {
 	my $class = shift;
 	my $raw   = Params::Get::get_params(undef, @_);
 
-	my %args = validate_with(
-		params => $raw,
-		spec   => {
-			directory => { type => SCALAR },
-			table     => { type => SCALAR },
-			i18n      => { type => OBJECT | UNDEF, optional => 1, default => undef },
+	my $args = validate_strict(
+		schema => {
+			directory => { type => 'scalar' },
+			table     => { type => 'scalar' },
+			i18n      => { type => 'object', optional => 1, default => undef },
 		},
+		input => $raw,
 	);
 
-	croak _fmt('error_directory_missing', $args{directory})
-		unless -d $args{directory};
+	croak _fmt('error_directory_missing', $args->{directory})
+		unless -d $args->{directory};
 
-	croak _fmt('error_table_name_invalid', $args{table})
-		unless $args{table} =~ $TABLE_NAME_RE;
+	croak _fmt('error_table_name_invalid', $args->{table})
+		unless $args->{table} =~ $TABLE_NAME_RE;
 
 	my $self = bless {
-		_directory => $args{directory},
-		_table     => lc $args{table},
-		_i18n      => $args{i18n},
+		_directory => $args->{directory},
+		_table     => lc $args->{table},
+		_i18n      => $args->{i18n},
 		_db        => undef,
 	}, $class;
 
@@ -450,7 +450,7 @@ the constructor.
 
 =head1 DEPENDENCIES
 
-L<Carp>, L<Readonly>, L<Scalar::Util>, L<Params::Validate>, L<Params::Get>,
+L<Carp>, L<Readonly>, L<Scalar::Util>, L<Params::Validate::Strict>, L<Params::Get>,
 L<Database::Abstraction>.
 
 =head1 INCOMPATIBILITIES

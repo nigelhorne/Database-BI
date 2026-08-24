@@ -24,6 +24,7 @@ WriteMakefile(
 		'Database::Abstraction'				 => 0,
 		'Mojolicious'						=> '9.0',
 		'Mojolicious::Plugin::TemplateToolkit'  => 0,
+		'Params::Validate::Strict'			=> 0,
 	}, TEST_REQUIRES => {
 		'IPC::System::Simple' => 0,
 		'Test::Most' => 0,
