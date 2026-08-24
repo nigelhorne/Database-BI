@@ -8,7 +8,7 @@
 
 [% IF records.size %]
 <p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]</p>
-<table id="bi-table">
+<table id="bi-table" data-table="[% table | html %]">
   <thead>
     <tr>
       [% FOREACH col IN columns -%]
@@ -35,85 +35,127 @@
   var table = document.getElementById('bi-table');
   if (!table) return;
 
-  var headers = Array.from(table.querySelectorAll('thead th'));
+  var headers    = Array.from(table.querySelectorAll('thead th'));
   var dragSrcIdx = null;
   var sortColIdx = -1;
   var sortAsc    = true;
+  var STORE_KEY  = 'bi:' + (table.dataset.table || '');
 
-  function colIndex(th) {
-    return headers.indexOf(th);
+  // --- Persistence ---
+
+  function loadState() {
+    try { return JSON.parse(localStorage.getItem(STORE_KEY)) || {}; }
+    catch (e) { return {}; }
   }
 
-  // Move an entire column from index `from` to index `to` across every row.
+  function saveState() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify({
+        columns: headers.map(function (h) { return h.textContent.trim(); }),
+        sortCol: sortColIdx >= 0 ? headers[sortColIdx].textContent.trim() : null,
+        sortAsc: sortAsc
+      }));
+    } catch (e) {}
+  }
+
+  // --- Column helpers ---
+
+  function colIndex(th) { return headers.indexOf(th); }
+
   function moveCol(from, to) {
     Array.from(table.rows).forEach(function (row) {
-      var cells = Array.from(row.children);
+      var cells  = Array.from(row.children);
       var moving = cells[from];
       var target = cells[to];
       if (!moving || !target) return;
-      if (from < to) {
-        row.insertBefore(moving, target.nextSibling);
-      } else {
-        row.insertBefore(moving, target);
-      }
+      row.insertBefore(moving, from < to ? target.nextSibling : target);
     });
-    // Keep headers array in sync with the new DOM order.
     var moved = headers.splice(from, 1)[0];
     headers.splice(to, 0, moved);
-    // Update tracked sort column index if it moved.
-    if (sortColIdx === from) {
-      sortColIdx = to;
-    } else if (from < to && sortColIdx > from && sortColIdx <= to) {
-      sortColIdx--;
-    } else if (from > to && sortColIdx >= to && sortColIdx < from) {
-      sortColIdx++;
-    }
+    // Adjust tracked sort index after the column moves.
+    if      (sortColIdx === from)                                  sortColIdx = to;
+    else if (from < to && sortColIdx > from && sortColIdx <= to)   sortColIdx--;
+    else if (from > to && sortColIdx >= to  && sortColIdx <  from) sortColIdx++;
   }
 
+  // --- Sort ---
+
   function sortByCol(idx, asc) {
-    var tbody = table.tBodies[0];
-    var rows  = Array.from(tbody.rows);
+    var tbody   = table.tBodies[0];
+    var rows    = Array.from(tbody.rows);
     var numeric = rows.every(function (r) {
       var v = r.cells[idx] ? r.cells[idx].textContent.trim() : '';
       return v === '' || !isNaN(Number(v));
     });
     rows.sort(function (a, b) {
-      var av = a.cells[idx] ? a.cells[idx].textContent.trim() : '';
-      var bv = b.cells[idx] ? b.cells[idx].textContent.trim() : '';
-      var cmp;
-      if (numeric) {
-        cmp = (av === '' ? -Infinity : Number(av)) - (bv === '' ? -Infinity : Number(bv));
-      } else {
-        cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
-      }
+      var av  = a.cells[idx] ? a.cells[idx].textContent.trim() : '';
+      var bv  = b.cells[idx] ? b.cells[idx].textContent.trim() : '';
+      var cmp = numeric
+        ? (av === '' ? -Infinity : Number(av)) - (bv === '' ? -Infinity : Number(bv))
+        : av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
       return asc ? cmp : -cmp;
     });
     rows.forEach(function (r) { tbody.appendChild(r); });
-
-    // Update aria-sort on all headers.
     headers.forEach(function (h, i) {
       h.setAttribute('aria-sort', i === idx ? (asc ? 'ascending' : 'descending') : 'none');
     });
   }
 
-  headers.forEach(function (th) {
-    th.addEventListener('click', function (e) {
-      // Ignore clicks that were part of a drag.
-      if (dragSrcIdx !== null) return;
-      var idx = colIndex(th);
-      if (sortColIdx === idx) {
-        sortAsc = !sortAsc;
-      } else {
-        sortColIdx = idx;
-        sortAsc    = true;
+  // --- Restore saved state on load ---
+
+  (function restore() {
+    var state = loadState();
+
+    if (state.columns && state.columns.length) {
+      // Keep saved columns that still exist; append any new ones at the end.
+      var currentNames = headers.map(function (h) { return h.textContent.trim(); });
+      var inSaved = {};
+      state.columns.forEach(function (n) { inSaved[n] = true; });
+      var reconciled = state.columns.filter(function (n) {
+        return currentNames.indexOf(n) !== -1;
+      });
+      currentNames.forEach(function (n) {
+        if (!inSaved[n]) reconciled.push(n);
+      });
+
+      // Walk each target position and move the column there.
+      for (var i = 0; i < reconciled.length; i++) {
+        var name = reconciled[i];
+        var cur  = -1;
+        headers.forEach(function (h, j) { if (h.textContent.trim() === name) cur = j; });
+        if (cur !== -1 && cur !== i) moveCol(cur, i);
       }
+    }
+
+    // Restore sort only if the saved column still exists after reconciliation.
+    if (state.sortCol) {
+      var idx = -1;
+      headers.forEach(function (h, i) {
+        if (h.textContent.trim() === state.sortCol) idx = i;
+      });
+      if (idx !== -1) {
+        sortColIdx = idx;
+        sortAsc    = state.sortAsc !== false;
+        sortByCol(sortColIdx, sortAsc);
+      }
+    }
+  }());
+
+  // --- Event listeners ---
+
+  headers.forEach(function (th) {
+    th.addEventListener('click', function () {
+      if (dragSrcIdx !== null) return;   // ignore clicks that end a drag
+      var idx = colIndex(th);
+      if (sortColIdx === idx) { sortAsc = !sortAsc; }
+      else { sortColIdx = idx; sortAsc = true; }
       sortByCol(sortColIdx, sortAsc);
+      saveState();
     });
 
     th.addEventListener('dragstart', function (e) {
       dragSrcIdx = colIndex(th);
       e.dataTransfer.effectAllowed = 'move';
-      // Defer adding the class so the drag ghost renders before the fade.
       setTimeout(function () { th.classList.add('dragging'); }, 0);
     });
 
@@ -139,6 +181,7 @@
       var toIdx = colIndex(th);
       if (dragSrcIdx !== null && dragSrcIdx !== toIdx) {
         moveCol(dragSrcIdx, toIdx);
+        saveState();
       }
       headers.forEach(function (h) { h.classList.remove('drag-over'); });
     });
