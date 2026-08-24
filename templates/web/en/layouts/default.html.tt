@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="[% language | html %]">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>[% title | html %] — Database::BI</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #f4f6f9;
+      color: #1a1a2e;
+      padding: 2rem;
+    }
+
+    header {
+      margin-bottom: 1.5rem;
+    }
+
+    header h1 {
+      font-size: 1.75rem;
+      font-weight: 600;
+      color: #2c3e7a;
+    }
+
+    main {
+      background: #ffffff;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,.08);
+      padding: 1.5rem;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.9rem;
+    }
+
+    thead tr {
+      background: #2c3e7a;
+      color: #ffffff;
+    }
+
+    thead th {
+      padding: 0.75rem 1rem;
+      text-align: left;
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+
+    tbody tr:nth-child(even) { background: #f8f9fc; }
+    tbody tr:hover           { background: #eef1fb; }
+
+    tbody td {
+      padding: 0.6rem 1rem;
+      border-bottom: 1px solid #e4e8f0;
+    }
+
+    .empty-state {
+      text-align: center;
+      color: #888;
+      padding: 3rem 1rem;
+      font-style: italic;
+    }
+
+    footer {
+      margin-top: 1.5rem;
+      font-size: 0.75rem;
+      color: #999;
+      text-align: right;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>[% title | html %]</h1>
+  </header>
+  <main>
+    [% content %]
+  </main>
+  <footer>Database::BI</footer>
+</body>
+</html>

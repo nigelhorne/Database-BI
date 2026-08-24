@@ -1,0 +1,26 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt' -%]
+
+[% IF records.size %]
+<table>
+  <thead>
+    <tr>
+      [% FOREACH col IN columns -%]
+      <th>[% col | html %]</th>
+      [%- END %]
+    </tr>
+  </thead>
+  <tbody>
+    [% FOREACH row IN records -%]
+    <tr>
+      [% FOREACH col IN columns -%]
+      <td>[% row.$col | html %]</td>
+      [%- END %]
+    </tr>
+    [%- END %]
+  </tbody>
+</table>
+[% ELSE %]
+<p class="empty-state">No records found.</p>
+[% END %]
+
+[%- END -%]
