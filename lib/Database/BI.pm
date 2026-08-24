@@ -6,6 +6,35 @@ use Database::BI::Model::DataSource;
 
 our $VERSION = '0.01';
 
+=head1 NAME
+
+Database::BI - Web-based Business Intelligence tool
+
+=head1 SYNOPSIS
+
+    morbo script/database-bi
+
+=head1 DESCRIPTION
+
+A Mojolicious web application that reads data via L<Database::Abstraction>
+and presents it as styled HTML tables, with a VWF-style template hierarchy
+for multi-platform, multi-language support.
+
+The home page scans C<data_dir> for supported data files and presents a
+picker.  Selecting one opens C</view/:table>.
+
+=head1 CONFIGURATION
+
+Place a C<database_bi.conf> file in the application root to override defaults:
+
+    {
+        data_dir => 'data',
+        platform => 'web',
+        language => 'en',
+    }
+
+=cut
+
 sub startup ($self) {
     $self->plugin('Config', {
         default => {
@@ -46,41 +75,18 @@ sub startup ($self) {
     $r->get('/view/:table')->to('Dashboard#view');
 }
 
-1;
-
-=head1 NAME
-
-Database::BI - Web-based Business Intelligence tool
-
-=head1 SYNOPSIS
-
-    morbo script/database-bi
-
-=head1 DESCRIPTION
-
-A Mojolicious web application that reads data via L<Database::Abstraction>
-and presents it as styled HTML tables, with a VWF-style template hierarchy
-for multi-platform, multi-language support.
-
-The home page scans C<data_dir> for supported data files and presents a
-picker.  Selecting one opens C</view/:table>.
-
-=head1 CONFIGURATION
-
-Place a C<database_bi.conf> file in the application root to override defaults:
-
-    {
-        data_dir => 'data',
-        platform => 'web',
-        language => 'en',
-    }
-
 =head1 AUTHOR
 
-Nigel Horne C<< <njh@bandsman.co.uk> >>
+Nigel Horne C<< <njh@nigelhorne.com> >>
 
-=head1 LICENSE
+=head1 LICENCE AND COPYRIGHT
 
-GPL-2.0
+Copyright 2010-2026 Nigel Horne.
+
+Usage is subject to the GPL2 licence terms.
+If you use it,
+please let me know.
 
 =cut
+
+1;

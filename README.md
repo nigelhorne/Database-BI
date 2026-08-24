@@ -27,8 +27,12 @@ Place a `database_bi.conf` file in the application root to override defaults:
 
 # AUTHOR
 
-Nigel Horne `<njh@bandsman.co.uk>`
+Nigel Horne `<njh@nigelhorne.com>`
 
-# LICENSE
+# LICENCE AND COPYRIGHT
 
-GPL-2.0
+Copyright 2010-2026 Nigel Horne.
+
+Usage is subject to the GPL2 licence terms.
+If you use it,
+please let me know.

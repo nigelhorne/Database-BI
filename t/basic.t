@@ -11,4 +11,4 @@ $t->get_ok('/view/sales')->status_is(200);
 # Reject invalid table names
 $t->get_ok('/view/../etc/passwd')->status_is(404);
 
-done_testing;
+done_testing();
