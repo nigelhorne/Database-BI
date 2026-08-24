@@ -1,881 +1,1338 @@
 package Database::BI::Controller::Dashboard;
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
-use Mojo::File;
-use Mojo::JSON qw(encode_json);
-use Mojo::Util qw(url_escape encode);
-use File::Temp qw(tempfile tempdir);
 
-# Supported file extensions that Database::Abstraction can read.
-# Note: D::A probes ".sql" for SQLite databases (not ".sqlite").
-my @SUPPORTED_EXT = qw( csv db sql xml psv );
-my $EXT_RE = do { my $pat = join '|', @SUPPORTED_EXT; qr/\.(?:$pat)$/i };
+use Carp		qw(croak carp);
+use Mojo::File;
+use Mojo::JSON		qw(encode_json);
+use Mojo::Util		qw(url_escape encode);
+use File::Temp		qw(tempfile tempdir);
+use Readonly;
+use Sub::Private;
+
+# ---------------------------------------------------------------------------
+# Constants
+# ---------------------------------------------------------------------------
+
+# File extensions that Database::Abstraction can probe, in probe order.
+# Note: D::A uses ".sql" for SQLite -- NOT ".sqlite".
+Readonly my @SUPPORTED_EXT => qw( csv db sql xml psv );
+Readonly my $EXT_RE        => do { my $p = join '|', @SUPPORTED_EXT; qr/\.(?:$p)$/i };
+
+# Table name safe-identifier pattern (mirrors DataSource's TABLE_NAME_RE).
+Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z0-9_]+\z/;
+
+# ---------------------------------------------------------------------------
+# I18N message dictionary for all user-visible strings in this controller.
+# To plug in a Locale::Maketext backend, extend _i18n() below.
+# ---------------------------------------------------------------------------
+
+Readonly my %MESSAGES => (
+	error_table_invalid    => 'Invalid table name "%s"',
+	error_table_open       => 'Could not open table "%s": %s',
+	error_file_open        => 'Could not open "%s": %s',
+	error_no_path          => 'No path specified',
+	error_not_found        => 'File or directory not found: %s',
+	error_dir_not_found    => 'Directory not found: %s',
+	error_write_failed     => 'Write failed: %s',
+	error_ext_required     => 'Use a .csv or .sql filename extension',
+	error_upload_none      => 'No file received',
+	error_upload_ext       => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)',
+	error_path_required    => '"path" parameter is required',
+);
 
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
 
-# Return arrayref of { name, file } for every supported file in data_dir.
-sub _scan_data_dir ($self) {
-    my $dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
-    return [] unless -d $dir;
-    return [
-        $dir->list
-            ->grep(sub { $_->basename =~ $EXT_RE })
-            ->map(sub {
-                my $base = $_->basename;
-                (my $name = $base) =~ s/\.[^.]+$//;
-                { name => $name, file => $base }
-            })->each
-    ];
+# _i18n($self, $key, @sprintf_args) -> $string
+#
+# Purpose: Look up a user-visible string from %MESSAGES and apply sprintf
+#          for positional arguments.  The entry point for future i18n
+#          backend integration (e.g. Locale::Maketext).
+# Entry:   $key must be a key in %MESSAGES; @args are sprintf positionals.
+# Exit:    Returns the formatted string, or a fallback containing $key.
+# Side Effects: None.
+sub _i18n :Private ($self, $key, @args) {
+	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
+	return @args ? sprintf($tmpl, @args) : $tmpl;
 }
 
-# Parse a spec string ("table:name" or "path:/abs/path") and return
-# (DataSource, display-label).  Returns () on any failure.
-sub _open_spec ($self, $spec) {
-    if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
-        my $table    = lc $1;
-        my $data_dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
-        # Database::Abstraction silently creates an empty object for missing files,
-        # so we must check for the file ourselves before calling open_table.
-        return () unless grep { -f $data_dir->child("$table.$_") } @SUPPORTED_EXT;
-        my $src = eval { $self->open_table($table, directory => $data_dir->to_string) };
-        return ($src, $table) if $src && !$@;
-    }
-    elsif ($spec =~ /\Apath:(.+)\z/) {
-        my $path = $1;
-        my $file = eval { Mojo::File->new($path)->realpath };
-        if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
-            my $dir = $file->dirname->to_string;
-            (my $table = $file->basename) =~ s/\.[^.]+$//;
-            my $src = eval { $self->open_table(lc $table, directory => $dir) };
-            return ($src, $file->basename) if $src && !$@;
-        }
-    }
-    return ();
+# _resolve_template($self) -> ($platform, $language)
+#
+# Purpose: Read platform and language from config, then resolve the Accept-Language
+#          header to a language code -- falling back to the config default when
+#          no template directory exists for the resolved language.
+# Entry:   None.
+# Exit:    Returns ($platform, $language) -- both guaranteed non-empty strings.
+# Side Effects: None.
+sub _resolve_template :Private ($self) {
+	my $conf     = $self->app->config;
+	my $platform = $conf->{platform} // 'web';
+	my $default  = $conf->{language} // 'en';
+	my $language = $self->_resolve_language($default);
+	return ($platform, $language);
 }
 
-# Convert a spec string back to a browseable URL.
-sub _spec_to_url ($self, $spec) {
-    return "/view/$1"                               if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
-    return '/open?path=' . url_escape($1)           if $spec =~ /\Apath:(.+)\z/;
-    return '/';
+# _resolve_language($self, $default) -> $language_code
+#
+# Purpose: Extract the first two-letter language code from the Accept-Language
+#          request header, then validate that a template directory exists for
+#          that language.  Falls back to $default when the header is absent,
+#          unparseable, or points to a non-existent template directory.
+# Entry:   $default is a non-empty string (e.g. 'en').
+# Exit:    Returns a two-letter ISO 639-1 language code string.
+# Side Effects: Filesystem stat for the template directory.
+sub _resolve_language :Private ($self, $default) {
+	my $accept = $self->req->headers->accept_language // '';
+	my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
+	$lang //= $default;
+
+	# Only use the resolved language if templates actually exist for it;
+	# prevents a 500 error when a browser sends e.g. Accept-Language: de
+	# but no templates/web/de/ directory is present.
+	if ($lang ne $default) {
+		my $platform = $self->app->config->{platform} // 'web';
+		my $dir = $self->app->home->child("templates/$platform/$lang");
+		$lang   = $default unless -d $dir;
+	}
+	return $lang;
 }
 
-# Extract ordered column list from a DataSource + its fetched records.
-# (standalone sub, not a method)
+# _scan_data_dir($self) -> \@table_list
+#
+# Purpose: Return an arrayref of { name, file } hashrefs for every supported
+#          data file in the configured data_dir.  Used by the index action and
+#          by the join panel "available tables" dropdown.
+# Entry:   None.
+# Exit:    Returns [] when data_dir does not exist or contains no supported files.
+# Side Effects: Filesystem directory read.
+sub _scan_data_dir :Private ($self) {
+	my $dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
+	return [] unless -d $dir;
+	return [
+		$dir->list
+			->grep(sub { $_->basename =~ $EXT_RE })
+			->map(sub {
+				my $base = $_->basename;
+				(my $name = $base) =~ s/\.[^.]+$//;
+				{ name => $name, file => $base }
+			})->each
+	];
+}
+
+# _open_spec($self, $spec) -> ($DataSource, $label) or ()
+#
+# Purpose: Parse a "table:name" or "path:/abs/path" spec, verify the underlying
+#          file exists (Database::Abstraction creates empty objects silently for
+#          missing files, so we must check ourselves), and return a live
+#          DataSource object and a display label.
+# Entry:   $spec is a non-empty string.
+# Exit:    Returns ($datasource, $label) on success; an empty list on any failure
+#          (invalid spec format, file missing, DataSource init error).
+# Side Effects: Filesystem stat; DataSource construction (reads file header).
+sub _open_spec :Private ($self, $spec) {
+	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
+		my $table    = lc $1;
+		my $data_dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
+		return () unless grep { -f $data_dir->child("$table.$_") } @SUPPORTED_EXT;
+		my $src = eval { $self->open_table($table, directory => $data_dir->to_string) };
+		return ($src, $table) if $src && !$@;
+	}
+	elsif ($spec =~ /\Apath:(.+)\z/) {
+		my $file = eval { Mojo::File->new($1)->realpath };
+		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
+			my $dir = $file->dirname->to_string;
+			(my $table = $file->basename) =~ s/\.[^.]+$//;
+			my $src = eval { $self->open_table(lc $table, directory => $dir) };
+			return ($src, $file->basename) if $src && !$@;
+		}
+	}
+	return ();
+}
+
+# _spec_to_url($self, $spec) -> $url_string
+#
+# Purpose: Convert a table/path spec back to a browseable URL (used for the
+#          back-link on join and export views).
+# Entry:   $spec is a "table:name" or "path:/abs" string.
+# Exit:    Returns a URL string beginning with '/'.
+# Side Effects: None.
+sub _spec_to_url :Private ($self, $spec) {
+	return "/view/$1"                      if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
+	return '/open?path=' . url_escape($1)  if $spec =~ /\Apath:(.+)\z/;
+	return '/';
+}
+
+# _get_columns($source, $records) -> @column_names
+#
+# Purpose: Return an ordered column list from a DataSource object.
+#          For CSV/PSV the DataSource stores the original file-header order.
+#          For SQLite/XML where no file-header order is available, the fallback
+#          is: id_column first (only if it actually appears in the data), then
+#          the remaining columns sorted alphabetically.
+# Entry:   $source is a DataSource; $records is an arrayref of hashrefs (may be empty).
+# Exit:    Returns a flat list of column-name strings (may be empty).
+# Side Effects: None.
 sub _get_columns {
-    my ($source, $records) = @_;
-    if ($source->columns) {
-        return @{ $source->columns };
-    }
-    elsif ($records->[0]) {
-        my %all = map { $_ => 1 } keys %{ $records->[0] };
-        my $id  = do {
-            my $c = $source->id_column;
-            ($c && $all{$c}) ? $c : (sort keys %all)[0];
-        };
-        delete $all{$id};
-        return ($id, sort keys %all);
-    }
-    return ();
+	my ($source, $records) = @_;
+	return @{ $source->columns } if $source->columns;
+	return () unless $records->[0];
+	my %all = map { $_ => 1 } keys %{ $records->[0] };
+	my $id  = do {
+		my $c = $source->id_column;
+		($c && $all{$c}) ? $c : (sort keys %all)[0];
+	};
+	delete $all{$id};
+	return ($id, sort keys %all);
 }
 
-# Apply one filter spec ("col:op:val") to an arrayref of record hashrefs.
-# Returns a new (possibly shorter) arrayref.
+# _apply_filter_spec($records, $spec) -> \@filtered_records
+#
+# Purpose: Apply one "col:op:val" filter to an arrayref of record hashrefs and
+#          return a new (possibly shorter) arrayref.  The original is not mutated.
+# Entry:   $records is an arrayref of hashrefs; $spec is a colon-delimited string.
+# Exit:    Returns filtered arrayref (same reference if spec is invalid/unparseable).
+# Side Effects: None.
 sub _apply_filter_spec {
-    my ($records, $spec) = @_;
-    my ($col, $op, $val) = split /:/, $spec, 3;
-    return $records unless defined $col && length $col
-                        && defined $op  && length $op;
-    $val //= '';
-    return [grep {
-        my $cell = defined $_->{$col} ? $_->{$col} : '';
-        $op eq 'eq'       ? lc($cell) eq lc($val)            :
-        $op eq 'ne'       ? lc($cell) ne lc($val)            :
-        $op eq 'contains' ? index(lc($cell), lc($val)) != -1 :
-        $op eq 'starts'   ? index(lc($cell), lc($val)) == 0  :
-        $op eq 'lt'       ? $cell <  $val                    :
-        $op eq 'le'       ? $cell <= $val                    :
-        $op eq 'gt'       ? $cell >  $val                    :
-        $op eq 'ge'       ? $cell >= $val                    :
-        $op eq 'empty'    ? $cell eq ''                      :
-        $op eq 'notempty' ? $cell ne ''                      :
-        1
-    } @$records];
+	my ($records, $spec) = @_;
+	my ($col, $op, $val) = split /:/, $spec, 3;
+	return $records unless defined $col && length $col
+	                    && defined $op  && length $op;
+	$val //= '';
+	return [grep {
+		my $cell = defined $_->{$col} ? $_->{$col} : '';
+		$op eq 'eq'       ? lc($cell) eq lc($val)            :
+		$op eq 'ne'       ? lc($cell) ne lc($val)            :
+		$op eq 'contains' ? index(lc($cell), lc($val)) != -1 :
+		$op eq 'starts'   ? index(lc($cell), lc($val)) == 0  :
+		$op eq 'lt'       ? $cell <  $val                    :
+		$op eq 'le'       ? $cell <= $val                    :
+		$op eq 'gt'       ? $cell >  $val                    :
+		$op eq 'ge'       ? $cell >= $val                    :
+		$op eq 'empty'    ? $cell eq ''                      :
+		$op eq 'notempty' ? $cell ne ''                      :
+		1
+	} @$records];
 }
 
-# Read "f" query params, apply them to $records, and return the filtered
-# arrayref plus a JSON string for the template (for pre-populating the UI).
-sub _apply_filters ($self, $records) {
-    my @specs = @{ $self->every_param('f') // [] };
-    for my $s (@specs) {
-        $records = _apply_filter_spec($records, $s);
-    }
-    my @parsed;
-    for my $s (@specs) {
-        my ($col, $op, $val) = split /:/, $s, 3;
-        next unless defined $col && length $col && defined $op && length $op;
-        push @parsed, { col => $col, op => $op, val => $val // '' };
-    }
-    my $json = encode_json(\@parsed);
-    $json =~ s{</}{<\\/}g;
-    return ($records, \@specs, $json);
+# _apply_filters($self, $records) -> ($filtered_records, \@raw_specs, $json_string)
+#
+# Purpose: Read all "f=" query params, apply them in order via _apply_filter_spec,
+#          and return: the filtered arrayref, the raw spec strings (for building
+#          export URLs), and a script-safe JSON string for pre-populating the UI.
+# Entry:   $records is an arrayref of hashrefs.
+# Exit:    Three-element list; never croaks.  $json_string has '</' escaped to
+#          '<\/' so it is safe to embed directly in a <script> block.
+# Side Effects: None.
+sub _apply_filters :Private ($self, $records) {
+	my @specs = @{ $self->every_param('f') // [] };
+	for my $s (@specs) {
+		$records = _apply_filter_spec($records, $s);
+	}
+	my @parsed;
+	for my $s (@specs) {
+		my ($col, $op, $val) = split /:/, $s, 3;
+		next unless defined $col && length $col && defined $op && length $op;
+		push @parsed, { col => $col, op => $op, val => $val // '' };
+	}
+	my $json = encode_json(\@parsed);
+	$json =~ s{</}{<\\/}g;
+	return ($records, \@specs, $json);
 }
 
-# Left join: every left row is kept; matching right row's columns are appended.
-# Columns shared between the two tables (other than the join key) are prefixed
-# with right_label to avoid collisions.
-# Returns (\@merged_records, \@merged_columns).
+# _left_join($left_recs, $left_cols, $left_key,
+#            $right_recs, $right_cols, $right_key, $right_label)
+#   -> (\@merged_records, \@merged_columns)
+#
+# Purpose: Perform a single in-memory left join.  Every left row is kept.
+#          Right-table columns are appended for rows that match on the join key.
+#          Unmatched rows receive undef for right-table columns.
+#          If a right column name collides with a left column (other than the
+#          join key itself), the right column is prefixed with "$right_label.".
+# Entry:   All arrayref args non-undef; key strings non-empty; $right_label is
+#          a display label used for collision-prefix (not for SQL quoting).
+# Exit:    Returns (\@merged, \@column_list).
+# Side Effects: None; allocates new record hashrefs.
 sub _left_join {
-    my ($left_recs, $left_cols, $left_key,
-        $right_recs, $right_cols, $right_key, $right_label) = @_;
+	my ($left_recs, $left_cols, $left_key,
+	    $right_recs, $right_cols, $right_key, $right_label) = @_;
 
-    # Index right records by join key (first match wins).
-    my %right_idx;
-    for my $row (@$right_recs) {
-        my $k = $row->{$right_key} // '';
-        $right_idx{$k} //= $row;
-    }
+	# Build a lookup hash from join key to first matching right row.
+	my %right_idx;
+	for my $row (@$right_recs) {
+		my $k = $row->{$right_key} // '';
+		$right_idx{$k} //= $row;
+	}
 
-    # Map right column names: skip the join key (redundant), prefix collisions.
-    my %left_set = map { $_ => 1 } @$left_cols;
-    my @add_cols;
-    my %col_map;
-    for my $col (grep { $_ ne $right_key } @$right_cols) {
-        my $out = $left_set{$col} ? "${right_label}.${col}" : $col;
-        $col_map{$col} = $out;
-        push @add_cols, $out;
-    }
+	# Map right column names: drop the join key (redundant), prefix collisions.
+	my %left_set = map { $_ => 1 } @$left_cols;
+	my (@add_cols, %col_map);
+	for my $col (grep { $_ ne $right_key } @$right_cols) {
+		my $out = $left_set{$col} ? "${right_label}.${col}" : $col;
+		$col_map{$col} = $out;
+		push @add_cols, $out;
+	}
 
-    my @merged;
-    for my $left_row (@$left_recs) {
-        my $k         = $left_row->{$left_key} // '';
-        my $right_row = $right_idx{$k} // {};
-        my %row       = %$left_row;
-        for my $rcol (grep { $_ ne $right_key } @$right_cols) {
-            $row{ $col_map{$rcol} } = $right_row->{$rcol};
-        }
-        push @merged, \%row;
-    }
+	my @merged;
+	for my $left_row (@$left_recs) {
+		my $k         = $left_row->{$left_key} // '';
+		my $right_row = $right_idx{$k} // {};
+		my %row       = %$left_row;
+		for my $rcol (grep { $_ ne $right_key } @$right_cols) {
+			$row{ $col_map{$rcol} } = $right_row->{$rcol};
+		}
+		push @merged, \%row;
+	}
 
-    return (\@merged, [@$left_cols, @add_cols]);
+	return (\@merged, [@$left_cols, @add_cols]);
 }
 
-# Encode one row as an RFC 4180 CSV line.
+# _csv_row(@fields) -> $csv_line_with_crlf
+#
+# Purpose: Format one row as an RFC 4180 CSV line.  Fields containing commas,
+#          double-quotes, or newlines are enclosed in double-quotes; embedded
+#          double-quotes are doubled.  The line ends with CRLF.
+# Entry:   @fields may contain undef (treated as empty string).
+# Exit:    Returns a string ending with "\r\n".
+# Side Effects: None.
 sub _csv_row {
-    return join(',', map {
-        my $f = $_ // '';
-        $f =~ /[,"\r\n]/ ? do { (my $q = $f) =~ s/"/""/g; qq{"$q"} } : $f;
-    } @_) . "\r\n";
+	return join(',', map {
+		my $f = $_ // '';
+		$f =~ /[,"\r\n]/ ? do { (my $q = $f) =~ s/"/""/g; qq{"$q"} } : $f;
+	} @_) . "\r\n";
 }
 
-# Build a base export URL for the current view (without &format=).
-sub _build_export_url ($self, $left_spec, $join_specs, $filter_specs) {
-    my $u = '/export?l=' . url_escape($left_spec);
-    $u .= '&j=' . url_escape($_) for @$join_specs;
-    $u .= '&f=' . url_escape($_) for @$filter_specs;
-    return $u;
+# _build_export_url($self, $left_spec, \@join_specs, \@filter_specs) -> $url_string
+#
+# Purpose: Assemble a /export?l=...&j=...&f=... URL string for the current
+#          logical view.  The caller must apply | html in TT to escape & as &amp;.
+# Entry:   All args non-undef; spec arrays may be empty.
+# Exit:    Returns a relative URL string beginning with '/export'.
+# Side Effects: None.
+sub _build_export_url :Private ($self, $left_spec, $join_specs, $filter_specs) {
+	my $u = '/export?l=' . url_escape($left_spec);
+	$u .= '&j=' . url_escape($_) for @$join_specs;
+	$u .= '&f=' . url_escape($_) for @$filter_specs;
+	return $u;
+}
+
+# _list_dir($self, $dir, $want_files) -> { dirs => [...], files => [...] }
+#
+# Purpose: Shared directory-listing kernel used by browse (which needs files)
+#          and dirs_api (which needs only subdirectories).  Hidden entries
+#          (names starting with ".") are excluded.  Entries are sorted
+#          case-insensitively.
+# Entry:   $dir is a Mojo::File pointing to an existing readable directory.
+#          $want_files: if true, populate 'files' with entries matching $EXT_RE.
+# Exit:    Returns a hashref with 'dirs' and 'files' arrayrefs (files is always
+#          present but empty when $want_files is false).
+# Side Effects: Filesystem directory read.
+sub _list_dir :Private ($self, $dir, $want_files) {
+	my (@dirs, @files);
+	if (opendir my $dh, $dir->to_string) {
+		while (my $entry = readdir $dh) {
+			next if $entry eq '.' || $entry eq '..' || $entry =~ /\A\./;
+			my $f = $dir->child($entry);
+			if (-d $f) {
+				push @dirs,  { name => $entry, path => $f->to_string };
+			}
+			elsif ($want_files && $entry =~ $EXT_RE) {
+				push @files, { name => $entry, path => $f->to_string };
+			}
+		}
+		closedir $dh;
+	}
+	return {
+		dirs  => [ sort { lc($a->{name}) cmp lc($b->{name}) } @dirs  ],
+		files => [ sort { lc($a->{name}) cmp lc($b->{name}) } @files ],
+	};
+}
+
+# _write_sqlite_db($self, $records, $columns) -> $raw_bytes
+#
+# Purpose: Write $records to an in-process SQLite database (single table named
+#          "data"; every column declared TEXT) and return the raw file bytes.
+#          The temporary file is created, written, read, and then unlinked in
+#          one synchronous sequence.  Used by both _render_sqlite (HTTP download)
+#          and export_write (filesystem write) to eliminate code duplication.
+# Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names.
+# Exit:    Returns scalar binary string.  Croaks on any DBI error.
+# Side Effects: Creates and unlinks one temporary file under system tmpdir.
+sub _write_sqlite_db :Private ($self, $records, $columns) {
+	require DBI;
+	my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
+	close $tmp_fh;
+
+	my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
+		RaiseError => 1, AutoCommit => 1,
+	}) };
+	croak "DBI connect failed: $@" if $@;
+
+	# Quote column names for safe use in the CREATE TABLE statement.
+	my @quoted = map { (my $c = $_) =~ s/"/""/g; qq{"$c"} } @$columns;
+	$dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
+
+	if (@$records) {
+		my $ph  = join(', ', ('?') x scalar @$columns);
+		my $sth = $dbh->prepare('INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)");
+		for my $row (@$records) {
+			$sth->execute(map { $row->{$_} } @$columns);
+		}
+	}
+	$dbh->disconnect;
+
+	my $data = Mojo::File->new($tmpfile)->slurp;
+	unlink $tmpfile;
+	return $data;
+}
+
+# _run_export_pipeline($self) -> ($records, \@columns, $left_label) or ()
+#
+# Purpose: Shared join+filter pipeline executed by both export_data (GET, download)
+#          and export_write (POST, filesystem write).  Opens the left table, applies
+#          all join steps, then applies all filter specs.
+# Entry:   Reads "l=", "j=" (repeatable), and "f=" (repeatable) query/body params.
+# Exit:    On success: ($filtered_arrayref, \@column_names, $left_label_string).
+#          On failure: empty list (left table not found / fetch error).
+# Side Effects: Opens data files; may emit carp warnings for empty result sets.
+sub _run_export_pipeline :Private ($self) {
+	my $left_spec = $self->param('l') // '';
+	my ($left_src, $left_label) = $self->_open_spec($left_spec);
+	return () unless $left_src;
+
+	my $left_recs = eval { $left_src->fetch_all };
+	return () if $@;
+	$left_recs //= [];
+
+	my @columns = _get_columns($left_src, $left_recs);
+	my $records  = $left_recs;
+
+	for my $jspec (@{ $self->every_param('j') }) {
+		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
+		next unless defined $right_spec && defined $left_key && defined $right_key;
+		next unless grep { $_ eq $left_key } @columns;
+		my ($right_src, $right_label) = $self->_open_spec($right_spec);
+		next unless $right_src;
+		my $right_recs = eval { $right_src->fetch_all } // [];
+		next if $@;
+		my @right_cols = _get_columns($right_src, $right_recs);
+		next unless grep { $_ eq $right_key } @right_cols;
+		($records, my $new_cols) = _left_join(
+			$records, \@columns, $left_key,
+			$right_recs, \@right_cols, $right_key, $right_label,
+		);
+		@columns = @$new_cols;
+	}
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	return ($records, \@columns, $left_label);
+}
+
+# _render_csv($self, $records, \@columns, $name) -> void (renders response)
+#
+# Purpose: Serialise $records to RFC 4180 CSV and emit as a UTF-8 download.
+# Entry:   $name is a safe filename stem (alphanumeric/underscore).
+# Exit:    Renders the Mojolicious response; does not return a meaningful value.
+# Side Effects: Writes HTTP response headers and body.
+sub _render_csv :Private ($self, $records, $columns, $name) {
+	my $out = _csv_row(@$columns);
+	for my $row (@$records) {
+		$out .= _csv_row(map { $row->{$_} } @$columns);
+	}
+	$self->res->headers->content_type('text/csv; charset=UTF-8');
+	$self->res->headers->content_disposition(qq{attachment; filename="${name}.csv"});
+	$self->render(data => encode('UTF-8', $out));
+}
+
+# _render_sqlite($self, $records, \@columns, $name) -> void (renders response)
+#
+# Purpose: Write $records to a SQLite database and emit it as a binary download.
+# Entry:   $name is a safe filename stem.
+# Exit:    Renders the Mojolicious response.
+# Side Effects: Creates and unlinks a temporary file; writes HTTP response.
+sub _render_sqlite :Private ($self, $records, $columns, $name) {
+	my $data = $self->_write_sqlite_db($records, $columns);
+	$self->res->headers->content_type('application/vnd.sqlite3');
+	$self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
+	$self->render(data => $data);
 }
 
 # ---------------------------------------------------------------------------
-# Actions
+# Public actions
 # ---------------------------------------------------------------------------
 
-# GET / - scan data_dir and present a list of available tables.
+=head2 index
+
+C<GET /> -- Scan C<data_dir> and present a card grid of available tables.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None (reads C<data_dir> from application config).
+
+=head4 OUTPUT
+
+Renders C<home.html.tt> with:
+
+  tables     ARRAYREF of { name => $stem, file => $basename }
+  title      'Choose a Database'
+
+=head3 MESSAGES
+
+None produced by this action; any file-scan errors are silently ignored
+(empty directory yields an empty card grid).
+
+=head3 FORMAL SPECIFICATION
+
+  index == lambda self .
+    let dir  = resolve self.app.config.data_dir in
+    let tbls = { b | b in dir /\ basename(b) =~ EXT_RE } in
+    post render(home, tables: map(stem, tbls))
+
+=head3 EXAMPLE
+
+  GET / -> 200 text/html containing a card for each file in data/
+
+=cut
+
 sub index ($self) {
-    my $conf     = $self->app->config;
-    my $platform = $conf->{platform} // 'web';
-    my $language = $self->_resolve_language($conf->{language} // 'en');
+	my ($platform, $language) = $self->_resolve_template;
 
-    my $dir_path = $self->app->home->child($conf->{data_dir});
-    my @tables;
-    if (-d $dir_path) {
-        @tables = $dir_path->list
-            ->grep(sub { $_->basename =~ $EXT_RE })
-            ->map(sub {
-                my $base = $_->basename;
-                (my $name = $base) =~ s/\.[^.]+$//;
-                { name => $name, file => $base }
-            })->each;
-    }
-
-    $self->render(
-        template => "$platform/$language/home",
-        handler  => 'tt',
-        format   => 'html',
-        tables   => \@tables,
-        title    => 'Choose a Database',
-    );
+	$self->render(
+		template => "$platform/$language/home",
+		handler  => 'tt',
+		format   => 'html',
+		tables   => $self->_scan_data_dir,
+		title    => 'Choose a Database',
+	);
 }
 
-# GET /view/:table - open and display the chosen table.
+=head2 view
+
+C<GET /view/:table> -- Open and display the chosen table from C<data_dir>.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  :table   string   Table name (alphanumeric + underscore).  Returns 404 on
+                    other characters.
+  ?f=      string   (repeatable) Filter spec: "col:op:val".
+
+=head4 OUTPUT
+
+On success renders C<dashboard.html.tt> with table data.
+On error re-renders C<home.html.tt> with an C<error> stash variable.
+
+=head3 MESSAGES
+
+  error_table_open   -- DataSource initialisation or fetch_all threw.
+
+=head3 FORMAL SPECIFICATION
+
+  view == lambda self .
+    pre  self.stash('table') =~ TABLE_NAME_RE
+    let src     = open_table(table) in
+    let records = src.fetch_all()   in
+    let cols    = get_columns(src, records) in
+    post render(dashboard, records: filter(records, f_params))
+
+=head3 EXAMPLE
+
+  GET /view/sales      -> 200 HTML table of all sales rows
+  GET /view/sales?f=region:eq:North -> shows only North region rows
+  GET /view/../etc     -> 404
+
+=cut
+
 sub view ($self) {
-    my $conf     = $self->app->config;
-    my $platform = $conf->{platform} // 'web';
-    my $language = $self->_resolve_language($conf->{language} // 'en');
-    my $table    = $self->stash('table');
+	my ($platform, $language) = $self->_resolve_template;
+	my $table = $self->stash('table');
 
-    unless (defined $table && $table =~ /\A[A-Za-z0-9_]+\z/) {
-        return $self->reply->not_found;
-    }
+	unless (defined $table && $table =~ $TABLE_NAME_RE) {
+		return $self->reply->not_found;
+	}
 
-    my $source  = $self->open_table($table);
-    my $records = eval { $source->fetch_all };
-    if ($@) {
-        $self->render(
-            template => "$platform/$language/home",
-            handler  => 'tt',
-            format   => 'html',
-            tables   => [],
-            title    => 'Choose a Database',
-            error    => "Could not open table '$table': $@",
-        );
-        return;
-    }
+	my $source  = $self->open_table($table);
+	my $records = eval { $source->fetch_all };
+	if ($@) {
+		return $self->render(
+			template => "$platform/$language/home",
+			handler  => 'tt',
+			format   => 'html',
+			tables   => [],
+			title    => 'Choose a Database',
+			error    => $self->_i18n('error_table_open', $table, $@),
+		);
+	}
 
-    my @columns;
-    if ($source->columns) {
-        @columns = @{ $source->columns };
-    }
-    elsif ($records->[0]) {
-        my %all = map { $_ => 1 } keys %{ $records->[0] };
-        my $id  = do {
-            my $c = $source->id_column;
-            ($c && $all{$c}) ? $c : (sort keys %all)[0];
-        };
-        delete $all{$id};
-        @columns = ($id, sort keys %all);
-    }
+	my @columns = _get_columns($source, $records);
+	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
-    my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-
-    $self->render(
-        template         => "$platform/$language/dashboard",
-        handler          => 'tt',
-        format           => 'html',
-        records          => $filtered,
-        columns          => \@columns,
-        table            => $table,
-        title            => ucfirst($table),
-        left_spec        => "table:$table",
-        current_joins    => [],
-        available_tables => $self->_scan_data_dir,
-        join_summaries   => [],
-        filter_specs     => $filter_specs,
-        filters_json     => $filters_json,
-        export_url       => $self->_build_export_url("table:$table", [], $filter_specs),
-    );
+	$self->render(
+		template         => "$platform/$language/dashboard",
+		handler          => 'tt',
+		format           => 'html',
+		records          => $filtered,
+		columns          => \@columns,
+		table            => $table,
+		title            => ucfirst($table),
+		left_spec        => "table:$table",
+		current_joins    => [],
+		available_tables => $self->_scan_data_dir,
+		join_summaries   => [],
+		filter_specs     => $filter_specs,
+		filters_json     => $filters_json,
+		export_url       => $self->_build_export_url("table:$table", [], $filter_specs),
+	);
 }
 
-# GET /browse - navigate the filesystem and pick a data file.
+=head2 browse
+
+C<GET /browse> -- Navigate the filesystem and pick a data file.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?path=   string   Absolute filesystem path to browse (default: $HOME).
+                    Returns 404 when the path does not exist or is not a
+                    directory.
+
+=head4 OUTPUT
+
+Renders C<browse.html.tt> with:
+
+  current_path   string
+  parent_href    string or undef (undef at filesystem root)
+  crumbs         ARRAYREF of { name, href }
+  dirs           ARRAYREF of { name, href }   -- subdirectories, sorted
+  files          ARRAYREF of { name, href }   -- supported data files, sorted
+
+=head3 MESSAGES
+
+None; errors render as 404.
+
+=head3 FORMAL SPECIFICATION
+
+  browse == lambda self .
+    let dir = realpath(param('path') // HOME) in
+    pre  is_dir(dir)
+    post render(browse, dirs: subdirs(dir), files: supported_files(dir))
+
+=head3 EXAMPLE
+
+  GET /browse                            -> 200, lists $HOME
+  GET /browse?path=/tmp                  -> 200, lists /tmp
+  GET /browse?path=/nonexistent/xyz      -> 404
+
+=cut
+
 sub browse ($self) {
-    my $conf     = $self->app->config;
-    my $platform = $conf->{platform} // 'web';
-    my $language = $self->_resolve_language($conf->{language} // 'en');
+	my ($platform, $language) = $self->_resolve_template;
 
-    my $raw_path = $self->param('path') // $ENV{HOME} // '/';
-    my $dir      = eval { Mojo::File->new($raw_path)->realpath };
-    unless (defined $dir && -d $dir) {
-        return $self->reply->not_found;
-    }
+	my $raw_path = $self->param('path') // $ENV{HOME} // '/';
+	my $dir      = eval { Mojo::File->new($raw_path)->realpath };
+	return $self->reply->not_found unless defined $dir && -d $dir;
 
-    my (@dirs, @files);
-    if (opendir my $dh, $dir->to_string) {
-        while (my $entry = readdir $dh) {
-            next if $entry eq '.' || $entry eq '..';
-            next if $entry =~ /\A\./;
-            my $f = $dir->child($entry);
-            if (-d $f) {
-                push @dirs, {
-                    name => $entry,
-                    href => '/browse?path=' . url_escape($f->to_string),
-                };
-            }
-            elsif ($entry =~ $EXT_RE) {
-                push @files, {
-                    name => $entry,
-                    href => '/open?path=' . url_escape($f->to_string),
-                };
-            }
-        }
-        closedir $dh;
-    }
-    @dirs  = sort { lc $a->{name} cmp lc $b->{name} } @dirs;
-    @files = sort { lc $a->{name} cmp lc $b->{name} } @files;
+	my $listing = $self->_list_dir($dir, 1);
 
-    my @crumbs;
-    {
-        my $f = $dir;
-        while (1) {
-            my $name = $f->basename;
-            $name    = '/' unless length $name;
-            unshift @crumbs, {
-                name => $name,
-                href => '/browse?path=' . url_escape($f->to_string),
-            };
-            my $parent = $f->dirname;
-            last if $parent->to_string eq $f->to_string;
-            $f = $parent;
-        }
-    }
+	# Add browse hrefs to file entries (dirs already have path; browse needs href).
+	my @dirs = map {
+		+{ name => $_->{name}, href => '/browse?path=' . url_escape($_->{path}) }
+	} @{ $listing->{dirs} };
 
-    my $parent      = $dir->dirname;
-    my $parent_href = $parent->to_string ne $dir->to_string
-        ? '/browse?path=' . url_escape($parent->to_string)
-        : undef;
+	my @files = map {
+		+{ name => $_->{name}, href => '/open?path=' . url_escape($_->{path}) }
+	} @{ $listing->{files} };
 
-    $self->render(
-        template     => "$platform/$language/browse",
-        handler      => 'tt',
-        format       => 'html',
-        title        => 'Browse Files',
-        current_path => $dir->to_string,
-        parent_href  => $parent_href,
-        crumbs       => \@crumbs,
-        dirs         => \@dirs,
-        files        => \@files,
-    );
+	# Build breadcrumb trail from filesystem root down to $dir.
+	my @crumbs;
+	{
+		my $f = $dir;
+		while (1) {
+			my $name = $f->basename;
+			$name    = '/' unless length $name;
+			unshift @crumbs, { name => $name, href => '/browse?path=' . url_escape($f->to_string) };
+			my $parent = $f->dirname;
+			last if $parent->to_string eq $f->to_string;
+			$f = $parent;
+		}
+	}
+
+	my $parent      = $dir->dirname;
+	my $parent_href = $parent->to_string ne $dir->to_string
+		? '/browse?path=' . url_escape($parent->to_string)
+		: undef;
+
+	$self->render(
+		template     => "$platform/$language/browse",
+		handler      => 'tt',
+		format       => 'html',
+		title        => 'Browse Files',
+		current_path => $dir->to_string,
+		parent_href  => $parent_href,
+		crumbs       => \@crumbs,
+		dirs         => \@dirs,
+		files        => \@files,
+	);
 }
 
-# GET /open - open a data file from any absolute filesystem path.
+=head2 open_file
+
+C<GET /open> -- Open a supported data file from any absolute filesystem path.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?path=   string   Absolute path to the data file.  Returns 404 when missing,
+                    not a regular file, or the extension is not in SUPPORTED_EXT.
+  ?f=      string   (repeatable) Filter spec: "col:op:val".
+
+=head4 OUTPUT
+
+On success renders C<dashboard.html.tt> with C<back_url> pointing to the
+directory's C</browse> page, and C<file_path> set to the resolved absolute
+path (used by the template to record the file in C<localStorage>).
+On error re-renders C<home.html.tt> with C<error>, C<back_url>, C<back_label>.
+
+=head3 MESSAGES
+
+  error_file_open   -- DataSource threw during initialisation or fetch_all.
+
+=head3 FORMAL SPECIFICATION
+
+  open_file == lambda self .
+    let file = realpath(param('path')) in
+    pre  is_file(file) /\ basename(file) =~ EXT_RE
+    let src = open_table(stem(file), dir=dirname(file)) in
+    post render(dashboard, file_path: file.to_string)
+
+=head3 EXAMPLE
+
+  GET /open?path=/data/archive/sales.csv   -> 200, table view
+  GET /open                                -> 404
+  GET /open?path=/etc/passwd               -> 404
+
+=cut
+
 sub open_file ($self) {
-    my $conf      = $self->app->config;
-    my $platform  = $conf->{platform} // 'web';
-    my $language  = $self->_resolve_language($conf->{language} // 'en');
-    my $file_path = $self->param('path');
+	my ($platform, $language) = $self->_resolve_template;
+	my $file_path = $self->param('path');
 
-    unless (defined $file_path) {
-        return $self->reply->not_found;
-    }
+	return $self->reply->not_found unless defined $file_path;
 
-    my $file = eval { Mojo::File->new($file_path)->realpath };
-    unless (defined $file && -f $file && $file->basename =~ $EXT_RE) {
-        return $self->reply->not_found;
-    }
+	my $file = eval { Mojo::File->new($file_path)->realpath };
+	return $self->reply->not_found
+		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
 
-    my $dir      = $file->dirname;
-    (my $table   = $file->basename) =~ s/\.[^.]+$//;
-    $table       = lc $table;
-    my $back     = '/browse?path=' . url_escape($dir->to_string);
-    my $filename = $file->basename;
+	my $dir      = $file->dirname;
+	(my $table   = $file->basename) =~ s/\.[^.]+$//;
+	$table       = lc $table;
+	my $back     = '/browse?path=' . url_escape($dir->to_string);
+	my $filename = $file->basename;
+	my $lspec    = 'path:' . $file->to_string;
 
-    my $source  = $self->open_table($table, directory => $dir->to_string);
-    my $records = eval { $source->fetch_all };
-    if ($@) {
-        $self->render(
-            template   => "$platform/$language/home",
-            handler    => 'tt',
-            format     => 'html',
-            tables     => [],
-            title      => 'Error',
-            error      => "Could not open '$filename': $@",
-            back_url   => $back,
-            back_label => 'Back to browser',
-        );
-        return;
-    }
+	my $source  = $self->open_table($table, directory => $dir->to_string);
+	my $records = eval { $source->fetch_all };
+	if ($@) {
+		return $self->render(
+			template   => "$platform/$language/home",
+			handler    => 'tt',
+			format     => 'html',
+			tables     => [],
+			title      => 'Error',
+			error      => $self->_i18n('error_file_open', $filename, $@),
+			back_url   => $back,
+			back_label => 'Back to browser',
+		);
+	}
 
-    my @columns;
-    if ($source->columns) {
-        @columns = @{ $source->columns };
-    }
-    elsif ($records->[0]) {
-        my %all = map { $_ => 1 } keys %{ $records->[0] };
-        my $id  = do {
-            my $c = $source->id_column;
-            ($c && $all{$c}) ? $c : (sort keys %all)[0];
-        };
-        delete $all{$id};
-        @columns = ($id, sort keys %all);
-    }
+	my @columns  = _get_columns($source, $records);
+	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
-    my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-    my $lspec = 'path:' . $file->to_string;
-
-    $self->render(
-        template         => "$platform/$language/dashboard",
-        handler          => 'tt',
-        format           => 'html',
-        records          => $filtered,
-        columns          => \@columns,
-        table            => $table,
-        title            => $filename,
-        back_url         => $back,
-        back_label       => 'Back to browser',
-        file_path        => $file->to_string,
-        left_spec        => $lspec,
-        current_joins    => [],
-        available_tables => $self->_scan_data_dir,
-        join_summaries   => [],
-        filter_specs     => $filter_specs,
-        filters_json     => $filters_json,
-        export_url       => $self->_build_export_url($lspec, [], $filter_specs),
-    );
+	$self->render(
+		template         => "$platform/$language/dashboard",
+		handler          => 'tt',
+		format           => 'html',
+		records          => $filtered,
+		columns          => \@columns,
+		table            => $table,
+		title            => $filename,
+		back_url         => $back,
+		back_label       => 'Back to browser',
+		file_path        => $file->to_string,
+		left_spec        => $lspec,
+		current_joins    => [],
+		available_tables => $self->_scan_data_dir,
+		join_summaries   => [],
+		filter_specs     => $filter_specs,
+		filters_json     => $filters_json,
+		export_url       => $self->_build_export_url($lspec, [], $filter_specs),
+	);
 }
 
-# GET /api/columns - return column names for a table as JSON.
-# Used by the join UI to populate the right-key dropdown without a page reload.
+=head2 columns_api
+
+C<GET /api/columns> -- Return column names for a table or file as JSON.
+
+Used by the join UI to populate the right-key dropdown without a page reload.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?table=  string   Table name from C<data_dir>.
+  ?path=   string   Absolute path to a data file.
+
+One of C<table> or C<path> must be present; if both are, C<table> takes
+precedence.
+
+=head4 OUTPUT
+
+  200 application/json   { "columns": ["col1", "col2", ...] }
+  404 application/json   { "error": "not found" }
+
+=head3 MESSAGES
+
+None produced by this action directly; internal errors yield a 404.
+
+=head3 FORMAL SPECIFICATION
+
+  columns_api == lambda self .
+    let src = open_spec(table_param or path_param) in
+    pre  src /= undef
+    post render_json({ columns: get_columns(src) })
+
+=head3 EXAMPLE
+
+  GET /api/columns?table=sales  -> {"columns":["product","region","amount"]}
+  GET /api/columns?table=noexist -> 404
+
+=cut
+
 sub columns_api ($self) {
-    my $table_name = $self->param('table');
-    my $path       = $self->param('path');
+	my $table_name = $self->param('table');
+	my $path       = $self->param('path');
 
-    my $source;
-    if (defined $table_name && $table_name =~ /\A[A-Za-z0-9_]+\z/) {
-        my $data_dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
-        return $self->render(json => { error => 'not found' }, status => 404)
-            unless grep { -f $data_dir->child(lc($table_name) . ".$_") } @SUPPORTED_EXT;
-        $source = eval { $self->open_table(lc $table_name, directory => $data_dir->to_string) };
-    }
-    elsif (defined $path) {
-        my $file = eval { Mojo::File->new($path)->realpath };
-        if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
-            my $dir = $file->dirname->to_string;
-            (my $tbl = $file->basename) =~ s/\.[^.]+$//;
-            $source = eval { $self->open_table(lc $tbl, directory => $dir) };
-        }
-    }
+	my $source;
+	if (defined $table_name && $table_name =~ $TABLE_NAME_RE) {
+		my $data_dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
+		return $self->render(json => { error => 'not found' }, status => 404)
+			unless grep { -f $data_dir->child(lc($table_name) . ".$_") } @SUPPORTED_EXT;
+		$source = eval { $self->open_table(lc $table_name, directory => $data_dir->to_string) };
+	}
+	elsif (defined $path) {
+		my $file = eval { Mojo::File->new($path)->realpath };
+		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
+			my $dir = $file->dirname->to_string;
+			(my $tbl = $file->basename) =~ s/\.[^.]+$//;
+			$source = eval { $self->open_table(lc $tbl, directory => $dir) };
+		}
+	}
 
-    unless ($source) {
-        return $self->render(json => { error => 'not found' }, status => 404);
-    }
+	return $self->render(json => { error => 'not found' }, status => 404) unless $source;
 
-    my @cols;
-    if ($source->columns) {
-        @cols = @{ $source->columns };
-    }
-    else {
-        my $recs = eval { $source->fetch_all } // [];
-        @cols = $recs->[0] ? sort keys %{ $recs->[0] } : ();
-    }
+	# Use _get_columns to ensure consistent ordering with the view action.
+	my $recs = ($source->columns ? [] : eval { $source->fetch_all } // []);
+	my @cols = _get_columns($source, $recs);
 
-    $self->render(json => { columns => \@cols });
+	$self->render(json => { columns => \@cols });
 }
 
-# GET /join - perform one or more left joins and render the merged table.
-#
-# Query parameters:
-#   l   = left table spec: "table:name" or "path:/abs/path"
-#   j   = join spec (repeatable): "<right-spec>|<left-key>|<right-key>"
-#
-# Join semantics: left join - every left row is kept; columns from the right
-# table are appended for matching rows, or left undef when there is no match.
+=head2 join_tables
+
+C<GET /join> -- Perform one or more left joins and render the merged table.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?l=    string   Required. Left table spec: "table:name" or "path:/abs/path".
+                  Returns 404 if unresolvable.
+  ?j=    string   (repeatable) Join step: "<right-spec>|<left-key>|<right-key>".
+                  Invalid or non-existent steps are silently skipped.
+  ?f=    string   (repeatable) Result filter: "col:op:val".
+
+=head4 OUTPUT
+
+Renders C<dashboard.html.tt> with the merged/filtered result set.
+
+=head3 MESSAGES
+
+  error_table_open   -- Left table fetch threw (re-renders home with error).
+
+=head3 FORMAL SPECIFICATION
+
+  join_tables == lambda self .
+    let left = open_spec(param('l')) in
+    pre  left /= undef
+    let joined  = fold(_left_join, left, param_list('j')) in
+    let filtered = fold(_apply_filter_spec, joined, param_list('f')) in
+    post render(dashboard, records: filtered)
+
+=head3 PSEUDOCODE
+
+  1. Parse and open left table spec; 404 on failure.
+  2. For each j= param (in order):
+       a. Parse right-spec, left-key, right-key from "|"-split.
+       b. Verify left-key exists in current column list.
+       c. Open right table; skip step on any error.
+       d. Verify right-key exists in right column list.
+       e. Call _left_join; update records and columns.
+  3. Apply all f= filters via _apply_filter_spec.
+  4. Build stable table key for localStorage ("join:left:right1:...").
+  5. Render dashboard.
+
+=head3 EXAMPLE
+
+  GET /join?l=table:sales&j=table:products|product|name
+    -> merged left join of sales and products on product/name columns
+
+=cut
+
 sub join_tables ($self) {
-    my $conf     = $self->app->config;
-    my $platform = $conf->{platform} // 'web';
-    my $language = $self->_resolve_language($conf->{language} // 'en');
+	my ($platform, $language) = $self->_resolve_template;
 
-    my $left_spec = $self->param('l') // '';
-    my ($left_src, $left_label) = $self->_open_spec($left_spec);
-    return $self->reply->not_found unless $left_src;
+	my $left_spec = $self->param('l') // '';
+	my ($left_src, $left_label) = $self->_open_spec($left_spec);
+	return $self->reply->not_found unless $left_src;
 
-    my $left_recs = eval { $left_src->fetch_all };
-    if ($@) {
-        return $self->render(
-            template => "$platform/$language/home", handler => 'tt', format => 'html',
-            tables => [], title => 'Error', error => "Could not open table: $@",
-        );
-    }
-    $left_recs //= [];
+	my $left_recs = eval { $left_src->fetch_all };
+	if ($@) {
+		return $self->render(
+			template => "$platform/$language/home",
+			handler  => 'tt',
+			format   => 'html',
+			tables   => [],
+			title    => 'Error',
+			error    => $self->_i18n('error_table_open', $left_label, $@),
+		);
+	}
+	$left_recs //= [];
 
-    my @left_cols = _get_columns($left_src, $left_recs);
-    my @join_specs = @{ $self->every_param('j') };
+	my @left_cols = _get_columns($left_src, $left_recs);
+	my @join_specs = @{ $self->every_param('j') };
 
-    my $records    = $left_recs;
-    my @columns    = @left_cols;
-    my @summaries;
+	my ($records, @columns, @summaries) = ($left_recs, @left_cols);
 
-    for my $jspec (@join_specs) {
-        my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
-        next unless defined $right_spec && defined $left_key && defined $right_key;
-        next unless grep { $_ eq $left_key } @columns;
+	for my $jspec (@join_specs) {
+		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
+		next unless defined $right_spec && defined $left_key && defined $right_key;
+		next unless grep { $_ eq $left_key } @columns;
 
-        my ($right_src, $right_label) = $self->_open_spec($right_spec);
-        next unless $right_src;
+		my ($right_src, $right_label) = $self->_open_spec($right_spec);
+		next unless $right_src;
 
-        my $right_recs = eval { $right_src->fetch_all } // [];
-        next if $@;
-        my @right_cols = _get_columns($right_src, $right_recs);
-        next unless grep { $_ eq $right_key } @right_cols;
+		my $right_recs = eval { $right_src->fetch_all } // [];
+		next if $@;
+		my @right_cols = _get_columns($right_src, $right_recs);
+		next unless grep { $_ eq $right_key } @right_cols;
 
-        ($records, my $new_cols) = _left_join(
-            $records, \@columns, $left_key,
-            $right_recs, \@right_cols, $right_key, $right_label,
-        );
-        @columns = @$new_cols;
-        push @summaries, { label => $right_label, left_key => $left_key, right_key => $right_key };
-    }
+		($records, my $new_cols) = _left_join(
+			$records, \@columns, $left_key,
+			$right_recs, \@right_cols, $right_key, $right_label,
+		);
+		@columns = @$new_cols;
+		push @summaries, { label => $right_label, left_key => $left_key, right_key => $right_key };
+	}
 
-    my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
-    my $title = $left_label;
-    $title .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
+	my $title     = $left_label;
+	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
+	my $table_key = 'join:' . lc($left_label);
+	$table_key   .= ':' . lc($_->{label}) for @summaries;
 
-    # Stable localStorage key: join:left:right1:right2:...
-    my $table_key = 'join:' . lc($left_label);
-    $table_key   .= ':' . lc($_->{label}) for @summaries;
-
-    $self->render(
-        template         => "$platform/$language/dashboard",
-        handler          => 'tt',
-        format           => 'html',
-        records          => $filtered,
-        columns          => \@columns,
-        table            => $table_key,
-        title            => $title,
-        back_url         => $self->_spec_to_url($left_spec),
-        back_label       => "Back to $left_label",
-        left_spec        => $left_spec,
-        current_joins    => \@join_specs,
-        available_tables => $self->_scan_data_dir,
-        join_summaries   => \@summaries,
-        filter_specs     => $filter_specs,
-        filters_json     => $filters_json,
-        export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs),
-    );
+	$self->render(
+		template         => "$platform/$language/dashboard",
+		handler          => 'tt',
+		format           => 'html',
+		records          => $filtered,
+		columns          => \@columns,
+		table            => $table_key,
+		title            => $title,
+		back_url         => $self->_spec_to_url($left_spec),
+		back_label       => "Back to $left_label",
+		left_spec        => $left_spec,
+		current_joins    => \@join_specs,
+		available_tables => $self->_scan_data_dir,
+		join_summaries   => \@summaries,
+		filter_specs     => $filter_specs,
+		filters_json     => $filters_json,
+		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs),
+	);
 }
 
-# Run the join+filter pipeline shared by all export actions.
-# Returns ($records, \@columns, $left_label) on success, or () on failure.
-sub _run_export_pipeline ($self) {
-    my $left_spec = $self->param('l') // '';
-    my ($left_src, $left_label) = $self->_open_spec($left_spec);
-    return () unless $left_src;
+=head2 export_data
 
-    my $left_recs = eval { $left_src->fetch_all };
-    return () if $@;
-    $left_recs //= [];
+C<GET /export> -- Stream the current logical view as a browser file download.
 
-    my @columns = _get_columns($left_src, $left_recs);
-    my $records  = $left_recs;
+=head3 API SPECIFICATION
 
-    for my $jspec (@{ $self->every_param('j') }) {
-        my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
-        next unless defined $right_spec && defined $left_key && defined $right_key;
-        next unless grep { $_ eq $left_key } @columns;
-        my ($right_src, $right_label) = $self->_open_spec($right_spec);
-        next unless $right_src;
-        my $right_recs = eval { $right_src->fetch_all } // [];
-        next if $@;
-        my @right_cols = _get_columns($right_src, $right_recs);
-        next unless grep { $_ eq $right_key } @right_cols;
-        ($records, my $new_cols) = _left_join(
-            $records, \@columns, $left_key,
-            $right_recs, \@right_cols, $right_key, $right_label,
-        );
-        @columns = @$new_cols;
-    }
+=head4 INPUT
 
-    for my $s (@{ $self->every_param('f') }) {
-        $records = _apply_filter_spec($records, $s);
-    }
+  ?l=        string   (required) Left table spec.
+  ?j=        string   (repeatable) Join steps.
+  ?f=        string   (repeatable) Filter specs.
+  ?format=   string   "csv" (default) or "sqlite".
 
-    return ($records, \@columns, $left_label);
-}
+=head4 OUTPUT
 
-# GET /export -- stream the current logical view as a browser file download.
-#
-# Accepts: l=, j=, f= (same as /join), plus format=csv (default) or format=sqlite.
-# Used for direct URL access and API testing.
+  200 text/csv                  or application/vnd.sqlite3
+  404 application/json          { "error": "Table not found" }
+
+=head3 MESSAGES
+
+None beyond the 404 response.
+
+=head3 FORMAL SPECIFICATION
+
+  export_data == lambda self .
+    let (recs, cols, label) = _run_export_pipeline() in
+    pre  recs /= undef
+    post if format = 'sqlite' then render_sqlite(recs, cols)
+         else render_csv(recs, cols)
+
+=head3 EXAMPLE
+
+  GET /export?l=table:sales&format=csv     -> downloads sales.csv
+  GET /export?l=table:sales&format=sqlite  -> downloads sales.db
+
+=cut
+
 sub export_data ($self) {
-    my ($records, $columns, $left_label) = $self->_run_export_pipeline;
-    return $self->reply->not_found unless $records;
+	my ($records, $columns, $left_label) = $self->_run_export_pipeline;
+	return $self->reply->not_found unless $records;
 
-    my $format = $self->param('format') // 'csv';
-    $format    = 'csv' unless $format eq 'sqlite';
-    (my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
+	my $format = $self->param('format') // 'csv';
+	$format    = 'csv' unless $format eq 'sqlite';
+	(my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
 
-    return $format eq 'sqlite'
-        ? $self->_render_sqlite($records, $columns, $safe_name)
-        : $self->_render_csv($records, $columns, $safe_name);
+	return $format eq 'sqlite'
+		? $self->_render_sqlite($records, $columns, $safe_name)
+		: $self->_render_csv($records, $columns, $safe_name);
 }
 
-# POST /export -- write the current logical view to a chosen filesystem path.
-#
-# Body params: dir= (target directory), filename= (name including extension).
-# The extension determines the format: .csv -> RFC 4180 CSV, .sql -> SQLite.
-# Returns JSON { saved => '/abs/path' } on success or { error => '...' } on failure.
+=head2 export_write
+
+C<POST /export> -- Write the current logical view to a chosen filesystem path.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l=         string   (required) Left table spec.
+  j=         string   (repeatable) Join steps.
+  f=         string   (repeatable) Filter specs.
+  dir=       string   Target directory (must exist; resolved via realpath).
+  filename=  string   Output filename including extension.  Extension determines
+                      format: C<.csv> -> RFC 4180 CSV; C<.sql> -> SQLite.
+
+=head4 OUTPUT
+
+  200 application/json   { "saved": "/abs/path/to/file" }
+  404 application/json   { "error": "..." }  -- bad dir or table not found
+  415 application/json   { "error": "..." }  -- unsupported extension
+  500 application/json   { "error": "..." }  -- write failure
+
+=head3 MESSAGES
+
+  error_dir_not_found   -- realpath of dir failed or result is not a directory.
+  error_ext_required    -- filename extension is not .csv or .sql.
+  error_write_failed    -- DBI or filesystem write threw.
+
+=head3 FORMAL SPECIFICATION
+
+  export_write == lambda self .
+    let dir  = realpath(param('dir'))      in
+    let file = dir / strip_path(param('filename')) in
+    pre  is_dir(dir) /\ ext(file) in {csv, sql}
+    let (recs, cols, _) = _run_export_pipeline() in
+    pre  recs /= undef
+    post spurt(file, serialise(recs, cols))
+         /\ render_json({ saved: file.to_string })
+
+=head3 EXAMPLE
+
+  POST /export  l=table:sales dir=/home/user/exports filename=report.csv
+    -> { "saved": "/home/user/exports/report.csv" }
+
+=cut
+
 sub export_write ($self) {
-    my $dir      = $self->param('dir')      // '';
-    my $filename = $self->param('filename') // '';
+	my $dir      = $self->param('dir')      // '';
+	my $filename = $self->param('filename') // '';
 
-    # Resolve and validate target directory.
-    my $dest_dir = eval { Mojo::File->new($dir)->realpath };
-    unless (defined $dest_dir && -d $dest_dir) {
-        return $self->render(json => { error => 'Directory not found' }, status => 404);
-    }
+	my $dest_dir = eval { Mojo::File->new($dir)->realpath };
+	unless (defined $dest_dir && -d $dest_dir) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_dir_not_found', $dir) },
+			status => 404,
+		);
+	}
 
-    # Strip any path separators from the filename and validate extension.
-    ($filename) = $filename =~ m{([^/\\]+)\z};
-    my $format;
-    if    ($filename && $filename =~ /\.csv$/i) { $format = 'csv';    }
-    elsif ($filename && $filename =~ /\.sql$/i) { $format = 'sqlite'; }
-    else {
-        return $self->render(
-            json   => { error => 'Use a .csv or .sql filename extension' },
-            status => 415,
-        );
-    }
+	# Strip any path separators the browser might include.
+	($filename) = $filename =~ m{([^/\\]+)\z};
+	my $format;
+	if    ($filename && $filename =~ /\.csv$/i) { $format = 'csv';    }
+	elsif ($filename && $filename =~ /\.sql$/i) { $format = 'sqlite'; }
+	else {
+		return $self->render(
+			json   => { error => $self->_i18n('error_ext_required') },
+			status => 415,
+		);
+	}
 
-    my ($records, $columns, $left_label) = $self->_run_export_pipeline;
-    return $self->render(json => { error => 'Table not found' }, status => 404)
-        unless $records;
+	my ($records, $columns, $left_label) = $self->_run_export_pipeline;
+	return $self->render(json => { error => 'Table not found' }, status => 404)
+		unless $records;
 
-    my $dest = $dest_dir->child($filename);
-    eval {
-        if ($format eq 'csv') {
-            my $out = _csv_row(@$columns);
-            for my $row (@$records) {
-                $out .= _csv_row(map { $row->{$_} } @$columns);
-            }
-            $dest->spurt(encode('UTF-8', $out));
-        }
-        else {
-            require DBI;
-            my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
-            close $tmp_fh;
-            my $dbh = DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
-                RaiseError => 1, AutoCommit => 1,
-            });
-            my @quoted = map { my $c = $_; $c =~ s/"/""/g; qq{"$c"} } @$columns;
-            $dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
-            if (@$records) {
-                my $ph  = join(', ', ('?') x scalar @$columns);
-                my $sth = $dbh->prepare(
-                    'INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)"
-                );
-                for my $row (@$records) {
-                    $sth->execute(map { $row->{$_} } @$columns);
-                }
-            }
-            $dbh->disconnect;
-            $dest->spurt(Mojo::File->new($tmpfile)->slurp);
-            unlink $tmpfile;
-        }
-    };
-    return $self->render(json => { error => "Write failed: $@" }, status => 500) if $@;
+	my $dest = $dest_dir->child($filename);
+	eval {
+		if ($format eq 'csv') {
+			my $out = _csv_row(@$columns);
+			for my $row (@$records) {
+				$out .= _csv_row(map { $row->{$_} } @$columns);
+			}
+			$dest->spurt(encode('UTF-8', $out));
+		}
+		else {
+			$dest->spurt($self->_write_sqlite_db($records, $columns));
+		}
+	};
+	return $self->render(
+		json   => { error => $self->_i18n('error_write_failed', $@) },
+		status => 500,
+	) if $@;
 
-    $self->render(json => { saved => $dest->to_string });
+	$self->render(json => { saved => $dest->to_string });
 }
 
-# GET /api/dirs -- return a JSON directory listing (subdirs only) for the export panel.
+=head2 dirs_api
+
+C<GET /api/dirs> -- Return a JSON directory listing for the export panel.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?path=   string   Directory to list (default: $HOME).  Returns 404 when not
+                    a directory.  Hidden entries (names starting with ".") are
+                    excluded.
+
+=head4 OUTPUT
+
+  200 application/json
+    {
+      "path":   "/abs/path",
+      "parent": "/abs/parent" or null (at filesystem root),
+      "dirs":   [ { "name": "alpha", "path": "/abs/path/alpha" }, ... ]
+    }
+
+  404 application/json   { "error": "Not a directory" }
+
+=head3 MESSAGES
+
+None beyond the 404 response.
+
+=head3 FORMAL SPECIFICATION
+
+  dirs_api == lambda self .
+    let dir = realpath(param('path') // HOME) in
+    pre  is_dir(dir)
+    post render_json({ path: dir, parent: parent(dir), dirs: subdirs(dir) })
+
+=head3 EXAMPLE
+
+  GET /api/dirs?path=/home/user  -> {"path":"/home/user","parent":"/home","dirs":[...]}
+
+=cut
+
 sub dirs_api ($self) {
-    my $raw = $self->param('path') // $ENV{HOME} // '/';
-    my $dir = eval { Mojo::File->new($raw)->realpath };
-    unless (defined $dir && -d $dir) {
-        return $self->render(json => { error => 'Not a directory' }, status => 404);
-    }
+	my $raw = $self->param('path') // $ENV{HOME} // '/';
+	my $dir = eval { Mojo::File->new($raw)->realpath };
+	return $self->render(json => { error => 'Not a directory' }, status => 404)
+		unless defined $dir && -d $dir;
 
-    my @dirs;
-    if (opendir my $dh, $dir->to_string) {
-        while (my $entry = readdir $dh) {
-            next if $entry eq '.' || $entry eq '..';
-            next if $entry =~ /\A\./;
-            my $f = $dir->child($entry);
-            push @dirs, { name => $entry, path => $f->to_string } if -d $f;
-        }
-        closedir $dh;
-    }
-    @dirs = sort { lc($a->{name}) cmp lc($b->{name}) } @dirs;
+	my $listing = $self->_list_dir($dir, 0);
+	my $parent  = $dir->dirname;
 
-    my $parent = $dir->dirname;
-    $self->render(json => {
-        path   => $dir->to_string,
-        parent => ($parent->to_string ne $dir->to_string ? $parent->to_string : undef),
-        dirs   => \@dirs,
-    });
+	$self->render(json => {
+		path   => $dir->to_string,
+		parent => ($parent->to_string ne $dir->to_string ? $parent->to_string : undef),
+		dirs   => $listing->{dirs},
+	});
 }
 
-sub _render_csv ($self, $records, $columns, $name) {
-    my $out = _csv_row(@$columns);
-    for my $row (@$records) {
-        $out .= _csv_row(map { $row->{$_} } @$columns);
-    }
-    $self->res->headers->content_type('text/csv; charset=UTF-8');
-    $self->res->headers->content_disposition(qq{attachment; filename="${name}.csv"});
-    $self->render(data => encode('UTF-8', $out));
-}
+=head2 stat_api
 
-sub _render_sqlite ($self, $records, $columns, $name) {
-    require DBI;
+C<GET /api/stat> -- Return filesystem metadata for a file path.
 
-    my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
-    close $tmp_fh;
+Used by the home page tooltip to show modification time and size for recently
+opened files without a page reload.
 
-    my $dbh = DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
-        RaiseError => 1,
-        AutoCommit => 1,
-    });
+=head3 API SPECIFICATION
 
-    my @quoted = map { my $c = $_; $c =~ s/"/""/g; qq{"$c"} } @$columns;
-    $dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
+=head4 INPUT
 
-    if (@$records) {
-        my $ph  = join(', ', ('?') x scalar @$columns);
-        my $sth = $dbh->prepare(
-            'INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)"
-        );
-        for my $row (@$records) {
-            $sth->execute(map { $row->{$_} } @$columns);
-        }
-    }
+  ?path=   string   Absolute path to query.  Returns HTTP 400 when absent.
 
-    $dbh->disconnect;
-    my $data = Mojo::File->new($tmpfile)->slurp;
-    unlink $tmpfile;
+=head4 OUTPUT
 
-    $self->res->headers->content_type('application/vnd.sqlite3');
-    $self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
-    $self->render(data => $data);
-}
+  200 application/json   (file exists)
+    { "exists": true, "path": "/resolved/path", "mtime": 1700000000, "size": 4096 }
 
-# POST /upload - accept a drag-and-dropped data file, save it to a private
-# temp directory under its original name, and return JSON { url, path } so the
-# browser can navigate to /open?path=... or populate the join panel path field.
-#
-# The temp directory persists for the life of the process; files are typically
-# small and this is a local single-user tool so disk growth is not a concern.
-sub upload_file ($self) {
-    my $upload = $self->req->upload('file');
-    unless ($upload && $upload->filename) {
-        return $self->render(json => { error => 'No file received' }, status => 400);
-    }
+  200 application/json   (file does not exist)
+    { "exists": false, "path": "/original/path" }
 
-    # Strip any path prefix the browser may include in the filename.
-    (my $filename = $upload->filename) =~ s{.*[/\\]}{};
-    unless ($filename && $filename =~ $EXT_RE) {
-        return $self->render(
-            json   => { error => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)' },
-            status => 415,
-        );
-    }
+  400 application/json   { "error": "\"path\" parameter is required" }
 
-    my $tmp_dir = tempdir(CLEANUP => 0);
-    my $dest    = Mojo::File->new($tmp_dir)->child($filename)->to_string;
-    $upload->move_to($dest);
+C<mtime> is Unix epoch seconds.  C<size> is bytes.  A missing/unresolvable
+path returns HTTP 200 with C<exists: false> (not 404) so the UI can
+distinguish "file was deleted" from a request error.
 
-    my $url = '/open?path=' . url_escape($dest);
-    $self->render(json => { url => $url, path => $dest });
-}
+=head3 MESSAGES
 
-# GET /api/stat -- return filesystem metadata for a file path.
-# Returns { exists, path, mtime (epoch seconds), size (bytes) }.
-# Used by the home page tooltip to show modification time for recently opened files.
+  error_path_required   -- the "path" query parameter was not supplied.
+
+=head3 FORMAL SPECIFICATION
+
+  stat_api == lambda self .
+    let path = param('path') in
+    pre  path /= undef
+    let file = realpath(path) in
+    post if is_file(file) then
+           render_json({ exists: true, mtime: mtime(file), size: size(file) })
+         else render_json({ exists: false })
+
+=head3 EXAMPLE
+
+  GET /api/stat?path=/data/sales.csv
+    -> { "exists": true, "path": "/data/sales.csv", "mtime": 1700000000, "size": 1234 }
+
+  GET /api/stat?path=/deleted.csv
+    -> { "exists": false, "path": "/deleted.csv" }
+
+=cut
+
 sub stat_api ($self) {
-    my $path = $self->param('path');
-    unless (defined $path && length $path) {
-        return $self->render(json => { error => 'path required' }, status => 400);
-    }
+	my $path = $self->param('path');
+	unless (defined $path && length $path) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_path_required') },
+			status => 400,
+		);
+	}
 
-    my $file = eval { Mojo::File->new($path)->realpath };
-    unless (defined $file && -f $file) {
-        return $self->render(json => { exists => \0, path => $path });
-    }
+	my $file = eval { Mojo::File->new($path)->realpath };
+	return $self->render(json => { exists => \0, path => $path })
+		unless defined $file && -f $file;
 
-    my @s = stat $file->to_string;
-    $self->render(json => {
-        exists => \1,
-        path   => $file->to_string,
-        mtime  => $s[9],
-        size   => $s[7],
-    });
+	my @s = stat $file->to_string;
+	$self->render(json => {
+		exists => \1,
+		path   => $file->to_string,
+		mtime  => $s[9],
+		size   => $s[7],
+	});
 }
 
-sub _resolve_language ($self, $default) {
-    my $accept = $self->req->headers->accept_language // '';
-    my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
-    return $lang // $default;
+=head2 upload_file
+
+C<POST /upload> -- Accept a drag-and-dropped data file and return a redirect URL.
+
+The file is saved under its original filename in a managed subdirectory of
+C<< <app_home>/.uploads/ >>.  The subdirectory name is randomised so that
+concurrent uploads of files with the same name do not collide.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+Multipart form upload, field name: C<file>.
+
+  file   upload   Supported extensions: csv, db, sql, xml, psv.
+
+=head4 OUTPUT
+
+  200 application/json   { "url": "/open?path=/abs/path/file.csv", "path": "/abs/path/file.csv" }
+  400 application/json   { "error": "No file received" }
+  415 application/json   { "error": "Unsupported file type. Accepted: ..." }
+
+=head3 MESSAGES
+
+  error_upload_none   -- no file was received in the multipart upload.
+  error_upload_ext    -- the file's extension is not in the supported list.
+
+=head3 FORMAL SPECIFICATION
+
+  upload_file == lambda self .
+    let upload = req.upload('file') in
+    pre  upload /= undef /\ basename(upload.filename) =~ EXT_RE
+    let dest = home/.uploads/<random>/<filename> in
+    post upload.move_to(dest)
+         /\ render_json({ url: '/open?path=' ++ url_escape(dest), path: dest })
+
+=head3 EXAMPLE
+
+  POST /upload  (multipart: file=@sales.csv)
+    -> { "url": "/open?path=%2F...%2Fsales.csv", "path": "/.../.uploads/abc123/sales.csv" }
+
+=cut
+
+sub upload_file ($self) {
+	my $upload = $self->req->upload('file');
+	unless ($upload && $upload->filename) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_upload_none') },
+			status => 400,
+		);
+	}
+
+	(my $filename = $upload->filename) =~ s{.*[/\\]}{};
+	unless ($filename && $filename =~ $EXT_RE) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_upload_ext') },
+			status => 415,
+		);
+	}
+
+	# Store uploads in <app_home>/.uploads/<random_subdir>/<original_filename>.
+	# Using the original filename is essential: Database::Abstraction derives
+	# the table name from the file stem, so "sales.csv" must stay "sales.csv".
+	# The random subdirectory prevents collisions from concurrent same-name uploads.
+	my $uploads_base = $self->app->home->child('.uploads');
+	$uploads_base->make_path unless -d $uploads_base;
+	my $sub_dir = tempdir(DIR => $uploads_base->to_string, CLEANUP => 0);
+	my $dest    = Mojo::File->new($sub_dir)->child($filename)->to_string;
+	$upload->move_to($dest);
+
+	$self->render(json => {
+		url  => '/open?path=' . url_escape($dest),
+		path => $dest,
+	});
 }
 
 1;
 
+__END__
+
 =head1 NAME
 
 Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
-viewer, left-join engine, and result filter
+viewer, left-join engine, result filter, export, and file upload
 
 =head1 DESCRIPTION
 
 All user-facing routes in C<Database::BI> are handled by this controller.
-
-=head2 Actions
-
-=over 4
-
-=item C<index> - C<GET />
-
-Scans the configured C<data_dir> for supported data files (CSV, PSV, SQLite,
-XML) and renders a card grid.  The template also renders a "Recently opened"
-section from C<localStorage> (client-side only; the server supplies an empty
-placeholder).
-
-=item C<view> - C<GET /view/:table>
-
-Opens the named table from C<data_dir> via the C<open_table> helper, applies
-any C<?f=col:op:val> filters from the query string, and renders
-C<dashboard.html.tt>.  Table names must match C<[A-Za-z0-9_]+>; anything
-else returns 404.
-
-=item C<browse> - C<GET /browse>
-
-Filesystem navigator.  Resolves C<?path=> through C<realpath> (returns 404
-for non-existent or non-directory paths), then lists directories and
-supported files as clickable links.  Defaults to C<$HOME>.
-
-=item C<open_file> - C<GET /open>
-
-Opens a supported data file from an arbitrary absolute path (C<?path=>).
-The path is resolved through C<realpath> and checked against the supported
-extension list before instantiating C<DataSource>.  Applies C<?f=> filters.
-Sets C<file_path> in the stash so the template can record the file in
-C<localStorage> "recently opened".
-
-=item C<join_tables> - C<GET /join>
-
-Performs one or more left joins in the order given by repeatable C<j=>
-parameters, then applies any C<f=> result filters.
-
-Query parameters:
-
-  l=<spec>               Required. Left table spec: "table:name" or
-                           "path:/abs/path".  Returns 404 if unresolvable.
-  j=<spec>|<lk>|<rk>    Repeatable join step.  <spec> is a right-table
-                           spec; <lk> and <rk> are the left and right key
-                           column names.  Invalid or non-existent steps are
-                           silently skipped.
-  f=<col>:<op>:<val>     Repeatable result filter.  Applied server-side
-                           after all joins.
-
-Left-join semantics: every left row is kept.  Right-table columns are
-appended for rows that match on the join key; unmatched rows get C<undef>
-for all right-table columns.  If a right-table column name collides with a
-left-table column name the right column is prefixed with
-C<< right_label.colname >>.
-
-=item C<columns_api> - C<GET /api/columns>
-
-Returns C<{ "columns": [...] }> as JSON.  Accepts C<?table=name> (table
-from C<data_dir>) or C<?path=/abs/path> (arbitrary file).  Returns 404
-when the table or file cannot be found or resolved.  Used by the join panel
-to populate the right-key dropdown without a page reload.
-
-=item C<export_data> - C<GET /export>
-
-Exports the current logical view as a file download.  Accepts the same
-C<l=>, C<j=>, and C<f=> parameters as C<join_tables>, plus C<format=>:
-
-  format=csv     (default) - RFC 4180 CSV, UTF-8, CRLF line endings;
-                   generated without external dependencies.
-  format=sqlite  - SQLite 3 database written via DBI/DBD::SQLite to a
-                   temporary file, slurped, and returned as
-                   application/vnd.sqlite3.  The single table is named
-                   C<data>; every column is declared C<TEXT>.
-
-Returns 404 if the left table spec is invalid or the table cannot be
-opened.  An empty result set (all rows filtered out) exports correctly as
-header-only CSV or an empty SQLite table.
-
-=back
+See the individual action POD above for per-endpoint documentation.
 
 =head2 Filter operators
 
@@ -895,64 +1352,42 @@ The C<f=col:op:val> filter spec supports:
 The colon separator is split with a limit of 3, so values may themselves
 contain colons (e.g. C<f=sale_date:eq:2025-01-15>).
 
-=head2 Private helpers
+=head1 LIMITATIONS
 
 =over 4
 
-=item C<_open_spec($spec)>
+=item *
 
-Parses a C<table:name> or C<path:/abs> spec, checks that the file exists
-(C<Database::Abstraction> silently creates empty objects for missing files
-- existence must be tested explicitly), and returns C<($datasource, $label)>
-or an empty list on failure.
+The in-memory left join in C<_left_join> holds both the left and right result
+sets in RAM simultaneously.  For files with millions of rows, replace the
+C<open_table> helper in C<Database::BI> with a C<Database::Join> backend
+without changing this controller.
 
-=item C<_apply_filter_spec($records, $spec)>
+=item *
 
-Standalone sub.  Parses C<col:op:val> and returns a filtered copy of the
-records arrayref.
+C<_resolve_language> extracts only the primary language subtag from the first
+C<Accept-Language> tag (e.g. C<de> from C<de-DE,de;q=0.9,en;q=0.8>).
+Quality weights and multiple alternatives are not ranked.
 
-=item C<_apply_filters($self, $records)>
+=item *
 
-Reads all C<f=> query params, applies them in order via
-C<_apply_filter_spec>, and returns C<($filtered, \@raw_specs, $json)>.
-C<$json> is a script-safe JSON array of C<{col,op,val}> objects used to
-pre-populate filter rows in the join panel.
+No GeoIP-based language resolution is implemented.  The language is resolved
+from the HTTP C<Accept-Language> header only.
 
-=item C<_left_join(...)>
+=item *
 
-Standalone sub.  Performs a single left join and returns
-C<(\@merged_records, \@merged_columns)>.
-
-=item C<_get_columns($source, $records)>
-
-Standalone sub.  Returns the ordered column list from the C<DataSource>
-object, falling back to C<id_column>-first alphabetic order when the
-backend does not expose column order (SQLite, XML).
-
-=item C<_csv_row(@fields)>
-
-Standalone sub.  Formats one row of values as an RFC 4180 CSV line (CRLF
-terminated).  Fields containing commas, double-quotes, or newlines are
-quoted; embedded double-quotes are doubled.
-
-=item C<_build_export_url($self, $left_spec, \@join_specs, \@filter_specs)>
-
-Method.  Builds a C</export?l=...&j=...&f=...> URL string from the current
-view's parameters, suitable for use in HTML C<href> attributes (the caller
-must apply C<| html> in TT to escape C<&> to C<&amp;>).
-
-=item C<_render_csv($self, $records, \@columns, $name)>
-
-Method.  Serialises C<$records> to RFC 4180 CSV and renders it as a UTF-8
-download with C<Content-Disposition: attachment; filename="${name}.csv">.
-
-=item C<_render_sqlite($self, $records, \@columns, $name)>
-
-Method.  Creates a temporary SQLite database, inserts all records into a
-table named C<data>, slurps the file, and renders it as a binary download
-with C<Content-Disposition: attachment; filename="${name}.db">.  The
-temporary file is unlinked immediately after reading.
+C<Sub::Private> enforcement requires the CHECK compilation phase; when modules
+are loaded dynamically at test time the "Too late to run CHECK block" warning
+is emitted and the restriction is not enforced in that context.
 
 =back
+
+=head1 AUTHOR
+
+Nigel Horne C<< <njh@nigelhorne.com> >>
+
+=head1 LICENCE AND COPYRIGHT
+
+Copyright 2026 Nigel Horne.  Usage is subject to the GPL2 licence terms.
 
 =cut

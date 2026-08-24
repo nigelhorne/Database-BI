@@ -2,9 +2,19 @@ package Database::BI;
 
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
+use Carp		qw(croak);
+use File::Spec		();
+use Readonly;
+
 use Database::BI::Model::DataSource;
 
 our $VERSION = '0.01';
+
+# Default config values used by the Config plugin and referenced explicitly
+# in startup() so callers always get a resolved value.
+Readonly my $DEFAULT_DATA_DIR => 'data';
+Readonly my $DEFAULT_PLATFORM => 'web';
+Readonly my $DEFAULT_LANGUAGE => 'en';
 
 =head1 NAME
 
@@ -59,6 +69,19 @@ Operators: C<eq>, C<ne>, C<contains>, C<starts>, C<lt>, C<le>, C<gt>,
 C<ge>, C<empty>, C<notempty>.  Active filters are shown as chips in the
 toolbar with a one-click "Clear" link.
 
+=item *
+
+B<Drag-and-drop upload> - any supported data file can be dropped directly
+onto the application.  On the home page the file is opened immediately;
+when the join panel is open the dropped file populates the right-table
+path field.
+
+=item *
+
+B<Export> - the toolbar on any view offers an export panel that writes
+the current logical view (after joins and filters) to a chosen filesystem
+path as CSV (C<.csv>) or SQLite (C<.sql>).
+
 =back
 
 =head1 ROUTES
@@ -109,6 +132,33 @@ C</join>) as a file download.  Additional parameter:
 The download filename is derived from the left table label with
 non-alphanumeric characters replaced by underscores.
 
+=item C<POST /export>
+
+Writes the current logical view to a chosen filesystem path.
+Body params: C<l=>, C<j=>, C<f=> (same as GET), plus
+C<dir=> (target directory) and C<filename=> (name including extension;
+extension determines format: C<.csv> or C<.sql>).
+Returns JSON C<{ saved: "/abs/path" }> or C<{ error: "..." }>.
+
+=item C<GET /api/dirs>
+
+Returns a JSON directory listing (subdirectories only) for the export
+panel's inline directory browser.  Accepts C<?path=> (defaults to
+C<$HOME>).  Returns C<{ path, parent, dirs: [{name, path}] }>.
+
+=item C<GET /api/stat>
+
+Returns filesystem metadata for a file path (C<?path=>).
+Returns C<{ exists, path, mtime, size }>.  If the file does not exist,
+C<exists> is C<false> and the remaining fields are absent (HTTP 200).
+Returns HTTP 400 when C<path> is missing.
+
+=item C<POST /upload>
+
+Accepts a multipart file upload (field name: C<file>), validates the
+extension, saves to a managed C<.uploads/> subdirectory under the app
+home, and returns JSON C<{ url, path }>.
+
 =back
 
 =head1 CONFIGURATION
@@ -122,56 +172,88 @@ defaults:
         language => 'en',     # VWF template dimension
     }
 
+=head1 LIMITATIONS
+
+=over 4
+
+=item *
+
+Only read operations on data files are supported.  Write-back (editing
+cell values in the browser and saving them to the data file) is not
+implemented.
+
+=item *
+
+The left-join engine (C<Dashboard::_left_join>) is an in-memory O(n*m)
+hash join.  It is suitable for BI files that fit comfortably in RAM.
+For very large files, replace the C<open_table> helper body with a
+C<Database::Join> instance (Phase 2) without changing the controller.
+
+=item *
+
+The C<.uploads/> directory grows indefinitely; no automatic eviction is
+performed.  Users may delete C<.uploads/> at any time to reclaim space.
+
+=item *
+
+C<Sub::Private>/:Private enforcement relies on the CHECK compilation
+phase.  When a module is loaded dynamically at test time (e.g. via
+C<Test::Mojo->new(...)>), the CHECK phase has already passed and the
+"Too late to run CHECK block" warning is emitted -- the private
+restriction is not enforced in that context.  This is a known
+limitation of C<Sub::Private> and does not affect production
+(morbo/hypnotoad) deployments where the module is compiled on startup.
+
+=back
+
 =cut
 
 sub startup ($self) {
 	$self->plugin('Config', {
 		default => {
-			data_dir => 'data',
-			platform => 'web',
-			language => 'en',
+			data_dir => $DEFAULT_DATA_DIR,
+			platform => $DEFAULT_PLATFORM,
+			language => $DEFAULT_LANGUAGE,
 		}
 	});
 
-	# Default export directory: ~/Downloads when it exists, else HOME, else tmpdir.
-	{
-		require File::Spec;
-		my $home   = $ENV{HOME} // '';
-		my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
-		           : ($home || File::Spec->tmpdir);
-		$self->defaults(download_dir => $dl_dir);
-	}
+	# Default export/save directory: ~/Downloads when it exists, else HOME,
+	# else system tmpdir.  Resolved once per process and stored as a stash
+	# default so every action can read $self->stash('download_dir').
+	my $home   = $ENV{HOME} // '';
+	my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
+	           : ($home || File::Spec->tmpdir);
+	$self->defaults(download_dir => $dl_dir);
 
-	# Register as 'tt' so template files keep the .html.tt extension and
-	# WRAPPER directives like [% WRAPPER 'foo.html.tt' %] resolve correctly
-	# via Template::Provider::Mojo.  TT options must live under 'template';
-	# the top-level config is for plugin options only.
-	# renderer->paths already points at templates/ by default - no INCLUDE_PATH needed.
+	# Register the TT plugin as 'tt' (not the default 'tt2') so that template
+	# files keep the .html.tt extension and handler => 'tt' in render() calls
+	# resolves correctly via Template::Provider::Mojo.  TT options must live
+	# under the 'template' key; top-level keys are plugin options only.
 	$self->plugin('TemplateToolkit', {
 		name     => 'tt',
-			template => {
+		template => {
 			POST_CHOMP => 1,
 			TRIM       => 1,
 		},
 	});
 
 	# Factory helper: opens any named table from the configured data directory.
-	# Phase 2: replace the DataSource instantiation here with Database::Join -
-	# the controller never changes.
-	my $conf     = $self->config();
-	my $data_dir = $self->home->child($conf->{data_dir})->to_string;
+	# The directory=> option overrides the default so open_file and upload_file
+	# can open tables from arbitrary filesystem paths.
+	#
+	# Phase 2: swap Database::BI::Model::DataSource for Database::Join here;
+	# the controller and all templates are untouched.
+	my $data_dir = $self->home->child($self->config->{data_dir})->to_string;
 
-	# Pass directory => $path to override the default data_dir.
-	# Phase 2: swap DataSource for Database::Join here only.
 	$self->helper(open_table => sub ($c, $table, %opts) {
-	my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
-	Database::BI::Model::DataSource->new(
-		directory => $dir,
-		table     => $table,
+		my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
+		Database::BI::Model::DataSource->new(
+			directory => $dir,
+			table     => $table,
 		);
 	});
 
-	my $r = $self->routes();
+	my $r = $self->routes;
 	$r->get('/')->to('Dashboard#index');
 	$r->get('/view/:table')->to('Dashboard#view');
 	$r->get('/browse')->to('Dashboard#browse');
