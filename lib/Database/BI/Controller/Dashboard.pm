@@ -2,6 +2,7 @@ package Database::BI::Controller::Dashboard;
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 use Mojo::File;
+use Mojo::JSON qw(encode_json);
 use Mojo::Util qw(url_escape);
 
 # Supported file extensions that Database::Abstraction can read.
@@ -73,6 +74,48 @@ sub _get_columns {
         return ($id, sort keys %all);
     }
     return ();
+}
+
+# Apply one filter spec ("col:op:val") to an arrayref of record hashrefs.
+# Returns a new (possibly shorter) arrayref.
+sub _apply_filter_spec {
+    my ($records, $spec) = @_;
+    my ($col, $op, $val) = split /:/, $spec, 3;
+    return $records unless defined $col && length $col
+                        && defined $op  && length $op;
+    $val //= '';
+    return [grep {
+        my $cell = defined $_->{$col} ? $_->{$col} : '';
+        $op eq 'eq'       ? lc($cell) eq lc($val)            :
+        $op eq 'ne'       ? lc($cell) ne lc($val)            :
+        $op eq 'contains' ? index(lc($cell), lc($val)) != -1 :
+        $op eq 'starts'   ? index(lc($cell), lc($val)) == 0  :
+        $op eq 'lt'       ? $cell <  $val                    :
+        $op eq 'le'       ? $cell <= $val                    :
+        $op eq 'gt'       ? $cell >  $val                    :
+        $op eq 'ge'       ? $cell >= $val                    :
+        $op eq 'empty'    ? $cell eq ''                      :
+        $op eq 'notempty' ? $cell ne ''                      :
+        1
+    } @$records];
+}
+
+# Read "f" query params, apply them to $records, and return the filtered
+# arrayref plus a JSON string for the template (for pre-populating the UI).
+sub _apply_filters ($self, $records) {
+    my @specs = @{ $self->every_param('f') // [] };
+    for my $s (@specs) {
+        $records = _apply_filter_spec($records, $s);
+    }
+    my @parsed;
+    for my $s (@specs) {
+        my ($col, $op, $val) = split /:/, $s, 3;
+        next unless defined $col && length $col && defined $op && length $op;
+        push @parsed, { col => $col, op => $op, val => $val // '' };
+    }
+    my $json = encode_json(\@parsed);
+    $json =~ s{</}{<\\/}g;
+    return ($records, \@specs, $json);
 }
 
 # Left join: every left row is kept; matching right row's columns are appended.
@@ -181,11 +224,13 @@ sub view ($self) {
         @columns = ($id, sort keys %all);
     }
 
+    my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+
     $self->render(
         template         => "$platform/$language/dashboard",
         handler          => 'tt',
         format           => 'html',
-        records          => $records,
+        records          => $filtered,
         columns          => \@columns,
         table            => $table,
         title            => ucfirst($table),
@@ -193,6 +238,8 @@ sub view ($self) {
         current_joins    => [],
         available_tables => $self->_scan_data_dir,
         join_summaries   => [],
+        filter_specs     => $filter_specs,
+        filters_json     => $filters_json,
     );
 }
 
@@ -315,11 +362,13 @@ sub open_file ($self) {
         @columns = ($id, sort keys %all);
     }
 
+    my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+
     $self->render(
         template         => "$platform/$language/dashboard",
         handler          => 'tt',
         format           => 'html',
-        records          => $records,
+        records          => $filtered,
         columns          => \@columns,
         table            => $table,
         title            => $filename,
@@ -330,6 +379,8 @@ sub open_file ($self) {
         current_joins    => [],
         available_tables => $self->_scan_data_dir,
         join_summaries   => [],
+        filter_specs     => $filter_specs,
+        filters_json     => $filters_json,
     );
 }
 
@@ -425,6 +476,8 @@ sub join_tables ($self) {
         push @summaries, { label => $right_label, left_key => $left_key, right_key => $right_key };
     }
 
+    my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+
     my $title = $left_label;
     $title .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
 
@@ -436,7 +489,7 @@ sub join_tables ($self) {
         template         => "$platform/$language/dashboard",
         handler          => 'tt',
         format           => 'html',
-        records          => $records,
+        records          => $filtered,
         columns          => \@columns,
         table            => $table_key,
         title            => $title,
@@ -446,6 +499,8 @@ sub join_tables ($self) {
         current_joins    => \@join_specs,
         available_tables => $self->_scan_data_dir,
         join_summaries   => \@summaries,
+        filter_specs     => $filter_specs,
+        filters_json     => $filters_json,
     );
 }
 

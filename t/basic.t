@@ -41,4 +41,13 @@ if (-f $sales) {
       ->status_is(200)->content_like(qr/sales/i);
 }
 
+# Filter support
+$t->get_ok('/view/sales?f=' . url_escape('region:eq:North'))
+  ->status_is(200)->content_like(qr/North/i);
+$t->get_ok('/join?l=' . url_escape('table:sales') . '&f=' . url_escape('region:eq:North'))
+  ->status_is(200)->content_like(qr/North/i);
+# Filter that should return no rows still renders 200 (empty-state)
+$t->get_ok('/join?l=' . url_escape('table:sales') . '&f=' . url_escape('region:eq:XYZZY'))
+  ->status_is(200);
+
 done_testing();
