@@ -168,7 +168,19 @@ sub _detect_file_info {
 		close $fh;
 		next unless defined $line;
 		chomp $line;
-		my $sep  = $ext eq 'psv' ? '|' : ',';
+
+		my $sep;
+		if ($ext eq 'psv') {
+			$sep = '|';
+		} else {
+			# Sniff the separator: Database::Abstraction uses '!' natively and
+			# sometimes stores those files with a .csv extension.  If splitting
+			# on ',' yields a single field that itself contains '!', the real
+			# separator is almost certainly '!'.
+			my @probe = split /,/, $line, -1;
+			$sep = (@probe == 1 && $line =~ /!/) ? '!' : ',';
+		}
+
 		my @cols = split /\Q$sep\E/, $line;
 		for (@cols) { s/\A[\s"]+|[\s"]+\z//g }	# strip whitespace and quotes
 		@cols = grep { length } @cols;
@@ -451,15 +463,16 @@ Please report bugs via L<https://github.com/nigelhorne/Database-BI/issues>.
 
 =head1 AUTHOR
 
-Nigel Horne C<< <njh@bandsman.co.uk> >>
+Nigel Horne C<< <njh@nigelhorne.com> >>
 
-=head1 LICENSE AND COPYRIGHT
+=head1 LICENCE AND COPYRIGHT
 
-Copyright (C) 2025 Nigel Horne.
+Copyright 2026 Nigel Horne.
 
-This program is free software; you can redistribute it and/or modify it
-under the terms of the GNU General Public License as published by the
-Free Software Foundation; either version 2, or (at your option) any
-later version.
+Usage is subject to the GPL2 licence terms.
+If you use it,
+please let me know.
 
 =cut
+
+1;
