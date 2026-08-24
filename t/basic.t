@@ -166,6 +166,115 @@ SKIP: {
 }
 
 # -----------------------------------------------------------------------
+# POST /export -- write to a filesystem path (format from extension)
+# -----------------------------------------------------------------------
+{
+    my $out_dir = File::Temp::tempdir(CLEANUP => 1);
+
+    # Write CSV
+    $t->post_ok('/export',
+        form => {
+            l        => 'table:sales',
+            dir      => $out_dir,
+            filename => 'out.csv',
+        }
+    )->status_is(200)->json_has('/saved')->json_like('/saved', qr/out\.csv$/);
+
+    my $saved_csv = $t->tx->res->json('/saved');
+    ok(-f $saved_csv, 'CSV file exists on disk') if defined $saved_csv;
+    if (defined $saved_csv && -f $saved_csv) {
+        my $content = Mojo::File->new($saved_csv)->slurp;
+        like($content, qr/product/i, 'CSV has header row');
+    }
+
+    # Write SQLite
+    $t->post_ok('/export',
+        form => {
+            l        => 'table:sales',
+            dir      => $out_dir,
+            filename => 'out.sql',
+        }
+    )->status_is(200)->json_like('/saved', qr/out\.sql$/);
+
+    my $saved_sql = $t->tx->res->json('/saved');
+    ok(-f $saved_sql, 'SQLite file exists on disk') if defined $saved_sql;
+
+    # Write PSV table
+    $t->post_ok('/export',
+        form => {
+            l        => 'table:products',
+            dir      => $out_dir,
+            filename => 'products_out.csv',
+        }
+    )->status_is(200)->json_like('/saved', qr/products_out\.csv$/);
+
+    # Unknown extension returns 415
+    $t->post_ok('/export',
+        form => { l => 'table:sales', dir => $out_dir, filename => 'out.txt' }
+    )->status_is(415);
+
+    # Missing table returns 404
+    $t->post_ok('/export',
+        form => { l => 'table:nonexistent', dir => $out_dir, filename => 'out.csv' }
+    )->status_is(404);
+
+    # Bad directory returns 404
+    $t->post_ok('/export',
+        form => { l => 'table:sales', dir => '/nonexistent/xyz', filename => 'out.csv' }
+    )->status_is(404);
+
+    # With filter -- only North region
+    $t->post_ok('/export',
+        form => {
+            l        => 'table:sales',
+            'f'      => 'region:eq:North',
+            dir      => $out_dir,
+            filename => 'north.csv',
+        }
+    )->status_is(200);
+    my $north_csv = $t->tx->res->json('/saved');
+    if (defined $north_csv && -f $north_csv) {
+        my $c = Mojo::File->new($north_csv)->slurp;
+        like($c,   qr/North/i,  'filtered CSV contains North');
+        unlike($c, qr/South/i,  'filtered CSV excludes South');
+    }
+
+    # XML table export to SQLite
+    $t->post_ok('/export',
+        form => {
+            l        => 'table:catalog',
+            dir      => $out_dir,
+            filename => 'catalog_out.sql',
+        }
+    )->status_is(200)->json_like('/saved', qr/catalog_out\.sql$/);
+}
+
+# GET /api/dirs -- directory listing JSON
+{
+    my $tmp = File::Temp::tempdir(CLEANUP => 1);
+    mkdir "$tmp/alpha";
+    mkdir "$tmp/beta";
+
+    $t->get_ok('/api/dirs?path=' . url_escape($tmp))
+      ->status_is(200)
+      ->json_has('/path')
+      ->json_has('/dirs')
+      ->json_like('/dirs/0/name', qr/alpha|beta/);
+
+    # Parent is populated for non-root dirs
+    $t->get_ok('/api/dirs?path=' . url_escape($tmp))
+      ->json_has('/parent');
+
+    # Non-existent path returns 404
+    $t->get_ok('/api/dirs?path=' . url_escape('/nonexistent/xyz'))->status_is(404);
+
+    # Hidden dirs are excluded (create one to verify)
+    mkdir "$tmp/.hidden";
+    $t->get_ok('/api/dirs?path=' . url_escape($tmp))
+      ->json_unlike('/dirs/0/name', qr/hidden/);
+}
+
+# -----------------------------------------------------------------------
 # Drag-and-drop upload endpoint
 # -----------------------------------------------------------------------
 {

@@ -24,14 +24,45 @@
   </span>
   <a class="btn-clear-filters" id="btn-clear-filters" href="#">&#x2715; Clear filters</a>
   [%- END -%]
-  [%- IF export_url -%]
-  <div class="export-btns">
-    <a class="btn-export" href="[% export_url | html %]&amp;format=csv">&#x2193; CSV</a>
-    <a class="btn-export" href="[% export_url | html %]&amp;format=sqlite">&#x2193; SQLite</a>
-  </div>
+  [%- IF left_spec -%]
+  <button class="btn-export-open" id="btn-export-open" type="button">&#x2193; Export&hellip;</button>
   [%- END -%]
   <button class="btn-add-db" id="btn-add-db" type="button">&#x2295; Add database&hellip;</button>
 </div>
+
+[%- IF left_spec -%]
+<div class="export-panel" id="export-panel"
+     data-left-spec="[% left_spec | html %]"
+     data-default-dir="[% download_dir | html %]"
+     hidden>
+  <h3 class="export-panel-title">&#x2193; Save export</h3>
+
+  <div class="export-dir-bar">
+    <input type="text" id="export-dir-inp" autocomplete="off" spellcheck="false"
+           value="[% download_dir | html %]" aria-label="Output directory">
+    <button type="button" class="btn-dir-up" id="export-dir-up" disabled
+            title="Go to parent directory">&#x2191; Up</button>
+  </div>
+
+  <div class="export-dir-browser" id="export-dir-browser">
+    <span class="export-dir-msg">Loading&hellip;</span>
+  </div>
+
+  <div class="export-filename-row">
+    <label for="export-filename-inp">Filename</label>
+    <input type="text" id="export-filename-inp" autocomplete="off" spellcheck="false"
+           placeholder="output.csv">
+    <span class="export-format-badge unknown" id="export-format-badge">CSV</span>
+  </div>
+
+  <div class="join-actions">
+    <button type="button" id="btn-cancel-export" class="btn-secondary">Cancel</button>
+    <button type="button" id="btn-do-export" class="btn-primary" disabled>Save</button>
+  </div>
+
+  <p class="export-result" id="export-result" hidden></p>
+</div>
+[%- END -%]
 
 <div class="join-panel" id="join-panel"
      data-current-label="[% title | html %]"
@@ -560,6 +591,177 @@
       location.href = url;
     });
   }
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Export panel — save to a user-chosen directory on the server filesystem
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen    = document.getElementById('btn-export-open');
+  var panel      = document.getElementById('export-panel');
+  if (!btnOpen || !panel) return;
+
+  var dirInp     = document.getElementById('export-dir-inp');
+  var dirBrowser = document.getElementById('export-dir-browser');
+  var dirUp      = document.getElementById('export-dir-up');
+  var fnInp      = document.getElementById('export-filename-inp');
+  var fmtBadge   = document.getElementById('export-format-badge');
+  var btnCancel  = document.getElementById('btn-cancel-export');
+  var btnSave    = document.getElementById('btn-do-export');
+  var resultEl   = document.getElementById('export-result');
+
+  var currentParent = null;
+  var dirTimer;
+
+  // Derive a safe default filename from the left-table spec.
+  var leftSpec = panel.dataset.leftSpec || '';
+  var baseName = leftSpec
+    .replace(/^table:/, '')
+    .replace(/^path:.*[\/\\]/, '')
+    .replace(/\.[^.]+$/, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_') || 'export';
+
+  function getFormat(name) {
+    if (/\.csv$/i.test(name)) return 'csv';
+    if (/\.sql$/i.test(name)) return 'sqlite';
+    return null;
+  }
+
+  function updateFormatBadge() {
+    var fmt = getFormat(fnInp.value.trim());
+    if (fmt === 'csv') {
+      fmtBadge.textContent = 'CSV';
+      fmtBadge.className   = 'export-format-badge csv';
+    } else if (fmt === 'sqlite') {
+      fmtBadge.textContent = 'SQLite';
+      fmtBadge.className   = 'export-format-badge sqlite';
+    } else {
+      fmtBadge.textContent = 'unknown — add .csv or .sql';
+      fmtBadge.className   = 'export-format-badge unknown';
+    }
+    btnSave.disabled = !fmt;
+  }
+
+  function loadDir(path) {
+    dirInp.value           = path;
+    dirBrowser.innerHTML   = '<span class="export-dir-msg">Loading…</span>';
+    dirUp.disabled         = true;
+
+    fetch('/api/dirs?path=' + encodeURIComponent(path))
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        dirInp.value    = data.path;
+        currentParent   = data.parent || null;
+        dirUp.disabled  = !currentParent;
+
+        if (!data.dirs || data.dirs.length === 0) {
+          dirBrowser.innerHTML = '<span class="export-dir-msg">No subdirectories</span>';
+          return;
+        }
+        dirBrowser.innerHTML = '';
+        data.dirs.forEach(function (d) {
+          var btn = document.createElement('button');
+          btn.type      = 'button';
+          btn.className = 'export-dir-entry';
+          btn.dataset.path = d.path;
+          btn.innerHTML = '&#x1F4C1; ' + d.name.replace(/[<>&"]/g, function(c) {
+            return { '<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;' }[c];
+          });
+          btn.addEventListener('click', function () { loadDir(d.path); });
+          dirBrowser.appendChild(btn);
+        });
+      })
+      .catch(function () {
+        dirBrowser.innerHTML = '<span class="export-dir-msg">Could not read directory</span>';
+        dirUp.disabled = false;
+      });
+  }
+
+  // Navigate up.
+  dirUp.addEventListener('click', function () {
+    if (currentParent) loadDir(currentParent);
+  });
+
+  // Typing in the directory input — debounced fetch.
+  dirInp.addEventListener('input', function () {
+    clearTimeout(dirTimer);
+    var val = dirInp.value.trim();
+    dirTimer = setTimeout(function () { loadDir(val); }, 600);
+  });
+
+  fnInp.addEventListener('input', updateFormatBadge);
+
+  // Open panel.
+  btnOpen.addEventListener('click', function () {
+    panel.hidden     = false;
+    btnOpen.disabled = true;
+    resultEl.hidden  = true;
+    fnInp.value      = baseName + '.csv';
+    updateFormatBadge();
+    loadDir(panel.dataset.defaultDir || dirInp.value);
+  });
+
+  // Close panel.
+  btnCancel.addEventListener('click', function () {
+    panel.hidden     = false;
+    panel.hidden     = true;
+    btnOpen.disabled = false;
+    resultEl.hidden  = true;
+  });
+
+  // Save.
+  btnSave.addEventListener('click', function () {
+    var dir      = dirInp.value.trim();
+    var filename = fnInp.value.trim();
+    if (!dir || !filename || !getFormat(filename)) return;
+
+    btnSave.disabled    = true;
+    btnSave.textContent = 'Saving…';
+    resultEl.hidden     = true;
+
+    // Collect the current view's l=, j=, f= params.
+    var params = new URLSearchParams();
+    params.set('dir',      dir);
+    params.set('filename', filename);
+
+    // l= comes from the join-form hidden input (not always in the URL).
+    var lInp = document.querySelector('#join-form input[name="l"]');
+    if (lInp) params.set('l', lInp.value);
+
+    // j= and f= reflect the already-rendered view, so read from the URL.
+    var urlP = new URLSearchParams(location.search);
+    urlP.getAll('j').forEach(function (v) { params.append('j', v); });
+    urlP.getAll('f').forEach(function (v) { params.append('f', v); });
+
+    fetch('/export', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
+    })
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        btnSave.disabled    = false;
+        btnSave.textContent = 'Save';
+        if (data.saved) {
+          resultEl.textContent = '✓ Saved to ' + data.saved;
+          resultEl.className   = 'export-result success';
+        } else {
+          resultEl.textContent = data.error || 'Unknown error';
+          resultEl.className   = 'export-result error';
+        }
+        resultEl.hidden = false;
+      })
+      .catch(function () {
+        btnSave.disabled    = false;
+        btnSave.textContent = 'Save';
+        resultEl.textContent = 'Save failed — check the server log';
+        resultEl.className   = 'export-result error';
+        resultEl.hidden      = false;
+      });
+  });
 }());
 </script>
 

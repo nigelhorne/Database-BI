@@ -535,21 +535,15 @@ sub join_tables ($self) {
     );
 }
 
-# GET /export — export the current logical view as CSV or SQLite.
-#
-# Accepts the same l=, j=, f= parameters as /join, plus:
-#   format=csv     (default) — RFC 4180 CSV download
-#   format=sqlite  — SQLite database with a single "data" table
-sub export_data ($self) {
-    my $format    = $self->param('format') // 'csv';
-    $format       = 'csv' unless $format eq 'sqlite';
+# Run the join+filter pipeline shared by all export actions.
+# Returns ($records, \@columns, $left_label) on success, or () on failure.
+sub _run_export_pipeline ($self) {
     my $left_spec = $self->param('l') // '';
-
     my ($left_src, $left_label) = $self->_open_spec($left_spec);
-    return $self->reply->not_found unless $left_src;
+    return () unless $left_src;
 
     my $left_recs = eval { $left_src->fetch_all };
-    return $self->reply->not_found if $@;
+    return () if $@;
     $left_recs //= [];
 
     my @columns = _get_columns($left_src, $left_recs);
@@ -576,12 +570,120 @@ sub export_data ($self) {
         $records = _apply_filter_spec($records, $s);
     }
 
+    return ($records, \@columns, $left_label);
+}
+
+# GET /export -- stream the current logical view as a browser file download.
+#
+# Accepts: l=, j=, f= (same as /join), plus format=csv (default) or format=sqlite.
+# Used for direct URL access and API testing.
+sub export_data ($self) {
+    my ($records, $columns, $left_label) = $self->_run_export_pipeline;
+    return $self->reply->not_found unless $records;
+
+    my $format = $self->param('format') // 'csv';
+    $format    = 'csv' unless $format eq 'sqlite';
     (my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
 
-    if ($format eq 'sqlite') {
-        return $self->_render_sqlite($records, \@columns, $safe_name);
+    return $format eq 'sqlite'
+        ? $self->_render_sqlite($records, $columns, $safe_name)
+        : $self->_render_csv($records, $columns, $safe_name);
+}
+
+# POST /export -- write the current logical view to a chosen filesystem path.
+#
+# Body params: dir= (target directory), filename= (name including extension).
+# The extension determines the format: .csv -> RFC 4180 CSV, .sql -> SQLite.
+# Returns JSON { saved => '/abs/path' } on success or { error => '...' } on failure.
+sub export_write ($self) {
+    my $dir      = $self->param('dir')      // '';
+    my $filename = $self->param('filename') // '';
+
+    # Resolve and validate target directory.
+    my $dest_dir = eval { Mojo::File->new($dir)->realpath };
+    unless (defined $dest_dir && -d $dest_dir) {
+        return $self->render(json => { error => 'Directory not found' }, status => 404);
     }
-    return $self->_render_csv($records, \@columns, $safe_name);
+
+    # Strip any path separators from the filename and validate extension.
+    ($filename) = $filename =~ m{([^/\\]+)\z};
+    my $format;
+    if    ($filename && $filename =~ /\.csv$/i) { $format = 'csv';    }
+    elsif ($filename && $filename =~ /\.sql$/i) { $format = 'sqlite'; }
+    else {
+        return $self->render(
+            json   => { error => 'Use a .csv or .sql filename extension' },
+            status => 415,
+        );
+    }
+
+    my ($records, $columns, $left_label) = $self->_run_export_pipeline;
+    return $self->render(json => { error => 'Table not found' }, status => 404)
+        unless $records;
+
+    my $dest = $dest_dir->child($filename);
+    eval {
+        if ($format eq 'csv') {
+            my $out = _csv_row(@$columns);
+            for my $row (@$records) {
+                $out .= _csv_row(map { $row->{$_} } @$columns);
+            }
+            $dest->spurt(encode('UTF-8', $out));
+        }
+        else {
+            require DBI;
+            my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
+            close $tmp_fh;
+            my $dbh = DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
+                RaiseError => 1, AutoCommit => 1,
+            });
+            my @quoted = map { my $c = $_; $c =~ s/"/""/g; qq{"$c"} } @$columns;
+            $dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
+            if (@$records) {
+                my $ph  = join(', ', ('?') x scalar @$columns);
+                my $sth = $dbh->prepare(
+                    'INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)"
+                );
+                for my $row (@$records) {
+                    $sth->execute(map { $row->{$_} } @$columns);
+                }
+            }
+            $dbh->disconnect;
+            $dest->spurt(Mojo::File->new($tmpfile)->slurp);
+            unlink $tmpfile;
+        }
+    };
+    return $self->render(json => { error => "Write failed: $@" }, status => 500) if $@;
+
+    $self->render(json => { saved => $dest->to_string });
+}
+
+# GET /api/dirs -- return a JSON directory listing (subdirs only) for the export panel.
+sub dirs_api ($self) {
+    my $raw = $self->param('path') // $ENV{HOME} // '/';
+    my $dir = eval { Mojo::File->new($raw)->realpath };
+    unless (defined $dir && -d $dir) {
+        return $self->render(json => { error => 'Not a directory' }, status => 404);
+    }
+
+    my @dirs;
+    if (opendir my $dh, $dir->to_string) {
+        while (my $entry = readdir $dh) {
+            next if $entry eq '.' || $entry eq '..';
+            next if $entry =~ /\A\./;
+            my $f = $dir->child($entry);
+            push @dirs, { name => $entry, path => $f->to_string } if -d $f;
+        }
+        closedir $dh;
+    }
+    @dirs = sort { lc($a->{name}) cmp lc($b->{name}) } @dirs;
+
+    my $parent = $dir->dirname;
+    $self->render(json => {
+        path   => $dir->to_string,
+        parent => ($parent->to_string ne $dir->to_string ? $parent->to_string : undef),
+        dirs   => \@dirs,
+    });
 }
 
 sub _render_csv ($self, $records, $columns, $name) {

@@ -133,6 +133,15 @@ sub startup ($self) {
 		}
 	});
 
+	# Default export directory: ~/Downloads when it exists, else HOME, else tmpdir.
+	{
+		require File::Spec;
+		my $home   = $ENV{HOME} // '';
+		my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
+		           : ($home || File::Spec->tmpdir);
+		$self->defaults(download_dir => $dl_dir);
+	}
+
 	# Register as 'tt' so template files keep the .html.tt extension and
 	# WRAPPER directives like [% WRAPPER 'foo.html.tt' %] resolve correctly
 	# via Template::Provider::Mojo.  TT options must live under 'template';
@@ -170,6 +179,8 @@ sub startup ($self) {
 	$r->get('/join')->to('Dashboard#join_tables');
 	$r->get('/api/columns')->to('Dashboard#columns_api');
 	$r->get('/export')->to('Dashboard#export_data');
+	$r->post('/export')->to('Dashboard#export_write');
+	$r->get('/api/dirs')->to('Dashboard#dirs_api');
 	$r->post('/upload')->to('Dashboard#upload_file');
 }
 
