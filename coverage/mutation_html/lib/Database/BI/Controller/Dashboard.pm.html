@@ -423,7 +423,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   58:     return &#39;/open?path=&#39; . url_escape($1)           if $spec =~ /\Apath:(.+)\z/;
+<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   58:     return &#39;/open?path=&#39; . url_escape($1)           if $spec =~ /\Apath:(.+)\z/;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -445,7 +445,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   59:     return &#39;/&#39;;
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   59:     return &#39;/&#39;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -783,7 +783,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  274:     my $file_path = $self-&gt;param(&#39;path&#39;);
 </span><span class="">  275: 
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  276:     unless (defined $file_path) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  277:         return $self-&gt;reply-&gt;not_found;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  277:         return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -905,7 +905,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  342:     my $source;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  343:     if (defined $table_name &amp;&amp; $table_name =~ /\A[A-Za-z0-9_]+\z/) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  344:         my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  345:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  345:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1003,7 +1003,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  386: 
 </span><span class="">  387:     my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
 </span><span class="">  388:     my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  389:     return $self-&gt;reply-&gt;not_found unless $left_src;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  389:     return $self-&gt;reply-&gt;not_found unless $left_src;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
