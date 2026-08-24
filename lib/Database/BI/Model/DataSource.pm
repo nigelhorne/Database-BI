@@ -5,6 +5,7 @@ use warnings;
 use autodie qw(:all);
 
 use Carp		qw(croak carp);
+use File::Spec		();
 use Readonly;
 use Scalar::Util	qw(blessed);
 use Params::Validate	qw(:all);
@@ -144,6 +145,31 @@ sub new {
 # Private initialisation
 # ---------------------------------------------------------------------------
 
+# _detect_id_column( $dir, $table ) -> $col_name | undef
+#
+# Peek at the first line of a CSV or PSV file to find the first column name.
+# Database::Abstraction's slurp filter greps every row against $self->{'id'}
+# (default: 'entry').  If no column by that name exists, every row is
+# silently discarded.  We detect the actual first column so we can pass it
+# as 'id', making the filter a no-op for all valid data rows.
+sub _detect_id_column {
+	my ($dir, $table) = @_;
+	for my $ext (qw(csv psv)) {
+		my $path = File::Spec->catfile($dir, "$table.$ext");
+		next unless -r $path;
+		open my $fh, '<', $path or next;
+		my $line = <$fh>;
+		close $fh;
+		next unless defined $line;
+		chomp $line;
+		my $sep = $ext eq 'psv' ? '|' : ',';
+		my ($col) = split /\Q$sep\E/, $line;
+		$col =~ s/\A[\s"]+|[\s"]+\z//g;	# strip whitespace and quotes
+		return $col if length($col // '');
+	}
+	return undef;
+}
+
 # _init_backend( $self ) -> void
 #
 # Strategy: Database::Abstraction is designed as a base class where the
@@ -153,9 +179,14 @@ sub new {
 # fully table-agnostic and callers never need to touch Database::Abstraction
 # directly. In Phase 2, this method can be replaced with Database::Join
 # instantiation without any change to the public API.
+#
+# no_entry => 1: a BI viewer wants every row; we do not need O(1) keyed
+# lookups on a primary key.  This stores data as an arrayref instead of a
+# hashref, which the fast-track path in selectall_arrayref returns directly.
 sub _init_backend {
 	my $self  = shift;
 	my $table = $self->{_table};
+	my $dir   = $self->{_directory};
 
 	require Database::Abstraction;
 
@@ -166,8 +197,18 @@ sub _init_backend {
 			unless $pkg->isa('Database::Abstraction');
 	}
 
+	# Detect the first column so the slurp filter has a valid column to check.
+	# Falls back to 'entry' (Database::Abstraction's own default) if detection
+	# fails (e.g. SQLite/XML, which use a different loading path).
+	my $id_col = _detect_id_column($dir, $table) // 'entry';
+
 	my $db = eval {
-		$pkg->new({ directory => $self->{_directory} });
+		$pkg->new({
+			directory => $dir,
+			table     => $table,
+			id        => $id_col,
+			no_entry  => 1,
+		});
 	};
 	if ($@) {
 		croak $self->_msg('error_backend_init', $table, $@);

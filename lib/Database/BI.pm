@@ -15,10 +15,17 @@ sub startup ($self) {
         }
     });
 
+    # Register as 'tt' so template files keep the .html.tt extension and
+    # WRAPPER directives like [% WRAPPER 'foo.html.tt' %] resolve correctly
+    # via Template::Provider::Mojo.  TT options must live under 'template';
+    # the top-level config is for plugin options only.
+    # renderer->paths already points at templates/ by default — no INCLUDE_PATH needed.
     $self->plugin('TemplateToolkit', {
-        INCLUDE_PATH => $self->home->child('templates')->to_string,
-        POST_CHOMP   => 1,
-        TRIM         => 1,
+        name     => 'tt',
+        template => {
+            POST_CHOMP => 1,
+            TRIM       => 1,
+        },
     });
 
     # Factory helper: opens any named table from the configured data directory.
