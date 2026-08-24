@@ -1,81 +1,389 @@
 package Database::BI::Model::DataSource;
 
-# Thin adapter between the controller and Database::Abstraction (or a future
-# Database::Join).  The controller only ever calls fetch_all(); everything
-# else is an implementation detail of this class.
-
 use strict;
 use warnings;
-use Carp 'croak';
+use autodie qw(:all);
+
+use Carp		qw(croak carp);
+use Readonly;
+use Scalar::Util	qw(blessed);
+use Params::Validate	qw(:all);
+use Params::Get		();
 
 our $VERSION = '0.01';
 
-sub new {
-    my ($class, %args) = @_;
+# ---------------------------------------------------------------------------
+# I18N message dictionary.
+# All user-visible strings and exception messages are keyed here.
+# To plug in a real i18n backend (e.g. Locale::Maketext), pass an object
+# that responds to maketext($key, @args) as the "i18n" constructor argument;
+# it will be called in preference to this table.
+# ---------------------------------------------------------------------------
 
-    croak 'directory required' unless defined $args{directory};
-    croak 'table required'     unless defined $args{table};
+Readonly our %MESSAGES => (
+	error_directory_required	=> 'DataSource: argument "directory" is required',
+	error_table_required		=> 'DataSource: argument "table" is required',
+	error_directory_missing		=> 'DataSource: directory "%s" does not exist or is not readable',
+	error_table_name_invalid	=> 'DataSource: table name "%s" contains illegal characters (alphanumeric and underscore only)',
+	error_backend_init		=> 'DataSource: failed to initialise database backend for table "%s": %s',
+	error_fetch_failed		=> 'DataSource: fetch_all failed for table "%s": %s',
+	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
+	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
+);
 
-    require Database::Abstraction;
+# A table name is a bare SQL-safe identifier: starts with a letter or
+# underscore, followed by zero or more alphanumeric/underscore characters.
+Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 
-    # Database::Abstraction is a base class: the lowercased package name maps
-    # to the table/file name in the data directory.  We generate an ephemeral
-    # subclass so DataSource stays table-agnostic without forcing callers to
-    # subclass Database::Abstraction themselves.
-    my $table = lc $args{table};
-    my $pkg   = 'Database::BI::_DB::' . ucfirst($table);
-    {
-        no strict 'refs';
-        push @{"${pkg}::ISA"}, 'Database::Abstraction'
-            unless $pkg->isa('Database::Abstraction');
-    }
+# ---------------------------------------------------------------------------
+# Private helpers
+# ---------------------------------------------------------------------------
 
-    my $db = $pkg->new({ directory => $args{directory} });
-
-    return bless { _db => $db }, $class;
+# _fmt( $key [, @sprintf_args] ) -> $string
+#
+# Package-level (not a method) i18n formatter. Looks up $key in %MESSAGES and
+# applies sprintf if positional arguments are supplied. This function is used
+# in new() before the object exists; instance methods should use _msg() instead
+# so that a caller-supplied i18n object can override the built-in strings.
+sub _fmt {
+	my ($key, @args) = @_;
+	my $tmpl = $MESSAGES{$key} // "Internal error: unknown message key '$key'";
+	return @args ? sprintf($tmpl, @args) : $tmpl;
 }
 
-# Returns an arrayref of hashrefs, one per record.
-# Phase 2: replace _db with a Database::Join instance — this method is unchanged.
+# _msg( $self, $key [, @sprintf_args] ) -> $string
+#
+# Instance-level i18n formatter. Delegates to the caller-supplied i18n object
+# (if any) before falling back to _fmt(). The i18n object must implement
+# maketext($key, @args).
+sub _msg {
+	my ($self, $key, @args) = @_;
+	if (my $i18n = $self->{_i18n}) {
+		return $i18n->maketext($key, @args);
+	}
+	return _fmt($key, @args);
+}
+
+# ---------------------------------------------------------------------------
+# Constructor
+# ---------------------------------------------------------------------------
+
+=head2 new
+
+Creates and returns a new C<Database::BI::Model::DataSource> instance.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	{
+	    directory => SCALAR,           # required; path to the data directory
+	    table     => SCALAR,           # required; bare table/file name (no extension)
+	    i18n      => OBJECT | undef,   # optional; must implement maketext($key, @args)
+	}
+
+Accepts a flat key/value list, a hashref, or positional arguments via
+C<Params::Get>.
+
+=head4 OUTPUT
+
+Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
+
+=head3 MESSAGES
+
+  error_directory_required    -- "directory" argument was not supplied
+  error_table_required        -- "table" argument was not supplied
+  error_directory_missing     -- supplied directory does not exist / is unreadable
+  error_table_name_invalid    -- table name fails the safe-identifier check
+  error_backend_init          -- Database::Abstraction subclass could not be instantiated
+
+=head3 FORMAL SPECIFICATION
+
+  new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
+         pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
+              /\ table =~ TABLE_NAME_RE
+         post result.class = DataSource
+              /\ result._db.class = Database::Abstraction
+
+=cut
+
+sub new {
+	# Strategy: normalise the argument list with Params::Get so callers may
+	# pass a hashref or a flat list interchangeably, then validate strictly
+	# with Params::Validate before touching any value.
+	my $class = shift;
+	my $raw   = Params::Get::get_params(undef, @_);
+
+	my %args = validate_with(
+		params => $raw,
+		spec   => {
+			directory => { type => SCALAR },
+			table     => { type => SCALAR },
+			i18n      => { type => OBJECT | UNDEF, optional => 1, default => undef },
+		},
+	);
+
+	croak _fmt('error_directory_missing', $args{directory})
+		unless -d $args{directory};
+
+	croak _fmt('error_table_name_invalid', $args{table})
+		unless $args{table} =~ $TABLE_NAME_RE;
+
+	my $self = bless {
+		_directory => $args{directory},
+		_table     => lc $args{table},
+		_i18n      => $args{i18n},
+		_db        => undef,
+	}, $class;
+
+	$self->_init_backend;
+	return $self;
+}
+
+# ---------------------------------------------------------------------------
+# Private initialisation
+# ---------------------------------------------------------------------------
+
+# _init_backend( $self ) -> void
+#
+# Strategy: Database::Abstraction is designed as a base class where the
+# lowercased package name maps to the data file in the directory
+# (e.g. "Database::BI::_DB::Sales" -> data/sales.csv or data/sales.db).
+# We synthesise an ephemeral subclass at runtime so DataSource remains
+# fully table-agnostic and callers never need to touch Database::Abstraction
+# directly. In Phase 2, this method can be replaced with Database::Join
+# instantiation without any change to the public API.
+sub _init_backend {
+	my $self  = shift;
+	my $table = $self->{_table};
+
+	require Database::Abstraction;
+
+	my $pkg = 'Database::BI::_DB::' . ucfirst($table);
+	{
+		no strict 'refs';
+		push @{"${pkg}::ISA"}, 'Database::Abstraction'
+			unless $pkg->isa('Database::Abstraction');
+	}
+
+	my $db = eval {
+		$pkg->new({ directory => $self->{_directory} });
+	};
+	if ($@) {
+		croak $self->_msg('error_backend_init', $table, $@);
+	}
+
+	$self->{_db} = $db;
+	return;
+}
+
+# ---------------------------------------------------------------------------
+# Public accessors
+# ---------------------------------------------------------------------------
+
+=head2 table_name
+
+Returns the (lowercased) table name this instance was opened against.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+Returns a C<SCALAR> string.
+
+=head3 MESSAGES
+
+None.
+
+=head3 FORMAL SPECIFICATION
+
+  table_name == lambda self . self._table
+
+=cut
+
+sub table_name {
+	my $self = shift;
+	return $self->{_table};
+}
+
+# ---------------------------------------------------------------------------
+# Public data-access methods
+# ---------------------------------------------------------------------------
+
+=head2 fetch_all
+
+Returns every record in the table as an arrayref of hashrefs.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None. (Phase 2 will accept an optional C<$filter> argument compatible with
+C<Database::BI::Model::Filter> without changing the return type.)
+
+=head4 OUTPUT
+
+	ARRAYREF of HASHREF   # one hashref per row, keys are column names
+	                      # returns [] when the table exists but is empty
+
+Croaks if the backend raises an exception. Carps (non-fatal) when the result
+set is empty so the caller can distinguish "open succeeded, no rows" from a
+silent failure.
+
+=head3 MESSAGES
+
+  error_fetch_failed     -- backend threw an exception during retrieval
+  warn_empty_result      -- query succeeded but returned zero records
+  warn_data_normalised   -- backend returned a hashref; converted to arrayref
+
+=head3 FORMAL SPECIFICATION
+
+  fetch_all == lambda self .
+    let rows = self._db.selectall_hashref() in
+    pre  self._db /= undef
+    post result : seq HASHREF
+         /\ #result >= 0
+
+=cut
+
 sub fetch_all {
-    my $self = shift;
+	my $self  = shift;
+	my $table = $self->{_table};
 
-    my $data = $self->{_db}->selectall_hashref();
-    return [] unless defined $data;
+	my $data = eval { $self->{_db}->selectall_hashref() };
+	if ($@) {
+		croak $self->_msg('error_fetch_failed', $table, $@);
+	}
 
-    # Database::Abstraction may return an arrayref or a hashref keyed by PK.
-    return ref $data eq 'ARRAY' ? $data : [ values %$data ];
+	return [] unless defined $data;
+
+	# Strategy: Database::Abstraction can return either an arrayref (when the
+	# underlying driver iterates rows) or a hashref keyed by primary key (when
+	# it mirrors DBI's selectall_hashref semantics). We normalise to arrayref
+	# here so every caller above this layer sees a uniform structure.
+	if (ref $data eq 'HASH') {
+		carp $self->_msg('warn_data_normalised', $table);
+		$data = [ values %{$data} ];
+	}
+
+	if (!@{$data}) {
+		carp $self->_msg('warn_empty_result', $table);
+	}
+
+	return $data;
 }
 
 1;
 
+__END__
+
 =head1 NAME
 
-Database::BI::Model::DataSource - Adapter around Database::Abstraction
+Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstraction
+
+=head1 VERSION
+
+This document describes Database::BI::Model::DataSource version 0.01.
 
 =head1 SYNOPSIS
+
+    use Database::BI::Model::DataSource;
 
     my $source = Database::BI::Model::DataSource->new(
         directory => '/path/to/data',
         table     => 'sales',
     );
+
     my $records = $source->fetch_all;   # arrayref of hashrefs
+
+    for my $row (@{$records}) {
+        printf "%s: %s\n", $row->{product}, $row->{amount};
+    }
+
+    # With an i18n object (must implement maketext):
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/path/to/data',
+        table     => 'sales',
+        i18n      => My::I18N::Handle->new,
+    );
 
 =head1 DESCRIPTION
 
-Creates an ephemeral C<Database::Abstraction> subclass for the named table and
-exposes a single C<fetch_all> method.  To switch to C<Database::Join> in Phase 2,
-replace the C<_db> internals here; the controller requires no changes.
+C<Database::BI::Model::DataSource> is a thin, table-agnostic adapter that
+wraps L<Database::Abstraction> and exposes a single C<fetch_all> method
+returning an arrayref of hashrefs.
 
-C<Database::Abstraction> discovers the data file automatically based on the class
-name and extension: C<sales.csv>, C<sales.db>, C<sales.sqlite>, C<sales.xml>, etc.
+L<Database::Abstraction> is a read-only ORM that discovers data files
+(CSV, SQLite, XML, PSV, etc.) automatically from a directory based on the
+calling class name.  C<DataSource> generates an ephemeral subclass at
+construction time so that callers never interact with
+L<Database::Abstraction> directly and so that the backend can be swapped
+for L<Database::Join> in Phase 2 without any change to the controller.
+
+All user-visible strings and exception messages are keyed through the
+C<%MESSAGES> dictionary and routed via C<_msg()>, making every diagnostic
+replaceable by an i18n object at instantiation time.
+
+=head1 LIMITATIONS
+
+=over 4
+
+=item *
+
+Only read operations are supported.  Write-back is not in scope.
+
+=item *
+
+One C<DataSource> instance corresponds to exactly one table.  Use
+C<Database::Join> (Phase 2) to query across multiple tables.
+
+=item *
+
+The ephemeral backend class is generated into a package namespace
+(C<Database::BI::_DB::*>) that persists for the lifetime of the process.
+Instantiating two C<DataSource> objects for the same table name reuses
+the same ephemeral class.
+
+=item *
+
+The C<i18n> object, if supplied, must implement C<maketext($key, @args)>
+compatible with L<Locale::Maketext>.
+
+=back
+
+=head1 CONFIGURATION AND ENVIRONMENT
+
+No environment variables are read.  All configuration is passed through
+the constructor.
+
+=head1 DEPENDENCIES
+
+L<Carp>, L<Readonly>, L<Scalar::Util>, L<Params::Validate>, L<Params::Get>,
+L<Database::Abstraction>.
+
+=head1 INCOMPATIBILITIES
+
+None known.
+
+=head1 BUGS AND LIMITATIONS
+
+Please report bugs via L<https://github.com/nigelhorne/Database-BI/issues>.
 
 =head1 AUTHOR
 
 Nigel Horne C<< <njh@bandsman.co.uk> >>
 
-=head1 LICENSE
+=head1 LICENSE AND COPYRIGHT
 
-GPL-2.0
+Copyright (C) 2025 Nigel Horne.
+
+This program is free software; you can redistribute it and/or modify it
+under the terms of the GNU General Public License as published by the
+Free Software Foundation; either version 2, or (at your option) any
+later version.
 
 =cut
