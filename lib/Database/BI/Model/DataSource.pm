@@ -150,6 +150,7 @@ sub new {
 # Peek at the first header line of a CSV or PSV file and return a hashref:
 #   sep_char => field separator character (',' or '|')
 #   id       => first column name (used as Database::Abstraction's id key)
+#   columns  => arrayref of all column names in file order
 #
 # Two non-obvious defaults in Database::Abstraction make this necessary:
 #   1. sep_char defaults to '!' — so a plain CSV is read as one giant field
@@ -167,12 +168,14 @@ sub _detect_file_info {
 		close $fh;
 		next unless defined $line;
 		chomp $line;
-		my $sep = $ext eq 'psv' ? '|' : ',';
-		my ($col) = split /\Q$sep\E/, $line;
-		$col =~ s/\A[\s"]+|[\s"]+\z//g;	# strip whitespace and quotes
+		my $sep  = $ext eq 'psv' ? '|' : ',';
+		my @cols = split /\Q$sep\E/, $line;
+		for (@cols) { s/\A[\s"]+|[\s"]+\z//g }	# strip whitespace and quotes
+		@cols = grep { length } @cols;
 		return {
 			sep_char => $sep,
-			id       => (length($col // '') ? $col : undef),
+			id       => (@cols ? $cols[0] : undef),
+			columns  => \@cols,
 		};
 	}
 	return {};
@@ -207,6 +210,8 @@ sub _init_backend {
 
 	my $info   = _detect_file_info($dir, $table);
 	my $id_col = $info->{id} // 'entry';
+	$self->{_id_col}  = $id_col;
+	$self->{_columns} = $info->{columns};	# undef for SQLite/XML
 
 	my $db = eval {
 		$pkg->new({
@@ -256,6 +261,29 @@ None.
 sub table_name {
 	my $self = shift;
 	return $self->{_table};
+}
+
+=head2 columns
+
+Returns an arrayref of column names in file order, or C<undef> when the
+backend does not expose a fixed column order (e.g. SQLite, XML).
+
+=cut
+
+sub columns {
+	my $self = shift;
+	return $self->{_columns};
+}
+
+=head2 id_column
+
+Returns the name of the column used as the primary key / slurp-filter anchor.
+
+=cut
+
+sub id_column {
+	my $self = shift;
+	return $self->{_id_col};
 }
 
 # ---------------------------------------------------------------------------

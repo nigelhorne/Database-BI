@@ -46,7 +46,8 @@ sub view ($self) {
         return $self->reply->not_found;
     }
 
-    my $records = eval { $self->open_table($table)->fetch_all };
+    my $source  = $self->open_table($table);
+    my $records = eval { $source->fetch_all };
     if ($@) {
         $self->render(
             template => "$platform/$language/home",
@@ -59,7 +60,19 @@ sub view ($self) {
         return;
     }
 
-    my @columns = $records->[0] ? sort keys %{ $records->[0] } : ();
+    # Prefer the file's own column order (CSV/PSV header line).
+    # Fall back to putting the id column first then sorting the rest;
+    # hash key order in Perl is non-deterministic so a plain sort is
+    # no worse than the alternative for backends that don't expose order.
+    my @columns;
+    if ($source->columns) {
+        @columns = @{ $source->columns };
+    } elsif ($records->[0]) {
+        my $id  = $source->id_column // (sort keys %{ $records->[0] })[0];
+        my %all = map { $_ => 1 } keys %{ $records->[0] };
+        delete $all{$id};
+        @columns = ($id, sort keys %all);
+    }
 
     $self->render(
         template => "$platform/$language/dashboard",
