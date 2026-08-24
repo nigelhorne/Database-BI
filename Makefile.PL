@@ -21,11 +21,12 @@ WriteMakefile(
 	EXE_FILES	=> ['script/database-bi'],
 	PREREQ_PM => {
 		'Carp'							=> 0,
-		'Database::Abstraction'				 => 0,
-		'Mojolicious'						=> '9.0',
+		'Database::Abstraction'	=> '0.38',
+		'Mojolicious'					=> '9.0',
 		'Mojolicious::Plugin::TemplateToolkit'  => 0,
-		'Params::Validate::Strict'			=> 0,
+		'Params::Validate::Strict'	=> '0.39',
 	}, TEST_REQUIRES => {
+		'DBD::CSV' => 0,
 		'IPC::System::Simple' => 0,
 		'Test::Most' => 0,
 		'Test::Mojo' => 0,

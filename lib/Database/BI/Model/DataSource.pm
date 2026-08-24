@@ -308,8 +308,8 @@ Returns every record in the table as an arrayref of hashrefs.
 
 =head4 INPUT
 
-None. (Phase 2 will accept an optional C<$filter> argument compatible with
-C<Database::BI::Model::Filter> without changing the return type.)
+None.  Filtering is performed at the controller layer (C<Dashboard::_apply_filter_spec>)
+after C<fetch_all> returns, not inside C<DataSource>.
 
 =head4 OUTPUT
 
@@ -400,15 +400,28 @@ This document describes Database::BI::Model::DataSource version 0.01.
 =head1 DESCRIPTION
 
 C<Database::BI::Model::DataSource> is a thin, table-agnostic adapter that
-wraps L<Database::Abstraction> and exposes a single C<fetch_all> method
-returning an arrayref of hashrefs.
+wraps L<Database::Abstraction> and exposes three accessors (C<fetch_all>,
+C<columns>, C<id_column>) used by the controller.
 
 L<Database::Abstraction> is a read-only ORM that discovers data files
-(CSV, SQLite, XML, PSV, etc.) automatically from a directory based on the
+(CSV, PSV, SQLite, XML, etc.) automatically from a directory based on the
 calling class name.  C<DataSource> generates an ephemeral subclass at
-construction time so that callers never interact with
-L<Database::Abstraction> directly and so that the backend can be swapped
-for L<Database::Join> in Phase 2 without any change to the controller.
+construction time so callers never interact with L<Database::Abstraction>
+directly.  To swap the backend for L<Database::Join> in Phase 2, only the
+C<open_table> helper in C<Database::BI> needs to change; the controller and
+C<DataSource> are untouched.
+
+C<_detect_file_info> peeks at the first header line of CSV/PSV files to
+extract the correct separator character, the primary-key column name, and
+the full ordered column list.  Without this, two silent L<Database::Abstraction>
+defaults corrupt every result: C<sep_char> defaults to C<'!'> (turning a
+comma-separated file into a single-field table) and C<id> defaults to
+C<'entry'> (causing every row to be discarded when no C<entry> column
+exists).
+
+Result filtering (C<eq>, C<contains>, C<gt>, etc.) is performed at the
+controller layer by C<Dashboard::_apply_filter_spec> after C<fetch_all>
+returns.  C<DataSource> itself is filter-unaware.
 
 All user-visible strings and exception messages are keyed through the
 C<%MESSAGES> dictionary and routed via C<_msg()>, making every diagnostic
@@ -424,8 +437,9 @@ Only read operations are supported.  Write-back is not in scope.
 
 =item *
 
-One C<DataSource> instance corresponds to exactly one table.  Use
-C<Database::Join> (Phase 2) to query across multiple tables.
+One C<DataSource> instance corresponds to exactly one table.  Multi-table
+left joins are composed at the controller layer by C<Dashboard::_left_join>;
+C<Database::Join> (Phase 2) is not yet in use.
 
 =item *
 

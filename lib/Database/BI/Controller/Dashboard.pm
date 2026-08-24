@@ -161,7 +161,7 @@ sub _left_join {
 # Actions
 # ---------------------------------------------------------------------------
 
-# GET / — scan data_dir and present a list of available tables.
+# GET / - scan data_dir and present a list of available tables.
 sub index ($self) {
     my $conf     = $self->app->config;
     my $platform = $conf->{platform} // 'web';
@@ -188,7 +188,7 @@ sub index ($self) {
     );
 }
 
-# GET /view/:table — open and display the chosen table.
+# GET /view/:table - open and display the chosen table.
 sub view ($self) {
     my $conf     = $self->app->config;
     my $platform = $conf->{platform} // 'web';
@@ -243,7 +243,7 @@ sub view ($self) {
     );
 }
 
-# GET /browse — navigate the filesystem and pick a data file.
+# GET /browse - navigate the filesystem and pick a data file.
 sub browse ($self) {
     my $conf     = $self->app->config;
     my $platform = $conf->{platform} // 'web';
@@ -313,7 +313,7 @@ sub browse ($self) {
     );
 }
 
-# GET /open — open a data file from any absolute filesystem path.
+# GET /open - open a data file from any absolute filesystem path.
 sub open_file ($self) {
     my $conf      = $self->app->config;
     my $platform  = $conf->{platform} // 'web';
@@ -384,7 +384,7 @@ sub open_file ($self) {
     );
 }
 
-# GET /api/columns — return column names for a table as JSON.
+# GET /api/columns - return column names for a table as JSON.
 # Used by the join UI to populate the right-key dropdown without a page reload.
 sub columns_api ($self) {
     my $table_name = $self->param('table');
@@ -422,13 +422,13 @@ sub columns_api ($self) {
     $self->render(json => { columns => \@cols });
 }
 
-# GET /join — perform one or more left joins and render the merged table.
+# GET /join - perform one or more left joins and render the merged table.
 #
 # Query parameters:
 #   l   = left table spec: "table:name" or "path:/abs/path"
 #   j   = join spec (repeatable): "<right-spec>|<left-key>|<right-key>"
 #
-# Join semantics: left join — every left row is kept; columns from the right
+# Join semantics: left join - every left row is kept; columns from the right
 # table are appended for matching rows, or left undef when there is no match.
 sub join_tables ($self) {
     my $conf     = $self->app->config;
@@ -514,21 +514,128 @@ sub _resolve_language ($self, $default) {
 
 =head1 NAME
 
-Database::BI::Controller::Dashboard - Home picker, table viewer, and join engine
+Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
+viewer, left-join engine, and result filter
 
 =head1 DESCRIPTION
 
-C<index> scans the configured C<data_dir> and presents clickable links for
-every supported data file it finds.
+All user-facing routes in C<Database::BI> are handled by this controller.
 
-C<view> opens the selected table via the C<open_table> helper and renders it
-using the VWF-style path C<templates/[platform]/[language]/dashboard.html.tt>.
+=head2 Actions
 
-C<join_tables> accepts a left table spec (C<l=>) and zero or more join specs
-(C<j=>), performs left joins in sequence, and renders the merged result using
-the same dashboard template.
+=over 4
 
-C<columns_api> returns a JSON array of column names for a given table or path,
-used by the join UI to populate the right-key dropdown.
+=item C<index> - C<GET />
+
+Scans the configured C<data_dir> for supported data files (CSV, PSV, SQLite,
+XML) and renders a card grid.  The template also renders a "Recently opened"
+section from C<localStorage> (client-side only; the server supplies an empty
+placeholder).
+
+=item C<view> - C<GET /view/:table>
+
+Opens the named table from C<data_dir> via the C<open_table> helper, applies
+any C<?f=col:op:val> filters from the query string, and renders
+C<dashboard.html.tt>.  Table names must match C<[A-Za-z0-9_]+>; anything
+else returns 404.
+
+=item C<browse> - C<GET /browse>
+
+Filesystem navigator.  Resolves C<?path=> through C<realpath> (returns 404
+for non-existent or non-directory paths), then lists directories and
+supported files as clickable links.  Defaults to C<$HOME>.
+
+=item C<open_file> - C<GET /open>
+
+Opens a supported data file from an arbitrary absolute path (C<?path=>).
+The path is resolved through C<realpath> and checked against the supported
+extension list before instantiating C<DataSource>.  Applies C<?f=> filters.
+Sets C<file_path> in the stash so the template can record the file in
+C<localStorage> "recently opened".
+
+=item C<join_tables> - C<GET /join>
+
+Performs one or more left joins in the order given by repeatable C<j=>
+parameters, then applies any C<f=> result filters.
+
+Query parameters:
+
+  l=<spec>               Required. Left table spec: "table:name" or
+                           "path:/abs/path".  Returns 404 if unresolvable.
+  j=<spec>|<lk>|<rk>    Repeatable join step.  <spec> is a right-table
+                           spec; <lk> and <rk> are the left and right key
+                           column names.  Invalid or non-existent steps are
+                           silently skipped.
+  f=<col>:<op>:<val>     Repeatable result filter.  Applied server-side
+                           after all joins.
+
+Left-join semantics: every left row is kept.  Right-table columns are
+appended for rows that match on the join key; unmatched rows get C<undef>
+for all right-table columns.  If a right-table column name collides with a
+left-table column name the right column is prefixed with
+C<< right_label.colname >>.
+
+=item C<columns_api> - C<GET /api/columns>
+
+Returns C<{ "columns": [...] }> as JSON.  Accepts C<?table=name> (table
+from C<data_dir>) or C<?path=/abs/path> (arbitrary file).  Returns 404
+when the table or file cannot be found or resolved.  Used by the join panel
+to populate the right-key dropdown without a page reload.
+
+=back
+
+=head2 Filter operators
+
+The C<f=col:op:val> filter spec supports:
+
+  eq        case-insensitive string equality
+  ne        case-insensitive string inequality
+  contains  case-insensitive substring match
+  starts    case-insensitive prefix match
+  lt        numeric less-than
+  le        numeric less-than-or-equal
+  gt        numeric greater-than
+  ge        numeric greater-than-or-equal
+  empty     cell is undef or empty string (val ignored)
+  notempty  cell is defined and non-empty (val ignored)
+
+The colon separator is split with a limit of 3, so values may themselves
+contain colons (e.g. C<f=sale_date:eq:2025-01-15>).
+
+=head2 Private helpers
+
+=over 4
+
+=item C<_open_spec($spec)>
+
+Parses a C<table:name> or C<path:/abs> spec, checks that the file exists
+(C<Database::Abstraction> silently creates empty objects for missing files
+- existence must be tested explicitly), and returns C<($datasource, $label)>
+or an empty list on failure.
+
+=item C<_apply_filter_spec($records, $spec)>
+
+Standalone sub.  Parses C<col:op:val> and returns a filtered copy of the
+records arrayref.
+
+=item C<_apply_filters($self, $records)>
+
+Reads all C<f=> query params, applies them in order via
+C<_apply_filter_spec>, and returns C<($filtered, \@raw_specs, $json)>.
+C<$json> is a script-safe JSON array of C<{col,op,val}> objects used to
+pre-populate filter rows in the join panel.
+
+=item C<_left_join(...)>
+
+Standalone sub.  Performs a single left join and returns
+C<(\@merged_records, \@merged_columns)>.
+
+=item C<_get_columns($source, $records)>
+
+Standalone sub.  Returns the ordered column list from the C<DataSource>
+object, falling back to C<id_column>-first alphabetic order when the
+backend does not expose column order (SQLite, XML).
+
+=back
 
 =cut

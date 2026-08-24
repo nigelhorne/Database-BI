@@ -3,12 +3,13 @@
 requires 'perl', '5.020';
 
 requires 'Carp';
-requires 'Database::Abstraction';
+requires 'Database::Abstraction', '0.38';
 requires 'Mojolicious', '9.0';
 requires 'Mojolicious::Plugin::TemplateToolkit';
-requires 'Params::Validate::Strict';
+requires 'Params::Validate::Strict', '0.39';
 
 on 'test' => sub {
+	requires 'DBD::CSV';
 	requires 'IPC::System::Simple';
 	requires 'Test::Mojo';
 	requires 'Test::Most';
