@@ -7,7 +7,8 @@ use Mojo::Util qw(url_escape encode);
 use File::Temp qw(tempfile);
 
 # Supported file extensions that Database::Abstraction can read.
-my @SUPPORTED_EXT = qw( csv db sqlite xml psv );
+# Note: D::A probes ".sql" for SQLite databases (not ".sqlite").
+my @SUPPORTED_EXT = qw( csv db sql xml psv );
 my $EXT_RE = do { my $pat = join '|', @SUPPORTED_EXT; qr/\.(?:$pat)$/i };
 
 # ---------------------------------------------------------------------------
@@ -69,8 +70,11 @@ sub _get_columns {
         return @{ $source->columns };
     }
     elsif ($records->[0]) {
-        my $id  = $source->id_column // (sort keys %{ $records->[0] })[0];
         my %all = map { $_ => 1 } keys %{ $records->[0] };
+        my $id  = do {
+            my $c = $source->id_column;
+            ($c && $all{$c}) ? $c : (sort keys %all)[0];
+        };
         delete $all{$id};
         return ($id, sort keys %all);
     }
@@ -235,8 +239,11 @@ sub view ($self) {
         @columns = @{ $source->columns };
     }
     elsif ($records->[0]) {
-        my $id  = $source->id_column // (sort keys %{ $records->[0] })[0];
         my %all = map { $_ => 1 } keys %{ $records->[0] };
+        my $id  = do {
+            my $c = $source->id_column;
+            ($c && $all{$c}) ? $c : (sort keys %all)[0];
+        };
         delete $all{$id};
         @columns = ($id, sort keys %all);
     }
@@ -374,8 +381,11 @@ sub open_file ($self) {
         @columns = @{ $source->columns };
     }
     elsif ($records->[0]) {
-        my $id  = $source->id_column // (sort keys %{ $records->[0] })[0];
         my %all = map { $_ => 1 } keys %{ $records->[0] };
+        my $id  = do {
+            my $c = $source->id_column;
+            ($c && $all{$c}) ? $c : (sort keys %all)[0];
+        };
         delete $all{$id};
         @columns = ($id, sort keys %all);
     }
