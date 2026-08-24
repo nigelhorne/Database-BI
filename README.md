@@ -4,11 +4,32 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 
 # SYNOPSIS
 
-    # Development server (auto-reloads on file changes)
+**Start the development server (restarts automatically when you edit a file):**
+
     morbo script/database-bi
 
-    # Production server
+**Start the production server:**
+
     hypnotoad script/database-bi
+
+**Use a different data directory:**
+
+    # In database_bi.conf (create this file in the same folder as script/):
+    { data_dir => '/home/user/data' }
+
+**Change the language used for templates:**
+
+    # In database_bi.conf:
+    { data_dir => 'data', language => 'fr', platform => 'web' }
+    # Then create templates/web/fr/ and put your French .html.tt files there.
+
+**Run the test suite to verify everything is working:**
+
+    make test
+
+**Generate the Makefile for the first time or after editing Makefile.PL:**
+
+    perl Makefile.PL
 
 # DESCRIPTION
 
@@ -125,6 +146,62 @@ defaults:
         platform => 'web',    # VWF template dimension
         language => 'en',     # VWF template dimension
     }
+
+# COMMON PITFALLS
+
+- **The configuration file is optional but must be valid Perl if present**
+
+    `database_bi.conf` is loaded by `Mojolicious::Plugin::Config`, which
+    evaluates it as a Perl data structure.  If the file exists but contains a
+    syntax error, the application will refuse to start.  If the file does not
+    exist, built-in defaults are used and no error occurs.  The file must return
+    a hashref:
+
+        # database_bi.conf -- correct
+        { data_dir => 'data', platform => 'web', language => 'en' }
+
+        # WRONG -- missing braces
+        data_dir => 'data'
+
+- **data\_dir is relative to the application home directory, not the process cwd**
+
+    Setting `data_dir => 'data'` looks for a folder called `data/` in the
+    same directory as the `script/database-bi` launcher, regardless of where you
+    run the server from.  An absolute path works on any system:
+
+        { data_dir => '/var/db/mydata' }
+
+- **The download\_dir default is computed once at startup**
+
+    When the application starts, it picks the export directory in this order:
+    `~/Downloads` (if it exists), then `$HOME`, then the system temp directory.
+    This value is fixed for the life of the process.  Renaming or creating
+    `~/Downloads` after the server starts has no effect.  To force a different
+    default, set it before starting:
+
+        { data_dir => 'data' }   # and create ~/Downloads before starting the server
+
+- **Adding a new language requires a template directory, not just a config change**
+
+    Setting `language => 'de'` in `database_bi.conf` tells the controller
+    to look for templates in `templates/web/de/`.  If that directory does not
+    exist, the controller automatically falls back to the default language.  To
+    add German support: (1) create `templates/web/de/`, (2) copy and translate
+    the `.html.tt` files from `templates/web/en/`, then (3) set the config.
+
+- **Supported data file extensions are: csv, db, sql, xml, psv**
+
+    The application calls `Database::Abstraction` which recognises exactly these
+    five extensions.  A file called `inventory.sqlite` is **not** recognised -- it
+    must be renamed to `inventory.sql`.  A file called `data.xlsx` (Excel) is
+    also not supported; export it as CSV first.
+
+- **The open\_table helper lowercases the table name**
+
+    When the router matches `GET /view/Sales` or `GET /view/SALES`, the table
+    name is lowercased to `sales` before being passed to the helper.  The data
+    file on disk must therefore also be lowercase (`sales.csv`, not
+    `Sales.csv`).
 
 # LIMITATIONS
 

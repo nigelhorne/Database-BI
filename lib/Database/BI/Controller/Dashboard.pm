@@ -465,6 +465,8 @@ sub _render_sqlite :Private ($self, $records, $columns, $name) {
 # Public actions
 # ---------------------------------------------------------------------------
 
+=head1 ACTIONS
+
 =head2 index
 
 C<GET /> -- Scan C<data_dir> and present a card grid of available tables.
@@ -1329,6 +1331,99 @@ __END__
 Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
 viewer, left-join engine, result filter, export, and file upload
 
+=head1 SYNOPSIS
+
+All routes in C<Database::BI> are handled by this controller.  You do not
+call its methods directly -- Mojolicious dispatches HTTP requests to them
+automatically.  The examples below show browser URLs and their curl
+equivalents.
+
+B<Open the home page and see all tables in the data directory:>
+
+  # Browser
+  http://localhost:3000/
+
+  # curl
+  curl http://localhost:3000/
+
+B<View a single table (file: data/sales.csv):>
+
+  # Browser
+  http://localhost:3000/view/sales
+
+  # curl
+  curl http://localhost:3000/view/sales
+
+B<Filter rows -- show only rows where region equals "North":>
+
+  # Browser (add ?f=col:op:val to any view URL)
+  http://localhost:3000/view/sales?f=region:eq:North
+
+  # Multiple filters -- "North" AND amount greater than 100:
+  http://localhost:3000/view/sales?f=region:eq:North&f=amount:gt:100
+
+  # curl
+  curl 'http://localhost:3000/view/sales?f=region:eq:North'
+
+B<Join two tables -- left-join sales with products on the product column:>
+
+  # Browser
+  http://localhost:3000/join?l=table:sales&j=table:products|product|name
+
+  # The j= parameter is: right-table-spec | left-key | right-key
+  # You can chain multiple joins:
+  http://localhost:3000/join?l=table:sales&j=table:products|product|name&j=table:regions|region|id
+
+B<Open a file anywhere on the filesystem (not just in data/):>
+
+  http://localhost:3000/open?path=/home/user/reports/q3.csv
+
+B<Download the current view as a CSV file:>
+
+  # Uses the same l=, j=, f= parameters as /join
+  http://localhost:3000/export?l=table:sales&format=csv
+
+  # Download as a SQLite database file instead:
+  http://localhost:3000/export?l=table:sales&format=sqlite
+
+  # Download a filtered + joined result:
+  http://localhost:3000/export?l=table:sales&j=table:products|product|name&f=region:eq:North&format=csv
+
+B<Save the current view to a file on the server (instead of downloading):>
+
+  # POST with form fields; format is inferred from the filename extension
+  curl -X POST http://localhost:3000/export \
+       -F l=table:sales \
+       -F dir=/home/user/exports \
+       -F filename=report.csv
+
+  # Save as SQLite:
+  curl -X POST http://localhost:3000/export \
+       -F l=table:sales \
+       -F dir=/home/user/exports \
+       -F filename=report.sql
+
+B<Get the column list for a table (used by the join UI):>
+
+  curl http://localhost:3000/api/columns?table=sales
+  # Returns: {"columns":["product","region","amount","date"]}
+
+B<Check when a file was last modified (used by the tooltip on the home page):>
+
+  curl 'http://localhost:3000/api/stat?path=/data/sales.csv'
+  # Returns: {"exists":true,"path":"/data/sales.csv","mtime":1700000000,"size":1234}
+
+B<Browse the filesystem to find a data file:>
+
+  http://localhost:3000/browse
+  http://localhost:3000/browse?path=/home/user/data
+
+B<Upload a data file by dropping it onto the page (multipart form POST):>
+
+  curl -X POST http://localhost:3000/upload \
+       -F file=@/home/user/data/sales.csv
+  # Returns: {"url":"/open?path=/.../.uploads/.../sales.csv","path":"/.../.uploads/.../sales.csv"}
+
 =head1 DESCRIPTION
 
 All user-facing routes in C<Database::BI> are handled by this controller.
@@ -1351,6 +1446,75 @@ The C<f=col:op:val> filter spec supports:
 
 The colon separator is split with a limit of 3, so values may themselves
 contain colons (e.g. C<f=sale_date:eq:2025-01-15>).
+
+=head1 COMMON PITFALLS
+
+These are the most common mistakes when working with this controller.
+
+=over 4
+
+=item B<SQLite files must use the .sql extension, not .sqlite>
+
+C<Database::Abstraction> (the data-reading library) probes for a file called
+C<tablename.sql> when it wants to open a SQLite database.  It does B<not>
+look for C<.sqlite> or C<.db3>.  If your file is called C<inventory.sqlite>,
+rename it to C<inventory.sql> or it will not appear in the file browser and
+will return 404 when opened.
+
+=item B<Filter values that contain a colon still work>
+
+A date like C<2025-01-15> contains hyphens, not colons, so it is fine.  But
+if your value itself contains a colon (for example, a time like C<14:30:00>),
+the filter still works because the C<col:op:val> spec is split on the B<first
+two> colons only -- the rest of the string becomes the value.
+
+  # This correctly matches "14:30:00" in the start_time column:
+  ?f=start_time:eq:14:30:00
+
+=item B<Left join keeps only the FIRST matching right-table row>
+
+When the right table has two rows with the same join key, only the first one
+(in file order) is used.  The second is silently ignored.  If you need all
+matches, consider pre-processing your data so join keys are unique.
+
+=item B<Export format comes from the filename extension, not a Content-Type header>
+
+When using C<POST /export> to save a file to disk, the format (CSV or SQLite)
+is determined by the extension of the C<filename> parameter.  C<.csv> produces
+a CSV file; C<.sql> produces a SQLite database.  Any other extension returns
+HTTP 415 (Unsupported Media Type).  The C<Content-Type> request header is
+ignored entirely.
+
+=item B<Template Toolkit variables starting with underscore are silently dropped>
+
+If you add a stash variable with a name starting with C<_> (for example,
+C<_tmp> or C<_result>), Template Toolkit will silently produce an empty string
+when the template tries to read it.  This is a TT quirk when C<TRIM =E<gt> 1>
+is active.  Always use names that start with a letter.
+
+=item B<_apply_filter_spec always passes all records through for unknown operators>
+
+If you pass an operator that is not in the supported list (for example C<regex>
+or C<like>), the filter is treated as a no-op and B<all rows are returned>.  No
+error is produced.  This is intentional so that future operators can be added
+without breaking existing clients that read a wider response.
+
+=item B<Uploading a file does not clean up automatically>
+
+Files uploaded via C<POST /upload> are stored in C<.uploads/> under the
+application's home directory and are B<never deleted automatically>.  They
+accumulate until you manually remove the C<.uploads/> directory.  This is
+intentional for a single-user local tool, but you should be aware of it on
+long-running servers.
+
+=item B<Open C<data/> tables by name; open other files by absolute path>
+
+The C<view> action (C<GET /view/:table>) only looks inside C<data_dir>.
+To open a file from anywhere else on the filesystem, use C<open_file>
+(C<GET /open?path=/abs/path>).  The two routes use different URL schemes and
+are not interchangeable.
+
+=back
 
 =head1 LIMITATIONS
 

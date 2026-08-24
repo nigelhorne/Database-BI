@@ -70,6 +70,8 @@ sub _msg :Private {
 # Constructor
 # ---------------------------------------------------------------------------
 
+=head1 CONSTRUCTOR
+
 =head2 new
 
 Creates and returns a new C<Database::BI::Model::DataSource> instance.
@@ -245,6 +247,8 @@ sub _init_backend :Private {
 # Public accessors
 # ---------------------------------------------------------------------------
 
+=head1 ACCESSORS
+
 =head2 table_name
 
 Returns the (lowercased) table name this instance was opened against.
@@ -300,6 +304,8 @@ sub id_column {
 # ---------------------------------------------------------------------------
 # Public data-access methods
 # ---------------------------------------------------------------------------
+
+=head1 METHODS
 
 =head2 fetch_all
 
@@ -378,25 +384,72 @@ This document describes Database::BI::Model::DataSource version 0.01.
 
 =head1 SYNOPSIS
 
+B<Read all rows from a CSV file:>
+
     use Database::BI::Model::DataSource;
 
     my $source = Database::BI::Model::DataSource->new(
         directory => '/path/to/data',
-        table     => 'sales',
+        table     => 'sales',           # looks for data/sales.csv, .psv, .sql, .xml, etc.
     );
 
-    my $records = $source->fetch_all;   # arrayref of hashrefs
+    my $records = $source->fetch_all;   # arrayref of hashrefs -- one hashref per row
 
     for my $row (@{$records}) {
-        printf "%s: %s\n", $row->{product}, $row->{amount};
+        printf "Product: %s, Amount: %s\n", $row->{product}, $row->{amount};
     }
 
-    # With an i18n object (must implement maketext):
+B<Get column names in the original file order (CSV/PSV only):>
+
+    my $cols = $source->columns;        # returns undef for SQLite and XML
+    if ($cols) {
+        print join(', ', @{$cols}), "\n";
+    }
+
+B<Find out which column is the primary key:>
+
+    print "Primary key column: ", $source->id_column, "\n";
+
+B<Open a SQLite file (.sql extension):>
+
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/var/data',
+        table     => 'inventory',       # looks for /var/data/inventory.sql
+    );
+
+B<Open a pipe-separated file (.psv extension):>
+
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/var/data',
+        table     => 'products',        # looks for /var/data/products.psv
+    );
+
+B<Use a custom i18n object to translate error messages:>
+
+    # The i18n object must have a maketext($key, @args) method.
     my $source = Database::BI::Model::DataSource->new(
         directory => '/path/to/data',
         table     => 'sales',
         i18n      => My::I18N::Handle->new,
     );
+
+B<Handle errors gracefully:>
+
+    my $source = eval {
+        Database::BI::Model::DataSource->new(
+            directory => $dir,
+            table     => $table,
+        );
+    };
+    if ($@) {
+        warn "Could not open table: $@";
+        # $@ contains a translated message from %MESSAGES
+    }
+
+    my $records = eval { $source->fetch_all };
+    if ($@) {
+        warn "Could not read records: $@";
+    }
 
 =head1 DESCRIPTION
 
@@ -427,6 +480,80 @@ returns.  C<DataSource> itself is filter-unaware.
 All user-visible strings and exception messages are keyed through the
 C<%MESSAGES> dictionary and routed via C<_msg()>, making every diagnostic
 replaceable by an i18n object at instantiation time.
+
+=head1 COMMON PITFALLS
+
+These are the most common mistakes when using C<DataSource>.
+
+=over 4
+
+=item B<SQLite databases must use .sql as their file extension>
+
+C<Database::Abstraction> looks for SQLite databases with the C<.sql> extension.
+It does B<not> recognise C<.sqlite>, C<.sqlite3>, or C<.db3>.  If you have a
+file called C<inventory.sqlite>, rename it to C<inventory.sql> before passing
+it to C<DataSource>.
+
+=item B<The table name is always lowercased>
+
+The constructor lowercases the C<table> argument before using it.  Passing
+C<table =E<gt> 'Sales'> and C<table =E<gt> 'sales'> both look for
+C<sales.csv> (or C<sales.sql>, etc.).  The matching is case-insensitive on the
+table name but B<case-sensitive on the directory path>.
+
+=item B<CSV files with the wrong separator appear as one giant field per row>
+
+C<Database::Abstraction> defaults to C<!> (exclamation mark) as its field
+separator.  A standard comma-separated CSV file will look like one big field
+per row (for example, C<1,Widget A,North,100>) because the library never sees
+the commas as separators.  C<DataSource> fixes this automatically by reading
+the first line of the file and detecting the actual separator.  If you bypass
+C<DataSource> and call C<Database::Abstraction> directly, you B<must> pass
+C<sep_char =E<gt> ','> yourself.
+
+=item B<A table with no "entry" column returns zero rows (without DataSource)>
+
+C<Database::Abstraction> uses C<entry> as its default primary-key column name.
+When slurping a CSV, it discards any row where C<$row-E<gt>{entry}> is
+undefined.  Because most CSV files do not have an C<entry> column, B<all rows
+are silently discarded>.  C<DataSource> prevents this by reading the actual
+first column name from the CSV header and passing it as C<id>, and also by
+setting C<no_entry =E<gt> 1> so all rows are kept as an ordered array.
+
+=item B<columns() returns undef for SQLite and XML files>
+
+C<columns()> only returns an arrayref for file formats where the header order
+is visible before data is read (CSV and PSV).  For SQLite and XML files it
+returns C<undef>.  Always check: C<if ($source-E<gt>columns) { ... }>.  The
+controller falls back to putting C<id_column> first and then sorting the rest
+alphabetically when C<columns()> is C<undef>.
+
+=item B<XML elements named "name", "id", or "key" cause parse failures>
+
+C<XML::Simple> (used by C<Database::Abstraction> for XML files) automatically
+turns a child element called C<name>, C<id>, or C<key> into a hash key instead
+of keeping it as an array element.  This breaks the expected data structure.
+Use different element names in your XML: for example, C<E<lt>skuE<gt>>,
+C<E<lt>labelE<gt>>, or C<E<lt>codeE<gt>> instead of C<E<lt>idE<gt>> and
+C<E<lt>nameE<gt>>.
+
+  <!-- WRONG: these element names trigger XMLin key-folding -->
+  <items>
+    <item><id>1</id><name>Widget</name></item>
+  </items>
+
+  <!-- CORRECT: use neutral element names -->
+  <items>
+    <item><sku>1</sku><label>Widget</label></item>
+  </items>
+
+=item B<fetch_all returns an empty arrayref, not undef, for an empty table>
+
+When a table exists but contains no data rows, C<fetch_all> returns C<[]> (an
+empty arrayref), not C<undef>.  Check with C<scalar @{$records}>, not with
+C<defined $records> or C<$records>.
+
+=back
 
 =head1 LIMITATIONS
 

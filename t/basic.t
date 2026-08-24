@@ -193,13 +193,16 @@ subtest 'POST /export -- write to filesystem' => sub {
         like($content, qr/product/i, 'CSV contains header row');
     }
 
-    # Write SQLite.
-    $t->post_ok('/export',
-        form => { l => 'table:sales', dir => $out_dir, filename => 'out.sql' }
-    )->status_is(200)->json_like('/saved', qr/out\.sql$/);
+    # Write SQLite (only when DBD::SQLite is installed).
+    SKIP: {
+        eval { DBI->install_driver('SQLite') } or skip 'DBD::SQLite not available', 3;
+        $t->post_ok('/export',
+            form => { l => 'table:sales', dir => $out_dir, filename => 'out.sql' }
+        )->status_is(200)->json_like('/saved', qr/out\.sql$/);
 
-    my $saved_sql = $t->tx->res->json('/saved');
-    ok(-f $saved_sql, 'SQLite file written to disk') if defined $saved_sql;
+        my $saved_sql = $t->tx->res->json('/saved');
+        ok(-f $saved_sql, 'SQLite file written to disk') if defined $saved_sql;
+    }
 
     # Write PSV source.
     SKIP: {
@@ -238,7 +241,8 @@ subtest 'POST /export -- write to filesystem' => sub {
 
     # XML -> SQLite.
     SKIP: {
-        skip 'data/catalog.xml not found', 1 unless -f 'data/catalog.xml';
+        skip 'data/catalog.xml not found', 3 unless -f 'data/catalog.xml';
+        eval { DBI->install_driver('SQLite') } or skip 'DBD::SQLite not available', 3;
         $t->post_ok('/export',
             form => { l => 'table:catalog', dir => $out_dir, filename => 'catalog_out.sql' }
         )->status_is(200)->json_like('/saved', qr/catalog_out\.sql$/);
