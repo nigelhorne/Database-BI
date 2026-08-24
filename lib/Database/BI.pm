@@ -36,50 +36,50 @@ Place a C<database_bi.conf> file in the application root to override defaults:
 =cut
 
 sub startup ($self) {
-    $self->plugin('Config', {
-        default => {
-            data_dir => 'data',
-            platform => 'web',
-            language => 'en',
-        }
-    });
+	$self->plugin('Config', {
+		default => {
+			data_dir => 'data',
+			platform => 'web',
+			language => 'en',
+		}
+	});
 
-    # Register as 'tt' so template files keep the .html.tt extension and
-    # WRAPPER directives like [% WRAPPER 'foo.html.tt' %] resolve correctly
-    # via Template::Provider::Mojo.  TT options must live under 'template';
-    # the top-level config is for plugin options only.
-    # renderer->paths already points at templates/ by default — no INCLUDE_PATH needed.
-    $self->plugin('TemplateToolkit', {
-        name     => 'tt',
-        template => {
-            POST_CHOMP => 1,
-            TRIM       => 1,
-        },
-    });
+	# Register as 'tt' so template files keep the .html.tt extension and
+	# WRAPPER directives like [% WRAPPER 'foo.html.tt' %] resolve correctly
+	# via Template::Provider::Mojo.  TT options must live under 'template';
+	# the top-level config is for plugin options only.
+	# renderer->paths already points at templates/ by default — no INCLUDE_PATH needed.
+	$self->plugin('TemplateToolkit', {
+		name     => 'tt',
+			template => {
+			POST_CHOMP => 1,
+			TRIM       => 1,
+		},
+	});
 
-    # Factory helper: opens any named table from the configured data directory.
-    # Phase 2: replace the DataSource instantiation here with Database::Join —
-    # the controller never changes.
-    my $conf     = $self->config;
-    my $data_dir = $self->home->child($conf->{data_dir})->to_string;
+	# Factory helper: opens any named table from the configured data directory.
+	# Phase 2: replace the DataSource instantiation here with Database::Join -
+	# the controller never changes.
+	my $conf     = $self->config();
+	my $data_dir = $self->home->child($conf->{data_dir})->to_string;
 
-    # Pass directory => $path to override the default data_dir.
-    # Phase 2: swap DataSource for Database::Join here only.
-    $self->helper(open_table => sub ($c, $table, %opts) {
-        my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
-        Database::BI::Model::DataSource->new(
-            directory => $dir,
-            table     => $table,
-        );
-    });
+	# Pass directory => $path to override the default data_dir.
+	# Phase 2: swap DataSource for Database::Join here only.
+	$self->helper(open_table => sub ($c, $table, %opts) {
+	my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
+	Database::BI::Model::DataSource->new(
+		directory => $dir,
+		table     => $table,
+		);
+	});
 
-    my $r = $self->routes;
-    $r->get('/')->to('Dashboard#index');
-    $r->get('/view/:table')->to('Dashboard#view');
-    $r->get('/browse')->to('Dashboard#browse');
-    $r->get('/open')->to('Dashboard#open_file');
-    $r->get('/join')->to('Dashboard#join_tables');
-    $r->get('/api/columns')->to('Dashboard#columns_api');
+	my $r = $self->routes();
+	$r->get('/')->to('Dashboard#index');
+	$r->get('/view/:table')->to('Dashboard#view');
+	$r->get('/browse')->to('Dashboard#browse');
+	$r->get('/open')->to('Dashboard#open_file');
+	$r->get('/join')->to('Dashboard#join_tables');
+	$r->get('/api/columns')->to('Dashboard#columns_api');
 }
 
 =head1 AUTHOR

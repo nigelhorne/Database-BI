@@ -78,9 +78,9 @@ Creates and returns a new C<Database::BI::Model::DataSource> instance.
 =head4 INPUT
 
 	{
-	    directory => SCALAR,           # required; path to the data directory
-	    table     => SCALAR,           # required; bare table/file name (no extension)
-	    i18n      => OBJECT | undef,   # optional; must implement maketext($key, @args)
+	    directory => 'string',           # required; path to the data directory
+	    table     => 'string',           # required; bare table/file name (no extension)
+	    i18n      => { type => 'object', optional => 1, can => 'maketext' } # must implement maketext($key, @args)
 	}
 
 Accepts a flat key/value list, a hashref, or positional arguments via
@@ -113,15 +113,13 @@ sub new {
 	# pass a hashref or a flat list interchangeably, then validate strictly
 	# with Params::Validate before touching any value.
 	my $class = shift;
-	my $raw   = Params::Get::get_params(undef, @_);
-
 	my $args = validate_strict(
 		schema => {
-			directory => { type => 'scalar' },
-			table     => { type => 'scalar' },
-			i18n      => { type => 'object', optional => 1, default => undef },
+			directory => { type => 'string' },
+			table     => { type => 'string' },
+			i18n      => { type => 'object', optional => 1, default => undef, can => 'maketext' },
 		},
-		input => $raw,
+		input => Params::Get::get_params(undef, \@_) // {}
 	);
 
 	croak _fmt('error_directory_missing', $args->{directory})
