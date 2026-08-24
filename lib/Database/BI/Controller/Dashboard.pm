@@ -4,7 +4,7 @@ use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 use Mojo::File;
 use Mojo::JSON qw(encode_json);
 use Mojo::Util qw(url_escape encode);
-use File::Temp qw(tempfile);
+use File::Temp qw(tempfile tempdir);
 
 # Supported file extensions that Database::Abstraction can read.
 # Note: D::A probes ".sql" for SQLite databases (not ".sqlite").
@@ -625,6 +625,35 @@ sub _render_sqlite ($self, $records, $columns, $name) {
     $self->res->headers->content_type('application/vnd.sqlite3');
     $self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
     $self->render(data => $data);
+}
+
+# POST /upload - accept a drag-and-dropped data file, save it to a private
+# temp directory under its original name, and return JSON { url, path } so the
+# browser can navigate to /open?path=... or populate the join panel path field.
+#
+# The temp directory persists for the life of the process; files are typically
+# small and this is a local single-user tool so disk growth is not a concern.
+sub upload_file ($self) {
+    my $upload = $self->req->upload('file');
+    unless ($upload && $upload->filename) {
+        return $self->render(json => { error => 'No file received' }, status => 400);
+    }
+
+    # Strip any path prefix the browser may include in the filename.
+    (my $filename = $upload->filename) =~ s{.*[/\\]}{};
+    unless ($filename && $filename =~ $EXT_RE) {
+        return $self->render(
+            json   => { error => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)' },
+            status => 415,
+        );
+    }
+
+    my $tmp_dir = tempdir(CLEANUP => 0);
+    my $dest    = Mojo::File->new($tmp_dir)->child($filename)->to_string;
+    $upload->move_to($dest);
+
+    my $url = '/open?path=' . url_escape($dest);
+    $self->render(json => { url => $url, path => $dest });
 }
 
 sub _resolve_language ($self, $default) {

@@ -23,11 +23,17 @@
 [% ELSE %]
 <p class="empty-state">
   No data files found in the <code>data/</code> directory.<br>
-  Add a <code>.csv</code>, <code>.db</code>, <code>.sqlite</code>, or <code>.xml</code> file there and restart.
+  Add a <code>.csv</code>, <code>.psv</code>, <code>.xml</code> or <code>.sql</code> file there and restart, or drop a file below.
 </p>
 [% END %]
 
 <div id="bi-recent"></div>
+
+<div class="home-drop-zone" id="home-drop-zone" aria-label="Drop a database file here to open it">
+  <span class="home-drop-zone-icon" aria-hidden="true">&#x1F4C2;</span>
+  <span>Drop a database file to open it</span>
+  <span class="home-drop-hint">CSV &middot; PSV &middot; XML &middot; SQLite (.sql)</span>
+</div>
 
 <p class="browse-link"><a href="/browse" class="btn-browse">&#128269; Browse filesystem&hellip;</a></p>
 

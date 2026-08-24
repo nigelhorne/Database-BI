@@ -4,6 +4,7 @@ use Test::More;
 use Test::Mojo;
 use File::Spec ();
 use File::Temp ();
+use Mojo::File;
 use Mojo::Util qw(url_escape);
 
 my $t = Test::Mojo->new('Database::BI');
@@ -162,6 +163,56 @@ SKIP: {
     # Browse the temp dir and expect the .sql file to appear as a link
     $t->get_ok('/browse?path=' . url_escape($sql_dir))
       ->status_is(200)->content_like(qr/inventory\.sql/);
+}
+
+# -----------------------------------------------------------------------
+# Drag-and-drop upload endpoint
+# -----------------------------------------------------------------------
+{
+    # Upload a CSV file and expect a redirect URL back
+    my $csv_content = "id,name,qty\r\n1,Widget,100\r\n2,Gadget,200\r\n";
+    $t->post_ok('/upload',
+        form => { file => { content => $csv_content, filename => 'upload_test.csv' } }
+    )->status_is(200)->json_has('/url')->json_has('/path')
+     ->json_like('/url', qr{/open\?path=});
+
+    # Upload file: verify the path is openable
+    my $url = $t->tx->res->json('/url');
+    $t->get_ok($url)->status_is(200)->content_like(qr/Widget/) if defined $url;
+
+    # Upload with no file returns 400
+    $t->post_ok('/upload')->status_is(400);
+
+    # Upload unsupported extension returns 415
+    $t->post_ok('/upload',
+        form => { file => { content => 'data', filename => 'bad.txt' } }
+    )->status_is(415);
+
+    # Upload a PSV file
+    my $psv_content = "id|name|price\n1|Bolt|0.99\n2|Nut|0.49\n";
+    $t->post_ok('/upload',
+        form => { file => { content => $psv_content, filename => 'parts.psv' } }
+    )->status_is(200)->json_like('/url', qr{/open\?path=});
+
+    # Upload a SQLite .sql file
+    {
+        my $sql_dir2  = File::Temp::tempdir(CLEANUP => 1);
+        my $sql_file2 = File::Spec->catfile($sql_dir2, 'upload_sq.sql');
+        my $dbh2 = DBI->connect(
+            "dbi:SQLite:dbname=$sql_file2", '', '', { RaiseError => 1, AutoCommit => 1 }
+        );
+        $dbh2->do('CREATE TABLE upload_sq (col1 TEXT, col2 TEXT)');
+        $dbh2->do("INSERT INTO upload_sq VALUES ('hello', 'world')");
+        $dbh2->disconnect;
+
+        my $bytes = Mojo::File->new($sql_file2)->slurp;
+        $t->post_ok('/upload',
+            form => { file => { content => $bytes, filename => 'upload_sq.sql' } }
+        )->status_is(200)->json_like('/url', qr{/open\?path=});
+
+        my $sq_url = $t->tx->res->json('/url');
+        $t->get_ok($sq_url)->status_is(200)->content_like(qr/hello/) if defined $sq_url;
+    }
 }
 
 done_testing();

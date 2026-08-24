@@ -415,6 +415,63 @@
     }
     .btn-clear-filters:hover { color: #c00; text-decoration: underline; }
 
+    /* Full-window drop overlay */
+    #drop-overlay {
+      position: fixed;
+      inset: 0;
+      z-index: 1000;
+      background: rgba(44, 62, 122, .88);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.12s;
+    }
+    #drop-overlay.active {
+      pointer-events: auto;
+      opacity: 1;
+    }
+    #drop-overlay.loading .drop-overlay-box {
+      border-style: solid;
+      opacity: .7;
+    }
+    .drop-overlay-box {
+      border: 3px dashed rgba(255,255,255,.7);
+      border-radius: 16px;
+      padding: 3rem 5rem;
+      text-align: center;
+      color: #fff;
+    }
+    .drop-overlay-icon { font-size: 3rem; margin-bottom: .5rem; }
+    .drop-overlay-text { font-size: 1.5rem; font-weight: 600; }
+    .drop-overlay-hint { font-size: .85rem; opacity: .65; margin-top: .4rem; }
+
+    /* Visible drop-zone on the home page */
+    .home-drop-zone {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: .75rem;
+      border: 2px dashed #d0d8f0;
+      border-radius: 8px;
+      padding: 1.25rem 1.5rem;
+      margin: 1.5rem 0 .5rem;
+      color: #aab;
+      font-size: .9rem;
+      background: #fafbfd;
+      transition: border-color .12s, background .12s, color .12s;
+      user-select: none;
+    }
+    .home-drop-zone.drag-active {
+      border-color: #2c3e7a;
+      background: #eef1fb;
+      color: #2c3e7a;
+    }
+    .home-drop-zone-icon { font-size: 1.4rem; flex-shrink: 0; }
+    .home-drop-hint { font-size: .78rem; color: #bbc; }
+    .home-drop-zone.drag-active .home-drop-hint { color: #5a7ab8; }
+
     /* "Browse filesystem" button on the home page */
     .browse-link {
       margin-top: 1.5rem;
@@ -497,5 +554,99 @@
     [% content %]
   </main>
   <footer><a href="https://github.com/nigelhorne/Database-BI" target="_blank">Database::BI</a></footer>
+
+  <!-- Full-window drop overlay: shown whenever files are dragged over the page -->
+  <div id="drop-overlay" aria-live="polite">
+    <div class="drop-overlay-box">
+      <div class="drop-overlay-icon" aria-hidden="true">&#x1F4C2;</div>
+      <div class="drop-overlay-text" id="drop-overlay-text">Drop to open database</div>
+      <div class="drop-overlay-hint">CSV &middot; PSV &middot; XML &middot; SQLite</div>
+    </div>
+  </div>
+
+  <script>
+  (function () {
+    var overlay   = document.getElementById('drop-overlay');
+    var overlayTxt = document.getElementById('drop-overlay-text');
+    var homeZone  = document.getElementById('home-drop-zone');
+    var dragDepth = 0;
+
+    function hasFiles(dt) {
+      if (!dt || !dt.types) return false;
+      return dt.types.includes
+        ? dt.types.includes('Files')
+        : Array.prototype.indexOf.call(dt.types, 'Files') !== -1;
+    }
+
+    function showOverlay() {
+      var label = (typeof window.__biDropLabel === 'function')
+        ? window.__biDropLabel() : 'Drop to open database';
+      overlayTxt.textContent = label;
+      overlay.classList.add('active');
+      if (homeZone) homeZone.classList.add('drag-active');
+    }
+
+    function hideOverlay() {
+      overlay.classList.remove('active', 'loading');
+      if (homeZone) homeZone.classList.remove('drag-active');
+    }
+
+    document.addEventListener('dragenter', function (e) {
+      if (!hasFiles(e.dataTransfer)) return;
+      if (++dragDepth === 1) showOverlay();
+    });
+
+    document.addEventListener('dragleave', function (e) {
+      if (!hasFiles(e.dataTransfer)) return;
+      if (--dragDepth <= 0) { dragDepth = 0; hideOverlay(); }
+    });
+
+    document.addEventListener('drop', function () {
+      dragDepth = 0;
+    });
+
+    overlay.addEventListener('dragover', function (e) {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'copy';
+    });
+
+    overlay.addEventListener('drop', function (e) {
+      e.preventDefault();
+      dragDepth = 0;
+      var file = e.dataTransfer.files[0];
+      if (!file) { hideOverlay(); return; }
+
+      overlay.classList.add('loading');
+      overlayTxt.textContent = 'Opening…';
+
+      var fd = new FormData();
+      fd.append('file', file);
+
+      fetch('/upload', { method: 'POST', body: fd })
+        .then(function (r) {
+          if (!r.ok) {
+            return r.json().then(function (d) {
+              return Promise.reject(d.error || ('HTTP ' + r.status));
+            });
+          }
+          return r.json();
+        })
+        .then(function (data) {
+          hideOverlay();
+          if (typeof window.__biDropCallback === 'function') {
+            window.__biDropCallback(data);
+          } else if (data.url) {
+            window.location = data.url;
+          }
+        })
+        .catch(function (err) {
+          hideOverlay();
+          overlayTxt.textContent = (typeof err === 'string') ? err : 'Could not open file.';
+          overlay.classList.add('active');
+          setTimeout(hideOverlay, 3000);
+        });
+    });
+  }());
+  </script>
 </body>
 </html>

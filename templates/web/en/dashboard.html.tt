@@ -62,7 +62,7 @@
       <div class="join-or">or</div>
 
       <div class="join-field">
-        <label for="right-path-inp">File path (from the filesystem browser)</label>
+        <label for="right-path-inp">File path <span style="font-weight:400;color:#999;font-size:.78rem;">(browser or drag &amp; drop)</span></label>
         <input type="text" id="right-path-inp" placeholder="/path/to/file.csv"
                autocomplete="off" spellcheck="false">
       </div>
@@ -560,6 +560,35 @@
       location.href = url;
     });
   }
+}());
+</script>
+
+<script>
+// Drag-and-drop integration with the shared overlay (default.html.tt)
+(function () {
+  var panel        = document.getElementById('join-panel');
+  var rightPathInp = document.getElementById('right-path-inp');
+  var rightTblSel  = document.getElementById('right-table-sel');
+
+  // Tell the overlay what label to show based on current UI state.
+  window.__biDropLabel = function () {
+    return (panel && !panel.hidden)
+      ? 'Drop to set as join database'
+      : 'Drop to open database';
+  };
+
+  // Called by the overlay after a successful upload.
+  window.__biDropCallback = function (data) {
+    if (panel && !panel.hidden && data.path && rightPathInp) {
+      // Join panel is open: populate the path field and trigger column fetch.
+      rightPathInp.value = data.path;
+      if (rightTblSel) rightTblSel.value = '';
+      rightPathInp.dispatchEvent(new Event('input', { bubbles: true }));
+    } else if (data.url) {
+      // Panel is closed (or no path returned): navigate to the opened file.
+      window.location = data.url;
+    }
+  };
 }());
 </script>
 

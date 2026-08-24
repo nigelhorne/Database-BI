@@ -170,6 +170,7 @@ sub startup ($self) {
 	$r->get('/join')->to('Dashboard#join_tables');
 	$r->get('/api/columns')->to('Dashboard#columns_api');
 	$r->get('/export')->to('Dashboard#export_data');
+	$r->post('/upload')->to('Dashboard#upload_file');
 }
 
 =head1 REPOSITORY
