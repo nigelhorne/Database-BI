@@ -126,6 +126,11 @@ sub _enoent_msg_for_locale {
 }
 
 subtest 'POSIX locale: OS error strings change with LC_ALL' => sub {
+    # LC_MESSAGES is absent on Windows; setlocale with it fails there too.
+    # Skip the whole subtest rather than producing zero assertions.
+    eval { POSIX::setlocale(POSIX::LC_MESSAGES(), 'C') }
+        or plan skip_all => 'POSIX locale manipulation not available on this platform';
+
     my %seen;
     for my $spec (@TEST_LOCALES) {
         # Try to set the locale; skip if not installed on this system.

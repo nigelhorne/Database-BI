@@ -2,8 +2,8 @@ package Database::BI;
 
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
-use Carp		qw(croak);
-use File::Spec		();
+use Carp	qw(croak);
+use File::Spec	();
 use Readonly;
 
 use Database::BI::Model::DataSource;
@@ -303,7 +303,7 @@ sub startup ($self) {
 	# default so every action can read $self->stash('download_dir').
 	my $home   = $ENV{HOME} // '';
 	my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
-	           : ($home || File::Spec->tmpdir);
+	           : ($home || File::Spec->tmpdir());
 	$self->defaults(download_dir => $dl_dir);
 
 	# Register the TT plugin as 'tt' (not the default 'tt2') so that template
