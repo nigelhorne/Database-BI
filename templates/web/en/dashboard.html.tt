@@ -7,7 +7,80 @@
 [%- END -%]
 
 [% IF records.size %]
-<p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]</p>
+<div class="toolbar">
+  <p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]
+    [%- IF join_summaries.size -%]
+    &ensp;
+    [%- FOREACH s IN join_summaries -%]
+    <span class="join-chip">&#x2b; [% s.label | html %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span></span>
+    [%- END -%]
+    [%- END -%]
+  </p>
+  [%- IF left_spec -%]
+  <button class="btn-add-db" id="btn-add-db" type="button">&#x2295; Add database&hellip;</button>
+  [%- END -%]
+</div>
+
+[%- IF left_spec -%]
+<div class="join-panel" id="join-panel"
+     data-current-label="[% title | html %]"
+     hidden>
+  <form id="join-form" method="get" action="/join">
+    <input type="hidden" name="l" value="[% left_spec | html %]">
+    [%- FOREACH jspec IN current_joins -%]
+    <input type="hidden" name="j" value="[% jspec | html %]">
+    [%- END -%]
+    <input type="hidden" name="j" id="new-join-spec" value="">
+
+    <h3 class="join-panel-title">Add a database</h3>
+
+    <div class="join-fields">
+      <div class="join-field">
+        <label for="right-table-sel">Table from the data directory</label>
+        <select id="right-table-sel">
+          <option value="">— select a table —</option>
+          [%- FOREACH t IN available_tables -%]
+          <option value="table:[% t.name | html %]">[% t.name | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+
+      <div class="join-or">or</div>
+
+      <div class="join-field">
+        <label for="right-path-inp">File path (from the filesystem browser)</label>
+        <input type="text" id="right-path-inp" placeholder="/path/to/file.csv"
+               autocomplete="off" spellcheck="false">
+      </div>
+
+      <div class="join-field">
+        <label for="left-key-sel">Column in <strong>[% title | html %]</strong> to join on</label>
+        <select id="left-key-sel">
+          <option value="">— select a column —</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+
+      <div class="join-field">
+        <label for="right-key-sel">Matching column in the new database</label>
+        <select id="right-key-sel" disabled>
+          <option value="">— select a database first —</option>
+        </select>
+      </div>
+    </div>
+
+    <p class="join-desc" id="join-desc" hidden></p>
+
+    <div class="join-actions">
+      <button type="button" id="btn-cancel-join" class="btn-secondary">Cancel</button>
+      <button type="submit" id="btn-do-join" class="btn-primary" disabled>Join tables</button>
+    </div>
+  </form>
+</div>
+[%- END -%]
+
 <table id="bi-table" data-table="[% table | html %]">
   <thead>
     <tr>
@@ -118,7 +191,6 @@
         if (!inSaved[n]) reconciled.push(n);
       });
 
-      // Walk each target position and move the column there.
       for (var i = 0; i < reconciled.length; i++) {
         var name = reconciled[i];
         var cur  = -1;
@@ -127,7 +199,6 @@
       }
     }
 
-    // Restore sort only if the saved column still exists after reconciliation.
     if (state.sortCol) {
       var idx = -1;
       headers.forEach(function (h, i) {
@@ -145,7 +216,7 @@
 
   headers.forEach(function (th) {
     th.addEventListener('click', function () {
-      if (dragSrcIdx !== null) return;   // ignore clicks that end a drag
+      if (dragSrcIdx !== null) return;
       var idx = colIndex(th);
       if (sortColIdx === idx) { sortAsc = !sortAsc; }
       else { sortColIdx = idx; sortAsc = true; }
@@ -185,6 +256,126 @@
       }
       headers.forEach(function (h) { h.classList.remove('drag-over'); });
     });
+  });
+}());
+
+// ---------------------------------------------------------------------------
+// Join panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnAdd      = document.getElementById('btn-add-db');
+  var panel       = document.getElementById('join-panel');
+  if (!btnAdd || !panel) return;
+
+  var btnCancel   = document.getElementById('btn-cancel-join');
+  var btnDo       = document.getElementById('btn-do-join');
+  var rightTblSel = document.getElementById('right-table-sel');
+  var rightPathInp = document.getElementById('right-path-inp');
+  var leftKeySel  = document.getElementById('left-key-sel');
+  var rightKeySel = document.getElementById('right-key-sel');
+  var joinDesc    = document.getElementById('join-desc');
+  var newJoinSpec = document.getElementById('new-join-spec');
+  var joinForm    = document.getElementById('join-form');
+  var currentLabel = panel.dataset.currentLabel || 'current table';
+
+  btnAdd.addEventListener('click', function () {
+    panel.hidden    = false;
+    btnAdd.disabled = true;
+  });
+
+  btnCancel.addEventListener('click', function () {
+    panel.hidden    = true;
+    btnAdd.disabled = false;
+    reset();
+  });
+
+  function reset() {
+    rightTblSel.value     = '';
+    rightPathInp.value    = '';
+    rightKeySel.innerHTML = '<option value="">— select a database first —</option>';
+    rightKeySel.disabled  = true;
+    leftKeySel.value      = '';
+    joinDesc.hidden       = true;
+    btnDo.disabled        = true;
+    newJoinSpec.value     = '';
+  }
+
+  var rightSpec  = '';
+  var rightLabel = '';
+
+  function loadRightColumns(spec, label) {
+    var url;
+    if (spec.indexOf('table:') === 0) {
+      url = '/api/columns?table=' + encodeURIComponent(spec.slice(6));
+    } else if (spec.indexOf('path:') === 0) {
+      url = '/api/columns?path=' + encodeURIComponent(spec.slice(5));
+    } else { return; }
+
+    rightSpec  = spec;
+    rightLabel = label;
+    rightKeySel.disabled  = true;
+    rightKeySel.innerHTML = '<option value="">Loading…</option>';
+
+    fetch(url)
+      .then(function (r) { return r.json(); })
+      .then(function (data) {
+        var cols = data.columns || [];
+        rightKeySel.innerHTML = '<option value="">— select a column —</option>';
+        cols.forEach(function (col) {
+          var opt = document.createElement('option');
+          opt.value = col; opt.textContent = col;
+          rightKeySel.appendChild(opt);
+        });
+        rightKeySel.disabled = cols.length === 0;
+        updateDesc();
+      })
+      .catch(function () {
+        rightKeySel.innerHTML = '<option value="">Could not load columns</option>';
+      });
+  }
+
+  rightTblSel.addEventListener('change', function () {
+    if (!this.value) return;
+    rightPathInp.value = '';
+    loadRightColumns(this.value, this.options[this.selectedIndex].textContent.trim());
+  });
+
+  var pathTimer;
+  rightPathInp.addEventListener('input', function () {
+    var val = this.value.trim();
+    rightTblSel.value = '';
+    clearTimeout(pathTimer);
+    if (!val) return;
+    pathTimer = setTimeout(function () {
+      var fname = val.replace(/.*[/\\]/, '').replace(/\.[^.]+$/, '') || val;
+      loadRightColumns('path:' + val, fname);
+    }, 500);
+  });
+
+  function updateDesc() {
+    var lk = leftKeySel.value;
+    var rk = rightKeySel.value;
+    if (!rightSpec || !lk || !rk) {
+      joinDesc.hidden = true;
+      btnDo.disabled  = true;
+      newJoinSpec.value = '';
+      return;
+    }
+    joinDesc.textContent =
+      'Add columns from “' + rightLabel + '” to “' + currentLabel +
+      '” by matching ' + currentLabel + '.' + lk + ' with ' + rightLabel + '.' + rk +
+      '. Every row in “' + currentLabel + '” is kept; rows with no match in “' +
+      rightLabel + '” will have empty values for the new columns.';
+    joinDesc.hidden   = false;
+    btnDo.disabled    = false;
+    newJoinSpec.value = rightSpec + '|' + lk + '|' + rk;
+  }
+
+  leftKeySel.addEventListener('change',  updateDesc);
+  rightKeySel.addEventListener('change', updateDesc);
+
+  joinForm.addEventListener('submit', function (e) {
+    if (!newJoinSpec.value) e.preventDefault();
   });
 }());
 </script>

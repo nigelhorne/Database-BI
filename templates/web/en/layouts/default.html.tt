@@ -104,11 +104,143 @@
     .back-link a { color: #2c3e7a; text-decoration: none; }
     .back-link a:hover { text-decoration: underline; }
 
+    /* Toolbar row: record count + "Add database" button */
+    .toolbar {
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      margin-bottom: 0.75rem;
+      flex-wrap: wrap;
+    }
+
     .record-count {
       font-size: 0.8rem;
       color: #666;
-      margin-bottom: 0.75rem;
+      flex: 1;
     }
+
+    /* Chips that summarise active joins */
+    .join-chip {
+      display: inline-block;
+      background: #e8edf8;
+      border-radius: 10px;
+      padding: 0.15em 0.55em;
+      font-size: 0.75rem;
+      color: #2c3e7a;
+      margin-left: 0.35em;
+    }
+    .join-chip-key { color: #888; font-size: 0.7rem; }
+
+    /* "Add database" button */
+    .btn-add-db {
+      flex-shrink: 0;
+      padding: 0.3rem 0.9rem;
+      border: 1px solid #2c3e7a;
+      border-radius: 6px;
+      background: transparent;
+      color: #2c3e7a;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-add-db:hover:not(:disabled) { background: #eef1fb; }
+    .btn-add-db:disabled { opacity: 0.4; cursor: default; }
+
+    /* Join configuration panel */
+    .join-panel {
+      background: #f0f3fb;
+      border: 1px solid #c8d0e8;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .join-panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #2c3e7a;
+      margin-bottom: 1rem;
+    }
+
+    .join-fields {
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: 0.75rem 1rem;
+      align-items: end;
+      margin-bottom: 1rem;
+    }
+
+    @media (max-width: 680px) {
+      .join-fields { grid-template-columns: 1fr; }
+      .join-or { display: none; }
+    }
+
+    .join-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+    }
+
+    .join-field label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #444;
+    }
+
+    .join-field select,
+    .join-field input[type="text"] {
+      padding: 0.4rem 0.6rem;
+      border: 1px solid #c0c8e0;
+      border-radius: 5px;
+      font-size: 0.875rem;
+      background: #fff;
+      width: 100%;
+    }
+
+    .join-or {
+      font-size: 0.8rem;
+      color: #888;
+      text-align: center;
+      padding-bottom: 0.4rem;
+    }
+
+    .join-desc {
+      font-size: 0.85rem;
+      color: #1a3a2a;
+      background: #e8f5e9;
+      border-left: 3px solid #4caf50;
+      padding: 0.6rem 0.9rem;
+      border-radius: 4px;
+      margin-bottom: 1rem;
+    }
+
+    .join-actions {
+      display: flex;
+      gap: 0.75rem;
+      justify-content: flex-end;
+    }
+
+    .btn-primary, .btn-secondary {
+      padding: 0.4rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.875rem;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.15s;
+    }
+    .btn-primary {
+      background: #2c3e7a;
+      color: #fff;
+      border-color: #2c3e7a;
+    }
+    .btn-primary:hover:not(:disabled) { background: #1a2558; }
+    .btn-primary:disabled { opacity: 0.4; cursor: default; }
+    .btn-secondary {
+      background: transparent;
+      color: #555;
+      border-color: #bbb;
+    }
+    .btn-secondary:hover { background: #eee; }
 
     /* Database picker */
     .db-list {

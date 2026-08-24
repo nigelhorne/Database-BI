@@ -78,6 +78,8 @@ sub startup ($self) {
     $r->get('/view/:table')->to('Dashboard#view');
     $r->get('/browse')->to('Dashboard#browse');
     $r->get('/open')->to('Dashboard#open_file');
+    $r->get('/join')->to('Dashboard#join_tables');
+    $r->get('/api/columns')->to('Dashboard#columns_api');
 }
 
 =head1 AUTHOR
