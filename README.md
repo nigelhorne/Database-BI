@@ -31,7 +31,7 @@ Nigel Horne `<njh@nigelhorne.com>`
 
 # LICENCE AND COPYRIGHT
 
-Copyright 2010-2026 Nigel Horne.
+Copyright 2026 Nigel Horne.
 
 Usage is subject to the GPL2 licence terms.
 If you use it,
