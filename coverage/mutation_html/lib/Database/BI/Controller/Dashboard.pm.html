@@ -293,10 +293,10 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../../../../../index.html">Index</a>
  <a href="../Model/DataSource.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 88.70%<br>
-TER2 (Branch): 51.37%<br>
-TER3 (LCSAJ): 100.0% (27/27)<br>
-Approximate LCSAJ segments: 147<br>
+TER1 (Statement): 89.07%<br>
+TER2 (Branch): 52.67%<br>
+TER3 (LCSAJ): 100.0% (29/29)<br>
+Approximate LCSAJ segments: 151<br>
 </div>
 
     <div class="legend">
@@ -345,7 +345,7 @@ Approximate LCSAJ segments: 147<br>
 </span><span class="">    4: use Mojo::File;
 </span><span class="">    5: use Mojo::JSON qw(encode_json);
 </span><span class="">    6: use Mojo::Util qw(url_escape encode);
-</span><span class="">    7: use File::Temp qw(tempfile);
+</span><span class="">    7: use File::Temp qw(tempfile tempdir);
 </span><span class="">    8: 
 </span><span class="">    9: # Supported file extensions that Database::Abstraction can read.
 </span><span class="">   10: # Note: D::A probes &quot;.sql&quot; for SQLite databases (not &quot;.sqlite&quot;).
@@ -398,7 +398,7 @@ Approximate LCSAJ segments: 147<br>
 </span><span class="">   57: 
 </span><span class="">   58: # Convert a spec string back to a browseable URL.
 </span><span class="">   59: sub _spec_to_url ($self, $spec) {
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   60:     return &quot;/view/$1&quot;                               if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   60:     return &quot;/view/$1&quot;                               if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -442,7 +442,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   62:     return &#39;/&#39;;
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   62:     return &#39;/&#39;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -490,7 +490,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">   86: sub _apply_filter_spec {
 </span><span class="">   87:     my ($records, $spec) = @_;
 </span><span class="">   88:     my ($col, $op, $val) = split /:/, $spec, 3;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   89:     return $records unless defined $col &amp;&amp; length $col
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   89:     return $records unless defined $col &amp;&amp; length $col
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -811,7 +811,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  217:     my $table    = $self-&gt;stash(&#39;table&#39;);
 </span><span class="">  218: 
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  219:     unless (defined $table &amp;&amp; $table =~ /\A[A-Za-z0-9_]+\z/) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  220:         return $self-&gt;reply-&gt;not_found;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  220:         return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -994,7 +994,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  346:     my $file_path = $self-&gt;param(&#39;path&#39;);
 </span><span class="">  347: 
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  348:     unless (defined $file_path) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  349:         return $self-&gt;reply-&gt;not_found;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  349:         return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1113,7 +1113,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  423:     my $source;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  424:     if (defined $table_name &amp;&amp; $table_name =~ /\A[A-Za-z0-9_]+\z/) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  425:         my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  426:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  426:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1154,7 +1154,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  437:     }
 </span><span class="">  438: 
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">439 → 439 → 443</span></span>  439:     unless ($source) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  440:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404);
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  440:         return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1211,7 +1211,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  467: 
 </span><span class="">  468:     my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
 </span><span class="">  469:     my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  470:     return $self-&gt;reply-&gt;not_found unless $left_src;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  470:     return $self-&gt;reply-&gt;not_found unless $left_src;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1236,7 +1236,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class="">  471: 
 </span><span class="">  472:     my $left_recs = eval { $left_src-&gt;fetch_all };
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  473:     if ($@) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  474:         return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  474:         return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1356,7 +1356,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 							</li></ul></details>
 <span class="">  550: 
 </span><span class="">  551:     my $left_recs = eval { $left_src-&gt;fetch_all };
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  552:     return $self-&gt;reply-&gt;not_found if $@;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  552:     return $self-&gt;reply-&gt;not_found if $@;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1503,181 +1503,210 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  627:     $self-&gt;render(data =&gt; $data);
 </span><span class="">  628: }
 </span><span class="">  629: 
-</span><span class="">  630: sub _resolve_language ($self, $default) {
-</span><span class="">  631:     my $accept = $self-&gt;req-&gt;headers-&gt;accept_language // &#39;&#39;;
-</span><span class="">  632:     my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  633:     return $lang // $default;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  634: }
-</span><span class="">  635: 
-</span><span class="">  636: 1;
-</span><span class="">  637: 
-</span><span class="">  638: =head1 NAME
-</span><span class="">  639: 
-</span><span class="">  640: Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
-</span><span class="">  641: viewer, left-join engine, and result filter
-</span><span class="">  642: 
-</span><span class="">  643: =head1 DESCRIPTION
-</span><span class="">  644: 
-</span><span class="">  645: All user-facing routes in C&lt;Database::BI&gt; are handled by this controller.
-</span><span class="">  646: 
-</span><span class="">  647: =head2 Actions
-</span><span class="">  648: 
-</span><span class="">  649: =over 4
+</span><span class="">  630: # POST /upload - accept a drag-and-dropped data file, save it to a private
+</span><span class="">  631: # temp directory under its original name, and return JSON { url, path } so the
+</span><span class="">  632: # browser can navigate to /open?path=... or populate the join panel path field.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  633: #
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  634: # The temp directory persists for the life of the process; files are typically
+</span><span class="">  635: # small and this is a local single-user tool so disk growth is not a concern.
+</span><span class="">  636: sub upload_file ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">637 → 638 → 640</span></span>  637:     my $upload = $self-&gt;req-&gt;upload(&#39;file&#39;);
+</span><span class="">  638:     unless ($upload &amp;&amp; $upload-&gt;filename) {
+</span><span class="">  639:         return $self-&gt;render(json =&gt; { error =&gt; &#39;No file received&#39; }, status =&gt; 400);
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">640 → 644 → 651</span></span>  640:     }
+</span><span class="">  641: 
+</span><span class="">  642:     # Strip any path prefix the browser may include in the filename.
+</span><span class="">  643:     (my $filename = $upload-&gt;filename) =~ s{.*[/\\]}{};
+</span><span class="">  644:     unless ($filename &amp;&amp; $filename =~ $EXT_RE) {
+</span><span class="">  645:         return $self-&gt;render(
+</span><span class="">  646:             json   =&gt; { error =&gt; &#39;Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)&#39; },
+</span><span class="">  647:             status =&gt; 415,
+</span><span class="">  648:         );
+</span><span class="">  649:     }
 </span><span class="">  650: 
-</span><span class="">  651: =item C&lt;index&gt; - C&lt;GET /&gt;
-</span><span class="">  652: 
-</span><span class="">  653: Scans the configured C&lt;data_dir&gt; for supported data files (CSV, PSV, SQLite,
-</span><span class="">  654: XML) and renders a card grid.  The template also renders a &quot;Recently opened&quot;
-</span><span class="">  655: section from C&lt;localStorage&gt; (client-side only; the server supplies an empty
-</span><span class="">  656: placeholder).
-</span><span class="">  657: 
-</span><span class="">  658: =item C&lt;view&gt; - C&lt;GET /view/:table&gt;
-</span><span class="">  659: 
-</span><span class="">  660: Opens the named table from C&lt;data_dir&gt; via the C&lt;open_table&gt; helper, applies
-</span><span class="">  661: any C&lt;?f=col:op:val&gt; filters from the query string, and renders
-</span><span class="">  662: C&lt;dashboard.html.tt&gt;.  Table names must match C&lt;[A-Za-z0-9_]+&gt;; anything
-</span><span class="">  663: else returns 404.
+</span><span class="">  651:     my $tmp_dir = tempdir(CLEANUP =&gt; 0);
+</span><span class="">  652:     my $dest    = Mojo::File-&gt;new($tmp_dir)-&gt;child($filename)-&gt;to_string;
+</span><span class="">  653:     $upload-&gt;move_to($dest);
+</span><span class="">  654: 
+</span><span class="">  655:     my $url = &#39;/open?path=&#39; . url_escape($dest);
+</span><span class="">  656:     $self-&gt;render(json =&gt; { url =&gt; $url, path =&gt; $dest });
+</span><span class="">  657: }
+</span><span class="">  658: 
+</span><span class="">  659: sub _resolve_language ($self, $default) {
+</span><span class="">  660:     my $accept = $self-&gt;req-&gt;headers-&gt;accept_language // &#39;&#39;;
+</span><span class="">  661:     my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
+</span><span class="">  662:     return $lang // $default;
+</span><span class="">  663: }
 </span><span class="">  664: 
-</span><span class="">  665: =item C&lt;browse&gt; - C&lt;GET /browse&gt;
+</span><span class="">  665: 1;
 </span><span class="">  666: 
-</span><span class="">  667: Filesystem navigator.  Resolves C&lt;?path=&gt; through C&lt;realpath&gt; (returns 404
-</span><span class="">  668: for non-existent or non-directory paths), then lists directories and
-</span><span class="">  669: supported files as clickable links.  Defaults to C&lt;$HOME&gt;.
-</span><span class="">  670: 
-</span><span class="">  671: =item C&lt;open_file&gt; - C&lt;GET /open&gt;
-</span><span class="">  672: 
-</span><span class="">  673: Opens a supported data file from an arbitrary absolute path (C&lt;?path=&gt;).
-</span><span class="">  674: The path is resolved through C&lt;realpath&gt; and checked against the supported
-</span><span class="">  675: extension list before instantiating C&lt;DataSource&gt;.  Applies C&lt;?f=&gt; filters.
-</span><span class="">  676: Sets C&lt;file_path&gt; in the stash so the template can record the file in
-</span><span class="">  677: C&lt;localStorage&gt; &quot;recently opened&quot;.
-</span><span class="">  678: 
-</span><span class="">  679: =item C&lt;join_tables&gt; - C&lt;GET /join&gt;
-</span><span class="">  680: 
-</span><span class="">  681: Performs one or more left joins in the order given by repeatable C&lt;j=&gt;
-</span><span class="">  682: parameters, then applies any C&lt;f=&gt; result filters.
-</span><span class="">  683: 
-</span><span class="">  684: Query parameters:
-</span><span class="">  685: 
-</span><span class="">  686:   l=&lt;spec&gt;               Required. Left table spec: &quot;table:name&quot; or
-</span><span class="">  687:                            &quot;path:/abs/path&quot;.  Returns 404 if unresolvable.
-</span><span class="">  688:   j=&lt;spec&gt;|&lt;lk&gt;|&lt;rk&gt;    Repeatable join step.  &lt;spec&gt; is a right-table
-</span><span class="">  689:                            spec; &lt;lk&gt; and &lt;rk&gt; are the left and right key
-</span><span class="">  690:                            column names.  Invalid or non-existent steps are
-</span><span class="">  691:                            silently skipped.
-</span><span class="">  692:   f=&lt;col&gt;:&lt;op&gt;:&lt;val&gt;     Repeatable result filter.  Applied server-side
-</span><span class="">  693:                            after all joins.
-</span><span class="">  694: 
-</span><span class="">  695: Left-join semantics: every left row is kept.  Right-table columns are
-</span><span class="">  696: appended for rows that match on the join key; unmatched rows get C&lt;undef&gt;
-</span><span class="">  697: for all right-table columns.  If a right-table column name collides with a
-</span><span class="">  698: left-table column name the right column is prefixed with
-</span><span class="">  699: C&lt;&lt; right_label.colname &gt;&gt;.
-</span><span class="">  700: 
-</span><span class="">  701: =item C&lt;columns_api&gt; - C&lt;GET /api/columns&gt;
-</span><span class="">  702: 
-</span><span class="">  703: Returns C&lt;{ &quot;columns&quot;: [...] }&gt; as JSON.  Accepts C&lt;?table=name&gt; (table
-</span><span class="">  704: from C&lt;data_dir&gt;) or C&lt;?path=/abs/path&gt; (arbitrary file).  Returns 404
-</span><span class="">  705: when the table or file cannot be found or resolved.  Used by the join panel
-</span><span class="">  706: to populate the right-key dropdown without a page reload.
+</span><span class="">  667: =head1 NAME
+</span><span class="">  668: 
+</span><span class="">  669: Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
+</span><span class="">  670: viewer, left-join engine, and result filter
+</span><span class="">  671: 
+</span><span class="">  672: =head1 DESCRIPTION
+</span><span class="">  673: 
+</span><span class="">  674: All user-facing routes in C&lt;Database::BI&gt; are handled by this controller.
+</span><span class="">  675: 
+</span><span class="">  676: =head2 Actions
+</span><span class="">  677: 
+</span><span class="">  678: =over 4
+</span><span class="">  679: 
+</span><span class="">  680: =item C&lt;index&gt; - C&lt;GET /&gt;
+</span><span class="">  681: 
+</span><span class="">  682: Scans the configured C&lt;data_dir&gt; for supported data files (CSV, PSV, SQLite,
+</span><span class="">  683: XML) and renders a card grid.  The template also renders a &quot;Recently opened&quot;
+</span><span class="">  684: section from C&lt;localStorage&gt; (client-side only; the server supplies an empty
+</span><span class="">  685: placeholder).
+</span><span class="">  686: 
+</span><span class="">  687: =item C&lt;view&gt; - C&lt;GET /view/:table&gt;
+</span><span class="">  688: 
+</span><span class="">  689: Opens the named table from C&lt;data_dir&gt; via the C&lt;open_table&gt; helper, applies
+</span><span class="">  690: any C&lt;?f=col:op:val&gt; filters from the query string, and renders
+</span><span class="">  691: C&lt;dashboard.html.tt&gt;.  Table names must match C&lt;[A-Za-z0-9_]+&gt;; anything
+</span><span class="">  692: else returns 404.
+</span><span class="">  693: 
+</span><span class="">  694: =item C&lt;browse&gt; - C&lt;GET /browse&gt;
+</span><span class="">  695: 
+</span><span class="">  696: Filesystem navigator.  Resolves C&lt;?path=&gt; through C&lt;realpath&gt; (returns 404
+</span><span class="">  697: for non-existent or non-directory paths), then lists directories and
+</span><span class="">  698: supported files as clickable links.  Defaults to C&lt;$HOME&gt;.
+</span><span class="">  699: 
+</span><span class="">  700: =item C&lt;open_file&gt; - C&lt;GET /open&gt;
+</span><span class="">  701: 
+</span><span class="">  702: Opens a supported data file from an arbitrary absolute path (C&lt;?path=&gt;).
+</span><span class="">  703: The path is resolved through C&lt;realpath&gt; and checked against the supported
+</span><span class="">  704: extension list before instantiating C&lt;DataSource&gt;.  Applies C&lt;?f=&gt; filters.
+</span><span class="">  705: Sets C&lt;file_path&gt; in the stash so the template can record the file in
+</span><span class="">  706: C&lt;localStorage&gt; &quot;recently opened&quot;.
 </span><span class="">  707: 
-</span><span class="">  708: =item C&lt;export_data&gt; - C&lt;GET /export&gt;
+</span><span class="">  708: =item C&lt;join_tables&gt; - C&lt;GET /join&gt;
 </span><span class="">  709: 
-</span><span class="">  710: Exports the current logical view as a file download.  Accepts the same
-</span><span class="">  711: C&lt;l=&gt;, C&lt;j=&gt;, and C&lt;f=&gt; parameters as C&lt;join_tables&gt;, plus C&lt;format=&gt;:
+</span><span class="">  710: Performs one or more left joins in the order given by repeatable C&lt;j=&gt;
+</span><span class="">  711: parameters, then applies any C&lt;f=&gt; result filters.
 </span><span class="">  712: 
-</span><span class="">  713:   format=csv     (default) - RFC 4180 CSV, UTF-8, CRLF line endings;
-</span><span class="">  714:                    generated without external dependencies.
-</span><span class="">  715:   format=sqlite  - SQLite 3 database written via DBI/DBD::SQLite to a
-</span><span class="">  716:                    temporary file, slurped, and returned as
-</span><span class="">  717:                    application/vnd.sqlite3.  The single table is named
-</span><span class="">  718:                    C&lt;data&gt;; every column is declared C&lt;TEXT&gt;.
-</span><span class="">  719: 
-</span><span class="">  720: Returns 404 if the left table spec is invalid or the table cannot be
-</span><span class="">  721: opened.  An empty result set (all rows filtered out) exports correctly as
-</span><span class="">  722: header-only CSV or an empty SQLite table.
+</span><span class="">  713: Query parameters:
+</span><span class="">  714: 
+</span><span class="">  715:   l=&lt;spec&gt;               Required. Left table spec: &quot;table:name&quot; or
+</span><span class="">  716:                            &quot;path:/abs/path&quot;.  Returns 404 if unresolvable.
+</span><span class="">  717:   j=&lt;spec&gt;|&lt;lk&gt;|&lt;rk&gt;    Repeatable join step.  &lt;spec&gt; is a right-table
+</span><span class="">  718:                            spec; &lt;lk&gt; and &lt;rk&gt; are the left and right key
+</span><span class="">  719:                            column names.  Invalid or non-existent steps are
+</span><span class="">  720:                            silently skipped.
+</span><span class="">  721:   f=&lt;col&gt;:&lt;op&gt;:&lt;val&gt;     Repeatable result filter.  Applied server-side
+</span><span class="">  722:                            after all joins.
 </span><span class="">  723: 
-</span><span class="">  724: =back
-</span><span class="">  725: 
-</span><span class="">  726: =head2 Filter operators
-</span><span class="">  727: 
-</span><span class="">  728: The C&lt;f=col:op:val&gt; filter spec supports:
+</span><span class="">  724: Left-join semantics: every left row is kept.  Right-table columns are
+</span><span class="">  725: appended for rows that match on the join key; unmatched rows get C&lt;undef&gt;
+</span><span class="">  726: for all right-table columns.  If a right-table column name collides with a
+</span><span class="">  727: left-table column name the right column is prefixed with
+</span><span class="">  728: C&lt;&lt; right_label.colname &gt;&gt;.
 </span><span class="">  729: 
-</span><span class="">  730:   eq        case-insensitive string equality
-</span><span class="">  731:   ne        case-insensitive string inequality
-</span><span class="">  732:   contains  case-insensitive substring match
-</span><span class="">  733:   starts    case-insensitive prefix match
-</span><span class="">  734:   lt        numeric less-than
-</span><span class="">  735:   le        numeric less-than-or-equal
-</span><span class="">  736:   gt        numeric greater-than
-</span><span class="">  737:   ge        numeric greater-than-or-equal
-</span><span class="">  738:   empty     cell is undef or empty string (val ignored)
-</span><span class="">  739:   notempty  cell is defined and non-empty (val ignored)
-</span><span class="">  740: 
-</span><span class="">  741: The colon separator is split with a limit of 3, so values may themselves
-</span><span class="">  742: contain colons (e.g. C&lt;f=sale_date:eq:2025-01-15&gt;).
-</span><span class="">  743: 
-</span><span class="">  744: =head2 Private helpers
-</span><span class="">  745: 
-</span><span class="">  746: =over 4
-</span><span class="">  747: 
-</span><span class="">  748: =item C&lt;_open_spec($spec)&gt;
-</span><span class="">  749: 
-</span><span class="">  750: Parses a C&lt;table:name&gt; or C&lt;path:/abs&gt; spec, checks that the file exists
-</span><span class="">  751: (C&lt;Database::Abstraction&gt; silently creates empty objects for missing files
-</span><span class="">  752: - existence must be tested explicitly), and returns C&lt;($datasource, $label)&gt;
-</span><span class="">  753: or an empty list on failure.
+</span><span class="">  730: =item C&lt;columns_api&gt; - C&lt;GET /api/columns&gt;
+</span><span class="">  731: 
+</span><span class="">  732: Returns C&lt;{ &quot;columns&quot;: [...] }&gt; as JSON.  Accepts C&lt;?table=name&gt; (table
+</span><span class="">  733: from C&lt;data_dir&gt;) or C&lt;?path=/abs/path&gt; (arbitrary file).  Returns 404
+</span><span class="">  734: when the table or file cannot be found or resolved.  Used by the join panel
+</span><span class="">  735: to populate the right-key dropdown without a page reload.
+</span><span class="">  736: 
+</span><span class="">  737: =item C&lt;export_data&gt; - C&lt;GET /export&gt;
+</span><span class="">  738: 
+</span><span class="">  739: Exports the current logical view as a file download.  Accepts the same
+</span><span class="">  740: C&lt;l=&gt;, C&lt;j=&gt;, and C&lt;f=&gt; parameters as C&lt;join_tables&gt;, plus C&lt;format=&gt;:
+</span><span class="">  741: 
+</span><span class="">  742:   format=csv     (default) - RFC 4180 CSV, UTF-8, CRLF line endings;
+</span><span class="">  743:                    generated without external dependencies.
+</span><span class="">  744:   format=sqlite  - SQLite 3 database written via DBI/DBD::SQLite to a
+</span><span class="">  745:                    temporary file, slurped, and returned as
+</span><span class="">  746:                    application/vnd.sqlite3.  The single table is named
+</span><span class="">  747:                    C&lt;data&gt;; every column is declared C&lt;TEXT&gt;.
+</span><span class="">  748: 
+</span><span class="">  749: Returns 404 if the left table spec is invalid or the table cannot be
+</span><span class="">  750: opened.  An empty result set (all rows filtered out) exports correctly as
+</span><span class="">  751: header-only CSV or an empty SQLite table.
+</span><span class="">  752: 
+</span><span class="">  753: =back
 </span><span class="">  754: 
-</span><span class="">  755: =item C&lt;_apply_filter_spec($records, $spec)&gt;
+</span><span class="">  755: =head2 Filter operators
 </span><span class="">  756: 
-</span><span class="">  757: Standalone sub.  Parses C&lt;col:op:val&gt; and returns a filtered copy of the
-</span><span class="">  758: records arrayref.
-</span><span class="">  759: 
-</span><span class="">  760: =item C&lt;_apply_filters($self, $records)&gt;
-</span><span class="">  761: 
-</span><span class="">  762: Reads all C&lt;f=&gt; query params, applies them in order via
-</span><span class="">  763: C&lt;_apply_filter_spec&gt;, and returns C&lt;($filtered, \@raw_specs, $json)&gt;.
-</span><span class="">  764: C&lt;$json&gt; is a script-safe JSON array of C&lt;{col,op,val}&gt; objects used to
-</span><span class="">  765: pre-populate filter rows in the join panel.
-</span><span class="">  766: 
-</span><span class="">  767: =item C&lt;_left_join(...)&gt;
-</span><span class="">  768: 
-</span><span class="">  769: Standalone sub.  Performs a single left join and returns
-</span><span class="">  770: C&lt;(\@merged_records, \@merged_columns)&gt;.
-</span><span class="">  771: 
-</span><span class="">  772: =item C&lt;_get_columns($source, $records)&gt;
-</span><span class="">  773: 
-</span><span class="">  774: Standalone sub.  Returns the ordered column list from the C&lt;DataSource&gt;
-</span><span class="">  775: object, falling back to C&lt;id_column&gt;-first alphabetic order when the
-</span><span class="">  776: backend does not expose column order (SQLite, XML).
-</span><span class="">  777: 
-</span><span class="">  778: =item C&lt;_csv_row(@fields)&gt;
-</span><span class="">  779: 
-</span><span class="">  780: Standalone sub.  Formats one row of values as an RFC 4180 CSV line (CRLF
-</span><span class="">  781: terminated).  Fields containing commas, double-quotes, or newlines are
-</span><span class="">  782: quoted; embedded double-quotes are doubled.
+</span><span class="">  757: The C&lt;f=col:op:val&gt; filter spec supports:
+</span><span class="">  758: 
+</span><span class="">  759:   eq        case-insensitive string equality
+</span><span class="">  760:   ne        case-insensitive string inequality
+</span><span class="">  761:   contains  case-insensitive substring match
+</span><span class="">  762:   starts    case-insensitive prefix match
+</span><span class="">  763:   lt        numeric less-than
+</span><span class="">  764:   le        numeric less-than-or-equal
+</span><span class="">  765:   gt        numeric greater-than
+</span><span class="">  766:   ge        numeric greater-than-or-equal
+</span><span class="">  767:   empty     cell is undef or empty string (val ignored)
+</span><span class="">  768:   notempty  cell is defined and non-empty (val ignored)
+</span><span class="">  769: 
+</span><span class="">  770: The colon separator is split with a limit of 3, so values may themselves
+</span><span class="">  771: contain colons (e.g. C&lt;f=sale_date:eq:2025-01-15&gt;).
+</span><span class="">  772: 
+</span><span class="">  773: =head2 Private helpers
+</span><span class="">  774: 
+</span><span class="">  775: =over 4
+</span><span class="">  776: 
+</span><span class="">  777: =item C&lt;_open_spec($spec)&gt;
+</span><span class="">  778: 
+</span><span class="">  779: Parses a C&lt;table:name&gt; or C&lt;path:/abs&gt; spec, checks that the file exists
+</span><span class="">  780: (C&lt;Database::Abstraction&gt; silently creates empty objects for missing files
+</span><span class="">  781: - existence must be tested explicitly), and returns C&lt;($datasource, $label)&gt;
+</span><span class="">  782: or an empty list on failure.
 </span><span class="">  783: 
-</span><span class="">  784: =item C&lt;_build_export_url($self, $left_spec, \@join_specs, \@filter_specs)&gt;
+</span><span class="">  784: =item C&lt;_apply_filter_spec($records, $spec)&gt;
 </span><span class="">  785: 
-</span><span class="">  786: Method.  Builds a C&lt;/export?l=...&amp;j=...&amp;f=...&gt; URL string from the current
-</span><span class="">  787: view&#39;s parameters, suitable for use in HTML C&lt;href&gt; attributes (the caller
-</span><span class="">  788: must apply C&lt;| html&gt; in TT to escape C&lt;&amp;&gt; to C&lt;&amp;amp;&gt;).
-</span><span class="">  789: 
-</span><span class="">  790: =item C&lt;_render_csv($self, $records, \@columns, $name)&gt;
-</span><span class="">  791: 
-</span><span class="">  792: Method.  Serialises C&lt;$records&gt; to RFC 4180 CSV and renders it as a UTF-8
-</span><span class="">  793: download with C&lt;Content-Disposition: attachment; filename=&quot;${name}.csv&quot;&gt;.
-</span><span class="">  794: 
-</span><span class="">  795: =item C&lt;_render_sqlite($self, $records, \@columns, $name)&gt;
-</span><span class="">  796: 
-</span><span class="">  797: Method.  Creates a temporary SQLite database, inserts all records into a
-</span><span class="">  798: table named C&lt;data&gt;, slurps the file, and renders it as a binary download
-</span><span class="">  799: with C&lt;Content-Disposition: attachment; filename=&quot;${name}.db&quot;&gt;.  The
-</span><span class="">  800: temporary file is unlinked immediately after reading.
-</span><span class="">  801: 
-</span><span class="">  802: =back
-</span><span class="">  803: 
-</span><span class="">  804: =cut
+</span><span class="">  786: Standalone sub.  Parses C&lt;col:op:val&gt; and returns a filtered copy of the
+</span><span class="">  787: records arrayref.
+</span><span class="">  788: 
+</span><span class="">  789: =item C&lt;_apply_filters($self, $records)&gt;
+</span><span class="">  790: 
+</span><span class="">  791: Reads all C&lt;f=&gt; query params, applies them in order via
+</span><span class="">  792: C&lt;_apply_filter_spec&gt;, and returns C&lt;($filtered, \@raw_specs, $json)&gt;.
+</span><span class="">  793: C&lt;$json&gt; is a script-safe JSON array of C&lt;{col,op,val}&gt; objects used to
+</span><span class="">  794: pre-populate filter rows in the join panel.
+</span><span class="">  795: 
+</span><span class="">  796: =item C&lt;_left_join(...)&gt;
+</span><span class="">  797: 
+</span><span class="">  798: Standalone sub.  Performs a single left join and returns
+</span><span class="">  799: C&lt;(\@merged_records, \@merged_columns)&gt;.
+</span><span class="">  800: 
+</span><span class="">  801: =item C&lt;_get_columns($source, $records)&gt;
+</span><span class="">  802: 
+</span><span class="">  803: Standalone sub.  Returns the ordered column list from the C&lt;DataSource&gt;
+</span><span class="">  804: object, falling back to C&lt;id_column&gt;-first alphabetic order when the
+</span><span class="">  805: backend does not expose column order (SQLite, XML).
+</span><span class="">  806: 
+</span><span class="">  807: =item C&lt;_csv_row(@fields)&gt;
+</span><span class="">  808: 
+</span><span class="">  809: Standalone sub.  Formats one row of values as an RFC 4180 CSV line (CRLF
+</span><span class="">  810: terminated).  Fields containing commas, double-quotes, or newlines are
+</span><span class="">  811: quoted; embedded double-quotes are doubled.
+</span><span class="">  812: 
+</span><span class="">  813: =item C&lt;_build_export_url($self, $left_spec, \@join_specs, \@filter_specs)&gt;
+</span><span class="">  814: 
+</span><span class="">  815: Method.  Builds a C&lt;/export?l=...&amp;j=...&amp;f=...&gt; URL string from the current
+</span><span class="">  816: view&#39;s parameters, suitable for use in HTML C&lt;href&gt; attributes (the caller
+</span><span class="">  817: must apply C&lt;| html&gt; in TT to escape C&lt;&amp;&gt; to C&lt;&amp;amp;&gt;).
+</span><span class="">  818: 
+</span><span class="">  819: =item C&lt;_render_csv($self, $records, \@columns, $name)&gt;
+</span><span class="">  820: 
+</span><span class="">  821: Method.  Serialises C&lt;$records&gt; to RFC 4180 CSV and renders it as a UTF-8
+</span><span class="">  822: download with C&lt;Content-Disposition: attachment; filename=&quot;${name}.csv&quot;&gt;.
+</span><span class="">  823: 
+</span><span class="">  824: =item C&lt;_render_sqlite($self, $records, \@columns, $name)&gt;
+</span><span class="">  825: 
+</span><span class="">  826: Method.  Creates a temporary SQLite database, inserts all records into a
+</span><span class="">  827: table named C&lt;data&gt;, slurps the file, and renders it as a binary download
+</span><span class="">  828: with C&lt;Content-Disposition: attachment; filename=&quot;${name}.db&quot;&gt;.  The
+</span><span class="">  829: temporary file is unlinked immediately after reading.
+</span><span class="">  830: 
+</span><span class="">  831: =back
+</span><span class="">  832: 
+</span><span class="">  833: =cut
 </span></pre>
 
 <script>
