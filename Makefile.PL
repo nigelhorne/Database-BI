@@ -28,6 +28,7 @@ WriteMakefile(
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
 		'IPC::System::Simple' => 0,
+		'Test::Needs' => 0,
 		'Test::Most' => 0,
 		'Test::Mojo' => 0,
 		'Text::xSV::Slurp' => 0,

@@ -2,8 +2,9 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Mojo;
-use File::Spec ();
 use File::Temp ();
+use Test::Needs;
+use File::Spec ();
 use Mojo::File;
 use Mojo::Util qw(url_escape);
 
@@ -11,8 +12,8 @@ my $t = Test::Mojo->new('Database::BI');
 
 # ---------------------------------------------------------------------------
 subtest 'Home page' => sub {
-    $t->get_ok('/')->status_is(200)->content_like(qr/Choose a Database/i);
-    $t->get_ok('/')->content_like(qr/Browse filesystem/i);
+	$t->get_ok('/')->status_is(200)->content_like(qr/Choose a Database/i);
+	$t->get_ok('/')->content_like(qr/Browse filesystem/i);
 };
 
 # ---------------------------------------------------------------------------
@@ -125,9 +126,9 @@ subtest 'PSV format' => sub {
 
 # ---------------------------------------------------------------------------
 subtest 'XML format' => sub {
-    my $xml = File::Spec->rel2abs('data/catalog.xml');
-    plan skip_all => 'data/catalog.xml not found' unless -f $xml;
-    eval { require XML::Simple } or plan skip_all => 'XML::Simple not available';
+	test_needs 'XML::Simple';
+	my $xml = File::Spec->rel2abs('data/catalog.xml');
+	plan skip_all => 'data/catalog.xml not found' unless -f $xml;
 
     $t->get_ok('/view/catalog')
       ->status_is(200)->content_like(qr/Widget A/)->content_like(qr/Gizmo B/);
@@ -146,8 +147,7 @@ subtest 'XML format' => sub {
 
 # ---------------------------------------------------------------------------
 subtest 'SQLite format (.sql extension)' => sub {
-    eval { require DBI } or plan skip_all => 'DBI not available';
-    eval { DBI->install_driver('SQLite') } or plan skip_all => 'DBD::SQLite not available';
+	test_needs 'DBI', 'DBD::SQLite';
 
     my $sql_dir  = File::Temp::tempdir(CLEANUP => 1);
     my $sql_file = File::Spec->catfile($sql_dir, 'inventory.sql');
@@ -179,7 +179,7 @@ subtest 'SQLite format (.sql extension)' => sub {
 
 # ---------------------------------------------------------------------------
 subtest 'POST /export -- write to filesystem' => sub {
-    eval { require DBI } or plan skip_all => 'DBI not available';
+	test_needs 'DBI';
 
     my $out_dir = File::Temp::tempdir(CLEANUP => 1);
 
