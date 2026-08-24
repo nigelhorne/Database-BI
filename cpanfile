@@ -14,6 +14,7 @@ on 'test' => sub {
 	requires 'Test::Mojo';
 	requires 'Test::Most';
 	requires 'Text::xSV::Slurp';
+	requires 'XML::Simple';
 };
 
 on 'develop' => sub {

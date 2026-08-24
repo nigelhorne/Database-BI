@@ -31,6 +31,7 @@ WriteMakefile(
 		'Test::Most' => 0,
 		'Test::Mojo' => 0,
 		'Text::xSV::Slurp' => 0,
+		'XML::Simple' => 0,
 	}, dist => $dist,
 	clean	=> { FILES => 'Database-BI-*' },
 	META_MERGE => {

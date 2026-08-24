@@ -127,6 +127,7 @@ subtest 'PSV format' => sub {
 subtest 'XML format' => sub {
     my $xml = File::Spec->rel2abs('data/catalog.xml');
     plan skip_all => 'data/catalog.xml not found' unless -f $xml;
+    eval { require XML::Simple } or plan skip_all => 'XML::Simple not available';
 
     $t->get_ok('/view/catalog')
       ->status_is(200)->content_like(qr/Widget A/)->content_like(qr/Gizmo B/);
@@ -242,6 +243,7 @@ subtest 'POST /export -- write to filesystem' => sub {
     # XML -> SQLite.
     SKIP: {
         skip 'data/catalog.xml not found', 3 unless -f 'data/catalog.xml';
+        eval { require XML::Simple } or skip 'XML::Simple not available', 3;
         eval { DBI->install_driver('SQLite') } or skip 'DBD::SQLite not available', 3;
         $t->post_ok('/export',
             form => { l => 'table:catalog', dir => $out_dir, filename => 'catalog_out.sql' }
