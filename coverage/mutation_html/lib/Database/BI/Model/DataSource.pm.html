@@ -293,7 +293,7 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../../../../../index.html">Index</a>
  <a href="../Controller/Dashboard.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 81.90%<br>
+TER1 (Statement): 83.81%<br>
 TER2 (Branch): 44.12%<br>
 TER3 (LCSAJ): 66.7% (4/6)<br>
 Approximate LCSAJ segments: 35<br>
@@ -390,7 +390,7 @@ Approximate LCSAJ segments: 35<br>
 </span><span class="">   49: sub _fmt {
 </span><span class="">   50: 	my ($key, @args) = @_;
 </span><span class="">   51: 	my $tmpl = $MESSAGES{$key} // &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   52: 	return @args ? sprintf($tmpl, @args) : $tmpl;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   52: 	return @args ? sprintf($tmpl, @args) : $tmpl;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -548,7 +548,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  138: 	}, $class;
 </span><span class="">  139: 
 </span><span class="">  140: 	$self-&gt;_init_backend;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  141: 	return $self;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  141: 	return $self;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -781,7 +781,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  295: 
 </span><span class="">  296: sub id_column {
 </span><span class="">  297: 	my $self = shift;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  298: 	return $self-&gt;{_id_col};
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  298: 	return $self-&gt;{_id_col};
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -887,7 +887,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class="">  362: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
 </span><span class="">  363: 	}
 </span><span class="">  364: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  365: 	return $data;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  365: 	return $data;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
