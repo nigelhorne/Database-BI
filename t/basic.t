@@ -249,6 +249,37 @@ SKIP: {
     )->status_is(200)->json_like('/saved', qr/catalog_out\.sql$/);
 }
 
+# GET /api/stat -- file metadata for tooltip
+{
+    # Existing file returns metadata
+    $t->get_ok('/api/stat?path=' . url_escape($sales))
+      ->status_is(200)
+      ->json_is('/exists', 1)
+      ->json_has('/mtime')
+      ->json_has('/size')
+      ->json_has('/path');
+
+    my $mtime = $t->tx->res->json('/mtime');
+    ok(defined $mtime && $mtime > 0, 'mtime is a positive epoch integer');
+
+    my $size = $t->tx->res->json('/size');
+    ok(defined $size && $size > 0, 'size is positive');
+
+    # Non-existent file returns exists:false (not a 404)
+    $t->get_ok('/api/stat?path=' . url_escape('/nonexistent/file.csv'))
+      ->status_is(200)
+      ->json_is('/exists', 0);
+
+    # Missing path param returns 400
+    $t->get_ok('/api/stat')->status_is(400);
+
+    # PSV and XML files also stat correctly
+    $t->get_ok('/api/stat?path=' . url_escape($products_psv))
+      ->status_is(200)->json_is('/exists', 1) if -f $products_psv;
+    $t->get_ok('/api/stat?path=' . url_escape($catalog_xml))
+      ->status_is(200)->json_is('/exists', 1) if -f $catalog_xml;
+}
+
 # GET /api/dirs -- directory listing JSON
 {
     my $tmp = File::Temp::tempdir(CLEANUP => 1);

@@ -181,6 +181,7 @@ sub startup ($self) {
 	$r->get('/export')->to('Dashboard#export_data');
 	$r->post('/export')->to('Dashboard#export_write');
 	$r->get('/api/dirs')->to('Dashboard#dirs_api');
+	$r->get('/api/stat')->to('Dashboard#stat_api');
 	$r->post('/upload')->to('Dashboard#upload_file');
 }
 

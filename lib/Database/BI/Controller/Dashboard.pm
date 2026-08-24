@@ -758,6 +758,29 @@ sub upload_file ($self) {
     $self->render(json => { url => $url, path => $dest });
 }
 
+# GET /api/stat -- return filesystem metadata for a file path.
+# Returns { exists, path, mtime (epoch seconds), size (bytes) }.
+# Used by the home page tooltip to show modification time for recently opened files.
+sub stat_api ($self) {
+    my $path = $self->param('path');
+    unless (defined $path && length $path) {
+        return $self->render(json => { error => 'path required' }, status => 400);
+    }
+
+    my $file = eval { Mojo::File->new($path)->realpath };
+    unless (defined $file && -f $file) {
+        return $self->render(json => { exists => \0, path => $path });
+    }
+
+    my @s = stat $file->to_string;
+    $self->render(json => {
+        exists => \1,
+        path   => $file->to_string,
+        mtime  => $s[9],
+        size   => $s[7],
+    });
+}
+
 sub _resolve_language ($self, $default) {
     my $accept = $self->req->headers->accept_language // '';
     my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;

@@ -548,6 +548,61 @@
     }
     .btn-clear-filters:hover { color: #c00; text-decoration: underline; }
 
+    /* Recently-opened file tooltip */
+    .file-tooltip {
+      position: absolute;
+      bottom: calc(100% + 7px);
+      left: 50%;
+      transform: translateX(-50%);
+      background: #1a1a2e;
+      color: #e4e4f0;
+      border-radius: 7px;
+      padding: 0.65rem 0.8rem;
+      font-size: 0.78rem;
+      min-width: 230px;
+      max-width: min(380px, calc(100vw - 2rem));
+      z-index: 200;
+      box-shadow: 0 4px 14px rgba(0,0,0,.28);
+      pointer-events: none;
+      white-space: nowrap;
+      line-height: 1.55;
+    }
+    .file-tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 50%;
+      transform: translateX(-50%);
+      border: 6px solid transparent;
+      border-top-color: #1a1a2e;
+    }
+    .file-tooltip.tip-below {
+      bottom: auto;
+      top: calc(100% + 7px);
+    }
+    .file-tooltip.tip-below::after {
+      top: auto;
+      bottom: 100%;
+      border-top-color: transparent;
+      border-bottom-color: #1a1a2e;
+    }
+    .tip-name {
+      font-weight: 600;
+      font-size: 0.85rem;
+      border-bottom: 1px solid #3a3a5e;
+      margin-bottom: 0.35rem;
+      padding-bottom: 0.3rem;
+    }
+    .tip-path {
+      color: #9a9ab8;
+      font-family: monospace;
+      font-size: 0.75rem;
+      white-space: normal;
+      word-break: break-all;
+      max-width: 340px;
+    }
+    .tip-muted { color: #6a6a88; font-size: 0.74rem; }
+
     /* Full-window drop overlay */
     #drop-overlay {
       position: fixed;
