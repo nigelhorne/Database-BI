@@ -27,6 +27,28 @@
 </p>
 [% END %]
 
+<div id="bi-recent"></div>
+
 <p class="browse-link"><a href="/browse" class="btn-browse">&#128269; Browse filesystem&hellip;</a></p>
+
+<script>
+(function () {
+  try {
+    var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
+    if (!recent.length) return;
+    var html = '<section class="recent-section"><h2 class="section-heading">Recently opened</h2><ul class="db-list">';
+    recent.forEach(function (r) {
+      var safeHref = r.href.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+      var safeName = r.name.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      html += '<li><a href="' + safeHref + '" class="db-card">'
+            + '<span class="db-icon">&#128202;</span>'
+            + '<span class="db-name">' + safeName + '</span>'
+            + '</a></li>';
+    });
+    html += '</ul></section>';
+    document.getElementById('bi-recent').innerHTML = html;
+  } catch (e) {}
+}());
+</script>
 
 [%- END -%]

@@ -189,4 +189,25 @@
 }());
 </script>
 
+[%- IF file_path -%]
+<div id="bi-open-meta"
+     data-name="[% title | html %]"
+     data-path="[% file_path | html %]"
+     hidden></div>
+<script>
+(function () {
+  try {
+    var el    = document.getElementById('bi-open-meta');
+    var href  = '/open?path=' + encodeURIComponent(el.dataset.path);
+    var entry = { name: el.dataset.name, href: href };
+    var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
+    recent = recent.filter(function (r) { return r.href !== href; });
+    recent.unshift(entry);
+    if (recent.length > 5) recent.length = 5;
+    localStorage.setItem('bi:recent', JSON.stringify(recent));
+  } catch (e) {}
+}());
+</script>
+[%- END -%]
+
 [%- END -%]

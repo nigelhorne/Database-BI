@@ -214,6 +214,7 @@ sub open_file ($self) {
         title      => $filename,
         back_url   => $back,
         back_label => 'Back to browser',
+        file_path  => $file->to_string,
     );
 }
 
