@@ -55,7 +55,6 @@ Readonly my %MESSAGES => (
 #          backend integration (e.g. Locale::Maketext).
 # Entry:   $key must be a key in %MESSAGES; @args are sprintf positionals.
 # Exit:    Returns the formatted string, or a fallback containing $key.
-# Side Effects: None.
 sub _i18n :Private ($self, $key, @args) {
 	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
@@ -66,9 +65,7 @@ sub _i18n :Private ($self, $key, @args) {
 # Purpose: Read platform and language from config, then resolve the Accept-Language
 #          header to a language code -- falling back to the config default when
 #          no template directory exists for the resolved language.
-# Entry:   None.
 # Exit:    Returns ($platform, $language) -- both guaranteed non-empty strings.
-# Side Effects: None.
 sub _resolve_template :Private ($self) {
 	my $conf     = $self->app->config;
 	my $platform = $conf->{platform} // 'web';
@@ -165,7 +162,6 @@ sub _open_spec :Private ($self, $spec) {
 #          back-link on join and export views).
 # Entry:   $spec is a "table:name" or "path:/abs" string.
 # Exit:    Returns a URL string beginning with '/'.
-# Side Effects: None.
 sub _spec_to_url :Private ($self, $spec) {
 	return "/view/$1"                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
 	return '/open?path=' . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
@@ -182,16 +178,17 @@ sub _spec_to_url :Private ($self, $spec) {
 #          the remaining columns sorted alphabetically.
 # Entry:   $source is a DataSource; $records is an arrayref of hashrefs (may be empty).
 # Exit:    Returns a flat list of column-name strings (may be empty).
-# Side Effects: None.
+#
+# Reduction: columns() is a pure accessor -- cache once to avoid a redundant
+# method dispatch on the second reference.
 sub _get_columns {
 	my ($source, $records) = @_;
-	return @{ $source->columns } if $source->columns;
+	my $cols = $source->columns;
+	return @$cols if $cols;
 	return () unless $records->[0];
 	my %all = map { $_ => 1 } keys %{ $records->[0] };
-	my $id  = do {
-		my $c = $source->id_column;
-		($c && $all{$c}) ? $c : (sort keys %all)[0];
-	};
+	my $c   = $source->id_column;
+	my $id  = ($c && $all{$c}) ? $c : (sort keys %all)[0];
 	delete $all{$id};
 	return ($id, sort keys %all);
 }
@@ -200,17 +197,23 @@ sub _get_columns {
 #
 # Purpose: Apply one "col:op:val" filter to an arrayref of record hashrefs and
 #          return a new (possibly shorter) arrayref.  The original is not mutated.
+#          Value may contain colons: "col:op:val:with:colons" -- split limit 3
+#          puts everything after the second colon into $val.
+#          Unknown operators fall through to 1 (all rows pass) so new operators
+#          added in future do not break existing callers.
 # Entry:   $records is an arrayref of hashrefs; $spec is a colon-delimited string.
 # Exit:    Returns filtered arrayref (same reference if spec is invalid/unparseable).
-# Side Effects: None.
+#
+# Reduction: split(/:/, $spec, 3) always produces at least one defined element,
+# so "defined $col" is structurally guaranteed true and is removed.
+# "$_->{$col} // ''" replaces the equivalent ternary form.
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
-	return $records unless defined $col && length $col
-	                    && defined $op  && length $op;
+	return $records unless length($col // '') && defined $op && length $op;
 	$val //= '';
 	return [grep {
-		my $cell = defined $_->{$col} ? $_->{$col} : '';
+		my $cell = $_->{$col} // '';
 		$op eq 'eq'       ? lc($cell) eq lc($val)            :
 		$op eq 'ne'       ? lc($cell) ne lc($val)            :
 		$op eq 'contains' ? index(lc($cell), lc($val)) != -1 :
@@ -233,17 +236,20 @@ sub _apply_filter_spec {
 # Entry:   $records is an arrayref of hashrefs.
 # Exit:    Three-element list; never croaks.  $json_string has '</' escaped to
 #          '<\/' so it is safe to embed directly in a <script> block.
-# Side Effects: None.
+#
+# Reduction: the original code had two sequential loops over @specs -- one to
+# apply filters, one to parse them for JSON.  By Modus Ponens, _apply_filter_spec
+# returns $records unchanged for a malformed spec (same guard condition), so
+# skipping the call for malformed specs is equivalent.  Merging into one loop
+# eliminates a full O(n) pass and the redundant split() on every spec.
 sub _apply_filters :Private ($self, $records) {
-	my @specs = @{ $self->every_param('f') // [] };
-	for my $s (@specs) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	my @specs  = @{ $self->every_param('f') // [] };
 	my @parsed;
 	for my $s (@specs) {
 		my ($col, $op, $val) = split /:/, $s, 3;
-		next unless defined $col && length $col && defined $op && length $op;
+		next unless length($col // '') && defined $op && length $op;
 		push @parsed, { col => $col, op => $op, val => $val // '' };
+		$records = _apply_filter_spec($records, $s);
 	}
 	my $json = encode_json(\@parsed);
 	$json =~ s{</}{<\\/}g;
@@ -304,7 +310,6 @@ sub _left_join {
 #          double-quotes are doubled.  The line ends with CRLF.
 # Entry:   @fields may contain undef (treated as empty string).
 # Exit:    Returns a string ending with "\r\n".
-# Side Effects: None.
 sub _csv_row {
 	return join(',', map {
 		my $f = $_ // '';
@@ -318,7 +323,6 @@ sub _csv_row {
 #          logical view.  The caller must apply | html in TT to escape & as &amp;.
 # Entry:   All args non-undef; spec arrays may be empty.
 # Exit:    Returns a relative URL string beginning with '/export'.
-# Side Effects: None.
 sub _build_export_url :Private ($self, $left_spec, $join_specs, $filter_specs) {
 	my $u = '/export?l=' . url_escape($left_spec);
 	$u .= '&j=' . url_escape($_) for @$join_specs;

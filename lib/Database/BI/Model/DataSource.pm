@@ -263,7 +263,11 @@ sub _detect_file_info :Private {
 	for my $ext (qw(csv psv)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
 		next unless -r $path;
-		open my $fh, '<', $path or next;
+		# "use autodie" makes open() die on failure, so "or next" would be dead
+		# code.  Disable autodie for this open so a vanishing file (race between
+		# the -r probe and the open) results in a clean skip rather than a croak.
+		my $fh;
+		{ no autodie 'open'; open $fh, '<', $path or next }
 		my $line = <$fh>;
 		close $fh;
 		next unless defined $line;
