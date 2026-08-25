@@ -409,7 +409,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">   62: 		# No usable path component -- fall back to hostname
 </span><span class="">   63: 		my ($host) = $url =~ m{https?://([^/:?#]+)};
 </span><span class="">   64: 		$last = defined $host ? do { (my $h = $host) =~ s/[^A-Za-z0-9_]/_/g; $h } : &#39;html&#39;;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   65: 	}
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   65: 	}
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -442,7 +442,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">   74: # so that a caller-supplied i18n object can override the built-in strings.
 </span><span class="">   75: sub _fmt :Private {
 </span><span class="">   76: 	my ($key, @args) = @_;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">   77: 	my $tmpl = $MESSAGES{$key} // &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">   77: 	my $tmpl = $MESSAGES{$key} // &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -824,7 +824,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  374: None.
 </span><span class="">  375: 
 </span><span class="">  376: =head3 FORMAL SPECIFICATION
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  377: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  377: 
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
