@@ -465,6 +465,11 @@ sub _list_dir :Private ($self, $dir, $want_files) {
 # Exit:    Returns scalar binary string.  Croaks on any DBI error.
 # Side Effects: Creates and unlinks one temporary file under system tmpdir.
 sub _write_sqlite_db :Private ($self, $records, $columns) {
+	# D~ fix: an empty column list produces "CREATE TABLE data ()" which is
+	# invalid SQLite syntax.  Croak before touching the filesystem.
+	croak 'Cannot export SQLite: result set has no columns'
+		unless @$columns;
+
 	require DBI;
 	my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
 	close $tmp_fh;
@@ -473,20 +478,32 @@ sub _write_sqlite_db :Private ($self, $records, $columns) {
 		RaiseError => 1, AutoCommit => 1,
 	}) };
 	# Guard both the eval-caught die ($@) and the undef-without-die edge case.
-	croak "DBI connect failed: $@" if $@ || !$dbh;
-
-	# Quote column names for safe use in the CREATE TABLE statement.
-	my @quoted = map { (my $c = $_) =~ s/"/""/g; qq{"$c"} } @$columns;
-	$dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
-
-	if (@$records) {
-		my $ph  = join(', ', ('?') x scalar @$columns);
-		my $sth = $dbh->prepare('INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)");
-		for my $row (@$records) {
-			$sth->execute(map { $row->{$_} } @$columns);
-		}
+	if ($@ || !$dbh) {
+		unlink $tmpfile;
+		croak "DBI connect failed: $@";
 	}
-	$dbh->disconnect;
+
+	# O~ fix: wrap all DBI work in eval so any mid-flight exception still
+	# triggers cleanup (disconnect + unlink) before the error propagates.
+	eval {
+		my @quoted = map { (my $c = $_) =~ s/"/""/g; qq{"$c"} } @$columns;
+		$dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
+		if (@$records) {
+			my $ph  = join(', ', ('?') x scalar @$columns);
+			my $sth = $dbh->prepare(
+				'INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)"
+			);
+			for my $row (@$records) {
+				$sth->execute(map { $row->{$_} } @$columns);
+			}
+		}
+		$dbh->disconnect;
+	};
+	if (my $err = $@) {
+		eval { $dbh->disconnect };	# best-effort; may already be disconnected
+		unlink $tmpfile;
+		croak $err;
+	}
 
 	my $data = Mojo::File->new($tmpfile)->slurp;
 	unlink $tmpfile;
