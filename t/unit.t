@@ -3,6 +3,7 @@ use warnings;
 
 use Test::Most;
 use Test::Mojo;
+use Test::Mockingbird qw(mock restore_all);
 use Readonly;
 use File::Spec;
 use File::Temp qw(tempdir tempfile);
@@ -289,13 +290,21 @@ subtest 'GET /import?url=http://192.168.1.1/ -- SSRF guard error_url_ssrf' => su
 
 subtest 'GET /import?url=<unreachable> -- home page with error_url_fetch' => sub {
 	# POD: error_url_fetch -- LWP fetch failure or no table found
-	# .invalid is an IANA-reserved TLD guaranteed not to resolve, so LWP
-	# fails quickly with a DNS error -- no network required.
-	my $bad = url_escape('http://unit-test-host.invalid/data.html');
+	# Mock DataSource::new to croak when called in URL mode so the controller's
+	# eval catches it and renders error_url_fetch -- no real network call needed.
+	# (Previously used .invalid TLD, which blocks on some OpenBSD DNS resolvers.)
+	mock 'Database::BI::Model::DataSource::new' => sub {
+		my ($class, %args) = @_;
+		die "Mocked: could not fetch remote HTML table\n" if exists $args{url};
+		# Non-URL calls within this request (none expected) would return undef,
+		# which the controller also treats as a fetch error -- still safe.
+	};
+	my $bad = url_escape('http://unit-test-host.example/data.html');
 	$t->get_ok("/import?url=$bad")
 	  ->status_is(200)
 	  ->content_type_like(qr{text/html})
 	  ->content_like(qr/Could not load HTML table from/i);
+	restore_all();
 	delete $ledger{'GET./import.url_fetch'};
 };
 
