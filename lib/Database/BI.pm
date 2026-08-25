@@ -8,7 +8,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.01';
+our $VERSION = '0.001.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -24,6 +24,10 @@ Readonly my $MAX_REQUEST_SIZE => 50 * 1_048_576;	# 50 MiB
 =head1 NAME
 
 Database::BI - Web-based Business Intelligence viewer for flat data files
+
+=head1 VERSION
+
+0.001.0
 
 =head1 SYNOPSIS
 
@@ -369,6 +373,14 @@ sub startup ($self) {
 	$r->get('/api/stat')->to('Dashboard#stat_api');
 	$r->post('/upload')->to('Dashboard#upload_file');
 }
+
+=head1 SEE ALSO
+
+=over 4
+
+=item * L<Test Dashboard|https://nigelhorne.github.io/CGI-Info/coverage/>
+
+=back
 
 =head1 REPOSITORY
 

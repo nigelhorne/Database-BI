@@ -1,5 +1,7 @@
 package Database::BI::Controller::Dashboard;
 
+our $VERSION = '0.001.0';
+
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
 use Carp		qw(croak carp);

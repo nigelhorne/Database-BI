@@ -12,7 +12,7 @@ use Sub::Private;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.01';
+our $VERSION = '0.001.0';
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary.
@@ -595,13 +595,13 @@ B<Handle errors gracefully:>
         );
     };
     if ($@) {
-        warn "Could not open table: $@";
+        carp "Could not open table: $@";
         # $@ contains a translated message from %MESSAGES
     }
 
     my $records = eval { $source->fetch_all };
     if ($@) {
-        warn "Could not read records: $@";
+        carp "Could not read records: $@";
     }
 
 =head1 DESCRIPTION

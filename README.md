@@ -2,6 +2,10 @@
 
 Database::BI - Web-based Business Intelligence viewer for flat data files
 
+# VERSION
+
+0.001.0
+
 # SYNOPSIS
 
 **Start the development server (restarts automatically when you edit a file):**
@@ -221,6 +225,10 @@ phase.  When a module is loaded dynamically at test time (e.g. via
 restriction is not enforced in that context.  This is a known
 limitation of `Sub::Private` and does not affect production
 (morbo/hypnotoad) deployments where the module is compiled on startup.
+
+# SEE ALSO
+
+- [Test Dashboard](https://nigelhorne.github.io/CGI-Info/coverage/)
 
 # REPOSITORY
 

@@ -1,14 +1,18 @@
 # Generated from Makefile.PL using makefilepl2cpanfile
 
-requires 'perl', '5.020';
+requires 'perl', '5.020000';
 
 requires 'Carp';
+requires 'DBI';
 requires 'Database::Abstraction', '0.38';
 requires 'HTML::TableExtract';
 requires 'LWP::UserAgent';
 requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::TemplateToolkit';
+requires 'Params::Get';
 requires 'Params::Validate::Strict', '0.39';
+requires 'Readonly';
+requires 'Sub::Private';
 
 on 'test' => sub {
 	requires 'DBD::CSV';
