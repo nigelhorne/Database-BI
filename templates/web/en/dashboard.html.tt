@@ -27,7 +27,7 @@
   [%- IF left_spec -%]
   <button class="btn-export-open" id="btn-export-open" type="button">&#x2193; Export&hellip;</button>
   [%- END -%]
-  <button class="btn-add-db" id="btn-add-db" type="button">&#x2295; Add database&hellip;</button>
+  <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge data&hellip;</button>
 </div>
 
 [%- IF left_spec -%]
@@ -77,7 +77,7 @@
     <input type="hidden" name="f" value="[% fs | html %]" class="f-preserved">
     [%- END -%]
 
-    <h3 class="join-panel-title">Add a database / Filter results</h3>
+    <h3 class="join-panel-title">Merge data / Filter results</h3>
 
     <div class="join-fields">
       <div class="join-field">
