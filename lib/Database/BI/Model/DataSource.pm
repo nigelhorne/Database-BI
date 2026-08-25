@@ -63,6 +63,13 @@ sub _url_label {
 		my ($host) = $url =~ m{https?://([^/:?#]+)};
 		$last = defined $host ? do { (my $h = $host) =~ s/[^A-Za-z0-9_]/_/g; $h } : 'html';
 	}
+	# TODO: Unreachable code detected during path analysis. Investigate for removal.
+	# $last is always non-empty here: if the unless block did NOT fire, $last passed
+	# the "length $last && /\A[A-Za-z_]/" guard (non-empty by definition); if the
+	# unless block DID fire, $last was set to either the sanitized hostname (matched
+	# by [^/:?#]+, so >= 1 char, which stays >= 1 after s/[^A-Za-z0-9_]/_/g) or
+	# the literal 'html'.  Either way, $last is always truthy, so 'html_table' can
+	# never be selected.  The || fallback should be removed.
 	return lc($last || 'html_table');
 }
 
