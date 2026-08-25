@@ -132,7 +132,7 @@ sub _scan_data_dir :Private ($self) {
 	return $dir->list->map(sub {
 		my $base = $_->basename;
 		return unless $base =~ $EXT_RE;
-		(my $name = $base) =~ s/\.[^.]+$//;
+		(my $name = $base) =~ s/\.[^.]+\z//;
 		{ name => $name, file => $base }
 	})->to_array;
 }
@@ -159,7 +159,7 @@ sub _open_spec :Private ($self, $spec) {
 		my $file = eval { Mojo::File->new($1)->realpath };
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
-			(my $table = $file->basename) =~ s/\.[^.]+$//;
+			(my $table = $file->basename) =~ s/\.[^.]+\z//;
 			my $src = eval { $self->open_table(lc $table, directory => $dir) };
 			return ($src, $file->basename) if $src && !$@;
 		}
@@ -798,7 +798,7 @@ sub open_file ($self) {
 		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
 
 	my $dir      = $file->dirname;
-	(my $table   = $file->basename) =~ s/\.[^.]+$//;
+	(my $table   = $file->basename) =~ s/\.[^.]+\z//;
 	$table       = lc $table;
 	my $back     = '/browse?path=' . url_escape($dir->to_string);
 	my $filename = $file->basename;
@@ -988,7 +988,7 @@ sub columns_api ($self) {
 		my $file = eval { Mojo::File->new($path)->realpath };
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
-			(my $tbl = $file->basename) =~ s/\.[^.]+$//;
+			(my $tbl = $file->basename) =~ s/\.[^.]+\z//;
 			$source = eval { $self->open_table(lc $tbl, directory => $dir) };
 		}
 	}
@@ -1241,8 +1241,8 @@ sub export_write ($self) {
 	# Strip any path separators the browser might include.
 	($filename) = $filename =~ m{([^/\\]+)\z};
 	my $format;
-	if    ($filename && $filename =~ /\.csv$/i) { $format = 'csv';    }
-	elsif ($filename && $filename =~ /\.sql$/i) { $format = 'sqlite'; }
+	if    ($filename && $filename =~ /\.csv\z/i) { $format = 'csv';    }
+	elsif ($filename && $filename =~ /\.sql\z/i) { $format = 'sqlite'; }
 	else {
 		return $self->render(
 			json   => { error => $self->_i18n('error_ext_required') },
@@ -1452,7 +1452,9 @@ sub upload_file ($self) {
 		);
 	}
 
-	(my $filename = $upload->filename) =~ s{.*[/\\]}{};
+	# /s so .* matches \n; a percent-decoded newline inside a browser filename
+	# must not silently truncate the directory-strip, leaving "dir\ncomponent" in.
+	(my $filename = $upload->filename) =~ s{.*[/\\]}{}s;
 	unless ($filename && $filename =~ $EXT_RE) {
 		return $self->render(
 			json   => { error => $self->_i18n('error_upload_ext') },

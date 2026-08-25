@@ -54,8 +54,9 @@ sub _url_label {
 	my ($path) = $url =~ m{https?://[^/?#]+(.*)}i;
 	my @parts  = grep { length } split m{/}, ($path // '');
 	my $last   = @parts ? $parts[-1] : '';
-	$last =~ s/[?#].*//;		# strip query / fragment
-	$last =~ s/\.[^.]+$//;		# strip file extension
+	# /s: . must cross \n in case a percent-decoded newline hides inside the URL.
+	$last =~ s/[?#].*//s;		# strip query / fragment
+	$last =~ s/\.[^.]+\z//;	# strip file extension (\z: no trailing-\n loophole)
 	$last =~ s/[^A-Za-z0-9_]/_/g;	# sanitize
 	unless (length $last && $last =~ /\A[A-Za-z_]/) {
 		# No usable path component -- fall back to hostname
@@ -286,7 +287,9 @@ sub _detect_file_info :Private {
 		}
 
 		my @cols = split /\Q$sep\E/, $line;
-		for (@cols) { s/\A[\s"]+|[\s"]+\z//g }	# strip whitespace and quotes
+		# Two separate substitutions: the /g on an anchored alternation wastes
+		# O(N) engine cycles retrying \A (which can only match at position 0).
+		for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }	# strip whitespace and quotes
 		@cols = grep { length } @cols;
 		return {
 			sep_char => $sep,
