@@ -17,10 +17,19 @@ use Sub::Private;
 # File extensions that Database::Abstraction can probe, in probe order.
 # Note: D::A uses ".sql" for SQLite -- NOT ".sqlite".
 Readonly my @SUPPORTED_EXT => qw( csv db sql xml psv );
-Readonly my $EXT_RE        => do { my $p = join '|', @SUPPORTED_EXT; qr/\.(?:$p)$/i };
+# Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
+# A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
+# that passes the extension guard and reaches realpath with an embedded newline.
+Readonly my $EXT_RE        => do { my $p = join '|', @SUPPORTED_EXT; qr/\.(?:$p)\z/i };
 
 # Table name safe-identifier pattern (mirrors DataSource's TABLE_NAME_RE).
 Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z0-9_]+\z/;
+
+# URL spec pattern shared by _open_spec and _spec_to_url.
+# qr{} delimiter avoids the \/ escaping noise required by the // form.
+# /s: makes . match \n so a percent-decoded newline inside a URL does not
+# silently truncate the captured URL before the \z end-of-string anchor.
+Readonly my $URL_SPEC_RE   => qr{\Aurl:(https?://.+)\z}si;
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary for all user-visible strings in this controller.
@@ -85,7 +94,12 @@ sub _resolve_template :Private ($self) {
 # Side Effects: Filesystem stat for the template directory.
 sub _resolve_language :Private ($self, $default) {
 	my $accept = $self->req->headers->accept_language // '';
-	my ($lang) = $accept =~ /\b([a-z]{2})(?:-[A-Z]{2})?\b/;
+	my ($lang) = $accept =~ /
+		\b
+		( [a-z]{2} )          # ISO 639-1 primary language subtag (exactly 2 lowercase letters)
+		(?: - [A-Z]{2} )?     # optional ISO 3166-1 region subtag: hyphen + 2 uppercase letters
+		\b
+	/x;
 	$lang //= $default;
 
 	# Only use the resolved language if templates actually exist for it;
@@ -150,7 +164,7 @@ sub _open_spec :Private ($self, $spec) {
 			return ($src, $file->basename) if $src && !$@;
 		}
 	}
-	elsif ($spec =~ /\Aurl:(https?:\/\/.+)\z/i) {
+	elsif ($spec =~ $URL_SPEC_RE) {
 		my $url = $1;
 		my $src = eval { $self->open_table('', url => $url) };
 		return ($src, $src->table_name) if $src && !$@;
@@ -167,7 +181,7 @@ sub _open_spec :Private ($self, $spec) {
 sub _spec_to_url :Private ($self, $spec) {
 	return "/view/$1"                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
 	return '/open?path=' . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
-	return '/import?url=' . url_escape($1)    if $spec =~ /\Aurl:(https?:\/\/.+)\z/i;
+	return '/import?url=' . url_escape($1)    if $spec =~ $URL_SPEC_RE;
 	return '/';
 }
 
