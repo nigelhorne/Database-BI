@@ -13,6 +13,7 @@ requires 'Params::Validate::Strict', '0.39';
 on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'IPC::System::Simple';
+	requires 'Test::Memory::Cycle';
 	requires 'Test::Mojo';
 	requires 'Test::Most';
 	requires 'Test::Needs';
