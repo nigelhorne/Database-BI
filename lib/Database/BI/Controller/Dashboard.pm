@@ -23,8 +23,11 @@ Readonly my @SUPPORTED_EXT => qw( csv db sql xml psv );
 # that passes the extension guard and reaches realpath with an embedded newline.
 Readonly my $EXT_RE        => do { my $p = join '|', @SUPPORTED_EXT; qr/\.(?:$p)\z/i };
 
-# Table name safe-identifier pattern (mirrors DataSource's TABLE_NAME_RE).
-Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z0-9_]+\z/;
+# Table name safe-identifier pattern -- must match DataSource's TABLE_NAME_RE
+# exactly: first character must be a letter or underscore (not a digit), so
+# that every table name the controller accepts can also be opened by DataSource
+# without an unhandled croak.
+Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 
 # URL spec pattern shared by _open_spec and _spec_to_url.
 # qr{} delimiter avoids the \/ escaping noise required by the // form.
@@ -686,8 +689,8 @@ sub view ($self) {
 		return $self->reply->not_found;
 	}
 
-	my $source  = $self->open_table($table);
-	my $records = eval { $source->fetch_all };
+	my ($source, $records);
+	eval { $source = $self->open_table($table); $records = $source->fetch_all };
 	if ($@) {
 		return $self->render(
 			template => "$platform/$language/home",
@@ -867,8 +870,8 @@ sub open_file ($self) {
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
 
-	my $source  = $self->open_table($table, directory => $dir->to_string);
-	my $records = eval { $source->fetch_all };
+	my ($source, $records);
+	eval { $source = $self->open_table($table, directory => $dir->to_string); $records = $source->fetch_all };
 	if ($@) {
 		return $self->render(
 			template   => "$platform/$language/home",
