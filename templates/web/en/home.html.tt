@@ -35,7 +35,24 @@
   <span class="home-drop-hint">CSV &middot; PSV &middot; XML &middot; SQLite (.sql)</span>
 </div>
 
-<p class="browse-link"><a href="/browse" class="btn-browse">&#128269; Browse filesystem&hellip;</a></p>
+<div class="home-actions">
+  <a href="/browse" class="btn-browse">&#128269; Browse filesystem&hellip;</a>
+
+  <form class="import-url-form" action="/import" method="GET">
+    <span class="import-url-label">&#127760; Import from URL (HTML table)</span>
+    <div class="import-url-row">
+      <input type="url" name="url" id="bi-url-input"
+             placeholder="https://&hellip;"
+             required autocomplete="off" class="import-url-input">
+      <label for="bi-table-idx" class="import-idx-label"
+             title="Zero-based index of the table on the page (0 = first table)">
+        Table&nbsp;#<input type="number" name="table_index" id="bi-table-idx"
+                           min="0" value="0" class="import-idx-input">
+      </label>
+      <button type="submit" class="btn-browse">Import</button>
+    </div>
+  </form>
+</div>
 
 <script>
 (function () {

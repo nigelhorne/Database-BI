@@ -373,4 +373,65 @@ subtest 'POST /upload -- drag-and-drop upload' => sub {
     }
 };
 
+# ---------------------------------------------------------------------------
+subtest 'GET /import -- HTML URL import' => sub {
+    test_needs 'LWP::UserAgent', 'HTML::TableExtract';
+
+    # Param / scheme validation does not touch the network.
+    $t->get_ok('/import')
+      ->status_is(200)->content_like(qr/Please enter a URL/);
+
+    $t->get_ok('/import?url=' . url_escape('ftp://example.com/page'))
+      ->status_is(200)->content_like(qr/not a valid/i);
+
+    # For network-dependent tests, monkeypatch LWP::UserAgent::get.
+    # Test::Mojo runs the app in-process so the patch is visible inside D::A.
+    require LWP::UserAgent;
+    require HTTP::Response;
+
+    my $html = '<table>'
+             . '<tr><th>sku</th><th>qty</th></tr>'
+             . '<tr><td>BOLT</td><td>10</td></tr>'
+             . '<tr><td>NUT</td><td>20</td></tr>'
+             . '</table>';
+
+    {
+        no warnings 'redefine';
+        local *LWP::UserAgent::get = sub {
+            my ($self, $url) = @_;
+            return HTTP::Response->new(200, 'OK', [], $html);
+        };
+
+        my $test_url = 'http://example.com/test-table';
+
+        # Basic happy path.
+        $t->get_ok('/import?url=' . url_escape($test_url))
+          ->status_is(200)
+          ->content_like(qr/BOLT/)
+          ->content_like(qr/NUT/);
+
+        # Filters apply to URL-backed tables.
+        $t->get_ok('/import?url=' . url_escape($test_url)
+                 . '&f=' . url_escape('sku:eq:BOLT'))
+          ->status_is(200)->content_like(qr/BOLT/);
+
+        # Out-of-range table_index -> backend croaks -> error page (still 200).
+        $t->get_ok('/import?url=' . url_escape($test_url) . '&table_index=99')
+          ->status_is(200);
+
+        # url: spec works as the left table in a join.
+        $t->get_ok('/join?l=' . url_escape("url:$test_url"))
+          ->status_is(200)->content_like(qr/BOLT/);
+
+        # LWP failure (e.g. 404) -> backend croaks -> error page.
+        local *LWP::UserAgent::get = sub {
+            my ($self, $url) = @_;
+            my $r = HTTP::Response->new(404, 'Not Found', [], '');
+            return $r;
+        };
+        $t->get_ok('/import?url=' . url_escape($test_url))
+          ->status_is(200);   # error page, not a 500
+    }
+};
+
 done_testing();

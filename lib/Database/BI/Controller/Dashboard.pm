@@ -39,6 +39,9 @@ Readonly my %MESSAGES => (
 	error_upload_none      => 'No file received',
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)',
 	error_path_required    => '"path" parameter is required',
+	error_url_required     => 'Please enter a URL',
+	error_url_invalid      => '"%s" is not a valid http:// or https:// URL',
+	error_url_fetch        => 'Could not load HTML table from "%s": %s',
 );
 
 # ---------------------------------------------------------------------------
@@ -148,6 +151,11 @@ sub _open_spec :Private ($self, $spec) {
 			return ($src, $file->basename) if $src && !$@;
 		}
 	}
+	elsif ($spec =~ /\Aurl:(https?:\/\/.+)\z/i) {
+		my $url = $1;
+		my $src = eval { $self->open_table('', url => $url) };
+		return ($src, $src->table_name) if $src && !$@;
+	}
 	return ();
 }
 
@@ -159,8 +167,9 @@ sub _open_spec :Private ($self, $spec) {
 # Exit:    Returns a URL string beginning with '/'.
 # Side Effects: None.
 sub _spec_to_url :Private ($self, $spec) {
-	return "/view/$1"                      if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
-	return '/open?path=' . url_escape($1)  if $spec =~ /\Apath:(.+)\z/;
+	return "/view/$1"                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
+	return '/open?path=' . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
+	return '/import?url=' . url_escape($1)    if $spec =~ /\Aurl:(https?:\/\/.+)\z/i;
 	return '/';
 }
 
@@ -770,6 +779,97 @@ sub open_file ($self) {
 		back_url         => $back,
 		back_label       => 'Back to browser',
 		file_path        => $file->to_string,
+		left_spec        => $lspec,
+		current_joins    => [],
+		available_tables => $self->_scan_data_dir,
+		join_summaries   => [],
+		filter_specs     => $filter_specs,
+		filters_json     => $filters_json,
+		export_url       => $self->_build_export_url($lspec, [], $filter_specs),
+	);
+}
+
+=head2 import_url
+
+C<GET /import> -- Fetch a remote HTML page, extract the first (or selected)
+table, and render it as a sortable data grid.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?url=          string   Required.  Full http:// or https:// URL of the page
+                          that contains the HTML table.  Returns home with an
+                          error message if the scheme is wrong, the fetch fails,
+                          or no table is found at the specified index.
+  ?table_index=  integer  Zero-based index of the C<< <table> >> to use when
+                          the page contains more than one table (default: 0).
+  ?f=            string   (repeatable) Filter spec: "col:op:val".
+
+=head4 OUTPUT
+
+On success renders C<dashboard.html.tt> with the same stash shape as C<open_file>,
+plus C<source_url> (the original URL) for C<localStorage> tracking.
+
+On error re-renders C<home.html.tt> with an C<error> stash variable.
+
+=head3 MESSAGES
+
+  error_url_required  -- empty or missing C<url> param
+  error_url_invalid   -- URL does not begin with http:// or https://
+  error_url_fetch     -- LWP fetch failure or no table found at the index
+
+=head3 EXAMPLE
+
+  GET /import?url=https://matrix.perl-magpie.org/dist/Database-Abstraction/
+  GET /import?url=https://example.com/data.html&table_index=2
+
+=cut
+
+sub import_url ($self) {
+	my ($platform, $language) = $self->_resolve_template;
+
+	my $url = $self->param('url') // '';
+	my $idx = $self->param('table_index') // 0;
+	$idx    = 0 unless $idx =~ /\A[0-9]+\z/;
+
+	my $err_home = sub ($key, @args) {
+		$self->render(
+			template => "$platform/$language/home",
+			handler  => 'tt',
+			format   => 'html',
+			tables   => $self->_scan_data_dir,
+			title    => 'Choose a Database',
+			error    => $self->_i18n($key, @args),
+		);
+	};
+
+	return $err_home->('error_url_required') unless length $url;
+	return $err_home->('error_url_invalid', $url)
+		unless $url =~ m{\Ahttps?://}i;
+
+	my $source = eval { $self->open_table('', url => $url, html_table_index => $idx) };
+	return $err_home->('error_url_fetch', $url, $@ // 'unknown error') if $@ || !$source;
+
+	my $records = eval { $source->fetch_all };
+	return $err_home->('error_url_fetch', $url, $@ // 'empty result') if $@;
+
+	my $label   = $source->table_name;
+	my $lspec   = "url:$url";
+	my @columns = _get_columns($source, $records);
+	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+
+	$self->render(
+		template         => "$platform/$language/dashboard",
+		handler          => 'tt',
+		format           => 'html',
+		records          => $filtered,
+		columns          => \@columns,
+		table            => $label,
+		title            => $label,
+		source_url       => $url,
+		back_url         => '/',
+		back_label       => 'Choose another database',
 		left_spec        => $lspec,
 		current_joins    => [],
 		available_tables => $self->_scan_data_dir,

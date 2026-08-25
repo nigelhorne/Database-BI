@@ -327,6 +327,16 @@ sub startup ($self) {
 	my $data_dir = $self->home->child($self->config->{data_dir})->to_string;
 
 	$self->helper(open_table => sub ($c, $table, %opts) {
+		# URL mode: fetch a remote HTML table directly via Database::Abstraction's
+		# URL backend (LWP::UserAgent + HTML::TableExtract).
+		if (exists $opts{url}) {
+			return Database::BI::Model::DataSource->new(
+				url => $opts{url},
+				exists $opts{html_table_index}
+					? (html_table_index => $opts{html_table_index})
+					: (),
+			);
+		}
 		my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
 		Database::BI::Model::DataSource->new(
 			directory => $dir,
@@ -341,6 +351,7 @@ sub startup ($self) {
 	$r->get('/open')->to('Dashboard#open_file');
 	$r->get('/join')->to('Dashboard#join_tables');
 	$r->get('/api/columns')->to('Dashboard#columns_api');
+	$r->get('/import')->to('Dashboard#import_url');
 	$r->get('/export')->to('Dashboard#export_data');
 	$r->post('/export')->to('Dashboard#export_write');
 	$r->get('/api/dirs')->to('Dashboard#dirs_api');

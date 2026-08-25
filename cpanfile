@@ -4,7 +4,9 @@ requires 'perl', '5.020';
 
 requires 'Carp';
 requires 'Database::Abstraction', '0.38';
-requires 'Mojolicious', '9.0';
+requires 'HTML::TableExtract';
+requires 'LWP::UserAgent';
+requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Params::Validate::Strict', '0.39';
 

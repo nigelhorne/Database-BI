@@ -29,6 +29,8 @@ Readonly our %MESSAGES => (
 	error_table_name_invalid	=> 'DataSource: table name "%s" contains illegal characters (alphanumeric and underscore only)',
 	error_backend_init		=> 'DataSource: failed to initialise database backend for table "%s": %s',
 	error_fetch_failed		=> 'DataSource: fetch_all failed for table "%s": %s',
+	error_url_invalid		=> 'DataSource: URL "%s" must begin with http:// or https://',
+	error_url_fetch			=> 'DataSource: failed to open HTML table at "%s": %s',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -40,6 +42,28 @@ Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 # ---------------------------------------------------------------------------
 # Private helpers
 # ---------------------------------------------------------------------------
+
+# _url_label( $url ) -> $string
+#
+# Derive a safe, lowercase identifier from a URL for use as the table label.
+# Takes the last non-empty path component, strips the extension, then replaces
+# non-alphanumeric characters with underscores.  Falls back to the hostname
+# when the path component is absent or starts with a digit.
+sub _url_label {
+	my ($url) = @_;
+	my ($path) = $url =~ m{https?://[^/?#]+(.*)}i;
+	my @parts  = grep { length } split m{/}, ($path // '');
+	my $last   = @parts ? $parts[-1] : '';
+	$last =~ s/[?#].*//;		# strip query / fragment
+	$last =~ s/\.[^.]+$//;		# strip file extension
+	$last =~ s/[^A-Za-z0-9_]/_/g;	# sanitize
+	unless (length $last && $last =~ /\A[A-Za-z_]/) {
+		# No usable path component -- fall back to hostname
+		my ($host) = $url =~ m{https?://([^/:?#]+)};
+		$last = defined $host ? do { (my $h = $host) =~ s/[^A-Za-z0-9_]/_/g; $h } : 'html';
+	}
+	return lc($last || 'html_table');
+}
 
 # _fmt( $key [, @sprintf_args] ) -> $string
 #
@@ -115,14 +139,18 @@ sub new {
 	# Strategy: normalise the argument list with Params::Get so callers may
 	# pass a hashref or a flat list interchangeably, then validate strictly
 	# with Params::Validate before touching any value.
+	# When a "url" key is present, dispatch to the URL/HTML-table path instead.
 	my $class = shift;
+	my $raw   = Params::Get::get_params(undef, \@_) // {};
+	return $class->_new_from_url($raw) if exists $raw->{url};
+
 	my $args = validate_strict(
 		schema => {
 			directory => { type => 'string' },
 			table     => { type => 'string' },
 			i18n      => { type => 'object', optional => 1, default => undef, can => 'maketext' },
 		},
-		input => Params::Get::get_params(undef, \@_) // {}
+		input => $raw,
 	);
 
 	croak _fmt('error_directory_missing', $args->{directory})
@@ -140,6 +168,77 @@ sub new {
 
 	$self->_init_backend;
 	return $self;
+
+}
+
+# _new_from_url( $class, \%raw_params ) -> $self
+#
+# Purpose: Alternate constructor path for URL-backed HTML tables.
+#          Validates the URL scheme, derives a display label from the URL path,
+#          then calls _init_url_backend to build the D::A in-memory table.
+# Entry:   $raw->{url} must be an http:// or https:// URL.
+#          $raw->{html_table_index} (optional, default 0): zero-based table index.
+#          $raw->{i18n} (optional): Locale::Maketext-compatible object.
+# Exit:    Returns $self.  Croaks on invalid URL scheme or backend init failure.
+# Side Effects: Issues an HTTP GET to the URL via LWP::UserAgent.
+sub _new_from_url :Private {
+	my ($class, $raw) = @_;
+
+	my $url = $raw->{url} // croak _fmt('error_url_invalid', '');
+	croak _fmt('error_url_invalid', $url)
+		unless $url =~ m{\Ahttps?://}i;
+
+	my $self = bless {
+		_url   => $url,
+		_table => _url_label($url),
+		_i18n  => $raw->{i18n},
+		_id_col  => undef,
+		_columns => undef,
+		_db      => undef,
+	}, $class;
+
+	$self->_init_url_backend($raw->{html_table_index} // 0);
+	return $self;
+}
+
+# _init_url_backend( $self, $table_index ) -> void
+#
+# Purpose: Construct the Database::Abstraction backend for URL/HTML-table mode.
+#          D::A fetches the page via LWP::UserAgent, parses it with
+#          HTML::TableExtract, and stores all rows (including headers from row 0)
+#          as an in-memory arrayref.  Column order is not recoverable after
+#          construction (hash keys lose order), so _columns stays undef and
+#          _get_columns in the controller falls back to alphabetical sorting.
+# Entry:   $self->{_url} is a valid http(s) URL; $table_index is a non-negative int.
+# Exit:    Sets $self->{_db}.  Croaks on LWP or HTML::TableExtract failure.
+# Side Effects: Network I/O; may take up to LWP's default timeout.
+sub _init_url_backend :Private {
+	my ($self, $table_index) = @_;
+	my $url = $self->{_url};
+
+	require Database::Abstraction;
+
+	# Reuse a single generic package for all URL-backed instances.
+	# The package name is irrelevant for the URL code path -- D::A branches on
+	# the presence of $self->{'url'}, not on the class name.
+	my $pkg = 'Database::BI::_DB::HtmlUrl';
+	{
+		no strict 'refs';
+		push @{"${pkg}::ISA"}, 'Database::Abstraction'
+			unless $pkg->isa('Database::Abstraction');
+	}
+
+	my $db = eval {
+		$pkg->new({
+			url              => $url,
+			html_table_index => $table_index,
+			no_entry         => 1,
+		})
+	};
+	croak $self->_msg('error_url_fetch', $url, $@) if $@;
+
+	$self->{_db} = $db;
+	return;
 }
 
 # ---------------------------------------------------------------------------
@@ -293,12 +392,25 @@ sub columns {
 =head2 id_column
 
 Returns the name of the column used as the primary key / slurp-filter anchor.
+Returns C<undef> for URL/HTML-table backends (no primary-key concept applies).
 
 =cut
 
 sub id_column {
 	my $self = shift;
 	return $self->{_id_col};
+}
+
+=head2 source_url
+
+Returns the source URL for URL/HTML-table-backed instances, or C<undef> for
+file-backed instances.
+
+=cut
+
+sub source_url {
+	my $self = shift;
+	return $self->{_url};
 }
 
 # ---------------------------------------------------------------------------
