@@ -4,6 +4,7 @@ use Test::More;
 use Test::Mojo;
 use File::Spec ();
 use File::Temp ();
+use Mojo::File  ();
 use Mojo::JSON  qw(false);
 use Mojo::Util  qw(url_escape);
 use Readonly;
@@ -411,7 +412,10 @@ subtest 'POST /export -- path traversal in filename= is stripped to basename' =>
 	# traversal prefix is silently discarded before constructing the path.
 	# The file is written to $tmp/evil.csv, NOT to $tmp/../../evil.csv.
 	# We verify this by asserting the saved path is inside $tmp.
-	my $tmp = File::Temp::tempdir(CLEANUP => 1);
+	# Resolve through realpath so the comparison works on macOS, where
+	# File::Temp returns /var/folders/... but the controller uses
+	# Mojo::File->realpath which canonicalises to /private/var/folders/...
+	my $tmp = Mojo::File->new(File::Temp::tempdir(CLEANUP => 1))->realpath->to_string;
 	my $res = $t->post_ok('/export', form => {
 		l        => 'table:sales',
 		dir      => $tmp,
