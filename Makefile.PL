@@ -22,11 +22,11 @@ WriteMakefile(
 	PREREQ_PM => {
 		'Carp'					=> 0,
 		'Database::Abstraction'			=> '0.38',
-		'HTML::TableExtract'			=> 0,
-		'LWP::UserAgent'			=> 0,
-		'Mojolicious'				=> '9.49',
-		'Mojolicious::Plugin::TemplateToolkit'	=> 0,
-		'Params::Validate::Strict'		=> '0.39',
+		'HTML::TableExtract'		=> 0,
+		'LWP::UserAgent'		=> 0,
+		'Mojolicious'			=> '9.49',
+		'Mojolicious::Plugin::TemplateToolkit' => 0,
+		'Params::Validate::Strict'	=> '0.39',
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
 		'IPC::System::Simple' => 0,

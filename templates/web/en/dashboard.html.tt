@@ -818,6 +818,30 @@
   } catch (e) {}
 }());
 </script>
+[%- ELSIF source_url -%]
+<div id="bi-open-meta"
+     data-name="[% title | html %]"
+     data-url="[% source_url | html %]"
+     hidden></div>
+<script>
+(function () {
+  try {
+    var el    = document.getElementById('bi-open-meta');
+    var href  = '/import?url=' + encodeURIComponent(el.dataset.url);
+    var entry = {
+      name:       el.dataset.name,
+      href:       href,
+      url:        el.dataset.url,
+      lastOpened: new Date().toISOString(),
+    };
+    var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
+    recent = recent.filter(function (r) { return r.href !== href; });
+    recent.unshift(entry);
+    if (recent.length > 5) recent.length = 5;
+    localStorage.setItem('bi:recent', JSON.stringify(recent));
+  } catch (e) {}
+}());
+</script>
 [%- END -%]
 
 [%- END -%]

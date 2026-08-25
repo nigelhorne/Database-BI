@@ -116,6 +116,7 @@
 
       tip.innerHTML = '<div class="tip-name">' + txt(r.name) + '</div>'
         + (path ? '<div class="tip-path">&#x1F4C1; ' + txt(path) + '</div>' : '')
+        + (!path && r.url ? '<div class="tip-path">&#x1F30D; ' + txt(r.url) + '</div>' : '')
         + (r.lastOpened ? '<div>\u{1F55B} Opened: ' + txt(fmtDate(r.lastOpened)) + '</div>' : '');
 
       var mtimeEl = document.createElement('div');
