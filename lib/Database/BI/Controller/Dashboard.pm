@@ -107,18 +107,20 @@ sub _resolve_language :Private ($self, $default) {
 # Entry:   None.
 # Exit:    Returns [] when data_dir does not exist or contains no supported files.
 # Side Effects: Filesystem directory read.
+#
+# Optimisation: single-pass map replaces a two-pass grep+map chain, and calls
+# basename() only once per entry (the original chain called it twice: once in
+# grep to check the extension and again in map to extract the stem).
+# ->to_array avoids the extra flat-list expansion that ->each produced.
 sub _scan_data_dir :Private ($self) {
 	my $dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
 	return [] unless -d $dir;
-	return [
-		$dir->list
-			->grep(sub { $_->basename =~ $EXT_RE })
-			->map(sub {
-				my $base = $_->basename;
-				(my $name = $base) =~ s/\.[^.]+$//;
-				{ name => $name, file => $base }
-			})->each
-	];
+	return $dir->list->map(sub {
+		my $base = $_->basename;
+		return unless $base =~ $EXT_RE;
+		(my $name = $base) =~ s/\.[^.]+$//;
+		{ name => $name, file => $base }
+	})->to_array;
 }
 
 # _open_spec($self, $spec) -> ($DataSource, $label) or ()
@@ -207,23 +209,29 @@ sub _get_columns {
 # Reduction: split(/:/, $spec, 3) always produces at least one defined element,
 # so "defined $col" is structurally guaranteed true and is removed.
 # "$_->{$col} // ''" replaces the equivalent ternary form.
+#
+# Optimisation: $lval = lc($val) is computed once before the grep.  Without this
+# precompute, every case-insensitive operator (eq, ne, contains, starts) would
+# call lc($val) O(N) times for N records -- a pure O(N) waste since $val is
+# constant within a single filter application.
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
 	return $records unless length($col // '') && defined $op && length $op;
 	$val //= '';
+	my $lval = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
 	return [grep {
 		my $cell = $_->{$col} // '';
-		$op eq 'eq'       ? lc($cell) eq lc($val)            :
-		$op eq 'ne'       ? lc($cell) ne lc($val)            :
-		$op eq 'contains' ? index(lc($cell), lc($val)) != -1 :
-		$op eq 'starts'   ? index(lc($cell), lc($val)) == 0  :
-		$op eq 'lt'       ? $cell <  $val                    :
-		$op eq 'le'       ? $cell <= $val                    :
-		$op eq 'gt'       ? $cell >  $val                    :
-		$op eq 'ge'       ? $cell >= $val                    :
-		$op eq 'empty'    ? $cell eq ''                      :
-		$op eq 'notempty' ? $cell ne ''                      :
+		$op eq 'eq'       ? lc($cell) eq $lval                :
+		$op eq 'ne'       ? lc($cell) ne $lval                :
+		$op eq 'contains' ? index(lc($cell), $lval) != -1     :
+		$op eq 'starts'   ? index(lc($cell), $lval) == 0      :
+		$op eq 'lt'       ? $cell <  $val                     :
+		$op eq 'le'       ? $cell <= $val                     :
+		$op eq 'gt'       ? $cell >  $val                     :
+		$op eq 'ge'       ? $cell >= $val                     :
+		$op eq 'empty'    ? $cell eq ''                        :
+		$op eq 'notempty' ? $cell ne ''                        :
 		1
 	} @$records];
 }
@@ -289,14 +297,19 @@ sub _left_join {
 		push @add_cols, $out;
 	}
 
+	# Precompute [$right_col, $mapped_col] pairs once before the merge loop.
+	# Without this, "grep { $_ ne $right_key } @$right_cols" would run on
+	# every left row -- O(N_left * R) grep iterations for R right columns.
+	# Precomputing reduces that to a single O(R) pass.
+	my @rcols = map { [$_, $col_map{$_}] }
+	            grep { $_ ne $right_key } @$right_cols;
+
 	my @merged;
 	for my $left_row (@$left_recs) {
 		my $k         = $left_row->{$left_key} // '';
 		my $right_row = $right_idx{$k} // {};
 		my %row       = %$left_row;
-		for my $rcol (grep { $_ ne $right_key } @$right_cols) {
-			$row{ $col_map{$rcol} } = $right_row->{$rcol};
-		}
+		$row{ $_->[1] } = $right_row->{ $_->[0] } for @rcols;
 		push @merged, \%row;
 	}
 
@@ -424,13 +437,15 @@ sub _run_export_pipeline :Private ($self) {
 	for my $jspec (@{ $self->every_param('j') }) {
 		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
 		next unless defined $right_spec && defined $left_key && defined $right_key;
-		next unless grep { $_ eq $left_key } @columns;
+		my %col_set = map { $_ => 1 } @columns;
+		next unless $col_set{$left_key};
 		my ($right_src, $right_label) = $self->_open_spec($right_spec);
 		next unless $right_src;
 		my $right_recs = eval { $right_src->fetch_all } // [];
 		next if $@;
 		my @right_cols = _get_columns($right_src, $right_recs);
-		next unless grep { $_ eq $right_key } @right_cols;
+		my %right_set  = map { $_ => 1 } @right_cols;
+		next unless $right_set{$right_key};
 		($records, my $new_cols) = _left_join(
 			$records, \@columns, $left_key,
 			$right_recs, \@right_cols, $right_key, $right_label,
@@ -445,6 +460,31 @@ sub _run_export_pipeline :Private ($self) {
 	return ($records, \@columns, $left_label);
 }
 
+# _serialize_csv($records, \@columns) -> $utf8_string
+#
+# Purpose: Build a complete RFC 4180 CSV document (header + data rows) from
+#          $records.  Shared by _render_csv (HTTP download) and the csv branch
+#          of export_write (filesystem write) to eliminate duplicated logic.
+# Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names.
+# Exit:    Returns a UTF-8 Perl string ending with CRLF.
+#
+# Optimisation: rows are collected in @lines and joined in one operation.
+# The previous pattern ($out .= _csv_row(...) per row) triggers O(N) string
+# reallocations; joining a pre-built array is a single O(total_bytes) allocation.
+# For exports of thousands of rows the difference is measurable.
+#
+# XS note: for very large exports, replacing _csv_row with Text::CSV_XS
+# (available from CPAN) would further reduce serialisation time -- its C-level
+# implementation is roughly 5-10x faster than the pure-Perl version here.
+sub _serialize_csv {
+	my ($records, $columns) = @_;
+	my @lines = _csv_row(@$columns);
+	for my $row (@$records) {
+		push @lines, _csv_row(map { $row->{$_} } @$columns);
+	}
+	return encode('UTF-8', join('', @lines));
+}
+
 # _render_csv($self, $records, \@columns, $name) -> void (renders response)
 #
 # Purpose: Serialise $records to RFC 4180 CSV and emit as a UTF-8 download.
@@ -452,13 +492,9 @@ sub _run_export_pipeline :Private ($self) {
 # Exit:    Renders the Mojolicious response; does not return a meaningful value.
 # Side Effects: Writes HTTP response headers and body.
 sub _render_csv :Private ($self, $records, $columns, $name) {
-	my $out = _csv_row(@$columns);
-	for my $row (@$records) {
-		$out .= _csv_row(map { $row->{$_} } @$columns);
-	}
 	$self->res->headers->content_type('text/csv; charset=UTF-8');
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.csv"});
-	$self->render(data => encode('UTF-8', $out));
+	$self->render(data => _serialize_csv($records, $columns));
 }
 
 # _render_sqlite($self, $records, \@columns, $name) -> void (renders response)
@@ -1031,7 +1067,10 @@ sub join_tables ($self) {
 	for my $jspec (@join_specs) {
 		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
 		next unless defined $right_spec && defined $left_key && defined $right_key;
-		next unless grep { $_ eq $left_key } @columns;
+
+		# O(1) hash-set probe instead of O(C) grep for each join step.
+		my %col_set = map { $_ => 1 } @columns;
+		next unless $col_set{$left_key};
 
 		my ($right_src, $right_label) = $self->_open_spec($right_spec);
 		next unless $right_src;
@@ -1039,7 +1078,8 @@ sub join_tables ($self) {
 		my $right_recs = eval { $right_src->fetch_all } // [];
 		next if $@;
 		my @right_cols = _get_columns($right_src, $right_recs);
-		next unless grep { $_ eq $right_key } @right_cols;
+		my %right_set  = map { $_ => 1 } @right_cols;
+		next unless $right_set{$right_key};
 
 		($records, my $new_cols) = _left_join(
 			$records, \@columns, $left_key,
@@ -1203,11 +1243,7 @@ sub export_write ($self) {
 	my $dest = $dest_dir->child($filename);
 	eval {
 		if ($format eq 'csv') {
-			my $out = _csv_row(@$columns);
-			for my $row (@$records) {
-				$out .= _csv_row(map { $row->{$_} } @$columns);
-			}
-			$dest->spurt(encode('UTF-8', $out));
+			$dest->spurt(_serialize_csv($records, $columns));
 		}
 		else {
 			$dest->spurt($self->_write_sqlite_db($records, $columns));
