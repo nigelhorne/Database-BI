@@ -24,8 +24,8 @@ Readonly my $PROD_PSV   => 'products';
 # Load the modules under test
 # ---------------------------------------------------------------------------
 
-use_ok 'Database::BI::Model::DataSource';
-use_ok 'Database::BI::Controller::Dashboard';
+use_ok('Database::BI::Model::DataSource');
+use_ok('Database::BI::Controller::Dashboard');
 
 # Full app used for controller-context tests.
 my $t = Test::Mojo->new('Database::BI');

@@ -16,6 +16,7 @@ on 'test' => sub {
 	requires 'Test::Mojo';
 	requires 'Test::Most';
 	requires 'Test::Needs';
+	requires 'Test::Returns';
 	requires 'Text::xSV::Slurp';
 	requires 'XML::Simple';
 };
