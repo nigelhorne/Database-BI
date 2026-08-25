@@ -288,9 +288,7 @@ subtest '/import -- javascript: scheme is rejected' => sub {
 };
 
 subtest '/import -- empty url param triggers required-error message' => sub {
-	$t->get_ok('/import?url=')
-	  ->status_is(200)
-	  ->content_like(qr/Please enter a URL/i);
+	$t->get_ok('/import?url=')->status_is(200)->content_like(qr/Please enter a URL/i);
 };
 
 subtest '/import -- missing url param renders prompt' => sub {
@@ -461,7 +459,7 @@ subtest 'POST /export -- path traversal in filename= is stripped to basename' =>
 		dir      => $tmp,
 		filename => '../../evil.csv',
 	})->status_is(200)->tx->res->json;
-	like($res->{saved},   qr{\A\Q$tmp\E},  'saved path is inside the requested dir');
+	like($res->{saved},   qr{\A\Q$tmp\E[/\\]},  'saved path is inside the requested dir');
 	unlike($res->{saved}, qr{\.\.},        'saved path contains no ".." traversal');
 };
 
@@ -492,9 +490,7 @@ subtest 'POST /upload -- double-extension bypass is rejected' => sub {
 
 subtest 'POST /upload -- missing file returns 400' => sub {
 	# Proof: $upload->filename guard fires => 400.
-	$t->post_ok('/upload', form => { notfile => 'dummy' })
-	  ->status_is(400)
-	  ->json_like('/error', qr/No file/i);
+	$t->post_ok('/upload', form => { notfile => 'dummy' })->status_is(400)->json_like('/error', qr/No file/i);
 };
 
 subtest 'POST /upload -- filename directory traversal is stripped' => sub {
@@ -509,7 +505,7 @@ subtest 'POST /upload -- filename directory traversal is stripped' => sub {
 			filename => '../../evil.csv',
 		}
 	})->status_is(200)->tx->res->json;
-	like($res->{path}, qr{\.uploads/}, 'upload path is inside .uploads/');
+	like($res->{path}, qr{\.uploads[/\\]}, 'upload path is inside .uploads/');
 	unlike($res->{path}, qr{\.\.},     'upload path has no directory traversal');
 };
 
