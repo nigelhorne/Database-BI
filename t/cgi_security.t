@@ -459,8 +459,11 @@ subtest 'POST /export -- path traversal in filename= is stripped to basename' =>
 		dir      => $tmp,
 		filename => '../../evil.csv',
 	})->status_is(200)->tx->res->json;
-	like($res->{saved}, qr{\A\Q$tmp\E[\\/]}, 'saved path is inside the requested dir');
-	unlike($res->{saved}, qr{\.\.},        'saved path contains no ".." traversal');
+	# Canonicalize both paths to allow for Windows backslash variations
+	my $saved_canonical = Mojo::File->new($res->{saved})->realpath->to_string;
+	my $tmp_canonical   = Mojo::File->new($tmp)->realpath->to_string;
+	like($saved_canonical, qr{\A\Q$tmp_canonical\E[\\/]}, 'saved path is inside the requested dir');
+	unlike($saved_canonical, qr{\.\.},        'saved path contains no ".." traversal');
 };
 
 # ---------------------------------------------------------------------------
