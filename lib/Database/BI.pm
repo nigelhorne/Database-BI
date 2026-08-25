@@ -16,6 +16,11 @@ Readonly my $DEFAULT_DATA_DIR => 'data';
 Readonly my $DEFAULT_PLATFORM => 'web';
 Readonly my $DEFAULT_LANGUAGE => 'en';
 
+# Transport-layer upload size cap (bytes).  Mojolicious enforces this before
+# the request body is read into memory, so an oversized upload never reaches
+# the controller.  Must match $MAX_UPLOAD_BYTES in Dashboard.pm.
+Readonly my $MAX_REQUEST_SIZE => 50 * 1_048_576;	# 50 MiB
+
 =head1 NAME
 
 Database::BI - Web-based Business Intelligence viewer for flat data files
@@ -297,6 +302,12 @@ sub startup ($self) {
 			language => $DEFAULT_LANGUAGE,
 		}
 	});
+
+	# Cap inbound request body size.  When the limit fires, Mojolicious sets
+	# req->is_limit_exceeded and still dispatches to the controller (with partial
+	# content in the upload asset).  The controller checks is_limit_exceeded and
+	# returns 413 before writing to disk.
+	$self->max_request_size($MAX_REQUEST_SIZE);
 
 	# Default export/save directory: ~/Downloads when it exists, else HOME,
 	# else system tmpdir.  Resolved once per process and stored as a stash

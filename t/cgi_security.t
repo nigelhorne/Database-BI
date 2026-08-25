@@ -22,8 +22,10 @@ use Readonly;
 #   validated against TABLE_NAME_RE = /\A[A-Za-z0-9_]+\z/ before any file
 #   access.  Characters outside that set produce 404 before any I/O.
 #
-# Major Premise C: /import enforces scheme = http|https via /\Ahttps?:\/\//i.
-#   file://, ftp://, javascript:, etc. are rejected before LWP is called.
+# Major Premise C: /import enforces scheme = http|https via /\Ahttps?:\/\//i AND
+#   _is_safe_url() resolves the hostname and rejects RFC 1918, link-local
+#   (169.254/16), loopback, and CGNAT ranges.  file://, ftp://, javascript:,
+#   and http://localhost/ are all rejected before LWP is called.
 #
 # Major Premise D: Export Content-Disposition filenames are sanitized:
 #   GET /export applies s/[^a-z0-9_]+/_/g; POST /export strips path separators
@@ -298,6 +300,44 @@ subtest '/import -- missing url param renders prompt' => sub {
 };
 
 # ---------------------------------------------------------------------------
+# Attack vector 5b: SSRF via private/loopback/link-local addresses
+#
+# _is_safe_url() resolves the hostname and rejects RFC 1918 (10/8, 172.16/12,
+# 192.168/16), loopback (127/8), link-local (169.254/16), and CGNAT (100.64/10).
+# The response must not attempt a network connection; it renders home with an
+# error message.
+# ---------------------------------------------------------------------------
+
+subtest '/import -- http://localhost/ is rejected (SSRF loopback)' => sub {
+	# Exploit mechanism: attacker fetches internal-only services on the loopback
+	# interface (e.g. Redis :6379, internal admin panels, Kubernetes API).
+	# Proof: _is_safe_url() matches $host eq 'localhost' and returns 0.
+	$t->get_ok('/import?url=' . url_escape('http://localhost/'))
+	  ->status_is(200)
+	  ->content_like(qr/private or reserved/i,
+	     'localhost is rejected as a private address');
+};
+
+subtest '/import -- http://127.0.0.1/ is rejected (SSRF loopback)' => sub {
+	# Exploit mechanism: bare loopback IPv4 bypasses hostname-based blocklists.
+	# Proof: $host =~ /\A127\./ check in _is_safe_url() catches all of 127/8.
+	$t->get_ok('/import?url=' . url_escape('http://127.0.0.1/'))
+	  ->status_is(200)
+	  ->content_like(qr/private or reserved/i,
+	     '127.0.0.1 is rejected as a loopback address');
+};
+
+subtest '/import -- http://169.254.169.254/ is rejected (SSRF cloud metadata)' => sub {
+	# Exploit mechanism: AWS/GCP/Azure metadata endpoint returns IAM credentials
+	# and instance metadata; no authentication is required from the instance.
+	# Proof: 169.254/16 is in the link-local block checked by _is_safe_url().
+	$t->get_ok('/import?url=' . url_escape('http://169.254.169.254/latest/meta-data/'))
+	  ->status_is(200)
+	  ->content_like(qr/private or reserved/i,
+	     '169.254.169.254 (cloud metadata) is rejected');
+};
+
+# ---------------------------------------------------------------------------
 # Attack vector 6: Join left-spec injection
 #
 # The l= param is parsed by _open_spec.  "table:" accepts only [A-Za-z0-9_]+;
@@ -526,13 +566,16 @@ subtest 'GET /api/stat -- missing path returns 400' => sub {
 	  ->status_is(400);
 };
 
-subtest 'GET /api/stat -- /etc/passwd returns exists:true without its content' => sub {
-	# Proof: stat_api returns metadata only (mtime, size), never file contents.
-	# An attacker gains no useful information beyond whether the file exists.
-	my $res = $t->get_ok('/api/stat?path=' . url_escape('/etc/passwd'))
-	            ->status_is(200)
-	            ->tx->res->json;
-	ok(!defined($res->{content}), 'stat response contains no file content key');
+subtest 'GET /api/stat -- /etc/passwd returns exists:false (extension guard)' => sub {
+	# Exploit mechanism: attacker uses stat_api as a filesystem oracle to map
+	# the server's filesystem by probing arbitrary paths for existence, size,
+	# and modification time -- useful for fingerprinting or side-channel attacks.
+	# Fix: stat_api now requires the path basename to match EXT_RE (supported
+	# data file extensions: csv, db, sql, xml, psv).  /etc/passwd has no such
+	# extension, so it is treated as non-existent from the caller's perspective.
+	$t->get_ok('/api/stat?path=' . url_escape('/etc/passwd'))
+	  ->status_is(200)
+	  ->json_is('/exists', false, '/etc/passwd is not stat-able via stat_api');
 };
 
 subtest 'GET /api/columns -- XSS in table name returns 404' => sub {
@@ -553,6 +596,35 @@ subtest 'GET /api/dirs -- file path returns 404 (must be directory)' => sub {
 subtest 'GET /api/dirs -- non-existent path returns 404' => sub {
 	$t->get_ok('/api/dirs?path=' . url_escape('/nonexistent/xyzzy'))
 	  ->status_is(404);
+};
+
+# ---------------------------------------------------------------------------
+# Attack vector 12: Oversized upload (DoS via disk/memory exhaustion)
+#
+# When Mojolicious's max_request_size is exceeded it sets req->is_limit_exceeded
+# and still dispatches to the controller (with partial content in the upload
+# asset).  upload_file checks is_limit_exceeded first and returns 413 with a
+# JSON error before any write to .uploads/.
+#
+# We prove the guard by temporarily shrinking max_request_size to 1 KiB and
+# uploading 5 KiB — identical semantics to the 50 MiB real limit but without
+# allocating 50 MiB in the test process.
+# ---------------------------------------------------------------------------
+
+subtest 'POST /upload -- oversized file returns 413' => sub {
+	# Exploit mechanism: attacker streams a large body to exhaust disk space or
+	# RAM during multipart parsing.
+	# Proof: req->is_limit_exceeded triggers a 413 JSON error before any write.
+	my $orig_limit = $t->app->max_request_size;
+	$t->app->max_request_size(1024);  # 1 KiB for the duration of this subtest
+
+	$t->post_ok('/upload', form => {
+		file => { content => 'A' x 5000, filename => 'huge.csv' },
+	})->status_is(413)
+	  ->json_like('/error', qr/too large/i,
+	     'oversized upload returns 413 with too-large message');
+
+	$t->app->max_request_size($orig_limit);  # restore
 };
 
 done_testing();

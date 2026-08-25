@@ -8,6 +8,7 @@ use Mojo::JSON		qw(encode_json);
 use Mojo::Util		qw(url_escape encode);
 use File::Temp		qw(tempfile tempdir);
 use Readonly;
+use Socket		qw(inet_aton);
 use Sub::Private;
 
 # ---------------------------------------------------------------------------
@@ -47,11 +48,19 @@ Readonly my %MESSAGES => (
 	error_ext_required     => 'Use a .csv or .sql filename extension',
 	error_upload_none      => 'No file received',
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)',
+	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_path_required    => '"path" parameter is required',
 	error_url_required     => 'Please enter a URL',
 	error_url_invalid      => '"%s" is not a valid http:// or https:// URL',
 	error_url_fetch        => 'Could not load HTML table from "%s": %s',
+	error_url_ssrf         => '"%s" resolves to a private or reserved address and cannot be fetched',
 );
+
+# Maximum accepted upload body size.  Enforced both here (application layer)
+# and via Mojolicious max_request_size (transport layer) set in startup().
+# Must match $MAX_REQUEST_SIZE in BI.pm.
+Readonly my $MAX_UPLOAD_MIB   => 50;
+Readonly my $MAX_UPLOAD_BYTES => $MAX_UPLOAD_MIB * 1_048_576;
 
 # ---------------------------------------------------------------------------
 # Private helpers
@@ -67,6 +76,58 @@ Readonly my %MESSAGES => (
 sub _i18n :Private ($self, $key, @args) {
 	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
+}
+
+# _is_safe_url($url) -> bool
+#
+# Purpose: SSRF guard.  Blocks the most dangerous classes of Server-Side Request
+#          Forgery targets: loopback aliases (localhost, 127/8) and literal
+#          private/link-local/CGNAT IPv4 addresses in the URL host component.
+#
+# Design rationale for scope:
+#   Resolving hostnames via DNS and checking the result is ineffective: a
+#   separate DNS lookup happens at LWP connect time (TOCTOU / DNS rebinding
+#   window).  The authoritative defence against hostname-based SSRF is a
+#   network-layer egress firewall.  This function handles the Perl-layer
+#   interception for the most common patterns that operators cannot easily
+#   filter at the network level: bare loopback aliases and literal private IPs
+#   hard-coded by an attacker.
+#
+# Blocked targets:
+#   localhost / 127.0.0.0/8 / 0.0.0.0 / ::1  -- loopback aliases
+#   10.0.0.0/8    -- RFC 1918 private (literal IP)
+#   172.16.0.0/12 -- RFC 1918 private (literal IP)
+#   192.168.0.0/16-- RFC 1918 private (literal IP)
+#   169.254.0.0/16-- link-local; AWS/GCP/Azure metadata endpoint (literal IP)
+#   100.64.0.0/10 -- CGNAT / Tailscale shared space (literal IP)
+#
+# Hostname-based targets (e.g. http://internal.corp.example.com/) are allowed
+# at this layer; block them with egress firewall rules instead.
+sub _is_safe_url {
+	my ($url) = @_;
+	return 0 unless $url =~ m{\Ahttps?://([^/:?\[\]#]+)}i;
+	my $host = lc $1;
+
+	# Block well-known loopback aliases.
+	return 0 if $host eq 'localhost'
+	          || $host =~ /\A127\./
+	          || $host eq '0.0.0.0'
+	          || $host eq '::1';
+
+	# For literal IPv4 addresses only: check private/link-local/CGNAT ranges.
+	# Skipping DNS for hostname targets avoids a live network call in tests and
+	# removes the TOCTOU window that makes DNS-resolved checks illusory anyway.
+	return 1 unless $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/;
+
+	my $packed = inet_aton($host) or return 1;
+	my $n = unpack 'N', $packed;
+
+	return 0 if ($n & 0xFF000000) == 0x0A000000;	# 10/8
+	return 0 if ($n & 0xFFF00000) == 0xAC100000;	# 172.16/12
+	return 0 if ($n & 0xFFFF0000) == 0xC0A80000;	# 192.168/16
+	return 0 if ($n & 0xFFFF0000) == 0xA9FE0000;	# 169.254/16 (link-local / metadata)
+	return 0 if ($n & 0xFFC00000) == 0x64400000;	# 100.64/10 (CGNAT)
+	return 1;
 }
 
 # _resolve_template($self) -> ($platform, $language)
@@ -166,6 +227,7 @@ sub _open_spec :Private ($self, $spec) {
 	}
 	elsif ($spec =~ $URL_SPEC_RE) {
 		my $url = $1;
+		return () unless _is_safe_url($url);
 		my $src = eval { $self->open_table('', url => $url) };
 		return ($src, $src->table_name) if $src && !$@;
 	}
@@ -407,7 +469,8 @@ sub _write_sqlite_db :Private ($self, $records, $columns) {
 	my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
 		RaiseError => 1, AutoCommit => 1,
 	}) };
-	croak "DBI connect failed: $@" if $@;
+	# Guard both the eval-caught die ($@) and the undef-without-die edge case.
+	croak "DBI connect failed: $@" if $@ || !$dbh;
 
 	# Quote column names for safe use in the CREATE TABLE statement.
 	my @quoted = map { (my $c = $_) =~ s/"/""/g; qq{"$c"} } @$columns;
@@ -901,6 +964,8 @@ sub import_url ($self) {
 	return $err_home->('error_url_required') unless length $url;
 	return $err_home->('error_url_invalid', $url)
 		unless $url =~ m{\Ahttps?://}i;
+	return $err_home->('error_url_ssrf', $url)
+		unless _is_safe_url($url);
 
 	my $source = eval { $self->open_table('', url => $url, html_table_index => $idx) };
 	return $err_home->('error_url_fetch', $url, $@ // 'unknown error') if $@ || !$source;
@@ -1388,8 +1453,10 @@ sub stat_api ($self) {
 	}
 
 	my $file = eval { Mojo::File->new($path)->realpath };
+	# Restrict to files with a supported data extension so stat_api cannot be
+	# used as a filesystem oracle to probe /etc/shadow, /root/.ssh/, etc.
 	return $self->render(json => { exists => \0, path => $path })
-		unless defined $file && -f $file;
+		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
 
 	my @s = stat $file->to_string;
 	$self->render(json => {
@@ -1449,6 +1516,18 @@ sub upload_file ($self) {
 		return $self->render(
 			json   => { error => $self->_i18n('error_upload_none') },
 			status => 400,
+		);
+	}
+
+	# Enforce upload size limit.  max_request_size in startup() sets the
+	# transport-layer cap, but Mojolicious still calls the controller when the
+	# limit fires (with req->is_limit_exceeded true and partial content in the
+	# upload asset).  Check is_limit_exceeded first; fall through to an asset
+	# size check as a belt-and-braces guard for any bytes that slipped through.
+	if ($self->req->is_limit_exceeded || $upload->size > $MAX_UPLOAD_BYTES) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_upload_too_large', $MAX_UPLOAD_MIB) },
+			status => 413,
 		);
 	}
 
