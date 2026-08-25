@@ -31,6 +31,7 @@ WriteMakefile(
 		'DBD::CSV' => 0,
 		'IPC::System::Simple' => 0,
 		'Test::Memory::Cycle' => 0,
+		'Test::Mockingbird' => 0,
 		'Test::Most' => 0,
 		'Test::Mojo' => 0,
 		'Test::Needs' => 0,
