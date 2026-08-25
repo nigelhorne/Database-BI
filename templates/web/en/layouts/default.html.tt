@@ -660,64 +660,89 @@
     .home-drop-hint { font-size: .78rem; color: #bbc; }
     .home-drop-zone.drag-active .home-drop-hint { color: #5a7ab8; }
 
-    /* Home-page action row: Browse button + URL import form */
-    .home-actions {
-      margin-top: 1.5rem;
-      display: flex;
-      flex-wrap: wrap;
-      align-items: flex-start;
+    /* Home-page action cards: Browse + URL import */
+    .home-action-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
       gap: 1rem;
+      margin-top: 1.5rem;
     }
 
-    .btn-browse {
+    .action-card {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      padding: 1.25rem 1.4rem;
+      border: 1px solid #d6daf0;
+      border-radius: 10px;
+      background: #fafbfd;
+    }
+
+    .action-card-icon {
+      font-size: 1.5rem;
+      line-height: 1;
+    }
+
+    .action-card-title {
+      margin: 0;
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a2550;
+    }
+
+    .action-card-desc {
+      margin: 0;
+      font-size: 0.85rem;
+      color: #666;
+      line-height: 1.45;
+      flex: 1;
+    }
+
+    .btn-action {
       display: inline-block;
-      padding: 0.5rem 1.25rem;
+      align-self: flex-start;
+      margin-top: 0.25rem;
+      padding: 0.45rem 1.1rem;
       border: 1px solid #2c3e7a;
       border-radius: 6px;
       color: #2c3e7a;
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: 0.88rem;
       cursor: pointer;
       background: transparent;
       transition: background 0.15s;
       white-space: nowrap;
     }
-    .btn-browse:hover { background: #eef1fb; }
+    .btn-action:hover { background: #eef1fb; }
 
-    /* URL import form */
-    .import-url-form {
+    /* URL import form inside card */
+    .action-url-form {
       display: flex;
       flex-direction: column;
-      gap: 0.35rem;
-      flex: 1;
-      min-width: 280px;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
     }
-    .import-url-label {
-      font-size: 0.82rem;
-      color: #555;
-    }
-    .import-url-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.4rem;
-      align-items: center;
-    }
-    .import-url-input {
-      flex: 1;
-      min-width: 200px;
+    .action-url-input {
+      width: 100%;
+      box-sizing: border-box;
       padding: 0.45rem 0.6rem;
       border: 1px solid #ccc;
       border-radius: 5px;
       font-size: 0.88rem;
     }
-    .import-idx-label {
+    .action-url-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .action-idx-label {
       font-size: 0.82rem;
-      color: #555;
+      color: #666;
       white-space: nowrap;
     }
-    .import-idx-input {
+    .action-idx-input {
       width: 3.5rem;
-      padding: 0.4rem 0.4rem;
+      padding: 0.4rem;
       border: 1px solid #ccc;
       border-radius: 5px;
       font-size: 0.88rem;

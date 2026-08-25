@@ -35,23 +35,35 @@
   <span class="home-drop-hint">CSV &middot; PSV &middot; XML &middot; SQLite (.sql)</span>
 </div>
 
-<div class="home-actions">
-  <a href="/browse" class="btn-browse">&#128269; Browse filesystem&hellip;</a>
+<div class="home-action-cards">
 
-  <form class="import-url-form" action="/import" method="GET">
-    <span class="import-url-label">&#127760; Import from URL (HTML table)</span>
-    <div class="import-url-row">
+  <div class="action-card">
+    <span class="action-card-icon" aria-hidden="true">&#128269;</span>
+    <h2 class="action-card-title">Browse your files</h2>
+    <p class="action-card-desc">Navigate your folders to find and open a data file stored on this computer.</p>
+    <a href="/browse" class="btn-action">Browse filesystem&hellip;</a>
+  </div>
+
+  <div class="action-card">
+    <span class="action-card-icon" aria-hidden="true">&#127760;</span>
+    <h2 class="action-card-title">Import from a web page</h2>
+    <p class="action-card-desc">Paste the address of any web page that contains a data table and we&rsquo;ll pull it in.</p>
+    <form action="/import" method="GET" class="action-url-form">
       <input type="url" name="url" id="bi-url-input"
              placeholder="https://&hellip;"
-             required autocomplete="off" class="import-url-input">
-      <label for="bi-table-idx" class="import-idx-label"
-             title="Zero-based index of the table on the page (0 = first table)">
-        Table&nbsp;#<input type="number" name="table_index" id="bi-table-idx"
-                           min="0" value="0" class="import-idx-input">
-      </label>
-      <button type="submit" class="btn-browse">Import</button>
-    </div>
-  </form>
+             required autocomplete="off" class="action-url-input"
+             aria-label="Web page URL">
+      <div class="action-url-row">
+        <label for="bi-table-idx" class="action-idx-label"
+               title="If the page has more than one table, enter its position (0 = first)">
+          Table&nbsp;#<input type="number" name="table_index" id="bi-table-idx"
+                             min="0" value="0" class="action-idx-input">
+        </label>
+        <button type="submit" class="btn-action">Import</button>
+      </div>
+    </form>
+  </div>
+
 </div>
 
 <script>
