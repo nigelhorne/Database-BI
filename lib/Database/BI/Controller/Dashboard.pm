@@ -285,6 +285,21 @@ sub _get_columns {
 # Entry:   $records is an arrayref of hashrefs; $spec is a colon-delimited string.
 # Exit:    Returns filtered arrayref (same reference if spec is invalid/unparseable).
 #
+# Domain Constraints (operator names):
+#   Operator names are CASE-SENSITIVE.  Only the exact lowercase forms below are
+#   recognised; an uppercase or mixed-case name (e.g. "EQ", "Lt") falls through
+#   to the default `1` branch and all rows pass unfiltered.
+#   Valid operators:
+#     String (value comparison is case-insensitive via lc()):
+#       eq, ne, contains, starts
+#     Numeric (Perl <, <=, >, >= coercion):
+#       lt (strict), le (inclusive), gt (strict), ge (inclusive)
+#     Unary (val is ignored):
+#       empty (cell eq ''), notempty (cell ne '')
+#   Boundary rules for numeric operators:
+#     le/ge include the boundary value; lt/gt exclude it.
+#   contains/starts with empty val ('') match every record (index always 0).
+#
 # Reduction: split(/:/, $spec, 3) always produces at least one defined element,
 # so "defined $col" is structurally guaranteed true and is removed.
 # "$_->{$col} // ''" replaces the equivalent ternary form.
@@ -672,6 +687,33 @@ C<GET /view/:table> -- Open and display the chosen table from C<data_dir>.
                     other characters.
   ?f=      string   (repeatable) Filter spec: "col:op:val".
 
+=head4 DOMAIN CONSTRAINTS: :table
+
+C<:table> is validated against C<\A[A-Za-z_][A-Za-z0-9_]*\z> before C<open_table>
+is ever called.  The first character must be a letter (A-Z, a-z) or an
+underscore; subsequent characters may also include digits (0-9).
+
+=over 4
+
+=item Valid partition
+
+C<sales> (letters only), C<_temp> (underscore-start), C<report_2024>
+(mixed).  A name that is valid but has no backing file returns 200 with
+an error message -- NOT 404.
+
+=item Invalid partition
+
+C<1sales> (digit-start, 404), C<my.data> (dot, 404), C<my-data>
+(hyphen, 404), non-ASCII characters (404).
+
+=item Boundary values
+
+C<a> (single letter, valid), C<_> (single underscore, valid), C<1>
+(single digit, 404), C<a1> (letter then digit, valid), C<1a> (digit
+then letter, 404).
+
+=back
+
 =head4 OUTPUT
 
 On success renders C<dashboard.html.tt> with table data.
@@ -842,6 +884,39 @@ C<GET /open> -- Open a supported data file from any absolute filesystem path.
   ?path=   string   Absolute path to the data file.  Returns 404 when missing,
                     not a regular file, or the extension is not in SUPPORTED_EXT.
   ?f=      string   (repeatable) Filter spec: "col:op:val".
+
+=head4 DOMAIN CONSTRAINTS: ?path=
+
+=over 4
+
+=item Extension filter (C<EXT_RE>)
+
+The basename must match C<\.(?:csv|db|sql|xml|psv)\z> (case-insensitive).
+The C<\z> anchor (absolute end-of-string) means a URL-encoded trailing
+newline (e.g. C<file.csv%0A> decoded to C<file.csv\n>) does NOT pass --
+the C<\n> falls after the C<\z> boundary and the extension check fails.
+
+=item Valid partition
+
+C</data/sales.csv> (lowercase extension), C</tmp/REPORT.CSV> (uppercase
+extension, /i matches), any C<.db>, C<.sql>, C<.xml>, C<.psv> regular
+file.
+
+=item Invalid partition
+
+Absent C<?path=> (404), non-existent file (404), directory instead of
+file (404), unsupported extension such as C<.txt> (404), empty string
+(404), path containing a C<%0A> (newline) suffix (404).
+
+=item Double-extension filenames
+
+A file like C<file.php.csv> passes C<EXT_RE> (last segment is C<.csv>)
+but produces table stem C<file.php> which fails C<DataSource>'s
+C<TABLE_NAME_RE>.  The C<open_table> call is inside C<eval>, so the
+croak is caught and the action returns 200 with a friendly error, not
+a 500.
+
+=back
 
 =head4 OUTPUT
 
@@ -1228,6 +1303,25 @@ C<GET /export> -- Stream the current logical view as a browser file download.
   ?f=        string   (repeatable) Filter specs.
   ?format=   string   "csv" (default) or "sqlite".
 
+=head4 DOMAIN CONSTRAINTS: ?format=
+
+The comparison is C<$format eq 'sqlite'> -- case-sensitive, exact match.
+
+=over 4
+
+=item Valid partitions
+
+C<csv> (explicit CSV), C<sqlite> (exact lowercase, SQLite binary),
+absent/undef (defaults to CSV).
+
+=item Invalid partitions (all fall back to CSV)
+
+C<SQLITE> (uppercase, not equal to C<'sqlite'>), C<Sqlite> (mixed
+case), C<sqlit> (truncated), C<sqlite1> (extra character), C<json>
+(unknown format).
+
+=back
+
 =head4 OUTPUT
 
   200 text/csv                  or application/vnd.sqlite3
@@ -1279,6 +1373,29 @@ C<POST /export> -- Write the current logical view to a chosen filesystem path.
   dir=       string   Target directory (must exist; resolved via realpath).
   filename=  string   Output filename including extension.  Extension determines
                       format: C<.csv> -> RFC 4180 CSV; C<.sql> -> SQLite.
+
+=head4 DOMAIN CONSTRAINTS: filename=
+
+The extension check uses C</\.csv\z/i> (CSV) or C</\.sql\z/i> (SQLite):
+the C</i> flag makes matching case-insensitive, so C<.CSV> and C<.SQL>
+are accepted alongside lowercase forms.  Everything else returns 415.
+
+Path separator characters (C</> and C<\>) in C<filename> are stripped
+first via C<m{([^/\\]+)\z}> -- only the basename is kept, preventing
+directory traversal.
+
+=over 4
+
+=item Valid partitions
+
+C<report.csv>, C<report.sql>, C<REPORT.CSV>, C<report.SQL>.  A
+single-character stem (C<a.csv>) is also valid.
+
+=item Invalid partitions (415)
+
+C<report.txt>, C<report.json>, C<report> (no extension), empty string.
+
+=back
 
 =head4 OUTPUT
 

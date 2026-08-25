@@ -114,6 +114,33 @@ Creates and returns a new C<Database::BI::Model::DataSource> instance.
 Accepts a flat key/value list, a hashref, or positional arguments via
 C<Params::Get>.
 
+=head4 DOMAIN CONSTRAINTS
+
+=over 4
+
+=item C<directory>
+
+Must satisfy C<-d $directory> (must exist and be a directory).  An empty
+string, a non-existent path, or the path to a regular file all produce
+C<error_directory_missing>.
+
+  Valid partition:   any existing directory path
+  Invalid partition: non-existent path, regular file path, empty string ""
+
+=item C<table>
+
+Must match C<TABLE_NAME_RE = \A[A-Za-z_][A-Za-z0-9_]*\z>.  The first
+character must be a letter (A-Z, a-z) or underscore; subsequent
+characters may also be digits.
+
+  Valid partition:   "sales", "_tmp", "report_2024" (letter/underscore start)
+  Invalid partition: "1sales" (digit-start), "my.data" (dot),
+                     "my-data" (hyphen), "" (empty string)
+  Boundary values:   "a" (length-1 letter, valid), "_" (length-1 underscore,
+                     valid), "1" (length-1 digit, croaks error_table_name_invalid)
+
+=back
+
 =head4 OUTPUT
 
 Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
