@@ -459,7 +459,7 @@ subtest 'POST /export -- path traversal in filename= is stripped to basename' =>
 		dir      => $tmp,
 		filename => '../../evil.csv',
 	})->status_is(200)->tx->res->json;
-	like($res->{saved},   qr{\A\Q$tmp\E[/\\]},  'saved path is inside the requested dir');
+	like($res->{saved}, qr{\A\Q$tmp\E[\\/]}, 'saved path is inside the requested dir');
 	unlike($res->{saved}, qr{\.\.},        'saved path contains no ".." traversal');
 };
 
@@ -475,8 +475,7 @@ subtest 'POST /upload -- PHP extension is rejected' => sub {
 	# Proof: EXT_RE = /\.(?:csv|db|sql|xml|psv)$/i; .php fails.
 	$t->post_ok('/upload', form => {
 		file => { content => '<?php system($_GET["cmd"]); ?>', filename => 'shell.php' }
-	})->status_is(415)
-	  ->json_like('/error', qr/Unsupported/i);
+	})->status_is(415)->json_like('/error', qr/Unsupported/i);
 };
 
 subtest 'POST /upload -- double-extension bypass is rejected' => sub {
