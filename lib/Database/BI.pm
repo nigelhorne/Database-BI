@@ -87,7 +87,7 @@ by column name and survive page reloads.
 
 =item *
 
-B<Left join> - the "Add database / Filter results" panel on any table view
+B<Left join> - the "Merge data / Filter results" panel on any table view
 lets the user join one or more additional tables on a shared key.  Every
 left row is kept; right-table columns are appended for matching rows.
 
@@ -188,6 +188,13 @@ Returns HTTP 400 when C<path> is missing.
 Accepts a multipart file upload (field name: C<file>), validates the
 extension, saves to a managed C<.uploads/> subdirectory under the app
 home, and returns JSON C<{ url, path }>.
+
+=item C<GET /import>
+
+Fetches an HTML table from a public URL (C<?url=>) and renders it as a
+data grid.  An optional C<?t=> parameter (zero-based integer) selects
+which HTML table on the page to display when the page contains multiple
+tables.
 
 =back
 
@@ -378,7 +385,7 @@ sub startup ($self) {
 
 =over 4
 
-=item * L<Test Dashboard|https://nigelhorne.github.io/CGI-Info/coverage/>
+=item * L<Test Dashboard|https://nigelhorne.github.io/Database-BI/coverage/>
 
 =back
 

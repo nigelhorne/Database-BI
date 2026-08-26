@@ -51,7 +51,7 @@ filesystem and open any supported data file, not just files in `data_dir`.
 - **Column sort and reorder** - clicking a header sorts the table; headers
 are draggable to reorder.  Both settings are persisted in `localStorage`
 by column name and survive page reloads.
-- **Left join** - the "Add database / Filter results" panel on any table view
+- **Left join** - the "Merge data / Filter results" panel on any table view
 lets the user join one or more additional tables on a shared key.  Every
 left row is kept; right-table columns are appended for matching rows.
 - **Result filters** - the same panel lets the user add filter conditions
@@ -139,6 +139,13 @@ path as CSV (`.csv`) or SQLite (`.sql`).
     Accepts a multipart file upload (field name: `file`), validates the
     extension, saves to a managed `.uploads/` subdirectory under the app
     home, and returns JSON `{ url, path }`.
+
+- `GET /import`
+
+    Fetches an HTML table from a public URL (`?url=`) and renders it as a
+    data grid.  An optional `?t=` parameter (zero-based integer) selects
+    which HTML table on the page to display when the page contains multiple
+    tables.
 
 # CONFIGURATION
 
@@ -228,7 +235,7 @@ limitation of `Sub::Private` and does not affect production
 
 # SEE ALSO
 
-- [Test Dashboard](https://nigelhorne.github.io/CGI-Info/coverage/)
+- [Test Dashboard](https://nigelhorne.github.io/Database-BI/coverage/)
 
 # REPOSITORY
 

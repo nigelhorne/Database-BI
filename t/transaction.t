@@ -191,7 +191,10 @@ subtest 'Transaction 2: View -> GET export -> POST write -> stat -> re-open (CSV
 	ok $stat->{exists},     'Phase 4: stat_api reports file exists';
 	ok $stat->{size} > 0,   'Phase 4: stat_api reports non-zero size';
 	ok defined $stat->{mtime}, 'Phase 4: stat_api reports mtime';
-	is $stat->{path}, $saved_path, 'Phase 4: stat_api echoes the requested path';
+
+	my $returned_path = $stat->{path};
+	$returned_path =~ s{/}{\\}g if $^O eq 'MSWin32';  # Normalize to backslashes on Windows
+	is $returned_path, $saved_path, 'Phase 4: stat_api echoes the requested path';
 
 	# ------------------------------------------------------------------
 	# Phase 5: re-open the written CSV; row count must match original.
