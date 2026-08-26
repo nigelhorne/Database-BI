@@ -184,8 +184,7 @@ subtest '_url_label path-F: DEAD CODE -- html_table fallback provably unreachabl
 	# In all cases $last is truthy => lc($last || 'html_table') == lc($last).
 	# To verify: the "html" path (E above) is the closest we can get to the fallback,
 	# but $last = 'html' (truthy) so 'html_table' is still unreachable.
-	pass 'path-F: dead code formally proven -- html_table fallback never selected';
-	note 'See TODO comment above lc($last || html_table) in DataSource.pm';
+	pass 'path-F: dead code formally proven -- html_table fallback removed from DataSource.pm';
 };
 
 # ======================================================================
