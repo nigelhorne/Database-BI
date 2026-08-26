@@ -27,7 +27,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 
 =head1 VERSION
 
-0.001.0
+0.002.0
 
 =head1 SYNOPSIS
 
@@ -195,6 +195,16 @@ Fetches an HTML table from a public URL (C<?url=>) and renders it as a
 data grid.  An optional C<?t=> parameter (zero-based integer) selects
 which HTML table on the page to display when the page contains multiple
 tables.
+
+=item C<GET /combine>
+
+Stacks rows from two or more tables vertically (UNION ALL) into a unified
+view.  All columns from all sources appear as headers; cells are blank
+where a source file lacks a column.  Parameters:
+
+  l=<spec>               left table: "table:name" or "path:/abs/path"
+  c=<spec>               additional table to stack (repeatable)
+  f=<col>:<op>:<val>     result filter applied after combining (repeatable)
 
 =back
 

@@ -873,6 +873,20 @@
         if (data.saved) {
           resultEl.textContent = '✓ Saved to ' + data.saved;
           resultEl.className   = 'export-result success';
+          try {
+            var savedName  = data.saved.replace(/.*[\/\\]/, '');
+            var savedEntry = {
+              name:      savedName,
+              path:      data.saved,
+              href:      '/open?path=' + encodeURIComponent(data.saved),
+              lastSaved: new Date().toISOString(),
+            };
+            var savedList = JSON.parse(localStorage.getItem('bi:saved') || '[]');
+            savedList = savedList.filter(function (s) { return s.path !== data.saved; });
+            savedList.unshift(savedEntry);
+            if (savedList.length > 5) savedList.length = 5;
+            localStorage.setItem('bi:saved', JSON.stringify(savedList));
+          } catch (eS) {}
         } else {
           resultEl.textContent = data.error || 'Unknown error';
           resultEl.className   = 'export-result error';
