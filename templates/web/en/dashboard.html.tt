@@ -960,19 +960,30 @@
 <script>
 (function () {
   try {
-    var el    = document.getElementById('bi-open-meta');
-    var href  = '/open?path=' + encodeURIComponent(el.dataset.path);
-    var entry = {
-      name:       el.dataset.name,
-      href:       href,
-      path:       el.dataset.path,
-      lastOpened: new Date().toISOString(),
-    };
-    var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
-    recent = recent.filter(function (r) { return r.href !== href; });
-    recent.unshift(entry);
-    if (recent.length > 5) recent.length = 5;
-    localStorage.setItem('bi:recent', JSON.stringify(recent));
+    var u      = new URL(location.href);
+    var fromSaved = u.searchParams.get('from') === 'saved';
+    // Remove the from= marker from the address bar so the URL stays clean.
+    if (fromSaved) {
+      u.searchParams.delete('from');
+      history.replaceState(null, '', u.toString());
+    }
+    // Files opened from the "recently saved" list are not also tracked as
+    // "recently opened" -- they already have their own section on the home page.
+    if (!fromSaved) {
+      var el    = document.getElementById('bi-open-meta');
+      var href  = '/open?path=' + encodeURIComponent(el.dataset.path);
+      var entry = {
+        name:       el.dataset.name,
+        href:       href,
+        path:       el.dataset.path,
+        lastOpened: new Date().toISOString(),
+      };
+      var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
+      recent = recent.filter(function (r) { return r.href !== href; });
+      recent.unshift(entry);
+      if (recent.length > 5) recent.length = 5;
+      localStorage.setItem('bi:recent', JSON.stringify(recent));
+    }
   } catch (e) {}
 }());
 </script>
@@ -984,19 +995,27 @@
 <script>
 (function () {
   try {
-    var el    = document.getElementById('bi-open-meta');
-    var href  = '/import?url=' + encodeURIComponent(el.dataset.url);
-    var entry = {
-      name:       el.dataset.name,
-      href:       href,
-      url:        el.dataset.url,
-      lastOpened: new Date().toISOString(),
-    };
-    var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
-    recent = recent.filter(function (r) { return r.href !== href; });
-    recent.unshift(entry);
-    if (recent.length > 5) recent.length = 5;
-    localStorage.setItem('bi:recent', JSON.stringify(recent));
+    var u      = new URL(location.href);
+    var fromSaved = u.searchParams.get('from') === 'saved';
+    if (fromSaved) {
+      u.searchParams.delete('from');
+      history.replaceState(null, '', u.toString());
+    }
+    if (!fromSaved) {
+      var el    = document.getElementById('bi-open-meta');
+      var href  = '/import?url=' + encodeURIComponent(el.dataset.url);
+      var entry = {
+        name:       el.dataset.name,
+        href:       href,
+        url:        el.dataset.url,
+        lastOpened: new Date().toISOString(),
+      };
+      var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
+      recent = recent.filter(function (r) { return r.href !== href; });
+      recent.unshift(entry);
+      if (recent.length > 5) recent.length = 5;
+      localStorage.setItem('bi:recent', JSON.stringify(recent));
+    }
   } catch (e) {}
 }());
 </script>

@@ -22,6 +22,11 @@ Revision history for Database-BI
       skipped and the action always reports 0 files freed.
 
     [ Bug Fixes ]
+    - Files opened via the "recently saved" section are no longer also added
+      to the "recently opened" list.  The saved-section card href now carries
+      a transient ?from=saved marker; the dashboard JS reads and removes it
+      via history.replaceState (keeping the address bar clean) and skips the
+      bi:recent write when the marker is present.
     - Recently saved files on the home page now open with a single click;
       double-click was required before, making the feature effectively
       inaccessible on touch devices and to users who did not discover the
