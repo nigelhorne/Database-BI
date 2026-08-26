@@ -1,6 +1,6 @@
 package Database::BI::Controller::Dashboard;
 
-our $VERSION = '0.003.2';
+our $VERSION = '0.003.1';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -2246,6 +2246,10 @@ Nigel Horne C<< <njh@nigelhorne.com> >>
 
 =head1 LICENCE AND COPYRIGHT
 
-Copyright 2026 Nigel Horne.  Usage is subject to the GPL2 licence terms.
+Copyright 2026 Nigel Horne.
+
+Usage is subject to the GPL2 licence terms.
+If you use it,
+please let me know.
 
 =cut
