@@ -348,7 +348,7 @@ sub startup ($self) {
 	# the controller and all templates are untouched.
 	my $data_dir = $self->home->child($self->config->{data_dir})->to_string;
 
-	$self->helper(open_table => sub ($c, $table, %opts) {
+	$self->helper(open_table => sub($c, $table, %opts) {
 		# URL mode: fetch a remote HTML table directly via Database::Abstraction's
 		# URL backend (LWP::UserAgent + HTML::TableExtract).
 		if (exists $opts{url}) {
@@ -366,7 +366,7 @@ sub startup ($self) {
 		);
 	});
 
-	my $r = $self->routes;
+	my $r = $self->routes();
 	$r->get('/')->to('Dashboard#index');
 	$r->get('/view/:table')->to('Dashboard#view');
 	$r->get('/browse')->to('Dashboard#browse');
