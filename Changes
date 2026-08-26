@@ -8,6 +8,10 @@ Revision history for Database-BI
       current state: "Hide duplicates" when duplicates are visible, "Show
       duplicates" when they are suppressed.  State is carried in the ?d=1
       query parameter so the URL remains shareable and bookmarkable.
+    - Added "Clear upload cache" button (POST /uploads/clear).
+      Mojo::File->list() requires {dir => 1} to
+      include subdirectories; without it the upload subdirs are silently
+      skipped and the action always reports 0 files freed.
 
     [ Bug Fixes ]
     - Recently saved files on the home page now open with a single click;
