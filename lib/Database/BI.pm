@@ -8,7 +8,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.001.0';
+our $VERSION = '0.002.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -293,13 +293,15 @@ performed.  Users may delete C<.uploads/> at any time to reclaim space.
 
 =item *
 
-C<Sub::Private>/:Private enforcement relies on the CHECK compilation
+C<Sub::Protected>/:Protected enforcement relies on the CHECK compilation
 phase.  When a module is loaded dynamically at test time (e.g. via
 C<Test::Mojo->new(...)>), the CHECK phase has already passed and the
-"Too late to run CHECK block" warning is emitted -- the private
-restriction is not enforced in that context.  This is a known
-limitation of C<Sub::Private> and does not affect production
-(morbo/hypnotoad) deployments where the module is compiled on startup.
+"Too late to run CHECK block" warning is emitted -- the access
+restriction is not enforced in that test context.  This does not affect
+production (morbo/hypnotoad) deployments where modules are compiled on
+startup.  Unlike the former C<Sub::Private> approach, C<Sub::Protected>
+does not delete stash entries, so OO dispatch C<< $self->_method() >>
+works correctly in production without any special workarounds.
 
 =back
 
@@ -374,6 +376,7 @@ sub startup ($self) {
 	$r->get('/join')->to('Dashboard#join_tables');
 	$r->get('/api/columns')->to('Dashboard#columns_api');
 	$r->get('/import')->to('Dashboard#import_url');
+	$r->get('/combine')->to('Dashboard#combine_tables');
 	$r->get('/export')->to('Dashboard#export_data');
 	$r->post('/export')->to('Dashboard#export_write');
 	$r->get('/api/dirs')->to('Dashboard#dirs_api');

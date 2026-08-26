@@ -8,11 +8,11 @@ use Carp		qw(croak carp);
 use File::Spec		();
 use Readonly;
 use Scalar::Util	qw(blessed);
-use Sub::Private;
+use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.001.0';
+our $VERSION = '0.002.0';
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary.
@@ -40,7 +40,7 @@ Readonly our %MESSAGES => (
 Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 
 # ---------------------------------------------------------------------------
-# Private helpers
+# Protected helpers
 # ---------------------------------------------------------------------------
 
 # _url_label( $url ) -> $string
@@ -79,7 +79,7 @@ sub _url_label {
 # applies sprintf if positional arguments are supplied. This function is used
 # in new() before the object exists; instance methods should use _msg() instead
 # so that a caller-supplied i18n object can override the built-in strings.
-sub _fmt :Private {
+sub _fmt :Protected {
 	my ($key, @args) = @_;
 	my $tmpl = $MESSAGES{$key} // "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
@@ -90,7 +90,7 @@ sub _fmt :Private {
 # Instance-level i18n formatter. Delegates to the caller-supplied i18n object
 # (if any) before falling back to _fmt(). The i18n object must implement
 # maketext($key, @args).
-sub _msg :Private {
+sub _msg :Protected {
 	my ($self, $key, @args) = @_;
 	if (my $i18n = $self->{_i18n}) {
 		return $i18n->maketext($key, @args);
@@ -216,7 +216,7 @@ sub new {
 #          $raw->{i18n} (optional): Locale::Maketext-compatible object.
 # Exit:    Returns $self.  Croaks on invalid URL scheme or backend init failure.
 # Side Effects: Issues an HTTP GET to the URL via LWP::UserAgent.
-sub _new_from_url :Private {
+sub _new_from_url :Protected {
 	my ($class, $raw) = @_;
 
 	my $url = $raw->{url} // croak _fmt('error_url_invalid', '');
@@ -247,7 +247,7 @@ sub _new_from_url :Private {
 # Entry:   $self->{_url} is a valid http(s) URL; $table_index is a non-negative int.
 # Exit:    Sets $self->{_db}.  Croaks on LWP or HTML::TableExtract failure.
 # Side Effects: Network I/O; may take up to LWP's default timeout.
-sub _init_url_backend :Private {
+sub _init_url_backend :Protected {
 	my ($self, $table_index) = @_;
 	my $url = $self->{_url};
 
@@ -277,7 +277,7 @@ sub _init_url_backend :Private {
 }
 
 # ---------------------------------------------------------------------------
-# Private initialisation
+# Protected initialisation
 # ---------------------------------------------------------------------------
 
 # _detect_file_info( $dir, $table ) -> \%info
@@ -293,7 +293,7 @@ sub _init_url_backend :Private {
 #   2. id defaults to 'entry' — the slurp filter greps on that column; if it
 #      doesn't exist every row is silently discarded.
 # Returns an empty hashref for non-CSV/PSV formats (SQLite, XML, etc.).
-sub _detect_file_info :Private {
+sub _detect_file_info :Protected {
 	my ($dir, $table) = @_;
 	for my $ext (qw(csv psv)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
@@ -347,7 +347,7 @@ sub _detect_file_info :Private {
 # no_entry => 1: a BI viewer wants every row; we do not need O(1) keyed
 # lookups on a primary key.  This stores data as an arrayref instead of a
 # hashref, which the fast-track path in selectall_arrayref returns directly.
-sub _init_backend :Private {
+sub _init_backend :Protected {
 	my $self  = shift;
 	my $table = $self->{_table};
 	my $dir   = $self->{_directory};

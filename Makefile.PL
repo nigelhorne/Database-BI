@@ -30,7 +30,7 @@ WriteMakefile(
 		'Params::Get'			=> 0,
 		'Params::Validate::Strict'	=> '0.39',
 		'Readonly'			=> 0,
-		'Sub::Private'			=> 0,
+		'Sub::Protected'	=> 0,
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
 		'IPC::System::Simple' => 0,

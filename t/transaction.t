@@ -754,4 +754,72 @@ subtest 'Transaction 10: Concurrent DataSource isolation' => sub {
 		'beta: records contain no AAA values from alpha';
 };
 
+# ======================================================================
+# TRANSACTION 11: Combine data lifecycle (cats + dogs)
+#
+# Verifies the /combine endpoint stacks rows from two heterogeneous files
+# into a single unified view with the union of all columns.
+#
+# cats.csv columns: Species,Name,Color,Breed,Eye Color,Environment
+# dogs.csv columns: Species,Name,Color,Breed,Eye Color,Sex,Fixed
+# combined columns: Species,Name,Color,Breed,Eye Color,Environment,Sex,Fixed
+#
+# State invariant:
+#   combined_rows  = cat_rows  + dog_rows
+#   combined_cols  = union(cat_cols, dog_cols) = 8
+#   cat rows have blank Sex,Fixed; dog rows have blank Environment
+# ======================================================================
+
+Readonly my $CATS_CSV	=> $t->app->home->child('data/cats.csv')->to_string;
+Readonly my $DOGS_CSV	=> $t->app->home->child('data/dogs.csv')->to_string;
+Readonly my $CAT_ROWS	=> 12;	# 12 data rows in cats.csv
+Readonly my $DOG_ROWS	=> 12;	# 12 data rows in dogs.csv
+Readonly my $CAT_COLS	=> 6;	# Species,Name,Color,Breed,Eye Color,Environment
+Readonly my $DOG_COLS	=> 7;	# Species,Name,Color,Breed,Eye Color,Sex,Fixed
+Readonly my $COMBINED_ROWS => $CAT_ROWS + $DOG_ROWS;
+Readonly my $COMBINED_COLS => 8;	# union of cat and dog columns
+
+subtest 'Transaction 11: combine cats + dogs lifecycle' => sub {
+	SKIP: {
+		skip 'data/cats.csv not found', 1 unless -f $CATS_CSV;
+		skip 'data/dogs.csv not found', 1 unless -f $DOGS_CSV;
+
+		# Phase 1: GET /combine with cats as left, dogs as right-combine source.
+		my $cat_spec = 'table:cats';
+		my $dog_spec = 'table:dogs';
+		$t->get_ok('/combine?l=' . url_escape($cat_spec) . '&c=' . url_escape($dog_spec))
+			->status_is(200)
+			->content_like(qr/Species/,	'combined view contains Species column')
+			->content_like(qr/Environment/,	'combined view contains Environment (cats-only column)')
+			->content_like(qr/Sex/,		'combined view contains Sex (dogs-only column)')
+			->content_like(qr/Fixed/,	'combined view contains Fixed (dogs-only column)');
+
+		# Phase 2: Export the combined view as CSV and verify row and column counts.
+		my $export_url = '/export?l=' . url_escape($cat_spec)
+			. '&c=' . url_escape($dog_spec)
+			. '&format=csv';
+		$t->get_ok($export_url)->status_is(200);
+		my $body = $t->tx->res->body;
+		is count_csv_rows($body), $COMBINED_ROWS,
+			'combined CSV has cat_rows + dog_rows rows';
+		is count_csv_cols($body), $COMBINED_COLS,
+			'combined CSV has 8 columns (union of cat and dog schemas)';
+
+		# Phase 3: Filter the combined view -- only cats (Species eq Cat).
+		$t->get_ok('/combine?l=' . url_escape($cat_spec)
+				. '&c=' . url_escape($dog_spec)
+				. '&f=Species:eq:Cat')
+			->status_is(200)
+			->content_like(qr/Cat/, 'filtered combined view contains Cat rows');
+		my $filtered_body = $t->tx->res->body;
+		# The filtered page should not show any Dog rows.
+		unlike $filtered_body, qr/Rover/, 'no dog row (Rover) in cat-filtered view';
+
+		# Phase 4: Idempotency -- combining in the same order produces the same result.
+		$t->get_ok('/combine?l=' . url_escape($cat_spec) . '&c=' . url_escape($dog_spec))
+			->status_is(200)
+			->content_like(qr/Environment/, 'second combine still has Environment column');
+	}
+};
+
 done_testing;

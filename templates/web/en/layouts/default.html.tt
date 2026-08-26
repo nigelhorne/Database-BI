@@ -131,7 +131,7 @@
     }
     .join-chip-key { color: #888; font-size: 0.7rem; }
 
-    /* "Add database" button */
+    /* "Merge data" button */
     .btn-add-db {
       flex-shrink: 0;
       padding: 0.3rem 0.9rem;
@@ -145,6 +145,44 @@
     }
     .btn-add-db:hover:not(:disabled) { background: #eef1fb; }
     .btn-add-db:disabled { opacity: 0.4; cursor: default; }
+
+    /* "Combine data" button — same shape as Merge, teal accent */
+    .btn-combine {
+      flex-shrink: 0;
+      padding: 0.3rem 0.9rem;
+      border: 1px solid #2a6a5a;
+      border-radius: 6px;
+      background: transparent;
+      color: #1a4a3a;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-combine:hover:not(:disabled) { background: #e6f4f0; }
+    .btn-combine:disabled { opacity: 0.4; cursor: default; }
+
+    /* Combine-data panel — teal-tinted background to distinguish from merge */
+    .combine-panel {
+      background: #f0f8f5;
+      border: 1px solid #a8d0c0;
+      border-radius: 8px;
+      padding: 1.25rem;
+      margin-bottom: 1rem;
+    }
+
+    .combine-panel-title {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #1a4a3a;
+      margin-bottom: 0.6rem;
+    }
+
+    .combine-desc-static {
+      font-size: 0.85rem;
+      color: #2a4a3a;
+      margin-bottom: 1rem;
+      line-height: 1.45;
+    }
 
     /* Join configuration panel */
     .join-panel {

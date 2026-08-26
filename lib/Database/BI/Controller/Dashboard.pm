@@ -1,6 +1,6 @@
 package Database::BI::Controller::Dashboard;
 
-our $VERSION = '0.001.0';
+our $VERSION = '0.002.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -11,7 +11,7 @@ use Mojo::Util		qw(url_escape encode);
 use File::Temp		qw(tempfile tempdir);
 use Readonly;
 use Socket		qw(inet_aton);
-use Sub::Private;
+use Sub::Protected;
 
 # ---------------------------------------------------------------------------
 # Constants
@@ -68,7 +68,7 @@ Readonly my $MAX_UPLOAD_MIB   => 50;
 Readonly my $MAX_UPLOAD_BYTES => $MAX_UPLOAD_MIB * 1_048_576;
 
 # ---------------------------------------------------------------------------
-# Private helpers
+# Protected helpers
 # ---------------------------------------------------------------------------
 
 # _i18n($self, $key, @sprintf_args) -> $string
@@ -78,7 +78,7 @@ Readonly my $MAX_UPLOAD_BYTES => $MAX_UPLOAD_MIB * 1_048_576;
 #          backend integration (e.g. Locale::Maketext).
 # Entry:   $key must be a key in %MESSAGES; @args are sprintf positionals.
 # Exit:    Returns the formatted string, or a fallback containing $key.
-sub _i18n :Private ($self, $key, @args) {
+sub _i18n :Protected ($self, $key, @args) {
 	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
 }
@@ -141,7 +141,7 @@ sub _is_safe_url {
 #          header to a language code -- falling back to the config default when
 #          no template directory exists for the resolved language.
 # Exit:    Returns ($platform, $language) -- both guaranteed non-empty strings.
-sub _resolve_template :Private ($self) {
+sub _resolve_template :Protected ($self) {
 	my $conf     = $self->app->config;
 	my $platform = $conf->{platform} // 'web';
 	my $default  = $conf->{language} // 'en';
@@ -158,7 +158,7 @@ sub _resolve_template :Private ($self) {
 # Entry:   $default is a non-empty string (e.g. 'en').
 # Exit:    Returns a two-letter ISO 639-1 language code string.
 # Side Effects: Filesystem stat for the template directory.
-sub _resolve_language :Private ($self, $default) {
+sub _resolve_language :Protected ($self, $default) {
 	my $accept = $self->req->headers->accept_language // '';
 	my ($lang) = $accept =~ /
 		\b
@@ -192,7 +192,7 @@ sub _resolve_language :Private ($self, $default) {
 # basename() only once per entry (the original chain called it twice: once in
 # grep to check the extension and again in map to extract the stem).
 # ->to_array avoids the extra flat-list expansion that ->each produced.
-sub _scan_data_dir :Private ($self) {
+sub _scan_data_dir :Protected ($self) {
 	my $dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
 	return [] unless -d $dir;
 	return $dir->list->map(sub {
@@ -213,7 +213,7 @@ sub _scan_data_dir :Private ($self) {
 # Exit:    Returns ($datasource, $label) on success; an empty list on any failure
 #          (invalid spec format, file missing, DataSource init error).
 # Side Effects: Filesystem stat; DataSource construction (reads file header).
-sub _open_spec :Private ($self, $spec) {
+sub _open_spec :Protected ($self, $spec) {
 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
 		my $table    = lc $1;
 		my $data_dir = $self->app->home->child($self->app->config->{data_dir} // 'data');
@@ -245,7 +245,7 @@ sub _open_spec :Private ($self, $spec) {
 #          back-link on join and export views).
 # Entry:   $spec is a "table:name" or "path:/abs" string.
 # Exit:    Returns a URL string beginning with '/'.
-sub _spec_to_url :Private ($self, $spec) {
+sub _spec_to_url :Protected ($self, $spec) {
 	return "/view/$1"                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
 	return '/open?path=' . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
 	return '/import?url=' . url_escape($1)    if $spec =~ $URL_SPEC_RE;
@@ -346,7 +346,7 @@ sub _apply_filter_spec {
 # returns $records unchanged for a malformed spec (same guard condition), so
 # skipping the call for malformed specs is equivalent.  Merging into one loop
 # eliminates a full O(n) pass and the redundant split() on every spec.
-sub _apply_filters :Private ($self, $records) {
+sub _apply_filters :Protected ($self, $records) {
 	my @specs  = @{ $self->every_param('f') // [] };
 	my @parsed;
 	for my $s (@specs) {
@@ -412,6 +412,47 @@ sub _left_join {
 	return (\@merged, [@$left_cols, @add_cols]);
 }
 
+# _combine_tables(\@sources) -> (\@merged_records, \@merged_columns)
+#
+# Purpose: Perform a vertical stack (UNION ALL equivalent) of two or more
+#          record sets.  The merged column list is the union of all source
+#          column lists: the first source's columns appear first (in their
+#          original order), then each subsequent source contributes any new
+#          column names it introduces, in order.  Where a source does not
+#          have a particular column, its rows receive an empty string for
+#          that column.
+# Entry:   $sources is an arrayref of [$records_aref, $columns_aref] pairs.
+#          At least one element is required; a single-element call returns
+#          that element's data unchanged (no allocation beyond the column copy).
+# Exit:    Returns (\@merged_records, \@merged_columns).
+# Side Effects: None; allocates new record hashrefs (original rows are not mutated).
+sub _combine_tables {
+	my ($sources) = @_;
+
+	# Build the unified column order: first source's columns first, then any
+	# new columns introduced by each subsequent source in their file order.
+	my (@all_cols, %seen);
+	for my $src (@$sources) {
+		for my $col (@{ $src->[1] }) {
+			push @all_cols, $col unless $seen{$col}++;
+		}
+	}
+
+	my @merged;
+	for my $src (@$sources) {
+		my ($recs, $cols) = @$src;
+		my %has_col = map { $_ => 1 } @$cols;
+		for my $row (@$recs) {
+			my %new_row;
+			$new_row{$_} = $has_col{$_} ? ($row->{$_} // '') : ''
+				for @all_cols;
+			push @merged, \%new_row;
+		}
+	}
+
+	return (\@merged, \@all_cols);
+}
+
 # _csv_row(@fields) -> $csv_line_with_crlf
 #
 # Purpose: Format one row as an RFC 4180 CSV line.  Fields containing commas,
@@ -432,9 +473,10 @@ sub _csv_row {
 #          logical view.  The caller must apply | html in TT to escape & as &amp;.
 # Entry:   All args non-undef; spec arrays may be empty.
 # Exit:    Returns a relative URL string beginning with '/export'.
-sub _build_export_url :Private ($self, $left_spec, $join_specs, $filter_specs) {
+sub _build_export_url :Protected ($self, $left_spec, $join_specs, $filter_specs, $combine_specs = undef) {
 	my $u = '/export?l=' . url_escape($left_spec);
 	$u .= '&j=' . url_escape($_) for @$join_specs;
+	$u .= '&c=' . url_escape($_) for @{ $combine_specs // [] };
 	$u .= '&f=' . url_escape($_) for @$filter_specs;
 	return $u;
 }
@@ -450,7 +492,7 @@ sub _build_export_url :Private ($self, $left_spec, $join_specs, $filter_specs) {
 # Exit:    Returns a hashref with 'dirs' and 'files' arrayrefs (files is always
 #          present but empty when $want_files is false).
 # Side Effects: Filesystem directory read.
-sub _list_dir :Private ($self, $dir, $want_files) {
+sub _list_dir :Protected ($self, $dir, $want_files) {
 	my (@dirs, @files);
 	if (opendir my $dh, $dir->to_string) {
 		while (my $entry = readdir $dh) {
@@ -481,7 +523,7 @@ sub _list_dir :Private ($self, $dir, $want_files) {
 # Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names.
 # Exit:    Returns scalar binary string.  Croaks on any DBI error.
 # Side Effects: Creates and unlinks one temporary file under system tmpdir.
-sub _write_sqlite_db :Private ($self, $records, $columns) {
+sub _write_sqlite_db :Protected ($self, $records, $columns) {
 	# D~ fix: an empty column list produces "CREATE TABLE data ()" which is
 	# invalid SQLite syntax.  Croak before touching the filesystem.
 	croak 'Cannot export SQLite: result set has no columns'
@@ -536,7 +578,7 @@ sub _write_sqlite_db :Private ($self, $records, $columns) {
 # Exit:    On success: ($filtered_arrayref, \@column_names, $left_label_string).
 #          On failure: empty list (left table not found / fetch error).
 # Side Effects: Opens data files; may emit carp warnings for empty result sets.
-sub _run_export_pipeline :Private ($self) {
+sub _run_export_pipeline :Protected ($self) {
 	my $left_spec = $self->param('l') // '';
 	my ($left_src, $left_label) = $self->_open_spec($left_spec);
 	return () unless $left_src;
@@ -565,6 +607,25 @@ sub _run_export_pipeline :Private ($self) {
 			$right_recs, \@right_cols, $right_key, $right_label,
 		);
 		@columns = @$new_cols;
+	}
+
+	# Combine (vertical stack) with any c= sources.  Runs after joins so a join
+	# result can itself be stacked with another table in a single pipeline.
+	my @cspecs = @{ $self->every_param('c') // [] };
+	if (@cspecs) {
+		my @sources = ([$records, \@columns]);
+		for my $cspec (@cspecs) {
+			my ($csrc) = $self->_open_spec($cspec);
+			next unless $csrc;
+			my $crecs = eval { $csrc->fetch_all } // [];
+			next if $@;
+			my @ccols = _get_columns($csrc, $crecs);
+			push @sources, [$crecs, \@ccols];
+		}
+		if (@sources > 1) {
+			($records, my $new_cols) = _combine_tables(\@sources);
+			@columns = @$new_cols;
+		}
 	}
 
 	for my $s (@{ $self->every_param('f') }) {
@@ -605,7 +666,7 @@ sub _serialize_csv {
 # Entry:   $name is a safe filename stem (alphanumeric/underscore).
 # Exit:    Renders the Mojolicious response; does not return a meaningful value.
 # Side Effects: Writes HTTP response headers and body.
-sub _render_csv :Private ($self, $records, $columns, $name) {
+sub _render_csv :Protected ($self, $records, $columns, $name) {
 	$self->res->headers->content_type('text/csv; charset=UTF-8');
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.csv"});
 	$self->render(data => _serialize_csv($records, $columns));
@@ -617,7 +678,7 @@ sub _render_csv :Private ($self, $records, $columns, $name) {
 # Entry:   $name is a safe filename stem.
 # Exit:    Renders the Mojolicious response.
 # Side Effects: Creates and unlinks a temporary file; writes HTTP response.
-sub _render_sqlite :Private ($self, $records, $columns, $name) {
+sub _render_sqlite :Protected ($self, $records, $columns, $name) {
 	my $data = $self->_write_sqlite_db($records, $columns);
 	$self->res->headers->content_type('application/vnd.sqlite3');
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
@@ -775,6 +836,7 @@ sub view ($self) {
 		table            => $table,
 		title            => ucfirst($table),
 		left_spec        => "table:$table",
+		combine_specs    => [],
 		current_joins    => [],
 		available_tables => $self->_scan_data_dir,
 		join_summaries   => [],
@@ -994,6 +1056,7 @@ sub open_file ($self) {
 		back_label       => 'Back to browser',
 		file_path        => $file->to_string,
 		left_spec        => $lspec,
+		combine_specs    => [],
 		current_joins    => [],
 		available_tables => $self->_scan_data_dir,
 		join_summaries   => [],
@@ -1087,6 +1150,7 @@ sub import_url ($self) {
 		back_url         => '/',
 		back_label       => 'Choose another database',
 		left_spec        => $lspec,
+		combine_specs    => [],
 		current_joins    => [],
 		available_tables => $self->_scan_data_dir,
 		join_summaries   => [],
@@ -1283,12 +1347,133 @@ sub join_tables ($self) {
 		back_url         => $self->_spec_to_url($left_spec),
 		back_label       => "Back to $left_label",
 		left_spec        => $left_spec,
+		combine_specs    => [],
 		current_joins    => \@join_specs,
 		available_tables => $self->_scan_data_dir,
 		join_summaries   => \@summaries,
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
 		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs),
+	);
+}
+
+=head2 combine_tables
+
+C<GET /combine> -- Stack rows from two or more tables vertically into a single
+unified view.
+
+Unlike C</join> (which appends columns from a matching row in a second table),
+C</combine> appends the I<rows> from a second table beneath the rows of the
+first.  All columns from all sources appear as headers; where a row has no
+value for a particular column (because that column did not exist in its source
+file) the cell is left blank.
+
+This is equivalent to a SQL C<UNION ALL> across heterogeneous schemas.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?l=    string   (required) Left table spec: "table:name" or "path:/abs/path".
+                  Returns 404 if unresolvable.
+  ?c=    string   (repeatable) Additional table spec to stack beneath the
+                  current result.  Invalid or non-existent specs are silently
+                  skipped.
+  ?f=    string   (repeatable) Result filter: "col:op:val".
+
+=head4 OUTPUT
+
+Renders C<dashboard.html.tt> with the combined result set.
+
+=head3 MESSAGES
+
+  error_table_open   -- Left table fetch threw (re-renders home with error).
+
+=head3 FORMAL SPECIFICATION
+
+  combine_tables == lambda self .
+    let left = open_spec(param('l')) in
+    pre  left /= undef
+    let sources  = [left] ++ map(open_spec, param_list('c')) in
+    let combined = _combine_tables(sources) in
+    let filtered = fold(_apply_filter_spec, combined, param_list('f')) in
+    post render(dashboard, records: filtered)
+
+=head3 EXAMPLE
+
+  GET /combine?l=table:cats&c=table:dogs
+    -> unified view: all cat and dog rows; Species/Name/Color/Breed/Eye Color
+       appear for both; Environment (cats-only) and Sex/Fixed (dogs-only)
+       are blank where the source file lacks that column.
+
+=cut
+
+sub combine_tables ($self) {
+	my ($platform, $language) = $self->_resolve_template;
+
+	my $left_spec = $self->param('l') // '';
+	my ($left_src, $left_label) = $self->_open_spec($left_spec);
+	return $self->reply->not_found unless $left_src;
+
+	my $left_recs = eval { $left_src->fetch_all };
+	if ($@) {
+		return $self->render(
+			template => "$platform/$language/home",
+			handler  => 'tt',
+			format   => 'html',
+			tables   => [],
+			title    => 'Error',
+			error    => $self->_i18n('error_table_open', $left_label, $@),
+		);
+	}
+	$left_recs //= [];
+
+	my @left_cols     = _get_columns($left_src, $left_recs);
+	my @combine_specs = @{ $self->every_param('c') };
+
+	my @sources   = ([$left_recs, \@left_cols]);
+	my @summaries;
+
+	for my $cspec (@combine_specs) {
+		my ($csrc, $clabel) = $self->_open_spec($cspec);
+		next unless $csrc;
+		my $crecs = eval { $csrc->fetch_all } // [];
+		next if $@;
+		my @ccols = _get_columns($csrc, $crecs);
+		push @sources,   [$crecs, \@ccols];
+		push @summaries, { label => $clabel };
+	}
+
+	my ($records, $cols_ref) = @sources > 1
+		? _combine_tables(\@sources)
+		: ($left_recs, \@left_cols);
+	my @columns = @$cols_ref;
+
+	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+
+	my $title     = $left_label;
+	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
+	my $table_key = 'combine:' . lc($left_label);
+	$table_key   .= ':' . lc($_->{label}) for @summaries;
+
+	$self->render(
+		template         => "$platform/$language/dashboard",
+		handler          => 'tt',
+		format           => 'html',
+		records          => $filtered,
+		columns          => \@columns,
+		table            => $table_key,
+		title            => $title,
+		back_url         => $self->_spec_to_url($left_spec),
+		back_label       => "Back to $left_label",
+		left_spec        => $left_spec,
+		combine_specs    => \@combine_specs,
+		current_joins    => [],
+		available_tables => $self->_scan_data_dir,
+		join_summaries   => \@summaries,
+		filter_specs     => $filter_specs,
+		filters_json     => $filters_json,
+		export_url       => $self->_build_export_url($left_spec, [], $filter_specs, \@combine_specs),
 	);
 }
 
@@ -1914,7 +2099,7 @@ from the HTTP C<Accept-Language> header only.
 
 =item *
 
-C<Sub::Private> enforcement requires the CHECK compilation phase; when modules
+C<Sub::Protected> enforcement requires the CHECK compilation phase; when modules
 are loaded dynamically at test time the "Too late to run CHECK block" warning
 is emitted and the restriction is not enforced in that context.
 

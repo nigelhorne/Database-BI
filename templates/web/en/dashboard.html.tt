@@ -12,7 +12,7 @@
     [%- IF join_summaries.size -%]
     &ensp;
     [%- FOREACH s IN join_summaries -%]
-    <span class="join-chip">&#x2b; [% s.label | html %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span></span>
+    <span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>
     [%- END -%]
     [%- END -%]
   </p>
@@ -28,6 +28,7 @@
   <button class="btn-export-open" id="btn-export-open" type="button">&#x2193; Export&hellip;</button>
   [%- END -%]
   <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge data&hellip;</button>
+  <button class="btn-combine" id="btn-combine" type="button" title="Stack rows from another data file beneath these rows, using a unified set of columns and leaving blanks where a column does not exist in a given file">&#x229E; Combine data&hellip;</button>
 </div>
 
 [%- IF left_spec -%]
@@ -129,6 +130,50 @@
     <div class="join-actions">
       <button type="button" id="btn-cancel-join" class="btn-secondary">Cancel</button>
       <button type="submit" id="btn-do-join" class="btn-primary" disabled>Apply</button>
+    </div>
+  </form>
+</div>
+
+<div class="combine-panel" id="combine-panel" hidden>
+  <form id="combine-form" method="get" action="/combine">
+    <input type="hidden" name="l" value="[% left_spec | html %]">
+    [%- FOREACH cspec IN combine_specs -%]
+    <input type="hidden" name="c" value="[% cspec | html %]">
+    [%- END -%]
+    [%- FOREACH jspec IN current_joins -%]
+    <input type="hidden" name="j" value="[% jspec | html %]">
+    [%- END -%]
+    [%- FOREACH fs IN filter_specs -%]
+    <input type="hidden" name="f" value="[% fs | html %]">
+    [%- END -%]
+
+    <h3 class="combine-panel-title">Combine data</h3>
+
+    <p class="combine-desc-static">Stack rows from another file beneath the current data. All columns from both files will appear as headers; where a row has no value for a column it will be left blank.</p>
+
+    <div class="join-fields">
+      <div class="join-field">
+        <label for="combine-table-sel">Table from the data directory</label>
+        <select id="combine-table-sel">
+          <option value="">&#x2014; select a table &#x2014;</option>
+          [%- FOREACH t IN available_tables -%]
+          <option value="table:[% t.name | html %]">[% t.name | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+
+      <div class="join-or">or</div>
+
+      <div class="join-field">
+        <label for="combine-path-inp">File path <span style="font-weight:400;color:#999;font-size:.78rem;">(browse or drag &amp; drop)</span></label>
+        <input type="text" id="combine-path-inp" placeholder="/path/to/file.csv"
+               autocomplete="off" spellcheck="false">
+      </div>
+    </div>
+
+    <div class="join-actions">
+      <button type="button" id="btn-cancel-combine" class="btn-secondary">Cancel</button>
+      <button type="submit" id="btn-do-combine" class="btn-primary" disabled>Combine</button>
     </div>
   </form>
 </div>
@@ -549,6 +594,13 @@
   // --- Open/close ---
 
   btnAdd.addEventListener('click', function () {
+    // Close combine panel if open.
+    var combinePanel = document.getElementById('combine-panel');
+    var btnCombine   = document.getElementById('btn-combine');
+    if (combinePanel && !combinePanel.hidden) {
+      combinePanel.hidden      = true;
+      if (btnCombine) btnCombine.disabled = false;
+    }
     panel.hidden    = false;
     btnAdd.disabled = true;
     // Pre-populate filter rows from server-rendered filter state.
@@ -591,6 +643,78 @@
       location.href = url;
     });
   }
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Combine panel — stack rows from another file beneath the current view
+// ---------------------------------------------------------------------------
+(function () {
+  var btnCombine  = document.getElementById('btn-combine');
+  var panel       = document.getElementById('combine-panel');
+  if (!btnCombine || !panel) return;
+
+  var btnCancel   = document.getElementById('btn-cancel-combine');
+  var btnDo       = document.getElementById('btn-do-combine');
+  var tblSel      = document.getElementById('combine-table-sel');
+  var pathInp     = document.getElementById('combine-path-inp');
+  var combineForm = document.getElementById('combine-form');
+  var joinPanel   = document.getElementById('join-panel');
+  var btnMerge    = document.getElementById('btn-add-db');
+
+  var combineSpec = '';
+  var pathTimer;
+
+  function checkApply() {
+    btnDo.disabled = !combineSpec;
+  }
+
+  tblSel.addEventListener('change', function () {
+    combineSpec   = this.value ? this.value : '';
+    pathInp.value = '';
+    checkApply();
+  });
+
+  pathInp.addEventListener('input', function () {
+    var val = this.value.trim();
+    tblSel.value = '';
+    clearTimeout(pathTimer);
+    if (!val) { combineSpec = ''; checkApply(); return; }
+    pathTimer = setTimeout(function () {
+      combineSpec = 'path:' + val;
+      checkApply();
+    }, 300);
+  });
+
+  combineForm.addEventListener('submit', function (e) {
+    Array.from(combineForm.querySelectorAll('[data-dyn]')).forEach(function (i) { i.remove(); });
+    if (!combineSpec) { e.preventDefault(); return; }
+    var cInp = document.createElement('input');
+    cInp.type = 'hidden'; cInp.name = 'c';
+    cInp.setAttribute('data-dyn', '1');
+    cInp.value = combineSpec;
+    combineForm.appendChild(cInp);
+  });
+
+  btnCombine.addEventListener('click', function () {
+    // Close merge panel if open.
+    if (joinPanel && !joinPanel.hidden) {
+      joinPanel.hidden    = true;
+      if (btnMerge) btnMerge.disabled = false;
+    }
+    panel.hidden         = false;
+    btnCombine.disabled  = true;
+  });
+
+  btnCancel.addEventListener('click', function () {
+    panel.hidden        = true;
+    btnCombine.disabled = false;
+    tblSel.value        = '';
+    pathInp.value       = '';
+    combineSpec         = '';
+    checkApply();
+  });
 }());
 </script>
 
@@ -731,9 +855,10 @@
     var lInp = document.querySelector('#join-form input[name="l"]');
     if (lInp) params.set('l', lInp.value);
 
-    // j= and f= reflect the already-rendered view, so read from the URL.
+    // j=, c=, and f= reflect the already-rendered view, so read from the URL.
     var urlP = new URLSearchParams(location.search);
     urlP.getAll('j').forEach(function (v) { params.append('j', v); });
+    urlP.getAll('c').forEach(function (v) { params.append('c', v); });
     urlP.getAll('f').forEach(function (v) { params.append('f', v); });
 
     fetch('/export', {
