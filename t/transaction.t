@@ -892,4 +892,86 @@ subtest 'Transaction 12: Recently-saved section server-side contract' => sub {
 	}
 };
 
+# ======================================================================
+# TRANSACTION 13: Dedup toggle — hide/show duplicate rows
+#
+# Verifies the end-to-end contract for the ?d=1 deduplication parameter:
+#
+#   Phase 1  GET  /open             (no d=)  -> all rows shown; toolbar
+#                                              contains "Hide duplicates"
+#                                              button without active class
+#   Phase 2  GET  /open?d=1                 -> only unique rows shown;
+#                                              button reads "Show duplicates"
+#                                              and carries btn-dedup--active
+#   Phase 3  GET  /export?d=1&format=csv   -> exported CSV row count matches
+#                                              unique-row count, not total
+#   Phase 4  POST /export (body d=1)       -> written file has unique rows only
+#   Phase 5  Idempotency: second GET /open?d=1 -> same unique count
+#
+# Uses a self-contained temp CSV with known duplicates; no dependency on
+# data/ contents.
+# ======================================================================
+
+subtest 'Transaction 13: Dedup toggle — hide/show duplicate rows' => sub {
+	my $tmpdir = tempdir(CLEANUP => 1);
+
+	# Five data rows: rows 1+3 are identical, rows 2+5 are identical, row 4 unique.
+	# Unique rows after dedup: 3.  "alpha" appears in rows 1+3, "beta" in rows 2+5.
+	Readonly my $DEDUP_UNIQUE => 3;
+
+	my $csv_file = Mojo::File->new($tmpdir)->child('dupes.csv');
+	$csv_file->spew("id,name,value\n"
+		. "1,alpha,100\n"
+		. "2,beta,200\n"
+		. "1,alpha,100\n"
+		. "3,gamma,300\n"
+		. "2,beta,200\n");
+	my $path = $csv_file->to_string;
+
+	# Phase 1: open without d= -- all duplicate rows present.
+	# "alpha" is in rows 1 and 3 so appears twice in the HTML; "gamma" once.
+	$t->get_ok('/open?path=' . url_escape($path))->status_is(200);
+	my $body1       = $t->tx->res->body;
+	my $alpha_total = () = ($body1 =~ /\balpha\b/g);
+	is $alpha_total, 2, 'Phase 1: duplicate value "alpha" appears twice (all rows shown)';
+	$t->content_like(qr/Hide duplicates/, 'Phase 1: button reads "Hide duplicates"');
+	$t->content_unlike(qr/class="btn-dedup btn-dedup--active"/,
+		'Phase 1: active class absent from button when d= not set');
+
+	# Phase 2: open with d=1 -- each duplicate row collapsed to one occurrence.
+	$t->get_ok('/open?path=' . url_escape($path) . '&d=1')->status_is(200);
+	my $body2       = $t->tx->res->body;
+	my $alpha_dedup = () = ($body2 =~ /\balpha\b/g);
+	is $alpha_dedup, 1, 'Phase 2: duplicate value "alpha" appears exactly once after dedup';
+	my $beta_dedup  = () = ($body2 =~ /\bbeta\b/g);
+	is $beta_dedup,  1, 'Phase 2: duplicate value "beta" appears exactly once after dedup';
+	$t->content_like(qr/Show duplicates/, 'Phase 2: button reads "Show duplicates"');
+	$t->content_like(qr/class="btn-dedup btn-dedup--active"/,
+		'Phase 2: active class present on button when d=1');
+
+	# Phase 3: GET export with d=1 returns a deduplicated CSV.
+	my $lspec = 'path:' . $path;
+	$t->get_ok('/export?l=' . url_escape($lspec) . '&d=1&format=csv')->status_is(200);
+	is count_csv_rows($t->tx->res->body), $DEDUP_UNIQUE,
+		'Phase 3: exported CSV has unique-row count, not total';
+
+	# Phase 4: POST export with d=1 writes a deduplicated file.
+	my $out_file = Mojo::File->new($tmpdir)->child('deduped.csv')->to_string;
+	$t->post_ok('/export', form => {
+		l        => $lspec,
+		dir      => $tmpdir,
+		filename => 'deduped.csv',
+		d        => '1',
+	})->status_is(200);
+	my $write_json = decode_json($t->tx->res->body);
+	ok defined $write_json->{saved}, 'Phase 4: response contains "saved"';
+	is count_csv_rows(Mojo::File->new($write_json->{saved})->slurp),
+		$DEDUP_UNIQUE, 'Phase 4: written file has unique rows only';
+
+	# Phase 5: idempotency -- second GET with d=1 produces the same unique count.
+	$t->get_ok('/export?l=' . url_escape($lspec) . '&d=1&format=csv')->status_is(200);
+	is count_csv_rows($t->tx->res->body), $DEDUP_UNIQUE,
+		'Phase 5: repeated export with d=1 is idempotent';
+};
+
 done_testing;
