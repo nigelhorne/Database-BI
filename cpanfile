@@ -7,6 +7,8 @@ requires 'CGI::Lingua';
 requires 'Carp';
 requires 'DBI';
 requires 'Database::Abstraction', '0.38';
+requires 'File::Spec', '3.40';
+requires 'File::Temp', '0.22';
 requires 'HTML::TableExtract';
 requires 'LWP::UserAgent';
 requires 'Mojolicious', '9.49';
@@ -14,6 +16,8 @@ requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Params::Get';
 requires 'Params::Validate::Strict', '0.39';
 requires 'Readonly';
+requires 'Scalar::Util', '1.40';
+requires 'Socket', '2.010';
 requires 'Sub::Protected';
 
 on 'test' => sub {

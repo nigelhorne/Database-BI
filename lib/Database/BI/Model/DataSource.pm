@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.002.0';
+our $VERSION = '0.003.0';
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary.
@@ -508,7 +508,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-Version 0.002.1
+Version 0.003.0
 
 =head1 SYNOPSIS
 
