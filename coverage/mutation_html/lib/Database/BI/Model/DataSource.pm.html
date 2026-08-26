@@ -353,7 +353,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">   12: use Params::Validate::Strict qw(validate_strict);
 </span><span class="">   13: use Params::Get		();
 </span><span class="">   14: 
-</span><span class="">   15: our $VERSION = &#39;0.01&#39;;
+</span><span class="">   15: our $VERSION = &#39;0.001.0&#39;;
 </span><span class="">   16: 
 </span><span class="">   17: # ---------------------------------------------------------------------------
 </span><span class="">   18: # I18N message dictionary.
@@ -936,13 +936,13 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">  595:         );
 </span><span class="">  596:     };
 </span><span class="">  597:     if ($@) {
-</span><span class="">  598:         warn &quot;Could not open table: $@&quot;;
+</span><span class="">  598:         carp &quot;Could not open table: $@&quot;;
 </span><span class="">  599:         # $@ contains a translated message from %MESSAGES
 </span><span class="">  600:     }
 </span><span class="">  601: 
 </span><span class="">  602:     my $records = eval { $source-&gt;fetch_all };
 </span><span class="">  603:     if ($@) {
-</span><span class="">  604:         warn &quot;Could not read records: $@&quot;;
+</span><span class="">  604:         carp &quot;Could not read records: $@&quot;;
 </span><span class="">  605:     }
 </span><span class="">  606: 
 </span><span class="">  607: =head1 DESCRIPTION
