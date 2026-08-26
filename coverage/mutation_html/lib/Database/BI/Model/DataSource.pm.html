@@ -349,11 +349,11 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">    8: use File::Spec		();
 </span><span class="">    9: use Readonly;
 </span><span class="">   10: use Scalar::Util	qw(blessed);
-</span><span class="">   11: use Sub::Private;
+</span><span class="">   11: use Sub::Protected;
 </span><span class="">   12: use Params::Validate::Strict qw(validate_strict);
 </span><span class="">   13: use Params::Get		();
 </span><span class="">   14: 
-</span><span class="">   15: our $VERSION = &#39;0.001.0&#39;;
+</span><span class="">   15: our $VERSION = &#39;0.002.0&#39;;
 </span><span class="">   16: 
 </span><span class="">   17: # ---------------------------------------------------------------------------
 </span><span class="">   18: # I18N message dictionary.
@@ -381,7 +381,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">   40: Readonly my $TABLE_NAME_RE =&gt; qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 </span><span class="">   41: 
 </span><span class="">   42: # ---------------------------------------------------------------------------
-</span><span class="">   43: # Private helpers
+</span><span class="">   43: # Protected helpers
 </span><span class="">   44: # ---------------------------------------------------------------------------
 </span><span class="">   45: 
 </span><span class="">   46: # _url_label( $url ) -&gt; $string
@@ -420,7 +420,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">   79: # applies sprintf if positional arguments are supplied. This function is used
 </span><span class="">   80: # in new() before the object exists; instance methods should use _msg() instead
 </span><span class="">   81: # so that a caller-supplied i18n object can override the built-in strings.
-</span><span class="">   82: sub _fmt :Private {
+</span><span class="">   82: sub _fmt :Protected {
 </span><span class="">   83: 	my ($key, @args) = @_;
 </span><span class="">   84: 	my $tmpl = $MESSAGES{$key} // &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   85: 	return @args ? sprintf($tmpl, @args) : $tmpl;
@@ -431,7 +431,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">   90: # Instance-level i18n formatter. Delegates to the caller-supplied i18n object
 </span><span class="">   91: # (if any) before falling back to _fmt(). The i18n object must implement
 </span><span class="">   92: # maketext($key, @args).
-</span><span class="">   93: sub _msg :Private {
+</span><span class="">   93: sub _msg :Protected {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">94 → 95 → 98</span></span>   94: 	my ($self, $key, @args) = @_;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   95: 	if (my $i18n = $self-&gt;{_i18n}) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   96: 		return $i18n-&gt;maketext($key, @args);
@@ -557,7 +557,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">  216: #          $raw-&gt;{i18n} (optional): Locale::Maketext-compatible object.
 </span><span class="">  217: # Exit:    Returns $self.  Croaks on invalid URL scheme or backend init failure.
 </span><span class="">  218: # Side Effects: Issues an HTTP GET to the URL via LWP::UserAgent.
-</span><span class="">  219: sub _new_from_url :Private {
+</span><span class="">  219: sub _new_from_url :Protected {
 </span><span class="">  220: 	my ($class, $raw) = @_;
 </span><span class="">  221: 
 </span><span class="">  222: 	my $url = $raw-&gt;{url} // croak _fmt(&#39;error_url_invalid&#39;, &#39;&#39;);
@@ -588,7 +588,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">  247: # Entry:   $self-&gt;{_url} is a valid http(s) URL; $table_index is a non-negative int.
 </span><span class="">  248: # Exit:    Sets $self-&gt;{_db}.  Croaks on LWP or HTML::TableExtract failure.
 </span><span class="">  249: # Side Effects: Network I/O; may take up to LWP&#39;s default timeout.
-</span><span class="">  250: sub _init_url_backend :Private {
+</span><span class="">  250: sub _init_url_backend :Protected {
 </span><span class="">  251: 	my ($self, $table_index) = @_;
 </span><span class="">  252: 	my $url = $self-&gt;{_url};
 </span><span class="">  253: 
@@ -618,7 +618,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">  277: }
 </span><span class="">  278: 
 </span><span class="">  279: # ---------------------------------------------------------------------------
-</span><span class="">  280: # Private initialisation
+</span><span class="">  280: # Protected initialisation
 </span><span class="">  281: # ---------------------------------------------------------------------------
 </span><span class="">  282: 
 </span><span class="">  283: # _detect_file_info( $dir, $table ) -&gt; \%info
@@ -634,7 +634,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">  293: #   2. id defaults to &#39;entry&#39; &acirc;&#128;&#148; the slurp filter greps on that column; if it
 </span><span class="">  294: #      doesn&#39;t exist every row is silently discarded.
 </span><span class="">  295: # Returns an empty hashref for non-CSV/PSV formats (SQLite, XML, etc.).
-</span><span class="">  296: sub _detect_file_info :Private {
+</span><span class="">  296: sub _detect_file_info :Protected {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">297 → 298 → 334</span></span>  297: 	my ($dir, $table) = @_;
 </span><span class="">  298: 	for my $ext (qw(csv psv)) {
 </span><span class="">  299: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.$ext&quot;);
@@ -688,7 +688,7 @@ Approximate LCSAJ segments: 49<br>
 </span><span class="">  347: # no_entry =&gt; 1: a BI viewer wants every row; we do not need O(1) keyed
 </span><span class="">  348: # lookups on a primary key.  This stores data as an arrayref instead of a
 </span><span class="">  349: # hashref, which the fast-track path in selectall_arrayref returns directly.
-</span><span class="">  350: sub _init_backend :Private {
+</span><span class="">  350: sub _init_backend :Protected {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">351 → 378 → 382</span></span>  351: 	my $self  = shift;
 </span><span class="">  352: 	my $table = $self-&gt;{_table};
 </span><span class="">  353: 	my $dir   = $self-&gt;{_directory};
