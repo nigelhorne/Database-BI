@@ -1,7 +1,16 @@
 Revision history for Database-BI
 
-0.003.1  Wed Aug 26 17:30:00 UTC 2026
+0.003.1
     [ Bug Fixes ]
+    - Dragging and dropping the same file more than once no longer creates
+      duplicate entries in the "Recently opened" section on the home page.
+      Each upload creates a new random .uploads/<tempdir>/ subdirectory, so
+      the href changed on every drop even for the same file, bypassing the
+      existing href-based deduplication.  The dedup key is now normalised:
+      upload entries are keyed by display name ("upload:<filename>"); all
+      other entries (browser-opened files, URL imports) continue to be keyed
+      by their full href so that two different files with the same name from
+      different directories can both appear in the list.
     - Opening a file whose name has a mixed-case stem (e.g. AccountHistory.csv)
       now works correctly on case-sensitive Linux filesystems.  The controller
       was lowercasing the stem before calling open_table, causing DataSource to

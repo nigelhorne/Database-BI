@@ -988,8 +988,19 @@
         path:       el.dataset.path,
         lastOpened: new Date().toISOString(),
       };
+      // Uploads land under a random .uploads/<tempdir>/ subdirectory each time,
+      // so the href changes on every drop even for the same file.  Normalise
+      // the dedup key: uploads are identified by display name; everything else
+      // by full href (which encodes the absolute path).
+      var uploadRe = /[/\\]\.uploads[/\\]/;
+      var dedupKey = uploadRe.test(el.dataset.path || '')
+        ? 'upload:' + el.dataset.name
+        : href;
       var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
-      recent = recent.filter(function (r) { return r.href !== href; });
+      recent = recent.filter(function (r) {
+        var rKey = uploadRe.test(r.path || '') ? 'upload:' + r.name : r.href;
+        return rKey !== dedupKey;
+      });
       recent.unshift(entry);
       if (recent.length > 5) recent.length = 5;
       localStorage.setItem('bi:recent', JSON.stringify(recent));

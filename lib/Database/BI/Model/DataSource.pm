@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.003.1';
+our $VERSION = '0.003.2';
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary.
