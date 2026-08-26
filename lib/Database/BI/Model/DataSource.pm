@@ -292,9 +292,9 @@ sub _detect_file_info :Protected {
 		my $fh;
 		{ no autodie 'open'; open $fh, '<', $path or next }
 		my $line = <$fh>;
-		close $fh;
 		next unless defined $line;
 		chomp $line;
+		$line =~ s/\r\z//;	# strip CR from CRLF files before any split
 
 		my $sep;
 		if ($ext eq 'psv') {
@@ -313,17 +313,44 @@ sub _detect_file_info :Protected {
 		# O(N) engine cycles retrying \A (which can only match at position 0).
 		for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }	# strip whitespace and quotes
 		@cols = grep { length } @cols;
-		# Database::Abstraction validates the id column name against
-		# $SAFE_IDENTIFIER (/\A[a-zA-Z_][a-zA-Z0-9_]*\z/) at construction
-		# time and also uses it as a row-existence sentinel in the CSV slurp
-		# grep.  When the first column name is not a safe identifier (e.g.
-		# "Account Number" from a bank export), fall back to the first column
-		# in the file that IS safe so that (a) construction does not croak and
-		# (b) the sentinel grep keeps all data rows (they will all have a
-		# non-blank value in the chosen column).  undef means no safe column
-		# was found; _init_backend will croak with a human-readable message.
+
+		# Database::Abstraction validates id against $SAFE_IDENTIFIER
+		# (/\A[a-zA-Z_][a-zA-Z0-9_]*\z/) at construction time and uses it as
+		# a row-existence sentinel: every data row must have a defined, non-#
+		# value in the id column or D::A drops it (empty_is_undef => 1 makes
+		# truly empty cells undef).
+		#
+		# Strategy: read the first non-empty data row and find the first safe
+		# column whose value in that row is non-empty.  A simple split (same
+		# separator) is used rather than a full CSV parse; it may mis-index
+		# fields that contain the separator inside quotes, but correctly detects
+		# whether a given index position is blank — sufficient for id selection.
+		# Fall back to the first safe column in the header if the data row
+		# check is inconclusive (e.g. file has only a header line).
 		my $safe_re = qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/;
-		my ($safe_id) = grep { $_ =~ $safe_re } @cols;
+		my ($safe_id) = grep { $_ =~ $safe_re } @cols;	# header-only fallback
+
+		my $data_line;
+		while (defined($data_line = <$fh>)) {
+			chomp $data_line;
+			$data_line =~ s/\r\z//;
+			last if length $data_line;	# skip blank lines between header and data
+		}
+		if (defined $data_line) {
+			my @vals = split /\Q$sep\E/, $data_line, -1;
+			for my $i (0 .. $#cols) {
+				next unless $cols[$i] =~ $safe_re;
+				my $val = $vals[$i] // '';
+				$val =~ s/\A[\s"]+//;
+				$val =~ s/[\s"]+\z//;
+				if (length $val) {
+					$safe_id = $cols[$i];
+					last;
+				}
+			}
+		}
+		close $fh;
+
 		return {
 			sep_char => $sep,
 			id       => $safe_id,

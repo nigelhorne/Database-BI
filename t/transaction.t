@@ -1186,38 +1186,52 @@ subtest 'Transaction 17: Per-request CGI::Info/CGI::Lingua detection regression'
 };
 
 subtest 'Transaction 18: Mixed-case upload filename opens correctly' => sub {
-	# Regression: AccountHistory.csv was saved with its original case but the
-	# controller lowercased the stem to "accounthistory" before calling open_table.
-	# DataSource then stored _table = lc(...) and _detect_file_info looked for
-	# "accounthistory.csv" — which does not exist on a case-sensitive filesystem.
-	# Fix: preserve the stem case from the filesystem path; do not lc().
+	# Regression test covering two bugs found when opening a real bank CSV:
+	#
+	# Bug 1 (case): controller lowercased the filename stem to "accounthistory",
+	#   but the file on disk is "AccountHistory.csv" — not found on case-sensitive
+	#   Linux.  Fix: preserve original case when opening by absolute path.
+	#
+	# Bug 2 (id column): the CSV header had "Account Number,Post Date,Check,..."
+	#   where the first safe-identifier column ("Check") is always empty.
+	#   Database::Abstraction uses empty_is_undef => 1, so every row had
+	#   undef in the id column and was filtered out — only rows where "Check"
+	#   actually had a value (written cheques) survived.  Fix: _detect_file_info
+	#   now reads the first data row and picks the first safe column that has a
+	#   non-empty value there ("Description" in the bank-export case).
 
 	my $dir = tempdir(CLEANUP => 1);
 
-	# Write a CSV whose name has a mixed-case stem.
+	# Reproduce bug 2: first safe-identifier column ("ref") is always empty;
+	# second safe column ("description") is always populated.
 	my $csv_path = "$dir/AccountHistory.csv";
-	Mojo::File->new($csv_path)->spurt("account,amount,date\n1,100.00,2026-01-01\n2,200.00,2026-01-02\n");
+	Mojo::File->new($csv_path)->spurt(
+		"Account Number,ref,description,amount\n" .
+		"XX1234,,Coffee shop,4.50\n" .
+		"XX1234,,Supermarket,23.10\n" .
+		"XX1234,,Online transfer,100.00\n"
+	);
 
 	my $encoded = url_escape($csv_path);
 
 	$t->get_ok("/open?path=$encoded")
-		->status_is(200, 'Phase 1: /open succeeds for mixed-case filename')
-		->content_like(qr/AccountHistory|account/i,
-			'Phase 2: page mentions the table or a column name')
-		->content_like(qr/100\.00|200\.00/,
-			'Phase 3: row data is rendered');
+		->status_is(200, 'Phase 1: /open succeeds for mixed-case filename with spaced first column')
+		->content_like(qr/AccountHistory|description/i,
+			'Phase 2: page mentions table or a column name')
+		->content_like(qr/Coffee shop/,
+			'Phase 3: first row rendered (ref-is-empty row not filtered out)')
+		->content_like(qr/Supermarket/,
+			'Phase 4: second row rendered')
+		->content_like(qr/Online transfer/,
+			'Phase 5: third row rendered — all 3 rows present');
 
-	# The server-side error messages must NOT appear.
-	# (The layout JS contains the literal string "Could not open file." in its
-	# drag-and-drop handler, so we match the more specific server error format.)
 	$t->content_unlike(qr/Could not open &quot;AccountHistory/,
-		'Phase 4: no server-side file-open error on page');
+		'Phase 6: no server-side file-open error');
 	$t->content_unlike(qr/fetch_all failed/,
-		'Phase 5: no fetch_all error on page');
+		'Phase 7: no fetch_all error');
 
-	# Verify the original-case filename is not confused with an all-lowercase one.
 	my $lower_path = "$dir/accounthistory.csv";
-	ok(!-f $lower_path, 'Phase 6: lowercase variant does not exist on disk');
+	ok(!-f $lower_path, 'Phase 8: lowercase variant does not exist on disk (case bug absent)');
 };
 
 done_testing;
