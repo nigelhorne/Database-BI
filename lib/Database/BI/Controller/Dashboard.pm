@@ -273,7 +273,7 @@ sub _open_spec :Protected ($self, $spec) {
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
 			(my $table = $file->basename) =~ s/\.[^.]+\z//;
-			my $src = eval { $self->open_table(lc $table, directory => $dir) };
+			my $src = eval { $self->open_table($table, directory => $dir) };
 			return ($src, $file->basename) if $src && !$@;
 		}
 	}
@@ -1091,7 +1091,6 @@ sub open_file ($self) {
 
 	my $dir      = $file->dirname;
 	(my $table   = $file->basename) =~ s/\.[^.]+\z//;
-	$table       = lc $table;
 	my $back     = '/browse?path=' . url_escape($dir->to_string);
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
@@ -1291,7 +1290,7 @@ sub columns_api ($self) {
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
 			(my $tbl = $file->basename) =~ s/\.[^.]+\z//;
-			$source = eval { $self->open_table(lc $tbl, directory => $dir) };
+			$source = eval { $self->open_table($tbl, directory => $dir) };
 		}
 	}
 

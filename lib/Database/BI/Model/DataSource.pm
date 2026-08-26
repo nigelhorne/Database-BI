@@ -31,6 +31,7 @@ Readonly our %MESSAGES => (
 	error_fetch_failed		=> 'DataSource: fetch_all failed for table "%s": %s',
 	error_url_invalid		=> 'DataSource: URL "%s" must begin with http:// or https://',
 	error_url_fetch			=> 'DataSource: failed to open HTML table at "%s": %s',
+	error_no_safe_id		=> 'DataSource: table "%s" has no column with a safe identifier name (letters, digits, underscore); rename at least one column header',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -183,7 +184,7 @@ sub new {
 
 	my $self = bless {
 		_directory => $args->{directory},
-		_table     => lc $args->{table},
+		_table     => $args->{table},
 		_i18n      => $args->{i18n},
 		_db        => undef,
 	}, $class;
@@ -312,9 +313,20 @@ sub _detect_file_info :Protected {
 		# O(N) engine cycles retrying \A (which can only match at position 0).
 		for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }	# strip whitespace and quotes
 		@cols = grep { length } @cols;
+		# Database::Abstraction validates the id column name against
+		# $SAFE_IDENTIFIER (/\A[a-zA-Z_][a-zA-Z0-9_]*\z/) at construction
+		# time and also uses it as a row-existence sentinel in the CSV slurp
+		# grep.  When the first column name is not a safe identifier (e.g.
+		# "Account Number" from a bank export), fall back to the first column
+		# in the file that IS safe so that (a) construction does not croak and
+		# (b) the sentinel grep keeps all data rows (they will all have a
+		# non-blank value in the chosen column).  undef means no safe column
+		# was found; _init_backend will croak with a human-readable message.
+		my $safe_re = qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/;
+		my ($safe_id) = grep { $_ =~ $safe_re } @cols;
 		return {
 			sep_char => $sep,
-			id       => (@cols ? $cols[0] : undef),
+			id       => $safe_id,
 			columns  => \@cols,
 		};
 	}
@@ -349,6 +361,12 @@ sub _init_backend :Protected {
 	}
 
 	my $info   = _detect_file_info($dir, $table);
+	# _detect_file_info returns undef for id when every column header contains
+	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
+	# Falling back to the D::A default ('entry') would silently return 0 rows
+	# since no 'entry' column exists.  Croak with a human-readable message.
+	croak $self->_msg('error_no_safe_id', $table)
+		if exists $info->{columns} && !defined $info->{id};
 	my $id_col = $info->{id} // 'entry';
 	$self->{_id_col}  = $id_col;
 	$self->{_columns} = $info->{columns};	# undef for SQLite/XML

@@ -227,22 +227,33 @@ subtest 'DataSource::new path-C: table name invalid -> croak' => sub {
 		'path C: digit-start table -> croak error_table_name_invalid';
 };
 
-subtest 'DataSource::new path-D: _init_backend throws -> croak error_backend_init' => sub {
-	# Drive a natural D::A failure: create a CSV whose first header column
-	# contains a hyphen.  _detect_file_info extracts that as the 'id' and
-	# passes it verbatim to D::A->new, which validates id against
-	# $SAFE_IDENTIFIER (qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/).  The hyphen fails
-	# that check, so D::A croaks "unsafe id column name 'my-col'" inside
-	# _init_backend's eval, which re-croaks as error_backend_init.
-	my $bad_id_dir = tempdir(CLEANUP => 1);
-	Mojo::File->new("$bad_id_dir/badid.csv")->spew("my-col,other\n1,2\n");
+subtest 'DataSource::new path-D: unsafe CSV column names' => sub {
+	# D1: First column unsafe but a later column IS safe -> _detect_file_info
+	# picks the first safe column as id; construction succeeds.  This is the
+	# common case for bank/account exports ("Account Number,Date,Amount,...").
+	my $mixed_dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$mixed_dir/mixed.csv")->spew("my-col,amount\n1,100\n");
+	my $ds;
+	lives_ok {
+		$ds = Database::BI::Model::DataSource->new(
+			directory => $mixed_dir,
+			table     => 'mixed',
+		)
+	} 'path D1: first-col unsafe but second safe -> construction succeeds';
+	isa_ok $ds, 'Database::BI::Model::DataSource',
+		'path D1: returns a DataSource object';
+
+	# D2: ALL column names contain hyphens — no safe fallback exists.
+	# _init_backend should croak error_no_safe_id before calling D::A.
+	my $bad_dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$bad_dir/allbad.csv")->spew("my-col,his-col\n1,2\n");
 	throws_ok {
 		Database::BI::Model::DataSource->new(
-			directory => $bad_id_dir,
-			table     => 'badid',
+			directory => $bad_dir,
+			table     => 'allbad',
 		)
-	} qr/failed to initialise database backend/,
-		'path D: unsafe CSV id column -> D::A croaks -> croak error_backend_init';
+	} qr/no column with a safe identifier name/,
+		'path D2: all CSV columns unsafe -> croak error_no_safe_id';
 };
 
 subtest 'DataSource::new path-E: happy path -> blessed DataSource returned' => sub {
