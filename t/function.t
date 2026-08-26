@@ -764,7 +764,7 @@ subtest 'Dashboard::_resolve_language -- uses config default when no header' => 
 	my $tx = $t->ua->build_tx(GET => '/');
 	$tx->req->headers->remove('Accept-Language');
 	my $c = $t->app->build_controller($tx);
-	my $lang = Database::BI::Controller::Dashboard::_resolve_language($c, 'en');
+	my $lang = Database::BI::Controller::Dashboard::_resolve_language($c, 'web', 'en');
 	is $lang, 'en', 'falls back to config default when Accept-Language absent';
 };
 
@@ -773,7 +773,7 @@ subtest 'Dashboard::_resolve_language -- valid header parsed, falls back when no
 	# 'fr' has no template directory in this installation; should fall back to 'en'.
 	$tx->req->headers->header('Accept-Language' => 'fr-FR,fr;q=0.9,en;q=0.8');
 	my $c    = $t->app->build_controller($tx);
-	my $lang = Database::BI::Controller::Dashboard::_resolve_language($c, 'en');
+	my $lang = Database::BI::Controller::Dashboard::_resolve_language($c, 'web', 'en');
 	ok $lang eq 'fr' || $lang eq 'en',
 		"resolved language is 'fr' or 'en' (fallback when no fr templates)";
 };
@@ -782,8 +782,25 @@ subtest 'Dashboard::_resolve_language -- garbage header falls back to default' =
 	my $tx = $t->ua->build_tx(GET => '/');
 	$tx->req->headers->header('Accept-Language' => ';;; junk ;;;');
 	my $c    = $t->app->build_controller($tx);
-	my $lang = Database::BI::Controller::Dashboard::_resolve_language($c, 'en');
+	my $lang = Database::BI::Controller::Dashboard::_resolve_language($c, 'web', 'en');
 	is $lang, 'en', 'garbage Accept-Language header falls back to default';
+};
+
+subtest 'Dashboard::_detect_platform -- desktop UA -> web' => sub {
+	my $platform = Database::BI::Controller::Dashboard::_detect_platform(
+		'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36', 'web');
+	is $platform, 'web', 'desktop UA maps to web platform';
+};
+
+subtest 'Dashboard::_detect_platform -- mobile UA -> mobile' => sub {
+	my $platform = Database::BI::Controller::Dashboard::_detect_platform(
+		'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15', 'web');
+	is $platform, 'mobile', 'iPhone UA maps to mobile platform';
+};
+
+subtest 'Dashboard::_detect_platform -- empty UA -> fallback' => sub {
+	my $platform = Database::BI::Controller::Dashboard::_detect_platform('', 'web');
+	is $platform, 'web', 'empty UA returns fallback';
 };
 
 # ---------------------------------------------------------------------------

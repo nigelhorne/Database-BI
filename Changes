@@ -2,6 +2,14 @@ Revision history for Database-BI
 
 0.003.0
     [ Enhancements ]
+    - Platform and language are now detected per-request rather than read
+      statically from config.  CGI::Info inspects the User-Agent header to
+      select 'mobile', 'tablet', or 'web'; CGI::Lingua selects the best
+      ISO 639-1 language from the Accept-Language header against the set of
+      languages that have a template directory under templates/<platform>/.
+      Config values (platform, language) remain as fallbacks for when a
+      module is unavailable, the header is absent, or no template directory
+      exists for the detected value.
     - Add "Hide duplicates / Show duplicates" toggle button to the toolbar.
       When active (filled blue), duplicate rows are removed from the displayed
       table and from any CSV or SQLite export.  The button text reflects the

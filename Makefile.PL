@@ -21,6 +21,8 @@ WriteMakefile(
 	EXE_FILES	=> ['script/database-bi'],
 	PREREQ_PM => {
 		'Carp'				=> 0,
+		'CGI::Info'			=> 0,
+		'CGI::Lingua'			=> 0,
 		'Database::Abstraction'		=> '0.38',
 		'DBI'				=> 0,
 		'HTML::TableExtract'		=> 0,

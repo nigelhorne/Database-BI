@@ -2,6 +2,8 @@
 
 requires 'perl', '5.020000';
 
+requires 'CGI::Info';
+requires 'CGI::Lingua';
 requires 'Carp';
 requires 'DBI';
 requires 'Database::Abstraction', '0.38';
@@ -12,7 +14,7 @@ requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Params::Get';
 requires 'Params::Validate::Strict', '0.39';
 requires 'Readonly';
-requires 'Sub::Private';
+requires 'Sub::Protected';
 
 on 'test' => sub {
 	requires 'DBD::CSV';

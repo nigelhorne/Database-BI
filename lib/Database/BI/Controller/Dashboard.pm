@@ -5,6 +5,8 @@ our $VERSION = '0.002.0';
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
 use Carp		qw(croak carp);
+use CGI::Info;
+use CGI::Lingua;
 use Mojo::File;
 use Mojo::JSON		qw(encode_json);
 use Mojo::Util		qw(url_escape encode);
@@ -142,37 +144,82 @@ sub _is_safe_url {
 #          no template directory exists for the resolved language.
 # Exit:    Returns ($platform, $language) -- both guaranteed non-empty strings.
 sub _resolve_template :Protected ($self) {
-	my $conf     = $self->app->config;
-	my $platform = $conf->{platform} // 'web';
-	my $default  = $conf->{language} // 'en';
-	my $language = $self->_resolve_language($default);
+	my $conf         = $self->app->config;
+	my $cfg_platform = $conf->{platform} // 'web';
+	my $cfg_language = $conf->{language} // 'en';
+
+	# Detect platform from the request User-Agent via CGI::Info.
+	# Falls back to the configured platform when:
+	#   (a) CGI::Info is unavailable or throws, or
+	#   (b) no templates/<detected>/ directory exists.
+	my $platform = _detect_platform(
+		$self->req->headers->user_agent // '',
+		$cfg_platform,
+	);
+	unless (-d $self->app->home->child("templates/$platform")) {
+		$platform = $cfg_platform;
+	}
+
+	my $language = $self->_resolve_language($platform, $cfg_language);
 	return ($platform, $language);
 }
 
-# _resolve_language($self, $default) -> $language_code
+# _detect_platform($user_agent, $fallback) -> $platform_string
 #
-# Purpose: Extract the first two-letter language code from the Accept-Language
-#          request header, then validate that a template directory exists for
-#          that language.  Falls back to $default when the header is absent,
-#          unparseable, or points to a non-existent template directory.
-# Entry:   $default is a non-empty string (e.g. 'en').
+# Purpose: Map a raw User-Agent string to a VWF platform dimension
+#          ('mobile', 'tablet', or 'web') via CGI::Info.
+# Entry:   $user_agent -- the raw HTTP User-Agent header value (may be empty).
+#          $fallback   -- value to return if detection fails.
+# Exit:    Returns 'mobile', 'tablet', 'web', or $fallback.
+# Side Effects: temporarily sets $ENV{HTTP_USER_AGENT} with local().
+sub _detect_platform ($user_agent, $fallback) {
+	my $platform = eval {
+		local $ENV{HTTP_USER_AGENT} = $user_agent;
+		my $info = CGI::Info->new();
+		$info->is_mobile() ? 'mobile'
+		: $info->is_tablet() ? 'tablet'
+		:                      'web';
+	};
+	return $platform // $fallback;
+}
+
+# _resolve_language($self, $platform, $default) -> $language_code
+#
+# Purpose: Determine the best ISO 639-1 language code for this request.
+#          When Accept-Language is present, CGI::Lingua selects the best
+#          match from the languages that have a template directory under
+#          templates/<platform>/.  Falls back to $default when the header
+#          is absent, no templates exist for the matched language, or
+#          CGI::Lingua is unavailable.
+# Entry:   $platform is the resolved VWF platform string.
+#          $default  is a non-empty fallback language code (e.g. 'en').
 # Exit:    Returns a two-letter ISO 639-1 language code string.
-# Side Effects: Filesystem stat for the template directory.
-sub _resolve_language :Protected ($self, $default) {
+# Side Effects: filesystem stats for template directories;
+#               temporarily sets $ENV{HTTP_ACCEPT_LANGUAGE} with local().
+sub _resolve_language :Protected ($self, $platform, $default) {
 	my $accept = $self->req->headers->accept_language // '';
-	my ($lang) = $accept =~ /
-		\b
-		( [a-z]{2} )          # ISO 639-1 primary language subtag (exactly 2 lowercase letters)
-		(?: - [A-Z]{2} )?     # optional ISO 3166-1 region subtag: hyphen + 2 uppercase letters
-		\b
-	/x;
+	return $default unless $accept;
+
+	# Discover supported languages from template directories so CGI::Lingua
+	# only returns a code we can actually serve.
+	my $tmpl_base = $self->app->home->child("templates/$platform");
+	my @supported;
+	if (-d $tmpl_base) {
+		@supported = map  { Mojo::File->new($_)->basename }
+		             grep { -d $_ }
+		             @{ $tmpl_base->list({ dir => 1 }) };
+	}
+	push @supported, $default unless grep { $_ eq $default } @supported;
+
+	my $lang = eval {
+		local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
+		my $lingua = CGI::Lingua->new(supported => \@supported);
+		$lingua->language_code_alpha2();
+	};
 	$lang //= $default;
 
-	# Only use the resolved language if templates actually exist for it;
-	# prevents a 500 error when a browser sends e.g. Accept-Language: de
-	# but no templates/web/de/ directory is present.
+	# Confirm a template directory exists for the chosen language.
 	if ($lang ne $default) {
-		my $platform = $self->app->config->{platform} // 'web';
 		my $dir = $self->app->home->child("templates/$platform/$lang");
 		$lang   = $default unless -d $dir;
 	}

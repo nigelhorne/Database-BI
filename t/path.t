@@ -785,40 +785,39 @@ subtest '_csv_row path-E: undef field -> empty string in output' => sub {
 # ======================================================================
 
 subtest '_resolve_language path-A: no Accept-Language header -> default' => sub {
-	my $ctrl = mock_ctrl(undef);    # undef accept_language -> '' via //
-	my $lang = $RESOLVE_LANG->($ctrl, 'en');
-	is $lang, 'en', 'path A: undef header -> default (en)';
+	my $ctrl = mock_ctrl(undef);    # undef accept_language -> early return
+	my $lang = $RESOLVE_LANG->($ctrl, 'web', 'en');
+	is $lang, 'en', 'path A: absent header -> early return with default (en)';
 };
 
 subtest '_resolve_language path-B: header code equals default -> return default (no dir check)' => sub {
 	my $ctrl = mock_ctrl('en-US,en;q=0.9');
-	my $lang = $RESOLVE_LANG->($ctrl, 'en');
+	my $lang = $RESOLVE_LANG->($ctrl, 'web', 'en');
 	is $lang, 'en', 'path B: code == default -> returns default without dir check';
 };
 
 subtest '_resolve_language path-C: header code ne default, template dir exists -> use it' => sub {
-	# Create a temporary templates/web/xx directory that _resolve_language can stat.
-	my $xx_dir = Mojo::File->new($APP_HOME)->child('templates/web/xx');
-	my $created = !-d $xx_dir;
-	$xx_dir->make_path if $created;
-	my $ctrl = mock_ctrl('xx');
-	my $lang = $RESOLVE_LANG->($ctrl, 'en');
-	is $lang, 'xx', 'path C: template dir exists -> extracted code returned';
-	$xx_dir->remove_tree if $created;    # clean up temp dir
+	# Create a temporary templates/web/fr directory so CGI::Lingua can select 'fr'.
+	my $fr_dir = Mojo::File->new($APP_HOME)->child('templates/web/fr');
+	my $created = !-d $fr_dir;
+	$fr_dir->make_path if $created;
+	my $ctrl = mock_ctrl('fr-FR,fr;q=0.9,en;q=0.8');
+	my $lang = $RESOLVE_LANG->($ctrl, 'web', 'en');
+	is $lang, 'fr', 'path C: template dir exists -> CGI::Lingua selects fr';
+	$fr_dir->remove_tree if $created;    # clean up temp dir
 };
 
-subtest '_resolve_language path-D: header code ne default, template dir missing -> default' => sub {
-	my $ctrl = mock_ctrl('fr,fr-FR;q=0.9');
-	my $lang = $RESOLVE_LANG->($ctrl, 'en');
-	is $lang, 'en', 'path D: no templates/web/fr -> fall back to default';
+subtest '_resolve_language path-D: no supported template for requested language -> default' => sub {
+	# 'de' templates do not exist; CGI::Lingua finds no match in supported list -> undef -> default.
+	my $ctrl = mock_ctrl('de,de-DE;q=0.9');
+	my $lang = $RESOLVE_LANG->($ctrl, 'web', 'en');
+	is $lang, 'en', 'path D: no templates/web/de -> CGI::Lingua returns undef -> default';
 };
 
-subtest '_resolve_language path-E: no parseable 2-letter code -> default' => sub {
-	# Accept-Language: zh-Hans-CN has no 2-letter primary subtag matching /\b([a-z]{2})\b/
-	# Actually zh is 2 letters... but Accept-Language: q=0.9 has none.
+subtest '_resolve_language path-E: no parseable language -> default' => sub {
 	my $ctrl = mock_ctrl('q=0.9');
-	my $lang = $RESOLVE_LANG->($ctrl, 'en');
-	is $lang, 'en', 'path E: no 2-letter code -> default';
+	my $lang = $RESOLVE_LANG->($ctrl, 'web', 'en');
+	is $lang, 'en', 'path E: unrecognised Accept-Language -> default';
 };
 
 # ======================================================================
