@@ -368,6 +368,32 @@
       margin-bottom: 0.75rem;
     }
 
+    /* Per-card remove button (trash can) in recent sections */
+    .recent-remove {
+      position: absolute;
+      top: 0.3rem;
+      right: 0.3rem;
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: #888;
+      opacity: 0;
+      padding: 0.15rem 0.3rem;
+      border-radius: 4px;
+      line-height: 1;
+      z-index: 2;
+      transition: opacity 0.1s, background 0.1s, color 0.1s;
+    }
+    .db-list li:hover .recent-remove {
+      opacity: 0.5;
+    }
+    .recent-remove:hover {
+      opacity: 1 !important;
+      background: rgba(192, 57, 43, 0.12);
+      color: #c0392b;
+    }
+
     /* Export button in the toolbar */
     .btn-export-open {
       flex-shrink: 0;
@@ -963,6 +989,25 @@
       dragDepth = 0;
       var file = e.dataTransfer.files[0];
       if (!file) { hideOverlay(); return; }
+
+      // When the file comes from a local file manager (Nautilus, Finder, etc.)
+      // the DataTransfer includes a file:// URI in text/uri-list.  Stash the
+      // decoded local path so the dashboard page can record the original
+      // location in bi:recent instead of the temporary .uploads/ copy.
+      try {
+        var uriList = (e.dataTransfer.getData('text/uri-list') || '').trim();
+        var fileUri = uriList.split(/\r?\n/).filter(function (l) {
+          return l && l[0] !== '#' && l.indexOf('file://') === 0;
+        })[0];
+        if (fileUri) {
+          sessionStorage.setItem('bi:pending-original-path',
+            decodeURIComponent(fileUri.replace(/^file:\/\//, '')));
+        } else {
+          sessionStorage.removeItem('bi:pending-original-path');
+        }
+      } catch (ex) {
+        try { sessionStorage.removeItem('bi:pending-original-path'); } catch (ex2) {}
+      }
 
       overlay.classList.add('loading');
       overlayTxt.textContent = 'Opening…';

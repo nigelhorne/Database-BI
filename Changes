@@ -1,7 +1,18 @@
 Revision history for Database-BI
 
 0.003.1
+    [ Enhancements ]
+    - Allow files to be removed from the recently opened and recently saved
+      lists
     [ Bug Fixes ]
+    - Drag-and-dropped files now appear in "Recently opened" under their
+      original filesystem location, not the temporary .uploads/ copy.  The
+      drop handler now extracts the file:// URI from the DataTransfer
+      text/uri-list item (provided by desktop file managers such as Nautilus
+      and Finder) and stashes it in sessionStorage before starting the
+      upload.  The dashboard page then reads that stash and records the real
+      path.  If no file:// URI is available (browser drag, email attachment,
+      etc.), the entry is omitted entirely so a useless temp path never
     - Dragging and dropping the same file more than once no longer creates
       duplicate entries in the "Recently opened" section on the home page.
       Each upload creates a new random .uploads/<tempdir>/ subdirectory, so

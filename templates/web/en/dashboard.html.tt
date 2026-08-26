@@ -980,27 +980,37 @@
     // Files opened from the "recently saved" list are not also tracked as
     // "recently opened" -- they already have their own section on the home page.
     if (!fromSaved) {
-      var el    = document.getElementById('bi-open-meta');
-      var href  = '/open?path=' + encodeURIComponent(el.dataset.path);
+      var el       = document.getElementById('bi-open-meta');
+      // For drag-and-drop uploads the server stores the file under a random
+      // .uploads/<tempdir>/ path.  Prefer the original local path stashed by
+      // the drop handler in sessionStorage (from text/uri-list).  Fall back to
+      // the upload path when the browser does not supply a file:// URI — an
+      // imperfect but functional link is better than a missing entry.
+      var filePath = el.dataset.path;
+      var fileHref = '/open?path=' + encodeURIComponent(filePath);
+      if (/[/\\]\.uploads[/\\]/.test(filePath)) {
+        // Try to replace the temp .uploads/ path with the original local path
+        // that the drop handler stashed in sessionStorage via text/uri-list.
+        // Not all browsers/file-managers supply this (Firefox, some OSes omit
+        // it), so we fall through to the upload path rather than skip the
+        // entry — an imperfect link is better than no entry at all.
+        try {
+          var origPath = sessionStorage.getItem('bi:pending-original-path');
+          sessionStorage.removeItem('bi:pending-original-path');
+          if (origPath) {
+            filePath = origPath;
+            fileHref = '/open?path=' + encodeURIComponent(origPath);
+          }
+        } catch (ex) {}
+      }
       var entry = {
         name:       el.dataset.name,
-        href:       href,
-        path:       el.dataset.path,
+        href:       fileHref,
+        path:       filePath,
         lastOpened: new Date().toISOString(),
       };
-      // Uploads land under a random .uploads/<tempdir>/ subdirectory each time,
-      // so the href changes on every drop even for the same file.  Normalise
-      // the dedup key: uploads are identified by display name; everything else
-      // by full href (which encodes the absolute path).
-      var uploadRe = /[/\\]\.uploads[/\\]/;
-      var dedupKey = uploadRe.test(el.dataset.path || '')
-        ? 'upload:' + el.dataset.name
-        : href;
       var recent = JSON.parse(localStorage.getItem('bi:recent') || '[]');
-      recent = recent.filter(function (r) {
-        var rKey = uploadRe.test(r.path || '') ? 'upload:' + r.name : r.href;
-        return rKey !== dedupKey;
-      });
+      recent = recent.filter(function (r) { return r.href !== fileHref; });
       recent.unshift(entry);
       if (recent.length > 5) recent.length = 5;
       localStorage.setItem('bi:recent', JSON.stringify(recent));
