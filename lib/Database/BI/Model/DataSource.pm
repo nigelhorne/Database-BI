@@ -160,14 +160,6 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
   error_table_name_invalid    -- table name fails the safe-identifier check
   error_backend_init          -- Database::Abstraction subclass could not be instantiated
 
-=head3 FORMAL SPECIFICATION
-
-  new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
-         pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
-              /\ table =~ TABLE_NAME_RE
-         post result.class = DataSource
-              /\ result._db.class = Database::Abstraction
-
 =cut
 
 sub new {
@@ -201,14 +193,14 @@ sub new {
 		_db        => undef,
 	}, $class;
 
-	$self->_init_backend;
+	$self->_init_backend();
 	return $self;
 
 }
 
 # _new_from_url( $class, \%raw_params ) -> $self
 #
-# Purpose: Alternate constructor path for URL-backed HTML tables.
+# Alternate constructor path for URL-backed HTML tables.
 #          Validates the URL scheme, derives a display label from the URL path,
 #          then calls _init_url_backend to build the D::A in-memory table.
 # Entry:   $raw->{url} must be an http:// or https:// URL.
@@ -407,10 +399,6 @@ Returns a C<SCALAR> string.
 
 None.
 
-=head3 FORMAL SPECIFICATION
-
-  table_name == lambda self . self._table
-
 =cut
 
 sub table_name {
@@ -486,14 +474,6 @@ silent failure.
   warn_empty_result      -- query succeeded but returned zero records
   warn_data_normalised   -- backend returned a hashref; converted to arrayref
 
-=head3 FORMAL SPECIFICATION
-
-  fetch_all == lambda self .
-    let rows = self._db.selectall_hashref() in
-    pre  self._db /= undef
-    post result : seq HASHREF
-         /\ #result >= 0
-
 =cut
 
 sub fetch_all {
@@ -533,7 +513,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-This document describes Database::BI::Model::DataSource version 0.01.
+Version 0.002.1
 
 =head1 SYNOPSIS
 
@@ -757,6 +737,28 @@ Please report bugs via L<https://github.com/nigelhorne/Database-BI/issues>.
 =head1 AUTHOR
 
 Nigel Horne C<< <njh@nigelhorne.com> >>
+
+=head1 FORMAL SPECIFICATION
+
+=head2 new
+
+  new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
+         pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
+              /\ table =~ TABLE_NAME_RE
+         post result.class = DataSource
+              /\ result._db.class = Database::Abstraction
+
+=head2 table_name
+
+  table_name == lambda self . self._table
+
+=head2 fetch_all
+
+  fetch_all == lambda self .
+    let rows = self._db.selectall_hashref() in
+    pre  self._db /= undef
+    post result : seq HASHREF
+         /\ #result >= 0
 
 =head1 LICENCE AND COPYRIGHT
 
