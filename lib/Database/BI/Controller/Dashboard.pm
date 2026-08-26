@@ -360,6 +360,23 @@ sub _apply_filters :Protected ($self, $records) {
 	return ($records, \@specs, $json);
 }
 
+# _dedup_records(\@records, \@columns) -> \@unique_records
+#
+# Purpose: Remove duplicate rows from $records.  Two rows are duplicates when
+#          every column value is identical (string comparison, undef treated as '').
+#          Preserves the order of first occurrence.
+# Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names.
+# Exit:    Returns a new arrayref; the input is not modified.
+sub _dedup_records {
+	my ($records, $columns) = @_;
+	my (%seen, @out);
+	for my $row (@$records) {
+		my $key = join "\x00", map { $row->{$_} // '' } @$columns;
+		push @out, $row unless $seen{$key}++;
+	}
+	return \@out;
+}
+
 # _left_join($left_recs, $left_cols, $left_key,
 #            $right_recs, $right_cols, $right_key, $right_label)
 #   -> (\@merged_records, \@merged_columns)
@@ -473,11 +490,12 @@ sub _csv_row {
 #          logical view.  The caller must apply | html in TT to escape & as &amp;.
 # Entry:   All args non-undef; spec arrays may be empty.
 # Exit:    Returns a relative URL string beginning with '/export'.
-sub _build_export_url :Protected ($self, $left_spec, $join_specs, $filter_specs, $combine_specs = undef) {
+sub _build_export_url :Protected ($self, $left_spec, $join_specs, $filter_specs, $combine_specs = undef, $dedup = 0) {
 	my $u = '/export?l=' . url_escape($left_spec);
 	$u .= '&j=' . url_escape($_) for @$join_specs;
 	$u .= '&c=' . url_escape($_) for @{ $combine_specs // [] };
 	$u .= '&f=' . url_escape($_) for @$filter_specs;
+	$u .= '&d=1' if $dedup;
 	return $u;
 }
 
@@ -631,6 +649,8 @@ sub _run_export_pipeline :Protected ($self) {
 	for my $s (@{ $self->every_param('f') }) {
 		$records = _apply_filter_spec($records, $s);
 	}
+
+	$records = _dedup_records($records, \@columns) if $self->param('d');
 
 	return ($records, \@columns, $left_label);
 }
@@ -826,6 +846,8 @@ sub view ($self) {
 
 	my @columns = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	$filtered = _dedup_records($filtered, \@columns) if $dedup;
 
 	$self->render(
 		template         => "$platform/$language/dashboard",
@@ -842,7 +864,8 @@ sub view ($self) {
 		join_summaries   => [],
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
-		export_url       => $self->_build_export_url("table:$table", [], $filter_specs),
+		dedup            => $dedup,
+		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup),
 	);
 }
 
@@ -1043,6 +1066,8 @@ sub open_file ($self) {
 
 	my @columns  = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	$filtered = _dedup_records($filtered, \@columns) if $dedup;
 
 	$self->render(
 		template         => "$platform/$language/dashboard",
@@ -1062,7 +1087,8 @@ sub open_file ($self) {
 		join_summaries   => [],
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
-		export_url       => $self->_build_export_url($lspec, [], $filter_specs),
+		dedup            => $dedup,
+		export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
 	);
 }
 
@@ -1137,6 +1163,8 @@ sub import_url ($self) {
 	my $lspec   = "url:$url";
 	my @columns = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	$filtered = _dedup_records($filtered, \@columns) if $dedup;
 
 	$self->render(
 		template         => "$platform/$language/dashboard",
@@ -1156,7 +1184,8 @@ sub import_url ($self) {
 		join_summaries   => [],
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
-		export_url       => $self->_build_export_url($lspec, [], $filter_specs),
+		dedup            => $dedup,
+		export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
 	);
 }
 
@@ -1330,6 +1359,8 @@ sub join_tables ($self) {
 	}
 
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	$filtered = _dedup_records($filtered, \@columns) if $dedup;
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
@@ -1353,7 +1384,8 @@ sub join_tables ($self) {
 		join_summaries   => \@summaries,
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
-		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs),
+		dedup            => $dedup,
+		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs, undef, $dedup),
 	);
 }
 
@@ -1450,6 +1482,8 @@ sub combine_tables ($self) {
 	my @columns = @$cols_ref;
 
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	$filtered = _dedup_records($filtered, \@columns) if $dedup;
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
@@ -1473,7 +1507,8 @@ sub combine_tables ($self) {
 		join_summaries   => \@summaries,
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
-		export_url       => $self->_build_export_url($left_spec, [], $filter_specs, \@combine_specs),
+		dedup            => $dedup,
+		export_url       => $self->_build_export_url($left_spec, [], $filter_specs, \@combine_specs, $dedup),
 	);
 }
 

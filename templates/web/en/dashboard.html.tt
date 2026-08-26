@@ -27,6 +27,8 @@
   [%- IF left_spec -%]
   <button class="btn-export-open" id="btn-export-open" type="button">&#x2193; Export&hellip;</button>
   [%- END -%]
+  <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
+          title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
   <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge data&hellip;</button>
   <button class="btn-combine" id="btn-combine" type="button" title="Stack rows from another data file beneath these rows, using a unified set of columns and leaving blanks where a column does not exist in a given file">&#x229E; Combine data&hellip;</button>
 </div>
@@ -648,6 +650,22 @@
 
 <script>
 // ---------------------------------------------------------------------------
+// Dedup button — toggle d=1 in the URL and reload
+// ---------------------------------------------------------------------------
+(function () {
+  var btn = document.getElementById('btn-dedup');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var u = new URL(location.href);
+    if (u.searchParams.get('d')) { u.searchParams.delete('d'); }
+    else                         { u.searchParams.set('d', '1'); }
+    location.href = u.toString();
+  });
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
 // Combine panel — stack rows from another file beneath the current view
 // ---------------------------------------------------------------------------
 (function () {
@@ -855,11 +873,12 @@
     var lInp = document.querySelector('#join-form input[name="l"]');
     if (lInp) params.set('l', lInp.value);
 
-    // j=, c=, and f= reflect the already-rendered view, so read from the URL.
+    // j=, c=, f=, and d= reflect the already-rendered view, so read from the URL.
     var urlP = new URLSearchParams(location.search);
     urlP.getAll('j').forEach(function (v) { params.append('j', v); });
     urlP.getAll('c').forEach(function (v) { params.append('c', v); });
     urlP.getAll('f').forEach(function (v) { params.append('f', v); });
+    if (urlP.get('d')) params.set('d', '1');
 
     fetch('/export', {
       method: 'POST',

@@ -1,6 +1,14 @@
 Revision history for Database-BI
 
-0.002.1	Wed Aug 26 2026
+0.003.0
+    [ Enhancements ]
+    - Add "Hide duplicates / Show duplicates" toggle button to the toolbar.
+      When active (filled blue), duplicate rows are removed from the displayed
+      table and from any CSV or SQLite export.  The button text reflects the
+      current state: "Hide duplicates" when duplicates are visible, "Show
+      duplicates" when they are suppressed.  State is carried in the ?d=1
+      query parameter so the URL remains shareable and bookmarkable.
+
     [ Bug Fixes ]
     - Recently saved files on the home page now open with a single click;
       double-click was required before, making the feature effectively
