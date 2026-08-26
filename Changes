@@ -10,6 +10,11 @@ Revision history for Database-BI
       Config values (platform, language) remain as fallbacks for when a
       module is unavailable, the header is absent, or no template directory
       exists for the detected value.
+    - Add "Refresh" button (↻) to the toolbar next to Export.  Pressing it
+      reloads the current view from disk, picking up any changes to the
+      source file(s) since the page was last loaded.  All URL state (joins,
+      filters, dedup) is preserved because location.reload() reuses the
+      current URL.
     - Add "Hide duplicates / Show duplicates" toggle button to the toolbar.
       When active (filled blue), duplicate rows are removed from the displayed
       table and from any CSV or SQLite export.  The button text reflects the

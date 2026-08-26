@@ -974,4 +974,215 @@ subtest 'Transaction 13: Dedup toggle — hide/show duplicate rows' => sub {
 		'Phase 5: repeated export with d=1 is idempotent';
 };
 
+# ======================================================================
+# TRANSACTION 14: Refresh button — presence, placement, and isolation
+#
+# Verifies the server-side contract for the ↻ Refresh toolbar button:
+#
+#   Phase 1  GET  /view/sales          -> toolbar contains btn-refresh with
+#                                         correct title; btn-export-open also
+#                                         present (both guarded by left_spec)
+#   Phase 2  GET  /open?path=<csv>    -> btn-refresh present for arbitrary
+#                                         file opened via /open
+#   Phase 3  GET  /                   -> home page has no btn-refresh (no data
+#                                         view, no toolbar)
+#   Phase 4  GET  /browse             -> filesystem navigator has no btn-refresh
+#
+# State invariant: btn-refresh is exclusively a view-page control and must
+# never appear on navigation pages that have no data table rendered.
+# ======================================================================
+
+subtest 'Transaction 14: Refresh button — presence, placement, and isolation' => sub {
+	SKIP: {
+		skip 'data/sales.csv not found', 1 unless -f $SALES_CSV;
+
+		# Phase 1: /view/sales — refresh button present alongside export.
+		$t->get_ok('/view/sales')->status_is(200)
+			->content_like(qr/class="btn-refresh"/,
+				'Phase 1: btn-refresh present on /view page')
+			->content_like(qr/btn-refresh[^>]*title=/,
+				'Phase 1: btn-refresh carries a title attribute')
+			->content_like(qr/class="btn-export-open"/,
+				'Phase 1: export button also present (both share left_spec guard)')
+			->content_like(qr/location\.reload\(\)/,
+				'Phase 1: JS wires btn-refresh to location.reload()');
+
+		# Phase 2: /open — refresh button present for arbitrary filesystem files.
+		my $tmpdir = tempdir(CLEANUP => 1);
+		Mojo::File->new($tmpdir)->child('t14.csv')->spew("id,val\n1,x\n");
+		my $csv_path = Mojo::File->new($tmpdir)->child('t14.csv')->to_string;
+		$t->get_ok('/open?path=' . url_escape($csv_path))->status_is(200)
+			->content_like(qr/class="btn-refresh"/,
+				'Phase 2: btn-refresh present on /open page');
+
+		# Phase 3: home page has no toolbar, so no btn-refresh.
+		$t->get_ok('/')->status_is(200)
+			->content_unlike(qr/id="btn-refresh"/,
+				'Phase 3: btn-refresh absent from home page');
+
+		# Phase 4: /browse has no data table, so no btn-refresh.
+		$t->get_ok('/browse')->status_is(200)
+			->content_unlike(qr/id="btn-refresh"/,
+				'Phase 4: btn-refresh absent from filesystem browser');
+	}
+};
+
+# ======================================================================
+# TRANSACTION 15: from=saved — bi:recent suppression contract
+#
+# Verifies the full server-side and template contract for the mechanism
+# that prevents files opened from "Recently saved" appearing again in
+# "Recently opened":
+#
+#   Phase 1  GET  /open?path=<csv>&from=saved
+#                 -> 200 (server ignores unknown from= param gracefully)
+#   Phase 2  response body contains the data table (normal render — the
+#            from= param does not break anything server-side)
+#   Phase 3  home page template carries fromTag='saved' in the makeSection
+#            call for the bi-saved section
+#   Phase 4  dashboard template contains history.replaceState logic that
+#            strips the from= marker from the address bar
+#   Phase 5  dashboard template guards the bi:recent write with a fromSaved
+#            check so saved-origin navigations are excluded
+# ======================================================================
+
+subtest 'Transaction 15: from=saved — bi:recent suppression contract' => sub {
+	my $tmpdir = tempdir(CLEANUP => 1);
+	my $csv = Mojo::File->new($tmpdir)->child('t15.csv');
+	$csv->spew("product,qty\nwidget,10\ngadget,5\n");
+	my $path = $csv->to_string;
+
+	# Phase 1: server handles from=saved gracefully (returns 200, not 400/500).
+	$t->get_ok('/open?path=' . url_escape($path) . '&from=saved')
+		->status_is(200, 'Phase 1: from=saved param accepted without error');
+
+	# Phase 2: data table still renders normally despite the extra param.
+	$t->content_like(qr/widget|gadget/,
+		'Phase 2: data table rendered correctly with from=saved in URL');
+
+	# Phase 3: home template calls makeSection for bi-saved with fromTag='saved'.
+	my $home_body = $t->get_ok('/')->tx->res->body;
+	like $home_body, qr/'saved'\s*\)/,
+		q{Phase 3: home makeSection call passes 'saved' as fromTag for bi-saved section};
+
+	# Phase 4: dashboard template strips the marker via history.replaceState.
+	my $dash_body = $t->get_ok('/open?path=' . url_escape($path))->tx->res->body;
+	like $dash_body, qr/history\.replaceState/,
+		'Phase 4: dashboard JS uses history.replaceState to clean from= from address bar';
+
+	# Phase 5: bi:recent write is guarded by fromSaved check.
+	like $dash_body, qr/fromSaved/,
+		'Phase 5: dashboard JS declares fromSaved variable to gate bi:recent write';
+	like $dash_body, qr/if\s*\(\s*!fromSaved\s*\)/,
+		'Phase 5: bi:recent write is inside if(!fromSaved) guard';
+};
+
+# ======================================================================
+# TRANSACTION 16: Clear upload cache — full lifecycle
+#
+# Verifies POST /uploads/clear across three phases:
+#
+#   Phase 1  POST /upload (two files)          -> uploads land in .uploads/
+#   Phase 2  POST /uploads/clear (first call)  -> freed > 0, count >= 2
+#   Phase 3  POST /uploads/clear (second call) -> freed = 0, count = 0
+#                                                 (cache already empty)
+#
+# State invariant: clearing an already-empty cache is idempotent and
+# must return 200 with zeros, never an error.
+# ======================================================================
+
+subtest 'Transaction 16: Clear upload cache — full lifecycle' => sub {
+	# Phase 1: upload two distinct CSV files so .uploads/ is non-empty.
+	my $csv_a = "id,label\n1,alpha\n2,beta\n";
+	my $csv_b = "name,score\nAlice,90\nBob,85\n";
+
+	$t->post_ok('/upload',
+		{ 'Content-Type' => 'multipart/form-data' },
+		form => { file => { content => $csv_a, filename => 'cache_a.csv' } },
+	)->status_is(200);
+	my $res_a = decode_json($t->tx->res->body);
+	ok defined $res_a->{path}, 'Phase 1a: first upload returned a path';
+
+	$t->post_ok('/upload',
+		{ 'Content-Type' => 'multipart/form-data' },
+		form => { file => { content => $csv_b, filename => 'cache_b.csv' } },
+	)->status_is(200);
+	my $res_b = decode_json($t->tx->res->body);
+	ok defined $res_b->{path}, 'Phase 1b: second upload returned a path';
+
+	# Phase 2: first clear — should recover the bytes from both uploads.
+	$t->post_ok('/uploads/clear')->status_is(200);
+	my $clear1 = decode_json($t->tx->res->body);
+	ok defined $clear1->{freed}, 'Phase 2: response contains "freed"';
+	ok defined $clear1->{count}, 'Phase 2: response contains "count"';
+	cmp_ok $clear1->{count}, '>=', 2,
+		'Phase 2: at least two files freed (one per upload)';
+	cmp_ok $clear1->{freed}, '>', 0,
+		'Phase 2: freed bytes > 0 after clearing non-empty cache';
+
+	# Phase 3: second clear — cache empty, both values must be zero.
+	$t->post_ok('/uploads/clear')->status_is(200);
+	my $clear2 = decode_json($t->tx->res->body);
+	is $clear2->{freed}, 0, 'Phase 3: idempotent clear returns freed=0';
+	is $clear2->{count}, 0, 'Phase 3: idempotent clear returns count=0';
+};
+
+# ======================================================================
+# TRANSACTION 17: Per-request CGI::Info/CGI::Lingua detection regression
+#
+# Verifies that platform/language detection does not break page rendering
+# when unusual User-Agent or Accept-Language values are present, and that
+# the server gracefully falls back to the configured defaults when no
+# matching template directory exists for the detected value.
+#
+#   Phase 1  Mobile UA + no mobile/ templates  -> 200, falls back to web/en
+#   Phase 2  Desktop UA                        -> 200, normal web/en render
+#   Phase 3  Accept-Language: fr (no fr/ dir)  -> 200, falls back to en
+#   Phase 4  Accept-Language: en               -> 200, en render
+#   Phase 5  Accept-Language absent            -> 200, en render (early return)
+# ======================================================================
+
+subtest 'Transaction 17: Per-request CGI::Info/CGI::Lingua detection regression' => sub {
+	SKIP: {
+		skip 'data/sales.csv not found', 1 unless -f $SALES_CSV;
+
+		Readonly my $MOBILE_UA  => 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1';
+		Readonly my $DESKTOP_UA => 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.0.0 Safari/537.36';
+
+		# Phase 1: mobile UA — no templates/mobile/ dir, so falls back to web/en.
+		$t->get_ok('/view/sales',
+			{ 'User-Agent' => $MOBILE_UA })->status_is(200,
+				'Phase 1: mobile UA returns 200 (falls back to web/en templates)');
+		$t->content_like(qr/sales|product|region/,
+			'Phase 1: data table rendered despite mobile UA');
+
+		# Phase 2: standard desktop UA — normal web/en render.
+		$t->get_ok('/view/sales',
+			{ 'User-Agent' => $DESKTOP_UA })->status_is(200,
+				'Phase 2: desktop UA returns 200');
+		$t->content_like(qr/sales|product|region/,
+			'Phase 2: data table rendered with desktop UA');
+
+		# Phase 3: Accept-Language: fr — no templates/web/fr/, falls back to en.
+		$t->get_ok('/view/sales',
+			{ 'Accept-Language' => 'fr-FR,fr;q=0.9,en;q=0.8' })->status_is(200,
+				'Phase 3: fr Accept-Language returns 200 (falls back to en)');
+		$t->content_like(qr/sales|product|region/,
+			'Phase 3: data table rendered with fr Accept-Language (en fallback)');
+
+		# Phase 4: Accept-Language: en — standard path, no fallback needed.
+		$t->get_ok('/view/sales',
+			{ 'Accept-Language' => 'en-US,en;q=0.9' })->status_is(200,
+				'Phase 4: en Accept-Language returns 200');
+
+		# Phase 5: No Accept-Language header at all — early return to default.
+		my $tx = $t->ua->build_tx(GET => '/view/sales');
+		$tx->req->headers->remove('Accept-Language');
+		$t->request_ok($tx)->status_is(200,
+			'Phase 5: absent Accept-Language returns 200 (early return in _resolve_language)');
+		$t->content_like(qr/sales|product|region/,
+			'Phase 5: data table rendered when Accept-Language header is absent');
+	}
+};
+
 done_testing;
