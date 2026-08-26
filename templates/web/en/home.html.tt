@@ -65,6 +65,13 @@
     </form>
   </div>
 
+  <div class="action-card">
+    <span class="action-card-icon" aria-hidden="true">&#x1F9F9;</span>
+    <h2 class="action-card-title">Clear upload cache</h2>
+    <p class="action-card-desc">Remove files that were temporarily uploaded to this application and free up disc space.</p>
+    <button type="button" class="btn-action" id="btn-clear-uploads">Clear upload cache</button>
+  </div>
+
 </div>
 
 <script>
@@ -156,9 +163,9 @@
                 sizeEl.textContent = fmtSize(d.size);
               } else {
                 card.classList.add('db-card--missing');
-                card.title = 'File no longer exists on disk';
+                card.title = 'File no longer exists on disc';
                 card.addEventListener('click', function (e) { e.preventDefault(); });
-                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disk</span>';
+                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disc</span>';
                 sizeEl.textContent = '';
               }
             })
@@ -183,7 +190,7 @@
                   + txt(fmtDate(new Date(d.mtime * 1000).toISOString()));
                 sizeEl.textContent = fmtSize(d.size);
               } else {
-                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disk</span>';
+                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disc</span>';
                 sizeEl.textContent = '';
               }
             })
@@ -206,6 +213,41 @@
       JSON.parse(localStorage.getItem('bi:saved') || '[]'), true);  // eagerStat=true
 
   } catch (e) {}
+}());
+</script>
+
+<script>
+(function () {
+  var btn = document.getElementById('btn-clear-uploads');
+  if (!btn) return;
+
+  function fmtSize(bytes) {
+    if (bytes < 1024)        return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  btn.addEventListener('click', function () {
+    btn.disabled    = true;
+    btn.textContent = 'Clearing…';
+    fetch('/uploads/clear', { method: 'POST' })
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        btn.disabled    = false;
+        btn.textContent = 'Clear upload cache';
+        if (d.count === 0) {
+          alert('The upload cache is already empty.');
+        } else {
+          alert(d.count + ' file' + (d.count === 1 ? '' : 's') + ' removed.\n'
+            + fmtSize(d.freed) + ' of disc space recovered.');
+        }
+      })
+      .catch(function () {
+        btn.disabled    = false;
+        btn.textContent = 'Clear upload cache';
+        alert('Failed to clear upload cache — check the server log.');
+      });
+  });
 }());
 </script>
 

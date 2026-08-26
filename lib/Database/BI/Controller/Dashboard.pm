@@ -1916,6 +1916,36 @@ sub upload_file ($self) {
 	});
 }
 
+sub clear_uploads ($self) {
+	my $uploads_dir = $self->app->home->child('.uploads');
+
+	return $self->render(json => { freed => 0, count => 0 })
+		unless -d $uploads_dir;
+
+	my ($freed, $count) = (0, 0);
+
+	# Each upload lands in <uploads_dir>/<random_subdir>/<filename>.
+	# Iterate the subdirs, tally file sizes, then remove each subdir tree.
+	$uploads_dir->list({ dir => 1 })->each(sub {
+		my ($entry) = @_;
+		if (-d $entry) {
+			$entry->list->each(sub {
+				my ($file) = @_;
+				return unless -f $file;
+				$freed += (-s $file) // 0;
+				$count++;
+			});
+			$entry->remove_tree;
+		} elsif (-f $entry) {
+			$freed += (-s $entry) // 0;
+			$count++;
+			unlink $entry->to_string;
+		}
+	});
+
+	$self->render(json => { freed => $freed, count => $count });
+}
+
 1;
 
 __END__
@@ -2017,6 +2047,30 @@ B<Upload a data file by dropping it onto the page (multipart form POST):>
   curl -X POST http://localhost:3000/upload \
        -F file=@/home/user/data/sales.csv
   # Returns: {"url":"/open?path=/.../.uploads/.../sales.csv","path":"/.../.uploads/.../sales.csv"}
+
+=head2 clear_uploads
+
+C<POST /uploads/clear> -- Delete every file from the C<.uploads/> staging
+directory and return the total disk space recovered.
+
+The C<.uploads/> directory accumulates files from drag-and-drop uploads.
+It grows indefinitely; this action lets users reclaim that space without
+needing shell access.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+No parameters.  The C<.uploads/> path is always the one under C<app->home>.
+
+=head4 OUTPUT
+
+  200 application/json   { "freed": <bytes>, "count": <n> }
+
+C<freed> is the total number of bytes removed.  C<count> is the number of
+files deleted.  Both are 0 when the directory is absent or already empty.
+
+=cut
 
 =head1 DESCRIPTION
 

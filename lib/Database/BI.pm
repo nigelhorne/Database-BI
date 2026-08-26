@@ -392,6 +392,7 @@ sub startup ($self) {
 	$r->get('/api/dirs')->to('Dashboard#dirs_api');
 	$r->get('/api/stat')->to('Dashboard#stat_api');
 	$r->post('/upload')->to('Dashboard#upload_file');
+	$r->post('/uploads/clear')->to('Dashboard#clear_uploads');
 }
 
 =head1 SEE ALSO
