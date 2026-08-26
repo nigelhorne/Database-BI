@@ -293,8 +293,8 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../../../../../index.html">Index</a>
  <a href="../Model/DataSource.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 96.90%<br>
-TER2 (Branch): 82.37%<br>
+TER1 (Statement): 99.29%<br>
+TER2 (Branch): 83.81%<br>
 TER3 (LCSAJ): 100.0% (32/32)<br>
 Approximate LCSAJ segments: 279<br>
 </div>
@@ -341,7 +341,7 @@ Approximate LCSAJ segments: 279<br>
 	<pre>
 <span class="">    1: package Database::BI::Controller::Dashboard;
 </span><span class="">    2: 
-</span><span class="">    3: our $VERSION = &#39;0.002.0&#39;;
+</span><span class="">    3: our $VERSION = &#39;0.003.0&#39;;
 </span><span class="">    4: 
 </span><span class="">    5: use Mojo::Base &#39;Mojolicious::Controller&#39;, -strict, -signatures;
 </span><span class="">    6: 
@@ -419,12 +419,12 @@ Approximate LCSAJ segments: 279<br>
 </span><span class="">   78: # Purpose: Look up a user-visible string from %MESSAGES and apply sprintf
 </span><span class="">   79: #          for positional arguments.  The entry point for future i18n
 </span><span class="">   80: #          backend integration (e.g. Locale::Maketext).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   81: # Entry:   $key must be a key in %MESSAGES; @args are sprintf positionals.
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   82: # Exit:    Returns the formatted string, or a fallback containing $key.
+</span><span class="">   81: # Entry:   $key must be a key in %MESSAGES; @args are sprintf positionals.
+</span><span class="">   82: # Exit:    Returns the formatted string, or a fallback containing $key.
 </span><span class="">   83: sub _i18n :Protected ($self, $key, @args) {
 </span><span class="">   84: 	my $tmpl = $MESSAGES{$key} // return &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
-</span><span class="">   85: 	return @args ? sprintf($tmpl, @args) : $tmpl;
-</span><span class="">   86: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   85: 	return @args ? sprintf($tmpl, @args) : $tmpl;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   86: }
 </span><span class="">   87: 
 </span><span class="">   88: # _is_safe_url($url) -&gt; bool
 </span><span class="">   89: #
@@ -449,34 +449,34 @@ Approximate LCSAJ segments: 279<br>
 </span><span class="">  108: #   169.254.0.0/16-- link-local; AWS/GCP/Azure metadata endpoint (literal IP)
 </span><span class="">  109: #   100.64.0.0/10 -- CGNAT / Tailscale shared space (literal IP)
 </span><span class="">  110: #
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  111: # Hostname-based targets (e.g. http://internal.corp.example.com/) are allowed
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  112: # at this layer; block them with egress firewall rules instead.
+</span><span class="">  111: # Hostname-based targets (e.g. http://internal.corp.example.com/) are allowed
+</span><span class="">  112: # at this layer; block them with egress firewall rules instead.
 </span><span class="">  113: sub _is_safe_url {
 </span><span class="">  114: 	my ($url) = @_;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  115: 	return 0 unless $url =~ m{\Ahttps?://([^/:?\[\]#]+)}i;
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  116: 	my $host = lc $1;
 </span><span class="">  117: 
 </span><span class="">  118: 	# Block well-known loopback aliases.
-</span><span class="">  119: 	return 0 if $host eq &#39;localhost&#39;
-</span><span class="">  120: 	          || $host =~ /\A127\./
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  119: 	return 0 if $host eq &#39;localhost&#39;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  120: 	          || $host =~ /\A127\./
 </span><span class="">  121: 	          || $host eq &#39;0.0.0.0&#39;
 </span><span class="">  122: 	          || $host eq &#39;::1&#39;;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  123: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  124: 	# For literal IPv4 addresses only: check private/link-local/CGNAT ranges.
+</span><span class="">  123: 
+</span><span class="">  124: 	# For literal IPv4 addresses only: check private/link-local/CGNAT ranges.
 </span><span class="">  125: 	# Skipping DNS for hostname targets avoids a live network call in tests and
 </span><span class="">  126: 	# removes the TOCTOU window that makes DNS-resolved checks illusory anyway.
-</span><span class="">  127: 	return 1 unless $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  128: 
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  129: 	my $packed = inet_aton($host) or return 1;
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  130: 	my $n = unpack &#39;N&#39;, $packed;
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  131: 
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  132: 	return 0 if ($n &amp; 0xFF000000) == 0x0A000000;	# 10/8
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  127: 	return 1 unless $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  128: 
+</span><span class="">  129: 	my $packed = inet_aton($host) or return 1;
+</span><span class="">  130: 	my $n = unpack &#39;N&#39;, $packed;
+</span><span class="">  131: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  132: 	return 0 if ($n &amp; 0xFF000000) == 0x0A000000;	# 10/8
 </span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  133: 	return 0 if ($n &amp; 0xFFF00000) == 0xAC100000;	# 172.16/12
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  134: 	return 0 if ($n &amp; 0xFFFF0000) == 0xC0A80000;	# 192.168/16
-</span><span class="">  135: 	return 0 if ($n &amp; 0xFFFF0000) == 0xA9FE0000;	# 169.254/16 (link-local / metadata)
-</span><span class="">  136: 	return 0 if ($n &amp; 0xFFC00000) == 0x64400000;	# 100.64/10 (CGNAT)
-</span><span class="">  137: 	return 1;
-</span><span class="">  138: }
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  134: 	return 0 if ($n &amp; 0xFFFF0000) == 0xC0A80000;	# 192.168/16
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  135: 	return 0 if ($n &amp; 0xFFFF0000) == 0xA9FE0000;	# 169.254/16 (link-local / metadata)
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  136: 	return 0 if ($n &amp; 0xFFC00000) == 0x64400000;	# 100.64/10 (CGNAT)
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  137: 	return 1;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  138: }
 </span><span class="">  139: 
 </span><span class="">  140: # _resolve_template($self) -&gt; ($platform, $language)
 </span><span class="">  141: #
@@ -497,8 +497,8 @@ Approximate LCSAJ segments: 279<br>
 </span><span class="">  156: 		$self-&gt;req-&gt;headers-&gt;user_agent // &#39;&#39;,
 </span><span class="">  157: 		$cfg_platform,
 </span><span class="">  158: 	);
-</span><span class="">  159: 	unless (-d $self-&gt;app-&gt;home-&gt;child(&quot;templates/$platform&quot;)) {
-</span><span class="">  160: 		$platform = $cfg_platform;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  159: 	unless (-d $self-&gt;app-&gt;home-&gt;child(&quot;templates/$platform&quot;)) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  160: 		$platform = $cfg_platform;
 </span><span class="">  161: 	}
 </span><span class="">  162: 
 </span><span class="">  163: 	my $language = $self-&gt;_resolve_language($platform, $cfg_language);
@@ -510,19 +510,19 @@ Approximate LCSAJ segments: 279<br>
 </span><span class="">  169: # Purpose: Map a raw User-Agent string to a VWF platform dimension
 </span><span class="">  170: #          (&#39;mobile&#39;, &#39;tablet&#39;, or &#39;web&#39;) via CGI::Info.
 </span><span class="">  171: # Entry:   $user_agent -- the raw HTTP User-Agent header value (may be empty).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  172: #          $fallback   -- value to return if detection fails.
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  173: # Exit:    Returns &#39;mobile&#39;, &#39;tablet&#39;, &#39;web&#39;, or $fallback.
+</span><span class="">  172: #          $fallback   -- value to return if detection fails.
+</span><span class="">  173: # Exit:    Returns &#39;mobile&#39;, &#39;tablet&#39;, &#39;web&#39;, or $fallback.
 </span><span class="">  174: # Side Effects: temporarily sets $ENV{HTTP_USER_AGENT} with local().
 </span><span class="">  175: sub _detect_platform ($user_agent, $fallback) {
 </span><span class="">  176: 	my $platform = eval {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  177: 		local $ENV{HTTP_USER_AGENT} = $user_agent;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  178: 		my $info = CGI::Info-&gt;new();
+</span><span class="">  177: 		local $ENV{HTTP_USER_AGENT} = $user_agent;
+</span><span class="">  178: 		my $info = CGI::Info-&gt;new();
 </span><span class="">  179: 		$info-&gt;is_mobile() ? &#39;mobile&#39;
 </span><span class="">  180: 		: $info-&gt;is_tablet() ? &#39;tablet&#39;
 </span><span class="">  181: 		:                      &#39;web&#39;;
 </span><span class="">  182: 	};
-</span><span class="">  183: 	return $platform // $fallback;
-</span><span class="">  184: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  183: 	return $platform // $fallback;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  184: }
 </span><span class="">  185: 
 </span><span class="">  186: # _resolve_language($self, $platform, $default) -&gt; $language_code
 </span><span class="">  187: #
@@ -534,59 +534,44 @@ Approximate LCSAJ segments: 279<br>
 </span><span class="">  193: #          CGI::Lingua is unavailable.
 </span><span class="">  194: # Entry:   $platform is the resolved VWF platform string.
 </span><span class="">  195: #          $default  is a non-empty fallback language code (e.g. &#39;en&#39;).
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  196: # Exit:    Returns a two-letter ISO 639-1 language code string.
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_196_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_196_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  197: # Side Effects: filesystem stats for template directories;
+</span><span class="">  196: # Exit:    Returns a two-letter ISO 639-1 language code string.
+</span><span class="">  197: # Side Effects: filesystem stats for template directories;
 </span><span class="">  198: #               temporarily sets $ENV{HTTP_ACCEPT_LANGUAGE} with local().
 </span><span class="">  199: sub _resolve_language :Protected ($self, $platform, $default) {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">200 → 207 → 212</span></span>  200: 	my $accept = $self-&gt;req-&gt;headers-&gt;accept_language // &#39;&#39;;
-</span><span class="">  201: 	return $default unless $accept;
-</span><span class="">  202: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  201: 	return $default unless $accept;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  202: 
 </span><span class="">  203: 	# Discover supported languages from template directories so CGI::Lingua
 </span><span class="">  204: 	# only returns a code we can actually serve.
 </span><span class="">  205: 	my $tmpl_base = $self-&gt;app-&gt;home-&gt;child(&quot;templates/$platform&quot;);
 </span><span class="">  206: 	my @supported;
-</span><span class="">  207: 	if (-d $tmpl_base) {
-</span><span class="">  208: 		@supported = map  { Mojo::File-&gt;new($_)-&gt;basename }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  207: 	if (-d $tmpl_base) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  208: 		@supported = map  { Mojo::File-&gt;new($_)-&gt;basename }
 </span><span class="">  209: 		             grep { -d $_ }
 </span><span class="">  210: 		             @{ $tmpl_base-&gt;list({ dir =&gt; 1 }) };
 </span><span class="">  211: 	}
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">212 → 222 → 226</span></span>  212: 	push @supported, $default unless grep { $_ eq $default } @supported;
 </span><span class="">  213: 
 </span><span class="">  214: 	my $lang = eval {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  215: 		local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  216: 		my $lingua = CGI::Lingua-&gt;new(supported =&gt; \@supported);
+</span><span class="">  215: 		local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
+</span><span class="">  216: 		my $lingua = CGI::Lingua-&gt;new(supported =&gt; \@supported);
 </span><span class="">  217: 		$lingua-&gt;language_code_alpha2();
 </span><span class="">  218: 	};
 </span><span class="">  219: 	$lang //= $default;
 </span><span class="">  220: 
 </span><span class="">  221: 	# Confirm a template directory exists for the chosen language.
-</span><span class="">  222: 	if ($lang ne $default) {
-</span><span class="">  223: 		my $dir = $self-&gt;app-&gt;home-&gt;child(&quot;templates/$platform/$lang&quot;);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  224: 		$lang   = $default unless -d $dir;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  225: 	}
-</span><span class="">  226: 	return $lang;
-</span><span class="">  227: }
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  222: 	if ($lang ne $default) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_222_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  223: 		my $dir = $self-&gt;app-&gt;home-&gt;child(&quot;templates/$platform/$lang&quot;);
+</span><span class="">  224: 		$lang   = $default unless -d $dir;
+</span><span class="">  225: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  226: 	return $lang;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  227: }
 </span><span class="">  228: 
 </span><span class="">  229: # _scan_data_dir($self) -&gt; \@table_list
 </span><span class="">  230: #
@@ -604,13 +589,34 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  242: sub _scan_data_dir :Protected ($self) {
 </span><span class="">  243: 	my $dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
 </span><span class="">  244: 	return [] unless -d $dir;
-</span><span class="">  245: 	return $dir-&gt;list-&gt;map(sub {
-</span><span class="">  246: 		my $base = $_-&gt;basename;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  247: 		return unless $base =~ $EXT_RE;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  248: 		(my $name = $base) =~ s/\.[^.]+\z//;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  249: 		{ name =&gt; $name, file =&gt; $base }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  250: 	})-&gt;to_array;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  251: }
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  245: 	return $dir-&gt;list-&gt;map(sub {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_245_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_245_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  246: 		my $base = $_-&gt;basename;
+</span><span class="">  247: 		return unless $base =~ $EXT_RE;
+</span><span class="">  248: 		(my $name = $base) =~ s/\.[^.]+\z//;
+</span><span class="">  249: 		{ name =&gt; $name, file =&gt; $base }
+</span><span class="">  250: 	})-&gt;to_array;
+</span><span class="">  251: }
 </span><span class="">  252: 
 </span><span class="">  253: # _open_spec($self, $spec) -&gt; ($DataSource, $label) or ()
 </span><span class="">  254: #
@@ -623,17 +629,17 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  261: #          (invalid spec format, file missing, DataSource init error).
 </span><span class="">  262: # Side Effects: Filesystem stat; DataSource construction (reads file header).
 </span><span class="">  263: sub _open_spec :Protected ($self, $spec) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">264 → 264 → 286</span></span>  264: 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
-</span><span class="">  265: 		my $table    = lc $1;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">264 → 264 → 286</span></span>  264: 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  265: 		my $table    = lc $1;
 </span><span class="">  266: 		my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
 </span><span class="">  267: 		return () unless grep { -f $data_dir-&gt;child(&quot;$table.$_&quot;) } @SUPPORTED_EXT;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  268: 		my $src = eval { $self-&gt;open_table($table, directory =&gt; $data_dir-&gt;to_string) };
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  269: 		return ($src, $table) if $src &amp;&amp; !$@;
+</span><span class="">  268: 		my $src = eval { $self-&gt;open_table($table, directory =&gt; $data_dir-&gt;to_string) };
+</span><span class="">  269: 		return ($src, $table) if $src &amp;&amp; !$@;
 </span><span class="">  270: 	}
 </span><span class="">  271: 	elsif ($spec =~ /\Apath:(.+)\z/) {
 </span><span class="">  272: 		my $file = eval { Mojo::File-&gt;new($1)-&gt;realpath };
-</span><span class="">  273: 		if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
-</span><span class="">  274: 			my $dir = $file-&gt;dirname-&gt;to_string;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  273: 		if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  274: 			my $dir = $file-&gt;dirname-&gt;to_string;
 </span><span class="">  275: 			(my $table = $file-&gt;basename) =~ s/\.[^.]+\z//;
 </span><span class="">  276: 			my $src = eval { $self-&gt;open_table(lc $table, directory =&gt; $dir) };
 </span><span class="">  277: 			return ($src, $file-&gt;basename) if $src &amp;&amp; !$@;
@@ -655,11 +661,11 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  293: # Entry:   $spec is a &quot;table:name&quot; or &quot;path:/abs&quot; string.
 </span><span class="">  294: # Exit:    Returns a URL string beginning with &#39;/&#39;.
 </span><span class="">  295: sub _spec_to_url :Protected ($self, $spec) {
-</span><span class="">  296: 	return &quot;/view/$1&quot;                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
-</span><span class="">  297: 	return &#39;/open?path=&#39; . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
-</span><span class="">  298: 	return &#39;/import?url=&#39; . url_escape($1)    if $spec =~ $URL_SPEC_RE;
-</span><span class="">  299: 	return &#39;/&#39;;
-</span><span class="">  300: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  296: 	return &quot;/view/$1&quot;                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  297: 	return &#39;/open?path=&#39; . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  298: 	return &#39;/import?url=&#39; . url_escape($1)    if $spec =~ $URL_SPEC_RE;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  299: 	return &#39;/&#39;;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  300: }
 </span><span class="">  301: 
 </span><span class="">  302: # _get_columns($source, $records) -&gt; @column_names
 </span><span class="">  303: #
@@ -673,20 +679,20 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  311: #
 </span><span class="">  312: # Reduction: columns() is a pure accessor -- cache once to avoid a redundant
 </span><span class="">  313: # method dispatch on the second reference.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  314: sub _get_columns {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  315: 	my ($source, $records) = @_;
+</span><span class="">  314: sub _get_columns {
+</span><span class="">  315: 	my ($source, $records) = @_;
 </span><span class="">  316: 	my $cols = $source-&gt;columns;
-</span><span class="">  317: 	return @$cols if $cols;
-</span><span class="">  318: 	return () unless $records-&gt;[0];
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  317: 	return @$cols if $cols;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  318: 	return () unless $records-&gt;[0];
 </span><span class="">  319: 	my %all = map { $_ =&gt; 1 } keys %{ $records-&gt;[0] };
 </span><span class="">  320: 	my $c   = $source-&gt;id_column;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  321: 	my $id  = ($c &amp;&amp; $all{$c}) ? $c : (sort keys %all)[0];
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  322: 	delete $all{$id};
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  323: 	return ($id, sort keys %all);
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  324: }
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  325: 
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  326: # _apply_filter_spec($records, $spec) -&gt; \@filtered_records
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  327: #
+</span><span class="">  321: 	my $id  = ($c &amp;&amp; $all{$c}) ? $c : (sort keys %all)[0];
+</span><span class="">  322: 	delete $all{$id};
+</span><span class="">  323: 	return ($id, sort keys %all);
+</span><span class="">  324: }
+</span><span class="">  325: 
+</span><span class="">  326: # _apply_filter_spec($records, $spec) -&gt; \@filtered_records
+</span><span class="">  327: #
 </span><span class="">  328: # Purpose: Apply one &quot;col:op:val&quot; filter to an arrayref of record hashrefs and
 </span><span class="">  329: #          return a new (possibly shorter) arrayref.  The original is not mutated.
 </span><span class="">  330: #          Value may contain colons: &quot;col:op:val:with:colons&quot; -- split limit 3
@@ -722,20 +728,20 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  360: sub _apply_filter_spec {
 </span><span class="">  361: 	my ($records, $spec) = @_;
 </span><span class="">  362: 	my ($col, $op, $val) = split /:/, $spec, 3;
-</span><span class="">  363: 	return $records unless length($col // &#39;&#39;) &amp;&amp; defined $op &amp;&amp; length $op;
-</span><span class="">  364: 	$val //= &#39;&#39;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  363: 	return $records unless length($col // &#39;&#39;) &amp;&amp; defined $op &amp;&amp; length $op;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  364: 	$val //= &#39;&#39;;
 </span><span class="">  365: 	my $lval = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
 </span><span class="">  366: 	return [grep {
 </span><span class="">  367: 		my $cell = $_-&gt;{$col} // &#39;&#39;;
 </span><span class="">  368: 		$op eq &#39;eq&#39;       ? lc($cell) eq $lval                :
 </span><span class="">  369: 		$op eq &#39;ne&#39;       ? lc($cell) ne $lval                :
-</span><span class="">  370: 		$op eq &#39;contains&#39; ? index(lc($cell), $lval) != -1     :
-</span><span class="">  371: 		$op eq &#39;starts&#39;   ? index(lc($cell), $lval) == 0      :
-</span><span class="">  372: 		$op eq &#39;lt&#39;       ? $cell &lt;  $val                     :
-</span><span class="">  373: 		$op eq &#39;le&#39;       ? $cell &lt;= $val                     :
-</span><span class="">  374: 		$op eq &#39;gt&#39;       ? $cell &gt;  $val                     :
-</span><span class="">  375: 		$op eq &#39;ge&#39;       ? $cell &gt;= $val                     :
-</span><span class="">  376: 		$op eq &#39;empty&#39;    ? $cell eq &#39;&#39;                        :
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  370: 		$op eq &#39;contains&#39; ? index(lc($cell), $lval) != -1     :
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  371: 		$op eq &#39;starts&#39;   ? index(lc($cell), $lval) == 0      :
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  372: 		$op eq &#39;lt&#39;       ? $cell &lt;  $val                     :
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  373: 		$op eq &#39;le&#39;       ? $cell &lt;= $val                     :
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  374: 		$op eq &#39;gt&#39;       ? $cell &gt;  $val                     :
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  375: 		$op eq &#39;ge&#39;       ? $cell &gt;= $val                     :
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  376: 		$op eq &#39;empty&#39;    ? $cell eq &#39;&#39;                        :
 </span><span class="">  377: 		$op eq &#39;notempty&#39; ? $cell ne &#39;&#39;                        :
 </span><span class="">  378: 		1
 </span><span class="">  379: 	} @$records];
@@ -780,11 +786,11 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">418 → 420 → 424</span></span>  418: 	my ($records, $columns) = @_;
 </span><span class="">  419: 	my (%seen, @out);
 </span><span class="">  420: 	for my $row (@$records) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  421: 		my $key = join &quot;\x00&quot;, map { $row-&gt;{$_} // &#39;&#39; } @$columns;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  422: 		push @out, $row unless $seen{$key}++;
+</span><span class="">  421: 		my $key = join &quot;\x00&quot;, map { $row-&gt;{$_} // &#39;&#39; } @$columns;
+</span><span class="">  422: 		push @out, $row unless $seen{$key}++;
 </span><span class="">  423: 	}
-</span><span class="">  424: 	return \@out;
-</span><span class="">  425: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  424: 	return \@out;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  425: }
 </span><span class="">  426: 
 </span><span class="">  427: # _left_join($left_recs, $left_cols, $left_key,
 </span><span class="">  428: #            $right_recs, $right_cols, $right_key, $right_label)
@@ -796,29 +802,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  434: #          If a right column name collides with a left column (other than the
 </span><span class="">  435: #          join key itself), the right column is prefixed with &quot;$right_label.&quot;.
 </span><span class="">  436: # Entry:   All arrayref args non-undef; key strings non-empty; $right_label is
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  437: #          a display label used for collision-prefix (not for SQL quoting).
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_437_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_437_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  438: # Exit:    Returns (\@merged, \@column_list).
+</span><span class="">  437: #          a display label used for collision-prefix (not for SQL quoting).
+</span><span class="">  438: # Exit:    Returns (\@merged, \@column_list).
 </span><span class="">  439: # Side Effects: None; allocates new record hashrefs.
 </span><span class="">  440: sub _left_join {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">441 → 446 → 452</span></span>  441: 	my ($left_recs, $left_cols, $left_key,
@@ -833,12 +818,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  450: 
 </span><span class="">  451: 	# Map right column names: drop the join key (redundant), prefix collisions.
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">452 → 454 → 464</span></span>  452: 	my %left_set = map { $_ =&gt; 1 } @$left_cols;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  453: 	my (@add_cols, %col_map);
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  454: 	for my $col (grep { $_ ne $right_key } @$right_cols) {
+</span><span class="">  453: 	my (@add_cols, %col_map);
+</span><span class="">  454: 	for my $col (grep { $_ ne $right_key } @$right_cols) {
 </span><span class="">  455: 		my $out = $left_set{$col} ? &quot;${right_label}.${col}&quot; : $col;
 </span><span class="">  456: 		$col_map{$col} = $out;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  457: 		push @add_cols, $out;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  458: 	}
+</span><span class="">  457: 		push @add_cols, $out;
+</span><span class="">  458: 	}
 </span><span class="">  459: 
 </span><span class="">  460: 	# Precompute [$right_col, $mapped_col] pairs once before the merge loop.
 </span><span class="">  461: 	# Without this, &quot;grep { $_ ne $right_key } @$right_cols&quot; would run on
@@ -876,8 +861,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  493: sub _combine_tables {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">494 → 499 → 505</span></span>  494: 	my ($sources) = @_;
 </span><span class="">  495: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  496: 	# Build the unified column order: first source&#39;s columns first, then any
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  497: 	# new columns introduced by each subsequent source in their file order.
+</span><span class="">  496: 	# Build the unified column order: first source&#39;s columns first, then any
+</span><span class="">  497: 	# new columns introduced by each subsequent source in their file order.
 </span><span class="">  498: 	my (@all_cols, %seen);
 </span><span class="">  499: 	for my $src (@$sources) {
 </span><span class="">  500: 		for my $col (@{ $src-&gt;[1] }) {
@@ -886,14 +871,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  503: 	}
 </span><span class="">  504: 
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">505 → 506 → 517</span></span>  505: 	my @merged;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  506: 	for my $src (@$sources) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_506_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="">  507: 		my ($recs, $cols) = @$src;
+</span><span class="">  506: 	for my $src (@$sources) {
+</span><span class="">  507: 		my ($recs, $cols) = @$src;
 </span><span class="">  508: 		my %has_col = map { $_ =&gt; 1 } @$cols;
 </span><span class="">  509: 		for my $row (@$recs) {
 </span><span class="">  510: 			my %new_row;
@@ -903,19 +882,19 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  514: 		}
 </span><span class="">  515: 	}
 </span><span class="">  516: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  517: 	return (\@merged, \@all_cols);
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  518: }
+</span><span class="">  517: 	return (\@merged, \@all_cols);
+</span><span class="">  518: }
 </span><span class="">  519: 
 </span><span class="">  520: # _csv_row(@fields) -&gt; $csv_line_with_crlf
 </span><span class="">  521: #
 </span><span class="">  522: # Purpose: Format one row as an RFC 4180 CSV line.  Fields containing commas,
 </span><span class="">  523: #          double-quotes, or newlines are enclosed in double-quotes; embedded
 </span><span class="">  524: #          double-quotes are doubled.  The line ends with CRLF.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  525: # Entry:   @fields may contain undef (treated as empty string).
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  526: # Exit:    Returns a string ending with &quot;\r\n&quot;.
+</span><span class="">  525: # Entry:   @fields may contain undef (treated as empty string).
+</span><span class="">  526: # Exit:    Returns a string ending with &quot;\r\n&quot;.
 </span><span class="">  527: sub _csv_row {
-</span><span class="">  528: 	return join(&#39;,&#39;, map {
-</span><span class="">  529: 		my $f = $_ // &#39;&#39;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  528: 	return join(&#39;,&#39;, map {
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  529: 		my $f = $_ // &#39;&#39;;
 </span><span class="">  530: 		$f =~ /[,&quot;\r\n]/ ? do { (my $q = $f) =~ s/&quot;/&quot;&quot;/g; qq{&quot;$q&quot;} } : $f;
 </span><span class="">  531: 	} @_) . &quot;\r\n&quot;;
 </span><span class="">  532: }
@@ -932,8 +911,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  543: 	$u .= &#39;&amp;c=&#39; . url_escape($_) for @{ $combine_specs // [] };
 </span><span class="">  544: 	$u .= &#39;&amp;f=&#39; . url_escape($_) for @$filter_specs;
 </span><span class="">  545: 	$u .= &#39;&amp;d=1&#39; if $dedup;
-</span><span class="">  546: 	return $u;
-</span><span class="">  547: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  546: 	return $u;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  547: }
 </span><span class="">  548: 
 </span><span class="">  549: # _list_dir($self, $dir, $want_files) -&gt; { dirs =&gt; [...], files =&gt; [...] }
 </span><span class="">  550: #
@@ -948,12 +927,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  559: # Side Effects: Filesystem directory read.
 </span><span class="">  560: sub _list_dir :Protected ($self, $dir, $want_files) {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">561 → 562 → 575</span></span>  561: 	my (@dirs, @files);
-</span><span class="">  562: 	if (opendir my $dh, $dir-&gt;to_string) {
-</span><span class="">  563: 		while (my $entry = readdir $dh) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  562: 	if (opendir my $dh, $dir-&gt;to_string) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  563: 		while (my $entry = readdir $dh) {
 </span><span class="">  564: 			next if $entry eq &#39;.&#39; || $entry eq &#39;..&#39; || $entry =~ /\A\./;
 </span><span class="">  565: 			my $f = $dir-&gt;child($entry);
-</span><span class="">  566: 			if (-d $f) {
-</span><span class="">  567: 				push @dirs,  { name =&gt; $entry, path =&gt; $f-&gt;to_string };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  566: 			if (-d $f) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  567: 				push @dirs,  { name =&gt; $entry, path =&gt; $f-&gt;to_string };
 </span><span class="">  568: 			}
 </span><span class="">  569: 			elsif ($want_files &amp;&amp; $entry =~ $EXT_RE) {
 </span><span class="">  570: 				push @files, { name =&gt; $entry, path =&gt; $f-&gt;to_string };
@@ -983,16 +962,16 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">594 → 605 → 612</span></span>  594: 	croak &#39;Cannot export SQLite: result set has no columns&#39;
 </span><span class="">  595: 		unless @$columns;
 </span><span class="">  596: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  597: 	require DBI;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  598: 	my ($tmp_fh, $tmpfile) = tempfile(SUFFIX =&gt; &#39;.db&#39;, UNLINK =&gt; 0);
+</span><span class="">  597: 	require DBI;
+</span><span class="">  598: 	my ($tmp_fh, $tmpfile) = tempfile(SUFFIX =&gt; &#39;.db&#39;, UNLINK =&gt; 0);
 </span><span class="">  599: 	close $tmp_fh;
 </span><span class="">  600: 
 </span><span class="">  601: 	my $dbh = eval { DBI-&gt;connect(&quot;dbi:SQLite:dbname=$tmpfile&quot;, &#39;&#39;, &#39;&#39;, {
 </span><span class="">  602: 		RaiseError =&gt; 1, AutoCommit =&gt; 1,
 </span><span class="">  603: 	}) };
 </span><span class="">  604: 	# Guard both the eval-caught die ($@) and the undef-without-die edge case.
-</span><span class="">  605: 	if ($@ || !$dbh) {
-</span><span class="">  606: 		unlink $tmpfile;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  605: 	if ($@ || !$dbh) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  606: 		unlink $tmpfile;
 </span><span class="">  607: 		croak &quot;DBI connect failed: $@&quot;;
 </span><span class="">  608: 	}
 </span><span class="">  609: 
@@ -1001,8 +980,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">612 → 626 → 632</span></span>  612: 	eval {
 </span><span class="">  613: 		my @quoted = map { (my $c = $_) =~ s/&quot;/&quot;&quot;/g; qq{&quot;$c&quot;} } @$columns;
 </span><span class="">  614: 		$dbh-&gt;do(&#39;CREATE TABLE &quot;data&quot; (&#39; . join(&#39;, &#39;, map { &quot;$_ TEXT&quot; } @quoted) . &#39;)&#39;);
-</span><span class="">  615: 		if (@$records) {
-</span><span class="">  616: 			my $ph  = join(&#39;, &#39;, (&#39;?&#39;) x scalar @$columns);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  615: 		if (@$records) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  616: 			my $ph  = join(&#39;, &#39;, (&#39;?&#39;) x scalar @$columns);
 </span><span class="">  617: 			my $sth = $dbh-&gt;prepare(
 </span><span class="">  618: 				&#39;INSERT INTO &quot;data&quot; (&#39; . join(&#39;, &#39;, @quoted) . &quot;) VALUES ($ph)&quot;
 </span><span class="">  619: 			);
@@ -1012,16 +991,16 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  623: 		}
 </span><span class="">  624: 		$dbh-&gt;disconnect;
 </span><span class="">  625: 	};
-</span><span class="">  626: 	if (my $err = $@) {
-</span><span class="">  627: 		eval { $dbh-&gt;disconnect };	# best-effort; may already be disconnected
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  626: 	if (my $err = $@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  627: 		eval { $dbh-&gt;disconnect };	# best-effort; may already be disconnected
 </span><span class="">  628: 		unlink $tmpfile;
 </span><span class="">  629: 		croak $err;
 </span><span class="">  630: 	}
 </span><span class="">  631: 
 </span><span class="">  632: 	my $data = Mojo::File-&gt;new($tmpfile)-&gt;slurp;
 </span><span class="">  633: 	unlink $tmpfile;
-</span><span class="">  634: 	return $data;
-</span><span class="">  635: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  634: 	return $data;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  635: }
 </span><span class="">  636: 
 </span><span class="">  637: # _run_export_pipeline($self) -&gt; ($records, \@columns, $left_label) or ()
 </span><span class="">  638: #
@@ -1066,8 +1045,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  677: 	# Combine (vertical stack) with any c= sources.  Runs after joins so a join
 </span><span class="">  678: 	# result can itself be stacked with another table in a single pipeline.
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">679 → 680 → 696</span></span>  679: 	my @cspecs = @{ $self-&gt;every_param(&#39;c&#39;) // [] };
-</span><span class="">  680: 	if (@cspecs) {
-</span><span class="">  681: 		my @sources = ([$records, \@columns]);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  680: 	if (@cspecs) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  681: 		my @sources = ([$records, \@columns]);
 </span><span class="">  682: 		for my $cspec (@cspecs) {
 </span><span class="">  683: 			my ($csrc) = $self-&gt;_open_spec($cspec);
 </span><span class="">  684: 			next unless $csrc;
@@ -1076,8 +1055,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  687: 			my @ccols = _get_columns($csrc, $crecs);
 </span><span class="">  688: 			push @sources, [$crecs, \@ccols];
 </span><span class="">  689: 		}
-</span><span class="">  690: 		if (@sources &gt; 1) {
-</span><span class="">  691: 			($records, my $new_cols) = _combine_tables(\@sources);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  690: 		if (@sources &gt; 1) {
+</span><p> <b> Mutants (Total: 4, Killed: 4, Survived: 0)</b><p><span class="">  691: 			($records, my $new_cols) = _combine_tables(\@sources);
 </span><span class="">  692: 			@columns = @$new_cols;
 </span><span class="">  693: 		}
 </span><span class="">  694: 	}
@@ -1113,8 +1092,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  724: 	for my $row (@$records) {
 </span><span class="">  725: 		push @lines, _csv_row(map { $row-&gt;{$_} } @$columns);
 </span><span class="">  726: 	}
-</span><span class="">  727: 	return encode(&#39;UTF-8&#39;, join(&#39;&#39;, @lines));
-</span><span class="">  728: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  727: 	return encode(&#39;UTF-8&#39;, join(&#39;&#39;, @lines));
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  728: }
 </span><span class="">  729: 
 </span><span class="">  730: # _render_csv($self, $records, \@columns, $name) -&gt; void (renders response)
 </span><span class="">  731: #
@@ -1133,57 +1112,15 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  744: # Purpose: Write $records to a SQLite database and emit it as a binary download.
 </span><span class="">  745: # Entry:   $name is a safe filename stem.
 </span><span class="">  746: # Exit:    Renders the Mojolicious response.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  747: # Side Effects: Creates and unlinks a temporary file; writes HTTP response.
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  748: sub _render_sqlite :Protected ($self, $records, $columns, $name) {
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_748_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_748_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  749: 	my $data = $self-&gt;_write_sqlite_db($records, $columns);
+</span><span class="">  747: # Side Effects: Creates and unlinks a temporary file; writes HTTP response.
+</span><span class="">  748: sub _render_sqlite :Protected ($self, $records, $columns, $name) {
+</span><span class="">  749: 	my $data = $self-&gt;_write_sqlite_db($records, $columns);
 </span><span class="">  750: 	$self-&gt;res-&gt;headers-&gt;content_type(&#39;application/vnd.sqlite3&#39;);
 </span><span class="">  751: 	$self-&gt;res-&gt;headers-&gt;content_disposition(qq{attachment; filename=&quot;${name}.db&quot;});
 </span><span class="">  752: 	$self-&gt;render(data =&gt; $data);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  753: }
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  754: 
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_754_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_754_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  755: # ---------------------------------------------------------------------------
+</span><span class="">  753: }
+</span><span class="">  754: 
+</span><span class="">  755: # ---------------------------------------------------------------------------
 </span><span class="">  756: # Public actions
 </span><span class="">  757: # ---------------------------------------------------------------------------
 </span><span class="">  758: 
@@ -1259,29 +1196,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  828: =item Valid partition
 </span><span class="">  829: 
 </span><span class="">  830: C&lt;sales&gt; (letters only), C&lt;_temp&gt; (underscore-start), C&lt;report_2024&gt;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  831: (mixed).  A name that is valid but has no backing file returns 200 with
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_831_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_831_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  832: an error message -- NOT 404.
+</span><span class="">  831: (mixed).  A name that is valid but has no backing file returns 200 with
+</span><span class="">  832: an error message -- NOT 404.
 </span><span class="">  833: 
 </span><span class="">  834: =item Invalid partition
 </span><span class="">  835: 
@@ -1326,15 +1242,57 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">874 → 877 → 881</span></span>  874: 	my ($platform, $language) = $self-&gt;_resolve_template;
 </span><span class="">  875: 	my $table = $self-&gt;stash(&#39;table&#39;);
 </span><span class="">  876: 
-</span><span class="">  877: 	unless (defined $table &amp;&amp; $table =~ $TABLE_NAME_RE) {
-</span><span class="">  878: 		return $self-&gt;reply-&gt;not_found;
-</span><span class="">  879: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  877: 	unless (defined $table &amp;&amp; $table =~ $TABLE_NAME_RE) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  878: 		return $self-&gt;reply-&gt;not_found;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_878_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_878_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  879: 	}
 </span><span class="">  880: 
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">881 → 883 → 894</span></span>  881: 	my ($source, $records);
 </span><span class="">  882: 	eval { $source = $self-&gt;open_table($table); $records = $source-&gt;fetch_all };
-</span><span class="">  883: 	if ($@) {
-</span><span class="">  884: 		return $self-&gt;render(
-</span><span class="">  885: 			template =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  883: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  884: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_884_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_884_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  885: 			template =&gt; &quot;$platform/$language/home&quot;,
 </span><span class="">  886: 			handler  =&gt; &#39;tt&#39;,
 </span><span class="">  887: 			format   =&gt; &#39;html&#39;,
 </span><span class="">  888: 			tables   =&gt; [],
@@ -1401,53 +1359,11 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  949:     pre  is_dir(dir)
 </span><span class="">  950:     post render(browse, dirs: subdirs(dir), files: supported_files(dir))
 </span><span class="">  951: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  952: =head3 EXAMPLE
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_952_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_952_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  953: 
+</span><span class="">  952: =head3 EXAMPLE
+</span><span class="">  953: 
 </span><span class="">  954:   GET /browse                            -&gt; 200, lists $HOME
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  955:   GET /browse?path=/tmp                  -&gt; 200, lists /tmp
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_955_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_955_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  956:   GET /browse?path=/nonexistent/xyz      -&gt; 404
+</span><span class="">  955:   GET /browse?path=/tmp                  -&gt; 200, lists /tmp
+</span><span class="">  956:   GET /browse?path=/nonexistent/xyz      -&gt; 404
 </span><span class="">  957: 
 </span><span class="">  958: =cut
 </span><span class="">  959: 
@@ -1456,15 +1372,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  962: 
 </span><span class="">  963: 	my $raw_path = $self-&gt;param(&#39;path&#39;) // $ENV{HOME} // &#39;/&#39;;
 </span><span class="">  964: 	my $dir      = eval { Mojo::File-&gt;new($raw_path)-&gt;realpath };
-</span><span class="">  965: 	return $self-&gt;reply-&gt;not_found unless defined $dir &amp;&amp; -d $dir;
-</span><span class="">  966: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  967: 	my $listing = $self-&gt;_list_dir($dir, 1);
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  968: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  965: 	return $self-&gt;reply-&gt;not_found unless defined $dir &amp;&amp; -d $dir;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_968_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_965_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1472,7 +1385,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_968_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_965_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1481,7 +1394,10 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  969: 	# Add browse hrefs to file entries (dirs already have path; browse needs href).
+<span class="">  966: 
+</span><span class="">  967: 	my $listing = $self-&gt;_list_dir($dir, 1);
+</span><span class="">  968: 
+</span><span class="">  969: 	# Add browse hrefs to file entries (dirs already have path; browse needs href).
 </span><span class="">  970: 	my @dirs = map {
 </span><span class="">  971: 		+{ name =&gt; $_-&gt;{name}, href =&gt; &#39;/browse?path=&#39; . url_escape($_-&gt;{path}) }
 </span><span class="">  972: 	} @{ $listing-&gt;{dirs} };
@@ -1571,123 +1487,18 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1056: 
 </span><span class=""> 1057: On success renders C&lt;dashboard.html.tt&gt; with C&lt;back_url&gt; pointing to the
 </span><span class=""> 1058: directory&#39;s C&lt;/browse&gt; page, and C&lt;file_path&gt; set to the resolved absolute
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1059: path (used by the template to record the file in C&lt;localStorage&gt;).
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1059_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1059_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1060: On error re-renders C&lt;home.html.tt&gt; with C&lt;error&gt;, C&lt;back_url&gt;, C&lt;back_label&gt;.
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1060_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1060_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1061: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1062: =head3 MESSAGES
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1062_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1062_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1063: 
+</span><span class=""> 1059: path (used by the template to record the file in C&lt;localStorage&gt;).
+</span><span class=""> 1060: On error re-renders C&lt;home.html.tt&gt; with C&lt;error&gt;, C&lt;back_url&gt;, C&lt;back_label&gt;.
+</span><span class=""> 1061: 
+</span><span class=""> 1062: =head3 MESSAGES
+</span><span class=""> 1063: 
 </span><span class=""> 1064:   error_file_open   -- DataSource threw during initialisation or fetch_all.
 </span><span class=""> 1065: 
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1066: =head3 FORMAL SPECIFICATION
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1066_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1066_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1067: 
+</span><span class=""> 1066: =head3 FORMAL SPECIFICATION
+</span><span class=""> 1067: 
 </span><span class=""> 1068:   open_file == lambda self .
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1069:     let file = realpath(param(&#39;path&#39;)) in
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1069_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1069_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1070:     pre  is_file(file) /\ basename(file) =~ EXT_RE
+</span><span class=""> 1069:     let file = realpath(param(&#39;path&#39;)) in
+</span><span class=""> 1070:     pre  is_file(file) /\ basename(file) =~ EXT_RE
 </span><span class=""> 1071:     let src = open_table(stem(file), dir=dirname(file)) in
 </span><span class=""> 1072:     post render(dashboard, file_path: file.to_string)
 </span><span class=""> 1073: 
@@ -1703,11 +1514,53 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1083 → 1101 → 1114</span></span> 1083: 	my ($platform, $language) = $self-&gt;_resolve_template;
 </span><span class=""> 1084: 	my $file_path = $self-&gt;param(&#39;path&#39;);
 </span><span class=""> 1085: 
-</span><span class=""> 1086: 	return $self-&gt;reply-&gt;not_found unless defined $file_path;
-</span><span class=""> 1087: 
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1086: 	return $self-&gt;reply-&gt;not_found unless defined $file_path;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1086_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1086_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1087: 
 </span><span class=""> 1088: 	my $file = eval { Mojo::File-&gt;new($file_path)-&gt;realpath };
-</span><span class=""> 1089: 	return $self-&gt;reply-&gt;not_found
-</span><span class=""> 1090: 		unless defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1089: 	return $self-&gt;reply-&gt;not_found
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1089_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1089_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1090: 		unless defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE;
 </span><span class=""> 1091: 
 </span><span class=""> 1092: 	my $dir      = $file-&gt;dirname;
 </span><span class=""> 1093: 	(my $table   = $file-&gt;basename) =~ s/\.[^.]+\z//;
@@ -1718,9 +1571,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1098: 
 </span><span class=""> 1099: 	my ($source, $records);
 </span><span class=""> 1100: 	eval { $source = $self-&gt;open_table($table, directory =&gt; $dir-&gt;to_string); $records = $source-&gt;fetch_all };
-</span><span class=""> 1101: 	if ($@) {
-</span><span class=""> 1102: 		return $self-&gt;render(
-</span><span class=""> 1103: 			template   =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1101: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1102: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1102_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1102_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1103: 			template   =&gt; &quot;$platform/$language/home&quot;,
 </span><span class=""> 1104: 			handler    =&gt; &#39;tt&#39;,
 </span><span class=""> 1105: 			format     =&gt; &#39;html&#39;,
 </span><span class=""> 1106: 			tables     =&gt; [],
@@ -1758,65 +1632,23 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1138: 		export_url       =&gt; $self-&gt;_build_export_url($lspec, [], $filter_specs, undef, $dedup),
 </span><span class=""> 1139: 	);
 </span><span class=""> 1140: }
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1141: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1142: =head2 import_url
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1143: 
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1143_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1143_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1144: C&lt;GET /import&gt; -- Fetch a remote HTML page, extract the first (or selected)
+</span><span class=""> 1141: 
+</span><span class=""> 1142: =head2 import_url
+</span><span class=""> 1143: 
+</span><span class=""> 1144: C&lt;GET /import&gt; -- Fetch a remote HTML page, extract the first (or selected)
 </span><span class=""> 1145: table, and render it as a sortable data grid.
 </span><span class=""> 1146: 
 </span><span class=""> 1147: =head3 API SPECIFICATION
 </span><span class=""> 1148: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1149: =head4 INPUT
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1150: 
+</span><span class=""> 1149: =head4 INPUT
+</span><span class=""> 1150: 
 </span><span class=""> 1151:   ?url=          string   Required.  Full http:// or https:// URL of the page
 </span><span class=""> 1152:                           that contains the HTML table.  Returns home with an
 </span><span class=""> 1153:                           error message if the scheme is wrong, the fetch fails,
 </span><span class=""> 1154:                           or no table is found at the specified index.
 </span><span class=""> 1155:   ?table_index=  integer  Zero-based index of the C&lt;&lt; &lt;table&gt; &gt;&gt; to use when
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1156:                           the page contains more than one table (default: 0).
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1156_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1156_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1157:   ?f=            string   (repeatable) Filter spec: &quot;col:op:val&quot;.
+</span><span class=""> 1156:                           the page contains more than one table (default: 0).
+</span><span class=""> 1157:   ?f=            string   (repeatable) Filter spec: &quot;col:op:val&quot;.
 </span><span class=""> 1158: 
 </span><span class=""> 1159: =head4 OUTPUT
 </span><span class=""> 1160: 
@@ -1856,18 +1688,123 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1194: 		);
 </span><span class=""> 1195: 	};
 </span><span class=""> 1196: 
-</span><span class=""> 1197: 	return $err_home-&gt;(&#39;error_url_required&#39;) unless length $url;
-</span><span class=""> 1198: 	return $err_home-&gt;(&#39;error_url_invalid&#39;, $url)
-</span><span class=""> 1199: 		unless $url =~ m{\Ahttps?://}i;
-</span><span class=""> 1200: 	return $err_home-&gt;(&#39;error_url_ssrf&#39;, $url)
-</span><span class=""> 1201: 		unless _is_safe_url($url);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1197: 	return $err_home-&gt;(&#39;error_url_required&#39;) unless length $url;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1197_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1197_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1198: 	return $err_home-&gt;(&#39;error_url_invalid&#39;, $url)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1198_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1198_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1199: 		unless $url =~ m{\Ahttps?://}i;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1200: 	return $err_home-&gt;(&#39;error_url_ssrf&#39;, $url)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1200_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1200_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1201: 		unless _is_safe_url($url);
 </span><span class=""> 1202: 
 </span><span class=""> 1203: 	my $source = eval { $self-&gt;open_table(&#39;&#39;, url =&gt; $url, html_table_index =&gt; $idx) };
-</span><span class=""> 1204: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;unknown error&#39;) if $@ || !$source;
-</span><span class=""> 1205: 
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1204: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;unknown error&#39;) if $@ || !$source;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1204_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1204_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1205: 
 </span><span class=""> 1206: 	my $records = eval { $source-&gt;fetch_all };
-</span><span class=""> 1207: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;empty result&#39;) if $@;
-</span><span class=""> 1208: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1207: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;empty result&#39;) if $@;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1207_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1207_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1208: 
 </span><span class=""> 1209: 	my $label   = $source-&gt;table_name;
 </span><span class=""> 1210: 	my $lspec   = &quot;url:$url&quot;;
 </span><span class=""> 1211: 	my @columns = _get_columns($source, $records);
@@ -1880,54 +1817,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1218: 		handler          =&gt; &#39;tt&#39;,
 </span><span class=""> 1219: 		format           =&gt; &#39;html&#39;,
 </span><span class=""> 1220: 		records          =&gt; $filtered,
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1221: 		columns          =&gt; \@columns,
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1221_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1221_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1222: 		table            =&gt; $label,
+</span><span class=""> 1221: 		columns          =&gt; \@columns,
+</span><span class=""> 1222: 		table            =&gt; $label,
 </span><span class=""> 1223: 		title            =&gt; $label,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1224: 		source_url       =&gt; $url,
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1225: 		back_url         =&gt; &#39;/&#39;,
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1225_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1225_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1226: 		back_label       =&gt; &#39;Choose another database&#39;,
+</span><span class=""> 1224: 		source_url       =&gt; $url,
+</span><span class=""> 1225: 		back_url         =&gt; &#39;/&#39;,
+</span><span class=""> 1226: 		back_label       =&gt; &#39;Choose another database&#39;,
 </span><span class=""> 1227: 		left_spec        =&gt; $lspec,
 </span><span class=""> 1228: 		combine_specs    =&gt; [],
 </span><span class=""> 1229: 		current_joins    =&gt; [],
@@ -1984,23 +1879,65 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1280: 	my $path       = $self-&gt;param(&#39;path&#39;);
 </span><span class=""> 1281: 
 </span><span class=""> 1282: 	my $source;
-</span><span class=""> 1283: 	if (defined $table_name &amp;&amp; $table_name =~ $TABLE_NAME_RE) {
-</span><span class=""> 1284: 		my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class=""> 1285: 		return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
-</span><span class=""> 1286: 			unless grep { -f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;) } @SUPPORTED_EXT;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1283: 	if (defined $table_name &amp;&amp; $table_name =~ $TABLE_NAME_RE) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1284: 		my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1285: 		return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1285_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1285_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1286: 			unless grep { -f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;) } @SUPPORTED_EXT;
 </span><span class=""> 1287: 		$source = eval { $self-&gt;open_table(lc $table_name, directory =&gt; $data_dir-&gt;to_string) };
 </span><span class=""> 1288: 	}
 </span><span class=""> 1289: 	elsif (defined $path) {
 </span><span class=""> 1290: 		my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
-</span><span class=""> 1291: 		if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
-</span><span class=""> 1292: 			my $dir = $file-&gt;dirname-&gt;to_string;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1291: 		if (defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1292: 			my $dir = $file-&gt;dirname-&gt;to_string;
 </span><span class=""> 1293: 			(my $tbl = $file-&gt;basename) =~ s/\.[^.]+\z//;
 </span><span class=""> 1294: 			$source = eval { $self-&gt;open_table(lc $tbl, directory =&gt; $dir) };
 </span><span class=""> 1295: 		}
 </span><span class=""> 1296: 	}
 </span><span class=""> 1297: 
-</span><span class=""> 1298: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404) unless $source;
-</span><span class=""> 1299: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1298: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404) unless $source;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1298_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1298_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1299: 
 </span><span class=""> 1300: 	# Use _get_columns to ensure consistent ordering with the view action.
 </span><span class=""> 1301: 	my $recs = ($source-&gt;columns ? [] : eval { $source-&gt;fetch_all } // []);
 </span><span class=""> 1302: 	my @cols = _get_columns($source, $recs);
@@ -2052,39 +1989,24 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1348:   4. Build stable table key for localStorage (&quot;join:left:right1:...&quot;).
 </span><span class=""> 1349:   5. Render dashboard.
 </span><span class=""> 1350: 
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1351: =head3 EXAMPLE
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1351_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1351_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1352: 
+</span><span class=""> 1351: =head3 EXAMPLE
+</span><span class=""> 1352: 
 </span><span class=""> 1353:   GET /join?l=table:sales&amp;j=table:products|product|name
 </span><span class=""> 1354:     -&gt; merged left join of sales and products on product/name columns
 </span><span class=""> 1355: 
 </span><span class=""> 1356: =cut
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1357: 
+</span><span class=""> 1357: 
+</span><span class=""> 1358: sub join_tables ($self) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1359 → 1366 → 1376</span></span> 1359: 	my ($platform, $language) = $self-&gt;_resolve_template;
+</span><span class=""> 1360: 
+</span><span class=""> 1361: 	my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
+</span><span class=""> 1362: 	my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1363: 	return $self-&gt;reply-&gt;not_found unless $left_src;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_1357_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_1363_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -2092,7 +2014,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_1357_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_1363_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -2101,17 +2023,32 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class=""> 1358: sub join_tables ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1359 → 1366 → 1376</span></span> 1359: 	my ($platform, $language) = $self-&gt;_resolve_template;
-</span><span class=""> 1360: 
-</span><span class=""> 1361: 	my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
-</span><span class=""> 1362: 	my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class=""> 1363: 	return $self-&gt;reply-&gt;not_found unless $left_src;
-</span><span class=""> 1364: 
+<span class=""> 1364: 
 </span><span class=""> 1365: 	my $left_recs = eval { $left_src-&gt;fetch_all };
-</span><span class=""> 1366: 	if ($@) {
-</span><span class=""> 1367: 		return $self-&gt;render(
-</span><span class=""> 1368: 			template =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1366: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1367: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1367_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1367_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1368: 			template =&gt; &quot;$platform/$language/home&quot;,
 </span><span class=""> 1369: 			handler  =&gt; &#39;tt&#39;,
 </span><span class=""> 1370: 			format   =&gt; &#39;html&#39;,
 </span><span class=""> 1371: 			tables   =&gt; [],
@@ -2179,30 +2116,9 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1433: 		filters_json     =&gt; $filters_json,
 </span><span class=""> 1434: 		dedup            =&gt; $dedup,
 </span><span class=""> 1435: 		export_url       =&gt; $self-&gt;_build_export_url($left_spec, \@join_specs, $filter_specs, undef, $dedup),
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1436: 	);
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1437: }
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1437_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1437_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1438: 
+</span><span class=""> 1436: 	);
+</span><span class=""> 1437: }
+</span><span class=""> 1438: 
 </span><span class=""> 1439: =head2 combine_tables
 </span><span class=""> 1440: 
 </span><span class=""> 1441: C&lt;GET /combine&gt; -- Stack rows from two or more tables vertically into a single
@@ -2210,99 +2126,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1443: 
 </span><span class=""> 1444: Unlike C&lt;/join&gt; (which appends columns from a matching row in a second table),
 </span><span class=""> 1445: C&lt;/combine&gt; appends the I&lt;rows&gt; from a second table beneath the rows of the
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1446: first.  All columns from all sources appear as headers; where a row has no
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1447: value for a particular column (because that column did not exist in its source
+</span><span class=""> 1446: first.  All columns from all sources appear as headers; where a row has no
+</span><span class=""> 1447: value for a particular column (because that column did not exist in its source
 </span><span class=""> 1448: file) the cell is left blank.
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1449: 
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1449_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1449_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1450: This is equivalent to a SQL C&lt;UNION ALL&gt; across heterogeneous schemas.
+</span><span class=""> 1449: 
+</span><span class=""> 1450: This is equivalent to a SQL C&lt;UNION ALL&gt; across heterogeneous schemas.
 </span><span class=""> 1451: 
 </span><span class=""> 1452: =head3 API SPECIFICATION
 </span><span class=""> 1453: 
 </span><span class=""> 1454: =head4 INPUT
 </span><span class=""> 1455: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1456:   ?l=    string   (required) Left table spec: &quot;table:name&quot; or &quot;path:/abs/path&quot;.
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1456_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1456_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1457:                   Returns 404 if unresolvable.
+</span><span class=""> 1456:   ?l=    string   (required) Left table spec: &quot;table:name&quot; or &quot;path:/abs/path&quot;.
+</span><span class=""> 1457:                   Returns 404 if unresolvable.
 </span><span class=""> 1458:   ?c=    string   (repeatable) Additional table spec to stack beneath the
 </span><span class=""> 1459:                   current result.  Invalid or non-existent specs are silently
 </span><span class=""> 1460:                   skipped.
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."> 1461:   ?f=    string   (repeatable) Result filter: &quot;col:op:val&quot;.
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_1461_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class=""> 1462: 
+</span><span class=""> 1461:   ?f=    string   (repeatable) Result filter: &quot;col:op:val&quot;.
+</span><span class=""> 1462: 
 </span><span class=""> 1463: =head4 OUTPUT
 </span><span class=""> 1464: 
 </span><span class=""> 1465: Renders C&lt;dashboard.html.tt&gt; with the combined result set.
 </span><span class=""> 1466: 
 </span><span class=""> 1467: =head3 MESSAGES
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1468: 
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1468_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1468_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1469:   error_table_open   -- Left table fetch threw (re-renders home with error).
+</span><span class=""> 1468: 
+</span><span class=""> 1469:   error_table_open   -- Left table fetch threw (re-renders home with error).
 </span><span class=""> 1470: 
 </span><span class=""> 1471: =head3 FORMAL SPECIFICATION
 </span><span class=""> 1472: 
@@ -2328,12 +2175,54 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1492: 
 </span><span class=""> 1493: 	my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
 </span><span class=""> 1494: 	my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class=""> 1495: 	return $self-&gt;reply-&gt;not_found unless $left_src;
-</span><span class=""> 1496: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1495: 	return $self-&gt;reply-&gt;not_found unless $left_src;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1495_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1495_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1496: 
 </span><span class=""> 1497: 	my $left_recs = eval { $left_src-&gt;fetch_all };
-</span><span class=""> 1498: 	if ($@) {
-</span><span class=""> 1499: 		return $self-&gt;render(
-</span><span class=""> 1500: 			template =&gt; &quot;$platform/$language/home&quot;,
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1498: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1499: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1499_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1499_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1500: 			template =&gt; &quot;$platform/$language/home&quot;,
 </span><span class=""> 1501: 			handler  =&gt; &#39;tt&#39;,
 </span><span class=""> 1502: 			format   =&gt; &#39;html&#39;,
 </span><span class=""> 1503: 			tables   =&gt; [],
@@ -2352,36 +2241,15 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1516: 	for my $cspec (@combine_specs) {
 </span><span class=""> 1517: 		my ($csrc, $clabel) = $self-&gt;_open_spec($cspec);
 </span><span class=""> 1518: 		next unless $csrc;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1519: 		my $crecs = eval { $csrc-&gt;fetch_all } // [];
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1519_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1519_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1520: 		next if $@;
+</span><span class=""> 1519: 		my $crecs = eval { $csrc-&gt;fetch_all } // [];
+</span><span class=""> 1520: 		next if $@;
 </span><span class=""> 1521: 		my @ccols = _get_columns($csrc, $crecs);
 </span><span class=""> 1522: 		push @sources,   [$crecs, \@ccols];
 </span><span class=""> 1523: 		push @summaries, { label =&gt; $clabel };
 </span><span class=""> 1524: 	}
 </span><span class=""> 1525: 
-</span><span class=""> 1526: 	my ($records, $cols_ref) = @sources &gt; 1
-</span><span class=""> 1527: 		? _combine_tables(\@sources)
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1526: 	my ($records, $cols_ref) = @sources &gt; 1
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class=""> 1527: 		? _combine_tables(\@sources)
 </span><span class=""> 1528: 		: ($left_recs, \@left_cols);
 </span><span class=""> 1529: 	my @columns = @$cols_ref;
 </span><span class=""> 1530: 
@@ -2439,30 +2307,9 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1582: 
 </span><span class=""> 1583: C&lt;csv&gt; (explicit CSV), C&lt;sqlite&gt; (exact lowercase, SQLite binary),
 </span><span class=""> 1584: absent/undef (defaults to CSV).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1585: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1586: =item Invalid partitions (all fall back to CSV)
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1586_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1586_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1587: 
+</span><span class=""> 1585: 
+</span><span class=""> 1586: =item Invalid partitions (all fall back to CSV)
+</span><span class=""> 1587: 
 </span><span class=""> 1588: C&lt;SQLITE&gt; (uppercase, not equal to C&lt;&#39;sqlite&#39;&gt;), C&lt;Sqlite&gt; (mixed
 </span><span class=""> 1589: case), C&lt;sqlit&gt; (truncated), C&lt;sqlite1&gt; (extra character), C&lt;json&gt;
 </span><span class=""> 1590: (unknown format).
@@ -2470,29 +2317,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1592: =back
 </span><span class=""> 1593: 
 </span><span class=""> 1594: =head4 OUTPUT
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1595: 
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1595_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1595_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1596:   200 text/csv                  or application/vnd.sqlite3
+</span><span class=""> 1595: 
+</span><span class=""> 1596:   200 text/csv                  or application/vnd.sqlite3
 </span><span class=""> 1597:   404 application/json          { &quot;error&quot;: &quot;Table not found&quot; }
 </span><span class=""> 1598: 
 </span><span class=""> 1599: =head3 MESSAGES
@@ -2516,14 +2342,56 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1617: 
 </span><span class=""> 1618: sub export_data ($self) {
 </span><span class=""> 1619: 	my ($records, $columns, $left_label) = $self-&gt;_run_export_pipeline;
-</span><span class=""> 1620: 	return $self-&gt;reply-&gt;not_found unless $records;
-</span><span class=""> 1621: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1620: 	return $self-&gt;reply-&gt;not_found unless $records;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1620_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1620_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1621: 
 </span><span class=""> 1622: 	my $format = $self-&gt;param(&#39;format&#39;) // &#39;csv&#39;;
 </span><span class=""> 1623: 	$format    = &#39;csv&#39; unless $format eq &#39;sqlite&#39;;
 </span><span class=""> 1624: 	(my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
 </span><span class=""> 1625: 
-</span><span class=""> 1626: 	return $format eq &#39;sqlite&#39;
-</span><span class=""> 1627: 		? $self-&gt;_render_sqlite($records, $columns, $safe_name)
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1626: 	return $format eq &#39;sqlite&#39;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1626_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1626_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1627: 		? $self-&gt;_render_sqlite($records, $columns, $safe_name)
 </span><span class=""> 1628: 		: $self-&gt;_render_csv($records, $columns, $safe_name);
 </span><span class=""> 1629: }
 </span><span class=""> 1630: 
@@ -2548,30 +2416,9 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1649: the C&lt;/i&gt; flag makes matching case-insensitive, so C&lt;.CSV&gt; and C&lt;.SQL&gt;
 </span><span class=""> 1650: are accepted alongside lowercase forms.  Everything else returns 415.
 </span><span class=""> 1651: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1652: Path separator characters (C&lt;/&gt; and C&lt;\&gt;) in C&lt;filename&gt; are stripped
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1653: first via C&lt;m{([^/\\]+)\z}&gt; -- only the basename is kept, preventing
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1653_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1653_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1654: directory traversal.
+</span><span class=""> 1652: Path separator characters (C&lt;/&gt; and C&lt;\&gt;) in C&lt;filename&gt; are stripped
+</span><span class=""> 1653: first via C&lt;m{([^/\\]+)\z}&gt; -- only the basename is kept, preventing
+</span><span class=""> 1654: directory traversal.
 </span><span class=""> 1655: 
 </span><span class=""> 1656: =over 4
 </span><span class=""> 1657: 
@@ -2581,30 +2428,9 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1661: single-character stem (C&lt;a.csv&gt;) is also valid.
 </span><span class=""> 1662: 
 </span><span class=""> 1663: =item Invalid partitions (415)
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1664: 
-</span><p> <b> Mutants (Total: 4, Killed: 4, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1665: C&lt;report.txt&gt;, C&lt;report.json&gt;, C&lt;report&gt; (no extension), empty string.
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1665_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1665_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1666: 
+</span><span class=""> 1664: 
+</span><span class=""> 1665: C&lt;report.txt&gt;, C&lt;report.json&gt;, C&lt;report&gt; (no extension), empty string.
+</span><span class=""> 1666: 
 </span><span class=""> 1667: =back
 </span><span class=""> 1668: 
 </span><span class=""> 1669: =head4 OUTPUT
@@ -2612,30 +2438,9 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1671:   200 application/json   { &quot;saved&quot;: &quot;/abs/path/to/file&quot; }
 </span><span class=""> 1672:   404 application/json   { &quot;error&quot;: &quot;...&quot; }  -- bad dir or table not found
 </span><span class=""> 1673:   415 application/json   { &quot;error&quot;: &quot;...&quot; }  -- unsupported extension
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1674:   500 application/json   { &quot;error&quot;: &quot;...&quot; }  -- write failure
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1675: 
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
-					<ul>
-				<li><b>BOOL_NEGATE_1675_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boolean branch test suggestion
-ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>RETURN_UNDEF_1675_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Return value assertion
-is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class=""> 1676: =head3 MESSAGES
+</span><span class=""> 1674:   500 application/json   { &quot;error&quot;: &quot;...&quot; }  -- write failure
+</span><span class=""> 1675: 
+</span><span class=""> 1676: =head3 MESSAGES
 </span><span class=""> 1677: 
 </span><span class=""> 1678:   error_dir_not_found   -- realpath of dir failed or result is not a directory.
 </span><span class=""> 1679:   error_ext_required    -- filename extension is not .csv or .sql.
@@ -2664,9 +2469,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1702: 	my $filename = $self-&gt;param(&#39;filename&#39;) // &#39;&#39;;
 </span><span class=""> 1703: 
 </span><span class=""> 1704: 	my $dest_dir = eval { Mojo::File-&gt;new($dir)-&gt;realpath };
-</span><span class=""> 1705: 	unless (defined $dest_dir &amp;&amp; -d $dest_dir) {
-</span><span class=""> 1706: 		return $self-&gt;render(
-</span><span class=""> 1707: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_dir_not_found&#39;, $dir) },
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1705: 	unless (defined $dest_dir &amp;&amp; -d $dest_dir) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1706: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1706_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1706_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1707: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_dir_not_found&#39;, $dir) },
 </span><span class=""> 1708: 			status =&gt; 404,
 </span><span class=""> 1709: 		);
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1710 → 1715 → 1724</span></span> 1710: 	}
@@ -2674,30 +2500,93 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1712: 	# Strip any path separators the browser might include.
 </span><span class=""> 1713: 	($filename) = $filename =~ m{([^/\\]+)\z};
 </span><span class=""> 1714: 	my $format;
-</span><span class=""> 1715: 	if    ($filename &amp;&amp; $filename =~ /\.csv\z/i) { $format = &#39;csv&#39;;    }
-</span><span class=""> 1716: 	elsif ($filename &amp;&amp; $filename =~ /\.sql\z/i) { $format = &#39;sqlite&#39;; }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1715: 	if    ($filename &amp;&amp; $filename =~ /\.csv\z/i) { $format = &#39;csv&#39;;    }
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1716: 	elsif ($filename &amp;&amp; $filename =~ /\.sql\z/i) { $format = &#39;sqlite&#39;; }
 </span><span class=""> 1717: 	else {
-</span><span class=""> 1718: 		return $self-&gt;render(
-</span><span class=""> 1719: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_ext_required&#39;) },
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1718: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1718_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1718_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1719: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_ext_required&#39;) },
 </span><span class=""> 1720: 			status =&gt; 415,
 </span><span class=""> 1721: 		);
 </span><span class=""> 1722: 	}
 </span><span class=""> 1723: 
 </span><span class=""> 1724: 	my ($records, $columns, $left_label) = $self-&gt;_run_export_pipeline;
-</span><span class=""> 1725: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Table not found&#39; }, status =&gt; 404)
-</span><span class=""> 1726: 		unless $records;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1725: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Table not found&#39; }, status =&gt; 404)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1725_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1725_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1726: 		unless $records;
 </span><span class=""> 1727: 
 </span><span class=""> 1728: 	my $dest = $dest_dir-&gt;child($filename);
 </span><span class=""> 1729: 	eval {
-</span><span class=""> 1730: 		if ($format eq &#39;csv&#39;) {
-</span><span class=""> 1731: 			$dest-&gt;spurt(_serialize_csv($records, $columns));
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1730: 		if ($format eq &#39;csv&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1731: 			$dest-&gt;spurt(_serialize_csv($records, $columns));
 </span><span class=""> 1732: 		}
 </span><span class=""> 1733: 		else {
 </span><span class=""> 1734: 			$dest-&gt;spurt($self-&gt;_write_sqlite_db($records, $columns));
 </span><span class=""> 1735: 		}
 </span><span class=""> 1736: 	};
-</span><span class=""> 1737: 	return $self-&gt;render(
-</span><span class=""> 1738: 		json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_write_failed&#39;, $@) },
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1737: 	return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1737_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1737_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1738: 		json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_write_failed&#39;, $@) },
 </span><span class=""> 1739: 		status =&gt; 500,
 </span><span class=""> 1740: 	) if $@;
 </span><span class=""> 1741: 
@@ -2747,8 +2636,29 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1785: sub dirs_api ($self) {
 </span><span class=""> 1786: 	my $raw = $self-&gt;param(&#39;path&#39;) // $ENV{HOME} // &#39;/&#39;;
 </span><span class=""> 1787: 	my $dir = eval { Mojo::File-&gt;new($raw)-&gt;realpath };
-</span><span class=""> 1788: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Not a directory&#39; }, status =&gt; 404)
-</span><span class=""> 1789: 		unless defined $dir &amp;&amp; -d $dir;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1788: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Not a directory&#39; }, status =&gt; 404)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1788_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1788_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1789: 		unless defined $dir &amp;&amp; -d $dir;
 </span><span class=""> 1790: 
 </span><span class=""> 1791: 	my $listing = $self-&gt;_list_dir($dir, 0);
 </span><span class=""> 1792: 	my $parent  = $dir-&gt;dirname;
@@ -2813,9 +2723,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1851: 
 </span><span class=""> 1852: sub stat_api ($self) {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1853 → 1854 → 1861</span></span> 1853: 	my $path = $self-&gt;param(&#39;path&#39;);
-</span><span class=""> 1854: 	unless (defined $path &amp;&amp; length $path) {
-</span><span class=""> 1855: 		return $self-&gt;render(
-</span><span class=""> 1856: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_path_required&#39;) },
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1854: 	unless (defined $path &amp;&amp; length $path) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1855: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1855_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1855_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1856: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_path_required&#39;) },
 </span><span class=""> 1857: 			status =&gt; 400,
 </span><span class=""> 1858: 		);
 </span><span class=""> 1859: 	}
@@ -2823,8 +2754,29 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1861: 	my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
 </span><span class=""> 1862: 	# Restrict to files with a supported data extension so stat_api cannot be
 </span><span class=""> 1863: 	# used as a filesystem oracle to probe /etc/shadow, /root/.ssh/, etc.
-</span><span class=""> 1864: 	return $self-&gt;render(json =&gt; { exists =&gt; \0, path =&gt; $path })
-</span><span class=""> 1865: 		unless defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1864: 	return $self-&gt;render(json =&gt; { exists =&gt; \0, path =&gt; $path })
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1864_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1864_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1865: 		unless defined $file &amp;&amp; -f $file &amp;&amp; $file-&gt;basename =~ $EXT_RE;
 </span><span class=""> 1866: 
 </span><span class=""> 1867: 	my @s = stat $file-&gt;to_string;
 </span><span class=""> 1868: 	$self-&gt;render(json =&gt; {
@@ -2880,9 +2832,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1918: 
 </span><span class=""> 1919: sub upload_file ($self) {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1920 → 1921 → 1933</span></span> 1920: 	my $upload = $self-&gt;req-&gt;upload(&#39;file&#39;);
-</span><span class=""> 1921: 	unless ($upload &amp;&amp; $upload-&gt;filename) {
-</span><span class=""> 1922: 		return $self-&gt;render(
-</span><span class=""> 1923: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_upload_none&#39;) },
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1921: 	unless ($upload &amp;&amp; $upload-&gt;filename) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1922: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1922_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1922_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1923: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_upload_none&#39;) },
 </span><span class=""> 1924: 			status =&gt; 400,
 </span><span class=""> 1925: 		);
 </span><span class=""> 1926: 	}
@@ -2892,9 +2865,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1930: 	# limit fires (with req-&gt;is_limit_exceeded true and partial content in the
 </span><span class=""> 1931: 	# upload asset).  Check is_limit_exceeded first; fall through to an asset
 </span><span class=""> 1932: 	# size check as a belt-and-braces guard for any bytes that slipped through.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1933 → 1933 → 1938</span></span> 1933: 	if ($self-&gt;req-&gt;is_limit_exceeded || $upload-&gt;size &gt; $MAX_UPLOAD_BYTES) {
-</span><span class=""> 1934: 		return $self-&gt;render(
-</span><span class=""> 1935: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_upload_too_large&#39;, $MAX_UPLOAD_MIB) },
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1933 → 1933 → 1938</span></span> 1933: 	if ($self-&gt;req-&gt;is_limit_exceeded || $upload-&gt;size &gt; $MAX_UPLOAD_BYTES) {
+</span><p> <b> Mutants (Total: 4, Killed: 4, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1934: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1934_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1934_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1935: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_upload_too_large&#39;, $MAX_UPLOAD_MIB) },
 </span><span class=""> 1936: 			status =&gt; 413,
 </span><span class=""> 1937: 		);
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1938 → 1943 → 1954</span></span> 1938: 	}
@@ -2902,9 +2896,30 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1940: 	# /s so .* matches \n; a percent-decoded newline inside a browser filename
 </span><span class=""> 1941: 	# must not silently truncate the directory-strip, leaving &quot;dir\ncomponent&quot; in.
 </span><span class=""> 1942: 	(my $filename = $upload-&gt;filename) =~ s{.*[/\\]}{}s;
-</span><span class=""> 1943: 	unless ($filename &amp;&amp; $filename =~ $EXT_RE) {
-</span><span class=""> 1944: 		return $self-&gt;render(
-</span><span class=""> 1945: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_upload_ext&#39;) },
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1943: 	unless ($filename &amp;&amp; $filename =~ $EXT_RE) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1944: 		return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1944_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1944_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1945: 			json   =&gt; { error =&gt; $self-&gt;_i18n(&#39;error_upload_ext&#39;) },
 </span><span class=""> 1946: 			status =&gt; 415,
 </span><span class=""> 1947: 		);
 </span><span class=""> 1948: 	}
@@ -2928,8 +2943,29 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1966: sub clear_uploads ($self) {
 </span><span class=""> 1967: 	my $uploads_dir = $self-&gt;app-&gt;home-&gt;child(&#39;.uploads&#39;);
 </span><span class=""> 1968: 
-</span><span class=""> 1969: 	return $self-&gt;render(json =&gt; { freed =&gt; 0, count =&gt; 0 })
-</span><span class=""> 1970: 		unless -d $uploads_dir;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1969: 	return $self-&gt;render(json =&gt; { freed =&gt; 0, count =&gt; 0 })
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_1969_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_1969_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 1970: 		unless -d $uploads_dir;
 </span><span class=""> 1971: 
 </span><span class=""> 1972: 	my ($freed, $count) = (0, 0);
 </span><span class=""> 1973: 
@@ -2937,8 +2973,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1975: 	# Iterate the subdirs, tally file sizes, then remove each subdir tree.
 </span><span class=""> 1976: 	$uploads_dir-&gt;list({ dir =&gt; 1 })-&gt;each(sub {
 </span><span class=""> 1977: 		my ($entry) = @_;
-</span><span class=""> 1978: 		if (-d $entry) {
-</span><span class=""> 1979: 			$entry-&gt;list-&gt;each(sub {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1978: 		if (-d $entry) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1979: 			$entry-&gt;list-&gt;each(sub {
 </span><span class=""> 1980: 				my ($file) = @_;
 </span><span class=""> 1981: 				return unless -f $file;
 </span><span class=""> 1982: 				$freed += (-s $file) // 0;
