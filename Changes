@@ -1,6 +1,41 @@
 Revision history for Database-BI
 
-0.003.0	Wed Aug 26 01:00:39 PM EDT 2026
+0.003.1  Wed Aug 26 17:30:00 UTC 2026
+    [ Bug Fixes ]
+    - Opening a file whose name has a mixed-case stem (e.g. AccountHistory.csv)
+      now works correctly on case-sensitive Linux filesystems.  The controller
+      was lowercasing the stem before calling open_table, causing DataSource to
+      look for "accounthistory.csv" which does not exist.  The stem is now
+      passed verbatim from the filesystem path; URL-sourced names (from
+      /view/:table and table: join specs) are still normalised to lowercase as
+      before because data/ files are lowercase by convention.
+    - CSV files whose first column header is not a valid SQL identifier (e.g.
+      "Account Number" from a bank export) now open without error.
+      DataSource::_detect_file_info previously passed the first column name
+      directly to Database::Abstraction as the id parameter; D::A validates id
+      against $SAFE_IDENTIFIER and croaked "unsafe id column name".
+      _detect_file_info now scans the header and picks the first column name
+      that IS a safe identifier.
+    - CSV files where the first safe-identifier column is always empty (e.g.
+      "Check" in a US bank statement) now show all rows.  Database::Abstraction
+      uses empty_is_undef => 1, so an empty Check cell becomes undef and the
+      row-existence sentinel grep discards every row where Check is blank.
+      _detect_file_info now reads the first data row and skips safe-identifier
+      columns whose value there is empty, landing on a reliably populated column
+      (e.g. "Description") as the id.
+    - If no column header in a CSV satisfies the safe-identifier constraint,
+      DataSource now croaks error_no_safe_id with a clear message asking the
+      user to rename at least one column, rather than silently returning 0 rows.
+
+    [ Test Improvements ]
+    - Added targeted tests in t/function.t, t/path.t, and t/domain.t that
+      would have caught all three bugs above before they reached production:
+      unit-level _detect_file_info subtests for each id-selection scenario,
+      new CFG paths G-J in path.t, and end-to-end HTTP domain subtests that
+      assert all rows are visible for mixed-case stems, spaced column headers,
+      and empty sentinel columns.
+
+0.003.0  Wed Aug 26 16:54:40 UTC 2026
     [ Enhancements ]
     - Platform and language are now detected per-request rather than read
       statically from config.  CGI::Info inspects the User-Agent header to
