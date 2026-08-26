@@ -822,4 +822,74 @@ subtest 'Transaction 11: combine cats + dogs lifecycle' => sub {
 	}
 };
 
+# ======================================================================
+# TRANSACTION 12: Recently-saved section server-side contract
+#
+# The "Recently saved" home-page section is rendered client-side from
+# localStorage, but its correctness depends on three server-side
+# contracts this transaction verifies end-to-end:
+#
+#   Phase 1  GET  /            -> home page contains bi-saved placeholder
+#                                 and the makeSection JS helper
+#   Phase 2  POST /export      -> response carries {saved: "/abs/path"}
+#   Phase 3  GET  /api/stat    -> {exists:true, mtime, size} for saved file
+#   Phase 4  GET  /open        -> 200 and data table for the saved file
+#   Phase 5  GET  /api/stat    -> {exists:false} for a non-existent path;
+#                                 no error, HTTP 200 with exists=false
+#
+# State invariant: a path returned by POST /export must be openable via
+# /open and must report exists=true in /api/stat until deleted.
+# ======================================================================
+
+subtest 'Transaction 12: Recently-saved section server-side contract' => sub {
+	SKIP: {
+		skip 'data/sales.csv not found', 1 unless -f $SALES_CSV;
+
+		my $dir = tempdir(CLEANUP => 1);
+		Readonly my $SAVE_FILE => 'saved_recent.csv';
+
+		# Phase 1: home page ships the bi-saved placeholder and makeSection helper.
+		$t->get_ok('/')->status_is(200)
+			->content_like(qr/id="bi-saved"/,   'home page has bi-saved placeholder div')
+			->content_like(qr/makeSection/,      'home page contains makeSection JS helper')
+			->content_like(qr/bi:saved/,         'home page references bi:saved localStorage key');
+
+		# Phase 2: POST /export -- save sales as CSV, expect {saved} in response.
+		my $params = Mojo::Parameters->new;
+		$params->append(l        => 'table:sales');
+		$params->append(dir      => $dir);
+		$params->append(filename => $SAVE_FILE);
+		$t->post_ok('/export', form => { l => 'table:sales', dir => $dir, filename => $SAVE_FILE })
+			->status_is(200);
+		my $write_json = decode_json($t->tx->res->body);
+		ok defined $write_json->{saved},  'Phase 2: response contains "saved" key';
+		my $saved_path = $write_json->{saved};
+		like $saved_path, qr/\Q$SAVE_FILE\E\z/, 'Phase 2: saved path ends with filename';
+		ok -f $saved_path, 'Phase 2: file physically exists on disk';
+
+		# Phase 3: /api/stat reports exists=true with mtime and size for saved file.
+		$t->get_ok('/api/stat?path=' . url_escape($saved_path))->status_is(200);
+		my $stat = decode_json($t->tx->res->body);
+		ok $stat->{exists},           'Phase 3: stat reports file exists';
+		ok defined $stat->{mtime},    'Phase 3: stat includes mtime';
+		ok defined $stat->{size},     'Phase 3: stat includes size';
+		ok $stat->{size} > 0,         'Phase 3: file size is non-zero';
+		is $stat->{path}, $saved_path, 'Phase 3: stat echoes the requested path';
+
+		# Phase 4: /open serves the saved CSV as a data table.
+		$t->get_ok('/open?path=' . url_escape($saved_path))
+			->status_is(200)
+			->content_like(qr/sales_rep|product|region/, 'Phase 4: saved file opens as data table');
+
+		# Phase 5: /api/stat returns {exists:false} for a path that does not exist;
+		# HTTP status must still be 200 (the client uses exists=false to grey out the card).
+		my $ghost = $dir . '/does_not_exist.csv';
+		$t->get_ok('/api/stat?path=' . url_escape($ghost))->status_is(200);
+		my $ghost_stat = decode_json($t->tx->res->body);
+		ok !$ghost_stat->{exists},  'Phase 5: stat returns exists=false for missing file';
+		ok !defined $ghost_stat->{mtime}, 'Phase 5: mtime absent when file missing';
+		ok !defined $ghost_stat->{size},  'Phase 5: size absent when file missing';
+	}
+};
+
 done_testing;

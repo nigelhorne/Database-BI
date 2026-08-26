@@ -93,8 +93,8 @@
     }
 
     // Build a recent-files section and inject it into containerId.
-    // dblClick=true: require double-click to open (for saved files).
-    function makeSection(containerId, heading, icon, entries, dblClick) {
+    // eagerStat=true: fetch /api/stat on page load (for saved files); grey out missing ones.
+    function makeSection(containerId, heading, icon, entries, eagerStat) {
       if (!entries.length) return;
       var section = document.createElement('section');
       section.className = 'recent-section';
@@ -119,11 +119,6 @@
         var card = document.createElement('a');
         card.href = href;
         card.className = 'db-card';
-        if (dblClick) {
-          card.title = 'Double-click to open';
-          card.addEventListener('click', function (e) { e.preventDefault(); });
-          card.addEventListener('dblclick', function () { window.location = href; });
-        }
         card.innerHTML = '<span class="db-icon" aria-hidden="true">' + icon + '</span>'
                        + '<span class="db-name">' + txt(r.name) + '</span>';
         li.appendChild(card);
@@ -137,8 +132,7 @@
         tip.innerHTML = '<div class="tip-name">' + txt(r.name) + '</div>'
           + (path ? '<div class="tip-path">&#x1F4C1; ' + txt(path) + '</div>' : '')
           + (!path && r.url ? '<div class="tip-path">&#x1F30D; ' + txt(r.url) + '</div>' : '')
-          + (timeVal ? '<div>\u{1F55B} ' + timeLabel + txt(fmtDate(timeVal)) + '</div>' : '')
-          + (dblClick ? '<div class="tip-muted">Double-click to open</div>' : '');
+          + (timeVal ? '<div>\u{1F55B} ' + timeLabel + txt(fmtDate(timeVal)) + '</div>' : '');
 
         var mtimeEl = document.createElement('div');
         var sizeEl  = document.createElement('div');
@@ -149,12 +143,35 @@
 
         var statDone = false;
 
+        // For saved entries: eagerly check existence on page load so the icon
+        // goes grey immediately rather than only after the first hover.
+        if (eagerStat && path) {
+          fetch('/api/stat?path=' + encodeURIComponent(path))
+            .then(function (res) { return res.json(); })
+            .then(function (d) {
+              statDone = true;
+              if (d.exists) {
+                mtimeEl.innerHTML = '&#x1F4C5; Modified: '
+                  + txt(fmtDate(new Date(d.mtime * 1000).toISOString()));
+                sizeEl.textContent = fmtSize(d.size);
+              } else {
+                card.classList.add('db-card--missing');
+                card.title = 'File no longer exists on disk';
+                card.addEventListener('click', function (e) { e.preventDefault(); });
+                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disk</span>';
+                sizeEl.textContent = '';
+              }
+            })
+            .catch(function () { statDone = true; });
+        }
+
         card.addEventListener('mouseenter', function () {
           tip.style.display = 'block';
           var rect = tip.getBoundingClientRect();
           tip.classList.toggle('tip-below', rect.top < 0);
 
-          if (statDone || !path) return;
+          // For opened entries: lazy stat fetch on first hover (saved entries pre-fetch on load).
+          if (statDone || !path || eagerStat) return;
           statDone = true;
           mtimeEl.innerHTML = '<span class="tip-muted">Loading…</span>';
 
@@ -186,7 +203,7 @@
       JSON.parse(localStorage.getItem('bi:recent') || '[]'), false);
 
     makeSection('bi-saved', 'Recently saved', '&#128190;',
-      JSON.parse(localStorage.getItem('bi:saved') || '[]'), true);
+      JSON.parse(localStorage.getItem('bi:saved') || '[]'), true);  // eagerStat=true
 
   } catch (e) {}
 }());
