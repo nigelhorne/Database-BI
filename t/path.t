@@ -317,6 +317,46 @@ subtest '_detect_file_info path-F: CSV absent, PSV present -> use PSV' => sub {
 	is $result->{sep_char}, '|', 'path F: CSV absent; PSV found and used';
 };
 
+# Paths G-J cover the new data-row scan logic added to fix the bank-CSV bugs.
+
+subtest '_detect_file_info path-G: first col unsafe -> id skips to safe col' => sub {
+	# Bug 2 regression: "Account Number" has a space -> not a safe identifier.
+	# id must be the next column whose name IS safe.
+	Mojo::File->new("$TMPDIR/gtest.csv")->spew(
+		"Account Number,Date,Amount\n12345,2026-01-01,99.00\n"
+	);
+	my $result = $DETECT->($TMPDIR, 'gtest');
+	is $result->{id}, 'Date', 'path G: id skips unsafe first col, picks Date';
+};
+
+subtest '_detect_file_info path-H: first safe col empty in data row -> next safe col' => sub {
+	# Bug 3 regression: "ref" is a safe identifier but its value is empty in
+	# the data row.  D::A uses empty_is_undef, so picking it would silently
+	# drop every row where ref is blank.  id must advance to "description".
+	Mojo::File->new("$TMPDIR/htest.csv")->spew(
+		"Account Number,ref,description\nXX1234,,Transfer\n"
+	);
+	my $result = $DETECT->($TMPDIR, 'htest');
+	is $result->{id}, 'description',
+		'path H: id skips safe-but-empty "ref", picks "description"';
+};
+
+subtest '_detect_file_info path-I: all cols unsafe -> id undef' => sub {
+	# When no column has a safe identifier name, _init_backend must croak
+	# error_no_safe_id rather than letting D::A silently return 0 rows.
+	Mojo::File->new("$TMPDIR/itest.csv")->spew("my-col,his-col\n1,2\n");
+	my $result = $DETECT->($TMPDIR, 'itest');
+	ok !defined $result->{id}, 'path I: id is undef when all column names are unsafe';
+};
+
+subtest '_detect_file_info path-J: header-only file (no data row) -> safe header col' => sub {
+	# No data rows to probe: fall back to first safe column from the header.
+	Mojo::File->new("$TMPDIR/jtest.csv")->spew("Account Number,amount\n");
+	my $result = $DETECT->($TMPDIR, 'jtest');
+	is $result->{id}, 'amount',
+		'path J: no data row -> falls back to first safe column in header';
+};
+
 # ======================================================================
 # PATH COVERAGE: DataSource::fetch_all
 #
