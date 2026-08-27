@@ -1243,4 +1243,35 @@ subtest 'Transaction 18: Mixed-case upload filename opens correctly' => sub {
 	}
 };
 
+subtest 'Transaction 19: Line graph lifecycle' => sub {
+	# Phase 1: "Line graph..." button appears on a data view page.
+	$t->get_ok('/view/sales')
+		->status_is(200, 'Phase 1: /view/sales loads')
+		->content_like(qr/btn-graph/, 'Phase 1: Line graph button present');
+
+	# Phase 2: GET /graph without params returns 400.
+	$t->get_ok('/graph')
+		->status_is(400, 'Phase 2: /graph with no params returns 400');
+
+	# Phase 3: GET /graph with valid l=, x=, y= renders a D3.js chart page.
+	$t->get_ok('/graph?l=table:sales&x=product&y=amount')
+		->status_is(200, 'Phase 3: /graph with valid params returns 200')
+		->content_like(qr/d3\.js|d3\.v7/, 'Phase 3: D3.js included in output')
+		->content_like(qr/Back to table/, 'Phase 3: back link present')
+		->content_like(qr/Export SVG/,    'Phase 3: SVG export button present')
+		->content_like(qr/Export PNG/,    'Phase 3: PNG export button present');
+
+	# Phase 4: GET /graph with a non-existent column returns 400.
+	$t->get_ok('/graph?l=table:sales&x=product&y=no_such_column')
+		->status_is(400, 'Phase 4: unknown y column returns 400');
+
+	# Phase 5: GET /graph with a bad left spec returns 404.
+	$t->get_ok('/graph?l=table:nonexistent_xyzzy&x=product&y=amount')
+		->status_is(404, 'Phase 5: unresolvable left spec returns 404');
+
+	# Phase 6: graph pipeline honours filters — same f= semantics as /join.
+	$t->get_ok('/graph?l=table:sales&x=product&y=amount&f=region:eq:North')
+		->status_is(200, 'Phase 6: graph with filter param returns 200');
+};
+
 done_testing;

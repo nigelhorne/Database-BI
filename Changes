@@ -1,5 +1,30 @@
 Revision history for Database-BI
 
+0.004.0  Thu Aug 27 2026
+    [ Enhancements ]
+    - Add line graph feature: a "Line graph..." button on any data view opens
+      a column-picker panel where the user selects X and Y axes.  Clicking
+      "Plot" navigates to GET /graph, which opens the same data pipeline as
+      the current view (joins, combines, filters, dedup) and renders an
+      interactive D3.js v7 line chart with hover tooltips via HTML::D3.
+    - The graph page includes a toolbar injected into the HTML::D3 output
+      with a "Back to table" link (returning to the exact URL the user was
+      on) and "Export SVG" / "Export PNG" buttons.  SVG is serialized with
+      XMLSerializer; PNG is rasterized via a Canvas element.
+    - Non-numeric Y values (currency symbols, commas, etc.) are stripped and
+      the numeric portion is used; rows where Y is still non-numeric after
+      stripping are silently skipped.
+
+    [ Bug Fixes ]
+    - Drag-and-dropped files whose original filesystem path cannot be
+      determined are no longer added to the "recently opened" list.
+      Previously the temporary .uploads/<tempdir>/ path was recorded as a
+      fallback, producing a useless entry that pointed inside the app's
+      upload cache.  Now, when no file:// URI is available from the
+      DataTransfer text/uri-list data (e.g. Firefox, email attachments),
+      the entry is omitted entirely.  Files whose original path IS
+      recoverable continue to appear in the list under that path.
+
 0.003.2	Wed Aug 26 09:24:45 PM EDT 2026
     [ Bug Fixes ]
     - Large CSV files (> 16 KB) with column names containing spaces — such as

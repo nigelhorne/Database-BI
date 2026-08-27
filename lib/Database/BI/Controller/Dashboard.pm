@@ -1,6 +1,6 @@
 package Database::BI::Controller::Dashboard;
 
-our $VERSION = '0.003.2';
+our $VERSION = '0.004.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -1990,6 +1990,122 @@ sub clear_uploads ($self) {
 	});
 
 	$self->render(json => { freed => $freed, count => $count });
+}
+
+# graph_view
+#
+# Purpose: Render a D3.js line chart from the current data pipeline.
+# Entry:   Query params identical to /join (l=, j=, c=, f=, d=) plus:
+#            x=<column>  -- X-axis column name
+#            y=<column>  -- Y-axis column name (values must be numeric)
+#            back=<url>  -- URL for the "Back to table" link (set by JS)
+# Exit:    Emits a complete HTML page (HTML::D3 output post-processed to
+#          inject a toolbar with a back link and SVG/PNG export buttons).
+#          Returns HTTP 400 for missing/invalid column names, 404 if the
+#          data source cannot be opened, 200 with an error message when
+#          no plottable rows exist.
+sub graph_view ($self) {
+	my $x_col = $self->param('x') // '';
+	my $y_col = $self->param('y') // '';
+	my $back  = $self->param('back') // '/';
+
+	return $self->render(text => 'Missing x or y column parameter', status => 400)
+		unless length($x_col) && length($y_col);
+
+	my ($records, $columns) = $self->_run_export_pipeline;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless $records;
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $x_col", status => 400)
+		unless $col_set{$x_col};
+	return $self->render(text => "Column not found: $y_col", status => 400)
+		unless $col_set{$y_col};
+
+	# Extract [label, value] pairs; skip rows where Y is missing or non-numeric.
+	my @pairs;
+	for my $row (@{$records}) {
+		my $x = $row->{$x_col} // '';
+		my $y = $row->{$y_col} // '';
+		next unless length($x) && length($y);
+		(my $y_num = $y) =~ s/[^\d.\-]//g;
+		next unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/;
+		push @pairs, [$x, $y_num + 0];
+	}
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid numeric values in the Y column.',
+		status => 200,
+	) unless @pairs;
+
+	require HTML::D3;
+	my $title     = "$y_col vs $x_col";
+	my $chart_html = HTML::D3->new(title => $title, width => 1100, height => 580)
+		->render_line_chart_with_tooltips(\@pairs);
+
+	# Post-process: inject a toolbar after <body> with a back link and
+	# SVG/PNG export buttons.  HTML::D3 currently generates only complete
+	# standalone pages (no fragment/snippet mode), so we splice in extra
+	# HTML rather than embedding the chart inside the TT layout.
+	my $back_esc  = Mojo::Util::xml_escape($back);
+	my $title_esc = Mojo::Util::xml_escape($title);
+
+	my $toolbar = <<"TOOLBAR";
+<div id="bi-graph-toolbar" style="font-family:sans-serif;padding:0.55rem 1rem;background:#f4f5f7;border-bottom:1px solid #d0d3d9;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+  <a href="$back_esc" style="color:#5c5c8a;font-weight:600;text-decoration:none;">&#x2190; Back to table</a>
+  <span style="flex:1;min-width:0;font-size:0.9rem;font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">$title_esc</span>
+  <button onclick="biExportSVG()" style="padding:0.3rem 0.7rem;border:1px solid #aaa;border-radius:4px;cursor:pointer;background:#fff;font-size:0.85rem;">Export SVG</button>
+  <button onclick="biExportPNG()" style="padding:0.3rem 0.7rem;border:1px solid #aaa;border-radius:4px;cursor:pointer;background:#fff;font-size:0.85rem;">Export PNG</button>
+</div>
+TOOLBAR
+
+	my $export_js = <<'EXPORTJS';
+<script>
+(function () {
+  function biExportSVG() {
+    var svg = document.querySelector('svg');
+    if (!svg) return;
+    var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
+            + new XMLSerializer().serializeToString(svg);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+    a.download = 'chart.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function biExportPNG() {
+    var svg = document.querySelector('svg');
+    if (!svg) return;
+    var w = parseInt(svg.getAttribute('width'), 10)  || 800;
+    var h = parseInt(svg.getAttribute('height'), 10) || 600;
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    var src = new XMLSerializer().serializeToString(svg);
+    var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+    var img = new Image();
+    img.onload = function () {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      var a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'chart.png';
+      a.click();
+    };
+    img.src = url;
+  }
+  window.biExportSVG = biExportSVG;
+  window.biExportPNG = biExportPNG;
+}());
+</script>
+EXPORTJS
+
+	$chart_html =~ s{<body>}{<body>\n$toolbar};
+	$chart_html =~ s{</body>}{$export_js\n</body>};
+
+	$self->render(text => $chart_html, format => 'html');
 }
 
 1;
