@@ -2039,74 +2039,20 @@ sub graph_view ($self) {
 	) unless @pairs;
 
 	require HTML::D3;
-	my $title     = "$y_col vs $x_col";
-	my $chart_html = HTML::D3->new(title => $title, width => 1100, height => 580)
-		->render_line_chart_with_tooltips(\@pairs);
+	my $title   = "$y_col vs $x_col";
+	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
+		->render_line_chart_snippet(\@pairs);
 
-	# Post-process: inject a toolbar after <body> with a back link and
-	# SVG/PNG export buttons.  HTML::D3 currently generates only complete
-	# standalone pages (no fragment/snippet mode), so we splice in extra
-	# HTML rather than embedding the chart inside the TT layout.
-	my $back_esc  = Mojo::Util::xml_escape($back);
-	my $title_esc = Mojo::Util::xml_escape($title);
-
-	my $toolbar = <<"TOOLBAR";
-<div id="bi-graph-toolbar" style="font-family:sans-serif;padding:0.55rem 1rem;background:#f4f5f7;border-bottom:1px solid #d0d3d9;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-  <a href="$back_esc" style="color:#2c3e7a;font-size:0.875rem;text-decoration:none;">&#x2190; Back to table</a>
-  <span style="flex:1;min-width:0;font-size:0.9rem;font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">$title_esc</span>
-  <button onclick="biExportSVG()" style="padding:0.3rem 0.7rem;border:1px solid #aaa;border-radius:4px;cursor:pointer;background:#fff;font-size:0.85rem;">Export SVG</button>
-  <button onclick="biExportPNG()" style="padding:0.3rem 0.7rem;border:1px solid #aaa;border-radius:4px;cursor:pointer;background:#fff;font-size:0.85rem;">Export PNG</button>
-</div>
-TOOLBAR
-
-	my $export_js = <<'EXPORTJS';
-<script>
-(function () {
-  function biExportSVG() {
-    var svg = document.querySelector('svg');
-    if (!svg) return;
-    var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
-            + new XMLSerializer().serializeToString(svg);
-    var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
-    a.download = 'chart.svg';
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-  function biExportPNG() {
-    var svg = document.querySelector('svg');
-    if (!svg) return;
-    var w = parseInt(svg.getAttribute('width'), 10)  || 800;
-    var h = parseInt(svg.getAttribute('height'), 10) || 600;
-    var canvas = document.createElement('canvas');
-    canvas.width = w; canvas.height = h;
-    var ctx = canvas.getContext('2d');
-    var src = new XMLSerializer().serializeToString(svg);
-    var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
-    var img = new Image();
-    img.onload = function () {
-      ctx.fillStyle = '#fff';
-      ctx.fillRect(0, 0, w, h);
-      ctx.drawImage(img, 0, 0);
-      URL.revokeObjectURL(url);
-      var a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
-      a.download = 'chart.png';
-      a.click();
-    };
-    img.src = url;
-  }
-  window.biExportSVG = biExportSVG;
-  window.biExportPNG = biExportPNG;
-}());
-</script>
-EXPORTJS
-
-	my $center_css = '<style>body>svg,body>div>svg{display:block;margin:0 auto;}</style>';
-	$chart_html =~ s{<body>}{<body>\n$toolbar\n$center_css};
-	$chart_html =~ s{</body>}{$export_js\n</body>};
-
-	$self->render(text => $chart_html, format => 'html');
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler    => 'tt',
+		template   => "$platform/$language/graph",
+		format     => 'html',
+		title      => $title,
+		graph_html => $snippet->{html},
+		back_url   => $back,
+		back_label => 'Back to table',
+	);
 }
 
 1;

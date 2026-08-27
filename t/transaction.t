@@ -1303,20 +1303,21 @@ subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
 			'Phase 1: isDateVal exclusion helper present');
 
 	SKIP: {
-		eval { require HTML::D3 } or skip 'HTML::D3 not available', 6;
+		eval { require HTML::D3 } or skip 'HTML::D3 not available', 7;
 
-		# Phase 2: /graph page injects centering CSS and correct back-link style.
+		# Phase 2: /graph renders via the TT layout with the snippet embedded.
 		$t->get_ok('/graph?l=table:sales&x=product&y=amount')
 			->status_is(200, 'Phase 2: /graph with valid params returns 200')
-			->content_like(qr/margin:0 auto/,
-				'Phase 2: chart centering CSS injected into graph page')
-			->content_like(qr/color:#2c3e7a/,
-				'Phase 2: back link colour matches Back to browser (#2c3e7a)')
-			->content_like(qr/font-size:0\.875rem/,
-				'Phase 2: back link font-size matches Back to browser (0.875rem)')
-			->content_unlike(
-				qr{Back to table[^<]*font-weight},
-				'Phase 2: back link has normal weight (no font-weight on the anchor)');
+			->content_like(qr/class="back-link"/,
+				'Phase 2: back link uses standard back-link CSS class')
+			->content_like(qr/Back to table/,
+				'Phase 2: back link text is "Back to table"')
+			->content_like(qr/graph-container/,
+				'Phase 2: graph-container div present')
+			->content_like(qr/d3\.v7/,
+				'Phase 2: D3.js v7 loaded via CDN script tag')
+			->content_like(qr/biExportSVG|Export SVG/,
+				'Phase 2: SVG export button present');
 	}
 };
 
