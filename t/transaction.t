@@ -1274,4 +1274,34 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 		->status_is(200, 'Phase 6: graph with filter param returns 200');
 };
 
+subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
+	# Phase 1: /view/sales response contains the biDateKey date-sort helper and
+	# the Plot-before-Cancel DOM order inside the graph panel.
+	$t->get_ok('/view/sales')
+		->status_is(200, 'Phase 1: /view/sales loads')
+		->content_like(qr/biDateKey/,
+			'Phase 1: biDateKey date-sort helper present in page JS')
+		->content_like(qr/monthFirst/,
+			'Phase 1: monthFirst auto-detection logic present')
+		->content_like(qr/btn-graph/,
+			'Phase 1: btn-graph class present (button styled like toolbar peers)')
+		->content_like(
+			qr/btn-do-graph[^<]*>Plot<\/button>\s*<button[^>]*btn-cancel-graph/s,
+			'Phase 1: Plot button appears before Cancel in graph panel DOM');
+
+	# Phase 2: /graph page injects centering CSS for the SVG chart and the
+	# back link has the correct colour, font-size, and normal weight.
+	$t->get_ok('/graph?l=table:sales&x=product&y=amount')
+		->status_is(200, 'Phase 2: /graph with valid params returns 200')
+		->content_like(qr/margin:0 auto/,
+			'Phase 2: chart centering CSS injected into graph page')
+		->content_like(qr/color:#2c3e7a/,
+			'Phase 2: back link colour matches Back to browser (#2c3e7a)')
+		->content_like(qr/font-size:0\.875rem/,
+			'Phase 2: back link font-size matches Back to browser (0.875rem)')
+		->content_unlike(
+			qr{Back to table[^<]*font-weight},
+			'Phase 2: back link has normal weight (no font-weight on the anchor)');
+};
+
 done_testing;
