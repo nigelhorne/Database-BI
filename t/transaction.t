@@ -1249,29 +1249,33 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 		->status_is(200, 'Phase 1: /view/sales loads')
 		->content_like(qr/btn-graph/, 'Phase 1: Line graph button present');
 
-	# Phase 2: GET /graph without params returns 400.
+	# Phase 2: GET /graph without params returns 400 regardless of HTML::D3.
 	$t->get_ok('/graph')
 		->status_is(400, 'Phase 2: /graph with no params returns 400');
 
-	# Phase 3: GET /graph with valid l=, x=, y= renders a D3.js chart page.
-	$t->get_ok('/graph?l=table:sales&x=product&y=amount')
-		->status_is(200, 'Phase 3: /graph with valid params returns 200')
-		->content_like(qr/d3\.js|d3\.v7/, 'Phase 3: D3.js included in output')
-		->content_like(qr/Back to table/, 'Phase 3: back link present')
-		->content_like(qr/Export SVG/,    'Phase 3: SVG export button present')
-		->content_like(qr/Export PNG/,    'Phase 3: PNG export button present');
-
-	# Phase 4: GET /graph with a non-existent column returns 400.
+	# Phase 4: column validation happens before HTML::D3 is loaded.
 	$t->get_ok('/graph?l=table:sales&x=product&y=no_such_column')
 		->status_is(400, 'Phase 4: unknown y column returns 400');
 
-	# Phase 5: GET /graph with a bad left spec returns 404.
+	# Phase 5: left-spec resolution happens before HTML::D3 is loaded.
 	$t->get_ok('/graph?l=table:nonexistent_xyzzy&x=product&y=amount')
 		->status_is(404, 'Phase 5: unresolvable left spec returns 404');
 
-	# Phase 6: graph pipeline honours filters — same f= semantics as /join.
-	$t->get_ok('/graph?l=table:sales&x=product&y=amount&f=region:eq:North')
-		->status_is(200, 'Phase 6: graph with filter param returns 200');
+	SKIP: {
+		eval { require HTML::D3 } or skip 'HTML::D3 not available', 8;
+
+		# Phase 3: valid params render a D3.js chart page.
+		$t->get_ok('/graph?l=table:sales&x=product&y=amount')
+			->status_is(200, 'Phase 3: /graph with valid params returns 200')
+			->content_like(qr/d3\.js|d3\.v7/, 'Phase 3: D3.js included in output')
+			->content_like(qr/Back to table/, 'Phase 3: back link present')
+			->content_like(qr/Export SVG/,    'Phase 3: SVG export button present')
+			->content_like(qr/Export PNG/,    'Phase 3: PNG export button present');
+
+		# Phase 6: graph pipeline honours filters.
+		$t->get_ok('/graph?l=table:sales&x=product&y=amount&f=region:eq:North')
+			->status_is(200, 'Phase 6: graph with filter param returns 200');
+	}
 };
 
 subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
@@ -1295,19 +1299,22 @@ subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
 		->content_like(qr/isDateVal/,
 			'Phase 1: isDateVal exclusion helper present');
 
-	# Phase 2: /graph page injects centering CSS for the SVG chart and the
-	# back link has the correct colour, font-size, and normal weight.
-	$t->get_ok('/graph?l=table:sales&x=product&y=amount')
-		->status_is(200, 'Phase 2: /graph with valid params returns 200')
-		->content_like(qr/margin:0 auto/,
-			'Phase 2: chart centering CSS injected into graph page')
-		->content_like(qr/color:#2c3e7a/,
-			'Phase 2: back link colour matches Back to browser (#2c3e7a)')
-		->content_like(qr/font-size:0\.875rem/,
-			'Phase 2: back link font-size matches Back to browser (0.875rem)')
-		->content_unlike(
-			qr{Back to table[^<]*font-weight},
-			'Phase 2: back link has normal weight (no font-weight on the anchor)');
+	SKIP: {
+		eval { require HTML::D3 } or skip 'HTML::D3 not available', 6;
+
+		# Phase 2: /graph page injects centering CSS and correct back-link style.
+		$t->get_ok('/graph?l=table:sales&x=product&y=amount')
+			->status_is(200, 'Phase 2: /graph with valid params returns 200')
+			->content_like(qr/margin:0 auto/,
+				'Phase 2: chart centering CSS injected into graph page')
+			->content_like(qr/color:#2c3e7a/,
+				'Phase 2: back link colour matches Back to browser (#2c3e7a)')
+			->content_like(qr/font-size:0\.875rem/,
+				'Phase 2: back link font-size matches Back to browser (0.875rem)')
+			->content_unlike(
+				qr{Back to table[^<]*font-weight},
+				'Phase 2: back link has normal weight (no font-weight on the anchor)');
+	}
 };
 
-done_testing;
+done_testing();
