@@ -346,7 +346,7 @@
       }
     }
 
-    var numeric = !isDate && nonEmpty.every(function (v) {
+    var numeric = !isDate && nonEmpty.length > 0 && nonEmpty.every(function (v) {
       return !isNaN(Number(v));
     });
 

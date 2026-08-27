@@ -1281,9 +1281,9 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 	}
 };
 
-subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
-	# Phase 1: /view/sales response contains the biDateKey date-sort helper,
-	# the Plot-before-Cancel DOM order, and the numeric Y-axis filter helpers.
+subtest 'Transaction 20: Graph UI polish, date-sort JS, and numeric Y-axis filter' => sub {
+	# Phase 1: /view/sales response contains the date-sort helper, the
+	# numeric Y-axis filter helpers, and the Plot-before-Cancel DOM order.
 	$t->get_ok('/view/sales')
 		->status_is(200, 'Phase 1: /view/sales loads')
 		->content_like(qr/biDateKey/,
