@@ -308,19 +308,60 @@
 
   // --- Sort ---
 
+  // Returns a YYYYMMDD integer sort key for recognised date strings, else null.
+  // Handles YYYY-MM-DD (ISO) and M/D/YYYY or D/M/YYYY slash formats.
+  // monthFirst: true = M/D/YYYY, false = D/M/YYYY.
+  function biDateKey(s, monthFirst) {
+    var m;
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (m) return +m[1] * 10000 + +m[2] * 100 + +m[3];
+    m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    if (m) {
+      var p1 = +m[1], p2 = +m[2], yr = +m[3];
+      return monthFirst ? yr * 10000 + p1 * 100 + p2
+                        : yr * 10000 + p2 * 100 + p1;
+    }
+    return null;
+  }
+
   function sortByCol(idx, asc) {
-    var tbody   = table.tBodies[0];
-    var rows    = Array.from(tbody.rows);
-    var numeric = rows.every(function (r) {
-      var v = r.cells[idx] ? r.cells[idx].textContent.trim() : '';
-      return v === '' || !isNaN(Number(v));
+    var tbody    = table.tBodies[0];
+    var rows     = Array.from(tbody.rows);
+    var nonEmpty = rows.map(function (r) {
+      return r.cells[idx] ? r.cells[idx].textContent.trim() : '';
+    }).filter(function (v) { return v !== ''; });
+
+    // Detect date columns: every non-empty value must match a known date pattern.
+    var isDate = nonEmpty.length > 0 && nonEmpty.every(function (v) {
+      return /^\d{4}-\d{2}-\d{2}$/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v);
     });
+    var monthFirst = true;
+    if (isDate) {
+      // Auto-detect M/D/YYYY vs D/M/YYYY: scan for a value that disambiguates.
+      for (var di = 0; di < nonEmpty.length; di++) {
+        var dm = nonEmpty[di].match(/^(\d{1,2})\/(\d{1,2})\/\d{4}$/);
+        if (!dm) continue;
+        if (+dm[1] > 12) { monthFirst = false; break; }
+        if (+dm[2] > 12) { monthFirst = true;  break; }
+      }
+    }
+
+    var numeric = !isDate && nonEmpty.every(function (v) {
+      return !isNaN(Number(v));
+    });
+
     rows.sort(function (a, b) {
       var av  = a.cells[idx] ? a.cells[idx].textContent.trim() : '';
       var bv  = b.cells[idx] ? b.cells[idx].textContent.trim() : '';
-      var cmp = numeric
-        ? (av === '' ? -Infinity : Number(av)) - (bv === '' ? -Infinity : Number(bv))
-        : av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+      var cmp;
+      if (isDate) {
+        var ak = biDateKey(av, monthFirst), bk = biDateKey(bv, monthFirst);
+        cmp = (ak === null ? -Infinity : ak) - (bk === null ? -Infinity : bk);
+      } else if (numeric) {
+        cmp = (av === '' ? -Infinity : Number(av)) - (bv === '' ? -Infinity : Number(bv));
+      } else {
+        cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+      }
       return asc ? cmp : -cmp;
     });
     rows.forEach(function (r) { tbody.appendChild(r); });
