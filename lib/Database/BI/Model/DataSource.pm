@@ -12,7 +12,116 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.003.1';
+our $VERSION = '0.003.2';
+
+=head1 NAME
+
+Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstraction
+
+=head1 VERSION
+
+Version 0.003.2
+
+=head1 SYNOPSIS
+
+B<Read all rows from a CSV file:>
+
+    use Database::BI::Model::DataSource;
+
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/path/to/data',
+        table     => 'sales',           # looks for data/sales.csv, .psv, .sql, .xml, etc.
+    );
+
+    my $records = $source->fetch_all;   # arrayref of hashrefs -- one hashref per row
+
+    for my $row (@{$records}) {
+        printf "Product: %s, Amount: %s\n", $row->{product}, $row->{amount};
+    }
+
+B<Get column names in the original file order (CSV/PSV only):>
+
+    my $cols = $source->columns;        # returns undef for SQLite and XML
+    if ($cols) {
+        print join(', ', @{$cols}), "\n";
+    }
+
+B<Find out which column is the primary key:>
+
+    print "Primary key column: ", $source->id_column, "\n";
+
+B<Open a SQLite file (.sql extension):>
+
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/var/data',
+        table     => 'inventory',       # looks for /var/data/inventory.sql
+    );
+
+B<Open a pipe-separated file (.psv extension):>
+
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/var/data',
+        table     => 'products',        # looks for /var/data/products.psv
+    );
+
+B<Use a custom i18n object to translate error messages:>
+
+    # The i18n object must have a maketext($key, @args) method.
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/path/to/data',
+        table     => 'sales',
+        i18n      => My::I18N::Handle->new,
+    );
+
+B<Handle errors gracefully:>
+
+    my $source = eval {
+        Database::BI::Model::DataSource->new(
+            directory => $dir,
+            table     => $table,
+        );
+    };
+    if ($@) {
+        carp "Could not open table: $@";
+        # $@ contains a translated message from %MESSAGES
+    }
+
+    my $records = eval { $source->fetch_all };
+    if ($@) {
+        carp "Could not read records: $@";
+    }
+
+=head1 DESCRIPTION
+
+C<Database::BI::Model::DataSource> is a thin, table-agnostic adapter that
+wraps L<Database::Abstraction> and exposes three accessors (C<fetch_all>,
+C<columns>, C<id_column>) used by the controller.
+
+L<Database::Abstraction> is a read-only ORM that discovers data files
+(CSV, PSV, SQLite, XML, etc.) automatically from a directory based on the
+calling class name.  C<DataSource> generates an ephemeral subclass at
+construction time so callers never interact with L<Database::Abstraction>
+directly.  To swap the backend for L<Database::Join> in Phase 2, only the
+C<open_table> helper in C<Database::BI> needs to change; the controller and
+C<DataSource> are untouched.
+
+C<_detect_file_info> peeks at the first header line of CSV/PSV files to
+extract the correct separator character, the primary-key column name, and
+the full ordered column list.  Without this, two silent L<Database::Abstraction>
+defaults corrupt every result: C<sep_char> defaults to C<'!'> (turning a
+comma-separated file into a single-field table) and C<id> defaults to
+C<'entry'> (causing every row to be discarded when no C<entry> column
+exists).
+
+Result filtering (C<eq>, C<contains>, C<gt>, etc.) is performed at the
+controller layer by C<Dashboard::_apply_filter_spec> after C<fetch_all>
+returns.  C<DataSource> itself is filter-unaware.
+
+All user-visible strings and exception messages are keyed through the
+C<%MESSAGES> dictionary and routed via C<_msg()>, making every diagnostic
+replaceable by an i18n object at instantiation time.
+
+=cut
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary.
@@ -560,113 +669,6 @@ sub fetch_all {
 1;
 
 __END__
-
-=head1 NAME
-
-Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstraction
-
-=head1 VERSION
-
-Version 0.003.1
-
-=head1 SYNOPSIS
-
-B<Read all rows from a CSV file:>
-
-    use Database::BI::Model::DataSource;
-
-    my $source = Database::BI::Model::DataSource->new(
-        directory => '/path/to/data',
-        table     => 'sales',           # looks for data/sales.csv, .psv, .sql, .xml, etc.
-    );
-
-    my $records = $source->fetch_all;   # arrayref of hashrefs -- one hashref per row
-
-    for my $row (@{$records}) {
-        printf "Product: %s, Amount: %s\n", $row->{product}, $row->{amount};
-    }
-
-B<Get column names in the original file order (CSV/PSV only):>
-
-    my $cols = $source->columns;        # returns undef for SQLite and XML
-    if ($cols) {
-        print join(', ', @{$cols}), "\n";
-    }
-
-B<Find out which column is the primary key:>
-
-    print "Primary key column: ", $source->id_column, "\n";
-
-B<Open a SQLite file (.sql extension):>
-
-    my $source = Database::BI::Model::DataSource->new(
-        directory => '/var/data',
-        table     => 'inventory',       # looks for /var/data/inventory.sql
-    );
-
-B<Open a pipe-separated file (.psv extension):>
-
-    my $source = Database::BI::Model::DataSource->new(
-        directory => '/var/data',
-        table     => 'products',        # looks for /var/data/products.psv
-    );
-
-B<Use a custom i18n object to translate error messages:>
-
-    # The i18n object must have a maketext($key, @args) method.
-    my $source = Database::BI::Model::DataSource->new(
-        directory => '/path/to/data',
-        table     => 'sales',
-        i18n      => My::I18N::Handle->new,
-    );
-
-B<Handle errors gracefully:>
-
-    my $source = eval {
-        Database::BI::Model::DataSource->new(
-            directory => $dir,
-            table     => $table,
-        );
-    };
-    if ($@) {
-        carp "Could not open table: $@";
-        # $@ contains a translated message from %MESSAGES
-    }
-
-    my $records = eval { $source->fetch_all };
-    if ($@) {
-        carp "Could not read records: $@";
-    }
-
-=head1 DESCRIPTION
-
-C<Database::BI::Model::DataSource> is a thin, table-agnostic adapter that
-wraps L<Database::Abstraction> and exposes three accessors (C<fetch_all>,
-C<columns>, C<id_column>) used by the controller.
-
-L<Database::Abstraction> is a read-only ORM that discovers data files
-(CSV, PSV, SQLite, XML, etc.) automatically from a directory based on the
-calling class name.  C<DataSource> generates an ephemeral subclass at
-construction time so callers never interact with L<Database::Abstraction>
-directly.  To swap the backend for L<Database::Join> in Phase 2, only the
-C<open_table> helper in C<Database::BI> needs to change; the controller and
-C<DataSource> are untouched.
-
-C<_detect_file_info> peeks at the first header line of CSV/PSV files to
-extract the correct separator character, the primary-key column name, and
-the full ordered column list.  Without this, two silent L<Database::Abstraction>
-defaults corrupt every result: C<sep_char> defaults to C<'!'> (turning a
-comma-separated file into a single-field table) and C<id> defaults to
-C<'entry'> (causing every row to be discarded when no C<entry> column
-exists).
-
-Result filtering (C<eq>, C<contains>, C<gt>, etc.) is performed at the
-controller layer by C<Dashboard::_apply_filter_spec> after C<fetch_all>
-returns.  C<DataSource> itself is filter-unaware.
-
-All user-visible strings and exception messages are keyed through the
-C<%MESSAGES> dictionary and routed via C<_msg()>, making every diagnostic
-replaceable by an i18n object at instantiation time.
 
 =head1 COMMON PITFALLS
 
