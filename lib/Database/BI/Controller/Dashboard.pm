@@ -2052,7 +2052,7 @@ sub graph_view ($self) {
 
 	my $toolbar = <<"TOOLBAR";
 <div id="bi-graph-toolbar" style="font-family:sans-serif;padding:0.55rem 1rem;background:#f4f5f7;border-bottom:1px solid #d0d3d9;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-  <a href="$back_esc" style="color:#5c5c8a;font-weight:600;text-decoration:none;">&#x2190; Back to table</a>
+  <a href="$back_esc" style="color:#5c5c8a;font-size:0.875rem;text-decoration:none;">&#x2190; Back to table</a>
   <span style="flex:1;min-width:0;font-size:0.9rem;font-weight:600;color:#333;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">$title_esc</span>
   <button onclick="biExportSVG()" style="padding:0.3rem 0.7rem;border:1px solid #aaa;border-radius:4px;cursor:pointer;background:#fff;font-size:0.85rem;">Export SVG</button>
   <button onclick="biExportPNG()" style="padding:0.3rem 0.7rem;border:1px solid #aaa;border-radius:4px;cursor:pointer;background:#fff;font-size:0.85rem;">Export PNG</button>
@@ -2102,7 +2102,8 @@ TOOLBAR
 </script>
 EXPORTJS
 
-	$chart_html =~ s{<body>}{<body>\n$toolbar};
+	my $center_css = '<style>body>svg,body>div>svg{display:block;margin:0 auto;}</style>';
+	$chart_html =~ s{<body>}{<body>\n$toolbar\n$center_css};
 	$chart_html =~ s{</body>}{$export_js\n</body>};
 
 	$self->render(text => $chart_html, format => 'html');

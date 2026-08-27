@@ -205,7 +205,7 @@
 
     <p class="graph-panel-desc">Choose the columns to use as axes, then click Plot to open the chart.</p>
 
-    <div class="join-fields">
+    <div class="graph-fields-row">
       <div class="join-field">
         <label for="graph-x-sel">X axis (horizontal)</label>
         <select id="graph-x-sel" name="x" required>
@@ -224,11 +224,13 @@
           [%- END -%]
         </select>
       </div>
-    </div>
-
-    <div class="join-actions">
-      <button type="button" id="btn-cancel-graph" class="btn-secondary">Cancel</button>
-      <button type="submit" id="btn-do-graph" class="btn-primary" disabled>Plot</button>
+      <div class="graph-btn-col">
+        <span class="graph-btn-spacer"></span>
+        <div class="graph-btn-row">
+          <button type="submit" id="btn-do-graph" class="btn-primary" disabled>Plot</button>
+          <button type="button" id="btn-cancel-graph" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
     </div>
   </form>
 </div>
