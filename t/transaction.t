@@ -1275,8 +1275,8 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 };
 
 subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
-	# Phase 1: /view/sales response contains the biDateKey date-sort helper and
-	# the Plot-before-Cancel DOM order inside the graph panel.
+	# Phase 1: /view/sales response contains the biDateKey date-sort helper,
+	# the Plot-before-Cancel DOM order, and the numeric Y-axis filter helpers.
 	$t->get_ok('/view/sales')
 		->status_is(200, 'Phase 1: /view/sales loads')
 		->content_like(qr/biDateKey/,
@@ -1287,7 +1287,13 @@ subtest 'Transaction 20: Graph UI polish and date-sort JS' => sub {
 			'Phase 1: btn-graph class present (button styled like toolbar peers)')
 		->content_like(
 			qr/btn-do-graph[^<]*>Plot<\/button>\s*<button[^>]*btn-cancel-graph/s,
-			'Phase 1: Plot button appears before Cancel in graph panel DOM');
+			'Phase 1: Plot button appears before Cancel in graph panel DOM')
+		->content_like(qr/buildYSelect/,
+			'Phase 1: buildYSelect helper present (numeric Y-axis filter)')
+		->content_like(qr/isNumericVal/,
+			'Phase 1: isNumericVal helper present')
+		->content_like(qr/isDateVal/,
+			'Phase 1: isDateVal exclusion helper present');
 
 	# Phase 2: /graph page injects centering CSS for the SVG chart and the
 	# back link has the correct colour, font-size, and normal weight.

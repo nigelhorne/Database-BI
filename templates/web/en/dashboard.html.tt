@@ -863,10 +863,48 @@
     btnDo.disabled = !(xSel.value && ySel.value);
   }
 
+  // Returns true if v looks like a date (excluded from numeric Y axis).
+  function isDateVal(v) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v);
+  }
+
+  // Returns true if v is plottable as a number (mirrors the server's strip logic).
+  function isNumericVal(v) {
+    if (v === '') return true;
+    var s = v.replace(/[^\d.\-]/g, '');
+    return s !== '' && /^-?\d+(?:\.\d+)?$/.test(s);
+  }
+
+  // Rebuild the Y-axis select to show only columns whose non-empty values are
+  // all numeric (after stripping currency symbols etc.) and not date-shaped.
+  function buildYSelect() {
+    var tbl = document.querySelector('table[data-table]') || document.querySelector('table');
+    if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return;
+    var headers = Array.from(tbl.tHead.rows[0].cells);
+    var rows    = Array.from(tbl.tBodies[0].rows);
+    var prev    = ySel.value;
+    while (ySel.options.length > 1) ySel.remove(1);
+    headers.forEach(function (th, idx) {
+      var name  = th.textContent.trim();
+      var vals  = rows.map(function (r) {
+        return r.cells[idx] ? r.cells[idx].textContent.trim() : '';
+      }).filter(function (v) { return v !== ''; });
+      if (vals.length === 0) return;
+      if (vals.every(isDateVal)) return;
+      if (!vals.every(isNumericVal)) return;
+      var opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === prev) opt.selected = true;
+      ySel.appendChild(opt);
+    });
+  }
+
   btnOpen.addEventListener('click', function () {
     otherPanels.forEach(function (p) { p.hidden = true; });
     backInp.value = window.location.href;
+    buildYSelect();
     panel.hidden  = !panel.hidden;
+    checkPlot();
   });
 
   btnCancel && btnCancel.addEventListener('click', function () {
