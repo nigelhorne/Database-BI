@@ -357,6 +357,23 @@ subtest '_detect_file_info path-J: header-only file (no data row) -> safe header
 		'path J: no data row -> falls back to first safe column in header';
 };
 
+subtest '_detect_file_info path-K: file_size returned for CSV' => sub {
+	# file_size is used by _init_backend to set max_slurp_size, forcing the
+	# Text::xSV::Slurp path so DBD::CSV never sanitizes column names.
+	my $content = "id,label\n1,Alpha\n2,Beta\n";
+	my $path = "$TMPDIR/ktest.csv";
+	Mojo::File->new($path)->spew($content);
+	my $result = $DETECT->($TMPDIR, 'ktest');
+	ok exists $result->{file_size}, 'path K: file_size key is present in result';
+	is $result->{file_size}, -s $path, 'path K: file_size matches actual file size';
+};
+
+subtest '_detect_file_info path-K2: file_size absent for non-CSV/PSV (empty hashref)' => sub {
+	# Non-CSV/PSV tables (SQLite, XML) return {} with no file_size key.
+	my $result = $DETECT->($TMPDIR, 'no_such_table_xyz');
+	ok !exists $result->{file_size}, 'path K2: no file_size in empty hashref';
+};
+
 # ======================================================================
 # PATH COVERAGE: DataSource::fetch_all
 #

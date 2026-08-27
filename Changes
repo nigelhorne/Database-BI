@@ -1,5 +1,30 @@
 Revision history for Database-BI
 
+0.003.2  Wed Aug 27 2026
+    [ Bug Fixes ]
+    - Large CSV files (> 16 KB) with column names containing spaces — such as
+      bank-export files with an "Account Number" column — now render correctly.
+      Files exceeding Database::Abstraction's default 16 KB slurp threshold
+      previously fell through to the DBD::CSV SQL path, which sanitizes column
+      names (lowercases them and replaces spaces with underscores, so "Account
+      Number" becomes "account_number").  The template then tried to access the
+      original name in a restricted hash that only permitted the sanitized key,
+      producing "Attempt to access disallowed key 'Account Number' in a
+      restricted hash".  DataSource::_detect_file_info now returns the file
+      size, and _init_backend passes it as max_slurp_size to
+      Database::Abstraction, ensuring the Text::xSV::Slurp path is always
+      taken for CSV/PSV files so original column names are preserved regardless
+      of file size.
+
+    [ Test Improvements ]
+    - Added path-K and path-K2 subtests in t/path.t asserting that
+      _detect_file_info now returns file_size in its result hashref for
+      CSV/PSV files and omits it for the empty-hashref (non-CSV) case.
+    - Added end-to-end regression subtest BV-large-spaced-header in t/domain.t:
+      creates a > 16 KB CSV with "Account Number" as a column header, opens
+      it via /open, and asserts all rows are visible and no restricted-hash
+      crash occurs.
+
 0.003.1	Wed Aug 26 04:54:25 PM EDT 2026
     [ Enhancements ]
     - Allow files to be removed from the recently opened and recently saved

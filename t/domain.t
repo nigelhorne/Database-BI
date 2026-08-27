@@ -237,6 +237,32 @@ subtest 'open path BV-empty-safe-col: empty sentinel col shows all rows (bug 3)'
 		->content_like(qr/Salary/,    'bug 3: row 3 visible -- not filtered out');
 };
 
+subtest 'open path BV-large-spaced-header: spaced col names survive > 16 KB file (bug 4)' => sub {
+	# DBD::CSV (used by Database::Abstraction for files > 16 KB) sanitizes column
+	# names: "Account Number" -> "account_number".  The slurp path
+	# (Text::xSV::Slurp) preserves original names.  DataSource now passes the
+	# actual file size as max_slurp_size to force the slurp path and prevent the
+	# restricted-hash "disallowed key" crash at render time.
+	my $header = "Account Number,Date,Description,Amount\n";
+	my @rows;
+	for my $i (1 .. 400) {
+		push @rows, sprintf("ACC%05d,2024-%02d-%02d,Transaction %d,%.2f\n",
+			$i, ($i % 12) + 1, ($i % 28) + 1, $i, $i * 1.5);
+	}
+	my $content = $header . join('', @rows);
+	# Verify the generated file actually exceeds the 16 KB slurp threshold.
+	ok length($content) > 16 * 1024, "bug 4: test file is > 16 KB (" . length($content) . " bytes)";
+
+	Mojo::File->new("$TMPDIR/largebankstmt.csv")->spew($content);
+	$t->get_ok('/open?path=' . url_escape("$TMPDIR/largebankstmt.csv"))
+		->status_is(200, 'bug 4: large CSV with spaced header opens without crash')
+		->content_like(qr/Account Number/, 'bug 4: original column header preserved in table')
+		->content_like(qr/ACC00001/,       'bug 4: first row data visible')
+		->content_like(qr/ACC00400/,       'bug 4: last row data visible');
+	$t->content_unlike(qr/disallowed key|restricted hash|internal server error/i,
+		'bug 4: no restricted-hash crash or server error');
+};
+
 # ======================================================================
 # DOMAIN 3: Browse path domain -- GET /browse?path=
 #

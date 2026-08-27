@@ -351,10 +351,17 @@ sub _detect_file_info :Protected {
 		}
 		close $fh;
 
+		# Return file_size so _init_backend can pass it as max_slurp_size to
+		# Database::Abstraction.  Without this, files larger than D::A's default
+		# 16 KB threshold go through the DBI/DBD::CSV path, which lowercases
+		# column names and replaces spaces with underscores ("Account Number" ->
+		# "account_number").  The slurp path (Text::xSV::Slurp) preserves the
+		# original header names, so forcing it avoids the mismatch.
 		return {
-			sep_char => $sep,
-			id       => $safe_id,
-			columns  => \@cols,
+			sep_char  => $sep,
+			id        => $safe_id,
+			columns   => \@cols,
+			file_size => -s $path,
 		};
 	}
 	return {};
@@ -400,11 +407,18 @@ sub _init_backend :Protected {
 
 	my $db = eval {
 		$pkg->new({
-			directory => $dir,
-			table     => $table,
-			id        => $id_col,
-			no_entry  => 1,
-			defined($info->{sep_char}) ? (sep_char => $info->{sep_char}) : (),
+			directory      => $dir,
+			table          => $table,
+			id             => $id_col,
+			no_entry       => 1,
+			defined($info->{sep_char})  ? (sep_char       => $info->{sep_char})  : (),
+			# Force the Text::xSV::Slurp path for CSV/PSV files: D::A's default
+			# slurp threshold is 16 KB; larger files fall back to DBD::CSV, which
+			# sanitizes column names (lowercases and replaces spaces with
+			# underscores).  Passing the actual file size ensures the slurp path
+			# is always taken, so "Account Number" stays "Account Number" rather
+			# than becoming "account_number".
+			defined($info->{file_size}) ? (max_slurp_size => $info->{file_size}) : (),
 		});
 	};
 	if ($@) {
