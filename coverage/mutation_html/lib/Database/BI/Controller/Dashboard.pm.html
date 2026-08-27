@@ -341,7 +341,7 @@ Approximate LCSAJ segments: 279<br>
 	<pre>
 <span class="">    1: package Database::BI::Controller::Dashboard;
 </span><span class="">    2: 
-</span><span class="">    3: our $VERSION = &#39;0.003.1&#39;;
+</span><span class="">    3: our $VERSION = &#39;0.003.2&#39;;
 </span><span class="">    4: 
 </span><span class="">    5: use Mojo::Base &#39;Mojolicious::Controller&#39;, -strict, -signatures;
 </span><span class="">    6: 
@@ -589,7 +589,7 @@ Approximate LCSAJ segments: 279<br>
 </span><span class="">  242: sub _scan_data_dir :Protected ($self) {
 </span><span class="">  243: 	my $dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
 </span><span class="">  244: 	return [] unless -d $dir;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  245: 	return $dir-&gt;list-&gt;map(sub {
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  245: 	return $dir-&gt;list-&gt;map(sub {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1571,7 +1571,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1098: 	my ($source, $records);
 </span><span class=""> 1099: 	eval { $source = $self-&gt;open_table($table, directory =&gt; $dir-&gt;to_string); $records = $source-&gt;fetch_all };
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1100: 	if ($@) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1101: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1101: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1709,7 +1709,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1197: 	return $err_home-&gt;(&#39;error_url_invalid&#39;, $url)
+<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1197: 	return $err_home-&gt;(&#39;error_url_invalid&#39;, $url)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1914,7 +1914,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1294: 		}
 </span><span class=""> 1295: 	}
 </span><span class=""> 1296: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1297: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404) unless $source;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1297: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404) unless $source;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2025,7 +2025,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class=""> 1363: 
 </span><span class=""> 1364: 	my $left_recs = eval { $left_src-&gt;fetch_all };
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1365: 	if ($@) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1366: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1366: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2174,7 +2174,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1491: 
 </span><span class=""> 1492: 	my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
 </span><span class=""> 1493: 	my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1494: 	return $self-&gt;reply-&gt;not_found unless $left_src;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1494: 	return $self-&gt;reply-&gt;not_found unless $left_src;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2199,7 +2199,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class=""> 1495: 
 </span><span class=""> 1496: 	my $left_recs = eval { $left_src-&gt;fetch_all };
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1497: 	if ($@) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1498: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1498: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2530,7 +2530,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1721: 	}
 </span><span class=""> 1722: 
 </span><span class=""> 1723: 	my ($records, $columns, $left_label) = $self-&gt;_run_export_pipeline;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1724: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Table not found&#39; }, status =&gt; 404)
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1724: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Table not found&#39; }, status =&gt; 404)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2753,7 +2753,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1860: 	my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
 </span><span class=""> 1861: 	# Restrict to files with a supported data extension so stat_api cannot be
 </span><span class=""> 1862: 	# used as a filesystem oracle to probe /etc/shadow, /root/.ssh/, etc.
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1863: 	return $self-&gt;render(json =&gt; { exists =&gt; \0, path =&gt; $path })
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1863: 	return $self-&gt;render(json =&gt; { exists =&gt; \0, path =&gt; $path })
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2896,7 +2896,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1940: 	# must not silently truncate the directory-strip, leaving &quot;dir\ncomponent&quot; in.
 </span><span class=""> 1941: 	(my $filename = $upload-&gt;filename) =~ s{.*[/\\]}{}s;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1942: 	unless ($filename &amp;&amp; $filename =~ $EXT_RE) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1943: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1943: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
