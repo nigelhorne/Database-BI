@@ -874,7 +874,10 @@ subtest 'Transaction 12: Recently-saved section server-side contract' => sub {
 		ok defined $stat->{mtime},    'Phase 3: stat includes mtime';
 		ok defined $stat->{size},     'Phase 3: stat includes size';
 		ok $stat->{size} > 0,         'Phase 3: file size is non-zero';
-		is $stat->{path}, $saved_path, 'Phase 3: stat echoes the requested path';
+
+		my $returned_path = $stat->{path};
+		$returned_path =~ s{/}{\\}g if $^O eq 'MSWin32';  # Normalize to backslashes on Windows
+		is($returned_path, $saved_path, 'Phase 3: stat echoes the requested path');
 
 		# Phase 4: /open serves the saved CSV as a data table.
 		$t->get_ok('/open?path=' . url_escape($saved_path))
