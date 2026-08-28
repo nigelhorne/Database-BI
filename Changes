@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.004.0
+0.004.0	Thu Aug 27 09:36:22 PM EDT 2026
     [ Enhancements ]
     - Date columns now sort chronologically when clicking the column header.
       The sort routine detects slash-separated dates (M/D/YYYY and D/M/YYYY)
@@ -22,13 +22,6 @@ Revision history for Database-BI
       Non-numeric Y values (currency symbols, commas, etc.) are stripped and
       the numeric portion is used; rows where Y is still non-numeric after
       stripping are silently skipped.
-
-    [ Test Improvements ]
-    - Added Transaction 20 subtest covering graph UI polish and date-sort JS:
-      verifies biDateKey helper and monthFirst detection are present, Plot
-      precedes Cancel in the graph panel DOM, chart centering CSS is injected,
-      and the back link carries the correct colour/size/weight.
-
     [ Bug Fixes ]
     - Drag-and-dropped files whose original filesystem path cannot be
       determined are no longer added to the "recently opened" list.
@@ -38,6 +31,11 @@ Revision history for Database-BI
       DataTransfer text/uri-list data (e.g. Firefox, email attachments),
       the entry is omitted entirely.  Files whose original path IS
       recoverable continue to appear in the list under that path.
+    [ Test Improvements ]
+    - Added Transaction 20 subtest covering graph UI polish and date-sort JS:
+      verifies biDateKey helper and monthFirst detection are present, Plot
+      precedes Cancel in the graph panel DOM, chart centering CSS is injected,
+      and the back link carries the correct colour/size/weight.
 
 0.003.2	Wed Aug 26 09:24:45 PM EDT 2026
     [ Bug Fixes ]
