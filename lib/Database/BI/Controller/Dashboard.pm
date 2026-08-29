@@ -1999,8 +1999,9 @@ sub clear_uploads ($self) {
 #            x=<column>  -- X-axis column name
 #            y=<column>  -- Y-axis column name (values must be numeric)
 #            back=<url>  -- URL for the "Back to table" link (set by JS)
-# Exit:    Emits a complete HTML page (HTML::D3 output post-processed to
-#          inject a toolbar with a back link and SVG/PNG export buttons).
+# Exit:    Emits a TT-rendered HTML page with an embedded HTML::D3 snippet.
+#          Each data point carries an "extra" hash of every column not used
+#          as the X or Y axis; HTML::D3 displays these in the hover tooltip.
 #          Returns HTTP 400 for missing/invalid column names, 404 if the
 #          data source cannot be opened, 200 with an error message when
 #          no plottable rows exist.
@@ -2157,6 +2158,87 @@ B<Upload a data file by dropping it onto the page (multipart form POST):>
   curl -X POST http://localhost:3000/upload \
        -F file=@/home/user/data/sales.csv
   # Returns: {"url":"/open?path=/.../.uploads/.../sales.csv","path":"/.../.uploads/.../sales.csv"}
+
+=head2 graph_view
+
+C<GET /graph> -- Render a D3.js v7 line chart from the current data pipeline.
+
+Accepts the same pipeline parameters as L</join_tables> (C<l=>, C<j=>,
+C<c=>, C<f=>, C<d=>) plus:
+
+=over 4
+
+=item C<x=E<lt>colE<gt>>
+
+Column name to use as the X axis (required).  Any data type is accepted;
+values are displayed as categorical labels.
+
+=item C<y=E<lt>colE<gt>>
+
+Column name to use as the Y axis (required).  Non-numeric characters
+(currency symbols, commas, etc.) are stripped before comparison; rows
+where the value is still non-numeric after stripping are silently skipped.
+
+=item C<back=E<lt>urlE<gt>>
+
+URL for the "Back to table" link rendered in the graph toolbar.  Defaults
+to C</> when absent.  The dashboard JS sets this to the current page URL
+before navigating.
+
+=back
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l=<spec>     string   Left-table spec (required).  Same syntax as /join.
+  x=<col>      string   X-axis column name (required).
+  y=<col>      string   Y-axis column name (required; must be numeric).
+  back=<url>   string   Back-link URL (optional; default "/").
+  j=, c=, f=, d=        Pipeline params -- see L</join_tables>.
+
+=head4 OUTPUT
+
+  200 text/html   TT-rendered graph page.  The HTML::D3 snippet embeds a
+                  C<const data = [...]> JSON array where each element has:
+                    { label: <x-value>, value: <y-value>,
+                      extra: { <col>: <val>, ... } }
+                  C<extra> contains every column not used as X or Y, so
+                  the hover tooltip shows the complete row for each point.
+
+  400 text/plain  C<x=> or C<y=> absent, or named column not found.
+  404 text/plain  Data source could not be opened.
+
+=head3 MESSAGES
+
+  Missing x or y column parameter          C<x=> or C<y=> query param absent.
+  Column not found: <name>                  Named column absent from result set.
+  Could not open data source                Left-table spec unresolvable or 404.
+  No plottable data: no rows have valid ... All rows lack a numeric Y value.
+
+=head3 EXAMPLE
+
+  GET /graph?l=table:sales&x=product&y=amount
+
+Renders a line chart of C<amount> (Y) against C<product> (X).  Mousing over
+a dot shows a tooltip with the product name, the amount, and every other
+column in that row (e.g. C<region>, C<date>).
+
+=head3 FORMAL SPECIFICATION
+
+  graph_view : Controller × Params → HTML | Error
+
+  let pipeline = run_export_pipeline(l, j, c, f, d)
+  let pairs    = [ [row[x], num(row[y]), row \ {x,y}]
+                   | row ∈ pipeline.records,  num(row[y]) ≠ ⊥ ]
+
+  pre  x ∈ params ∧ y ∈ params           else 400
+  pre  x ∈ pipeline.cols                  else 400
+  pre  y ∈ pipeline.cols                  else 400
+  pre  pairs ≠ []                          else 200 "No plottable data"
+  post HTML::D3->render_line_chart_snippet(pairs) embedded in TT layout
+
+=cut
 
 =head2 clear_uploads
 

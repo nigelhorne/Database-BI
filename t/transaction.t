@@ -1265,7 +1265,7 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 		->status_is(404, 'Phase 5: unresolvable left spec returns 404');
 
 	SKIP: {
-		eval { require HTML::D3 } or skip 'HTML::D3 not available', 8;
+		eval { require HTML::D3 } or skip 'HTML::D3 not available', 9;
 
 		# Phase 3: valid params render a D3.js chart page.
 		$t->get_ok('/graph?l=table:sales&x=product&y=amount')
@@ -1273,7 +1273,9 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 			->content_like(qr/d3\.js|d3\.v7/, 'Phase 3: D3.js included in output')
 			->content_like(qr/Back to table/, 'Phase 3: back link present')
 			->content_like(qr/Export SVG/,    'Phase 3: SVG export button present')
-			->content_like(qr/Export PNG/,    'Phase 3: PNG export button present');
+			->content_like(qr/Export PNG/,    'Phase 3: PNG export button present')
+			->content_like(qr/"extra"\s*:/,
+				'Phase 7: extra row data encoded in chart JSON (full-row tooltip)');
 
 		# Phase 6: graph pipeline honours filters.
 		$t->get_ok('/graph?l=table:sales&x=product&y=amount&f=region:eq:North')
