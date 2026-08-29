@@ -899,6 +899,16 @@
     });
   }
 
+  // Check for numeric columns once on page load; grey out the button when
+  // none exist so the user knows immediately without opening the panel.
+  (function initGraphBtn() {
+    buildYSelect();
+    if (ySel.options.length <= 1) {
+      btnOpen.disabled = true;
+      btnOpen.title    = 'Line graphs need a numeric column';
+    }
+  }());
+
   btnOpen.addEventListener('click', function () {
     otherPanels.forEach(function (p) { p.hidden = true; });
     backInp.value = window.location.href;
