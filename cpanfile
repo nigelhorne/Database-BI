@@ -12,6 +12,7 @@ requires 'File::Temp', '0.22';
 requires 'HTML::D3', '0.10';
 requires 'HTML::TableExtract';
 requires 'LWP::UserAgent';
+requires 'LWP::UserAgent::Cached';
 requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Params::Get';

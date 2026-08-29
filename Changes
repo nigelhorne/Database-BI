@@ -1,6 +1,18 @@
 Revision history for Database-BI
 
 0.005.0
+    [ Bug Fixes ]
+    - t/filter.t subtest "import_url: non-numeric table_index is sanitized to 0"
+      now passes on GitHub Actions.  Database::Abstraction fetches URLs via
+      LWP::UserAgent::Cached (not plain LWP::UserAgent); the test was mocking
+      LWP::UserAgent::get but that mock was bypassed by Cached's override of
+      simple_request.  The mock now targets LWP::UserAgent::simple_request
+      (the base-class method that Cached delegates to after its cache check),
+      which intercepts the call regardless of which LWP subclass D::A uses.
+      LWP::UserAgent::Cached is also added to PREREQ_PM and cpanfile so CI
+      installs it; previously it was absent and the feature silently failed
+      on fresh environments.
+
     [ Enhancements ]
     - Graph hover tooltips now show all columns for the data point, not just
       the X and Y values.  Mousing over a dot displays every field from that
