@@ -14,6 +14,11 @@ Revision history for Database-BI
       on fresh environments.
 
     [ Enhancements ]
+    - Upload subdirectories older than 24 hours are now evicted automatically
+      on every server startup.  Recent uploads (from the current or previous
+      session within the last 24 hours) are preserved.  The explicit
+      "Clear upload cache" button (POST /uploads/clear) continues to remove
+      all entries immediately regardless of age.
     - Graph hover tooltips now show all columns for the data point, not just
       the X and Y values.  Mousing over a dot displays every field from that
       row (excluding the axes columns) as additional key/value lines below the
