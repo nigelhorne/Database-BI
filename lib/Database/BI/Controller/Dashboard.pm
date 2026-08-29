@@ -52,7 +52,7 @@ Readonly my %MESSAGES => (
 	error_not_found        => 'File or directory not found: %s',
 	error_dir_not_found    => 'Directory not found: %s',
 	error_write_failed     => 'Write failed: %s',
-	error_ext_required     => 'Use a .csv or .sql filename extension',
+	error_ext_required     => 'Use a .csv, .sql, or .json filename extension',
 	error_upload_none      => 'No file received',
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql)',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
@@ -1738,8 +1738,9 @@ sub export_write ($self) {
 	# Strip any path separators the browser might include.
 	($filename) = $filename =~ m{([^/\\]+)\z};
 	my $format;
-	if    ($filename && $filename =~ /\.csv\z/i) { $format = 'csv';    }
-	elsif ($filename && $filename =~ /\.sql\z/i) { $format = 'sqlite'; }
+	if    ($filename && $filename =~ /\.csv\z/i)  { $format = 'csv';    }
+	elsif ($filename && $filename =~ /\.sql\z/i)  { $format = 'sqlite'; }
+	elsif ($filename && $filename =~ /\.json\z/i) { $format = 'json';   }
 	else {
 		return $self->render(
 			json   => { error => $self->_i18n('error_ext_required') },
@@ -1755,6 +1756,9 @@ sub export_write ($self) {
 	eval {
 		if ($format eq 'csv') {
 			$dest->spurt(_serialize_csv($records, $columns));
+		}
+		elsif ($format eq 'json') {
+			$dest->spurt(encode_json($records));
 		}
 		else {
 			$dest->spurt($self->_write_sqlite_db($records, $columns));

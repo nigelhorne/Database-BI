@@ -2,8 +2,16 @@
 
 <style>
   /* Allow rotated X-axis labels on the leftmost tick to render outside the SVG
-     boundary without being clipped -- the default SVG overflow is "hidden". */
+     boundary without being clipped.
+     Problem: D3 rotates labels -45° with text-anchor:end, so the leftmost label
+     extends to a negative SVG x-coordinate.  overflow:visible on the SVG lets
+     the ink escape the SVG box, but the parent .graph-container has
+     overflow-x:auto, which creates a scroll context that clips child ink
+     overflow at the container's left edge regardless.
+     Fix: padding-left shifts the SVG rightward so the label's visual overflow
+     falls within the container's padding area, which IS part of the scroll area. */
   #chart { overflow: visible; }
+  .graph-container { padding-left: 3rem; }
 
   /* Style the HTML::D3-generated Reset zoom button to match .btn-graph-export */
   #reset-btn {
@@ -37,6 +45,19 @@
 
 <script>
 (function () {
+  // Widen the SVG viewBox so the first rotated X-axis label is not cropped.
+  // D3 rotates labels -45° with text-anchor:end; the leftmost label extends
+  // to a negative SVG x-coordinate.  A viewBox starting at -pad makes that
+  // region part of the SVG viewport, bypassing all container overflow rules.
+  var _chartSvg = document.getElementById('chart');
+  if (_chartSvg) {
+    var _w = parseFloat(_chartSvg.getAttribute('width'))  || 1100;
+    var _h = parseFloat(_chartSvg.getAttribute('height')) || 580;
+    var _pad = 60;
+    _chartSvg.setAttribute('width',   _w + _pad);
+    _chartSvg.setAttribute('viewBox', (-_pad) + ' 0 ' + (_w + _pad) + ' ' + _h);
+  }
+
   function biExportSVG() {
     var svg = document.getElementById('chart');
     if (!svg) return;

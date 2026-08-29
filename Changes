@@ -23,10 +23,10 @@ Revision history for Database-BI
       when the chosen Y column contains no numeric values (e.g. a text column),
       rather than crashing or producing an empty chart.
     - The first X-axis label on the line graph is no longer cropped.  D3
-      rotates labels -45 degrees with text-anchor:end, which causes the
-      leftmost label to extend past the SVG boundary and be clipped by the
-      browser.  Setting overflow:visible on the chart SVG element allows
-      the label to render fully.
+      rotates labels -45 degrees with text-anchor:end, so the leftmost
+      label extends to a negative SVG x-coordinate.  The fix widens the
+      SVG via a viewBox that starts at x=-60: the formerly-negative region
+      becomes part of the SVG viewport, so no CSS overflow trick is needed.
 
 0.004.0	Thu Aug 27 09:36:22 PM EDT 2026
     [ Enhancements ]
