@@ -49,14 +49,17 @@
   // D3 rotates labels -45° with text-anchor:end; the leftmost label extends
   // to a negative SVG x-coordinate.  A viewBox starting at -pad makes that
   // region part of the SVG viewport, bypassing all container overflow rules.
-  var _chartSvg = document.getElementById('chart');
-  if (_chartSvg) {
-    var _w = parseFloat(_chartSvg.getAttribute('width'))  || 1100;
-    var _h = parseFloat(_chartSvg.getAttribute('height')) || 580;
-    var _pad = 60;
-    _chartSvg.setAttribute('width',   _w + _pad);
-    _chartSvg.setAttribute('viewBox', (-_pad) + ' 0 ' + (_w + _pad) + ' ' + _h);
-  }
+  // Run inside setTimeout(0) so D3's duration=0 transitions have completed
+  // and the axis text elements are in the DOM before we size the viewport.
+  setTimeout(function () {
+    var _svg = document.getElementById('chart');
+    if (!_svg) return;
+    var _w   = parseFloat(_svg.getAttribute('width'))  || 1100;
+    var _h   = parseFloat(_svg.getAttribute('height')) || 580;
+    var _pad = 80;
+    _svg.setAttribute('width',   _w + _pad);
+    _svg.setAttribute('viewBox', (-_pad) + ' 0 ' + (_w + _pad) + ' ' + _h);
+  }, 0);
 
   function biExportSVG() {
     var svg = document.getElementById('chart');
