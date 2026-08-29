@@ -1106,6 +1106,10 @@ subtest 'Transaction 15: from=saved — bi:recent suppression contract' => sub {
 # ======================================================================
 
 subtest 'Transaction 16: Clear upload cache — full lifecycle' => sub {
+	# Phase 0: drain any files left over from prior test runs or other test
+	# files so the lifecycle starts from a known-empty state.
+	$t->post_ok('/uploads/clear')->status_is(200);
+
 	# Phase 1: upload two distinct CSV files so .uploads/ is non-empty.
 	my $csv_a = "id,label\n1,alpha\n2,beta\n";
 	my $csv_b = "name,score\nAlice,90\nBob,85\n";
@@ -1124,13 +1128,13 @@ subtest 'Transaction 16: Clear upload cache — full lifecycle' => sub {
 	my $res_b = decode_json($t->tx->res->body);
 	ok defined $res_b->{path}, 'Phase 1b: second upload returned a path';
 
-	# Phase 2: first clear — should recover the bytes from both uploads.
+	# Phase 2: first clear — must recover exactly the two Phase 1 uploads.
 	$t->post_ok('/uploads/clear')->status_is(200);
 	my $clear1 = decode_json($t->tx->res->body);
 	ok defined $clear1->{freed}, 'Phase 2: response contains "freed"';
 	ok defined $clear1->{count}, 'Phase 2: response contains "count"';
-	cmp_ok $clear1->{count}, '>=', 2,
-		'Phase 2: at least two files freed (one per upload)';
+	is $clear1->{count}, 2,
+		'Phase 2: exactly two files freed (one per upload)';
 	cmp_ok $clear1->{freed}, '>', 0,
 		'Phase 2: freed bytes > 0 after clearing non-empty cache';
 
