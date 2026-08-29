@@ -1,6 +1,6 @@
 package Database::BI::Controller::Dashboard;
 
-our $VERSION = '0.004.0';
+our $VERSION = '0.004.1';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -2030,7 +2030,8 @@ sub graph_view ($self) {
 		next unless length($x) && length($y);
 		(my $y_num = $y) =~ s/[^\d.\-]//g;
 		next unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/;
-		push @pairs, [$x, $y_num + 0];
+		my %extra = map { $_ => $row->{$_} } grep { $_ ne $x_col && $_ ne $y_col } @{$columns};
+		push @pairs, [$x, $y_num + 0, \%extra];
 	}
 
 	return $self->render(
