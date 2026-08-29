@@ -1,18 +1,6 @@
 Revision history for Database-BI
 
-0.005.0
-    [ Bug Fixes ]
-    - t/filter.t subtest "import_url: non-numeric table_index is sanitized to 0"
-      now passes on GitHub Actions.  Database::Abstraction fetches URLs via
-      LWP::UserAgent::Cached (not plain LWP::UserAgent); the test was mocking
-      LWP::UserAgent::get but that mock was bypassed by Cached's override of
-      simple_request.  The mock now targets LWP::UserAgent::simple_request
-      (the base-class method that Cached delegates to after its cache check),
-      which intercepts the call regardless of which LWP subclass D::A uses.
-      LWP::UserAgent::Cached is also added to PREREQ_PM and cpanfile so CI
-      installs it; previously it was absent and the feature silently failed
-      on fresh environments.
-
+0.005.0	Sat Aug 29 02:22:00 PM EDT 2026
     [ Enhancements ]
     - The "Line graph..." toolbar button is now greyed out (disabled) when the
       current view has no numeric column that can serve as the Y axis.
@@ -53,6 +41,16 @@ Revision history for Database-BI
       label extends to a negative SVG x-coordinate.  The fix widens the
       SVG via a viewBox that starts at x=-60: the formerly-negative region
       becomes part of the SVG viewport, so no CSS overflow trick is needed.
+    - t/filter.t subtest "import_url: non-numeric table_index is sanitized to 0"
+      now passes on GitHub Actions.  Database::Abstraction fetches URLs via
+      LWP::UserAgent::Cached (not plain LWP::UserAgent); the test was mocking
+      LWP::UserAgent::get but that mock was bypassed by Cached's override of
+      simple_request.  The mock now targets LWP::UserAgent::simple_request
+      (the base-class method that Cached delegates to after its cache check),
+      which intercepts the call regardless of which LWP subclass D::A uses.
+      LWP::UserAgent::Cached is also added to PREREQ_PM and cpanfile so CI
+      installs it; previously it was absent and the feature silently failed
+      on fresh environments.
 
 0.004.0	Thu Aug 27 09:36:22 PM EDT 2026
     [ Enhancements ]
