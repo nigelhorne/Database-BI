@@ -20,6 +20,9 @@ Revision history for Database-BI
       numeric column".  The check runs once at page load using the same
       isNumericVal / isDateVal logic as the Y-axis column selector, so date
       columns and fully-text columns both correctly suppress the button.
+    - When a view has exactly one numeric column the Y-axis dropdown is
+      replaced by a read-only "auto-selected" label showing the column name,
+      so the user only needs to choose the X axis before clicking Plot.
     - Upload subdirectories older than 24 hours are now evicted automatically
       on every server startup.  Recent uploads (from the current or previous
       session within the last 24 hours) are preserved.  The explicit

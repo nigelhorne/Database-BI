@@ -1426,6 +1426,27 @@ subtest 'Transaction 22: Graph button disabled when no numeric column' => sub {
 	# The initGraphBtn IIFE is also present in the source.
 	$t->content_like(qr/initGraphBtn/,
 		'Phase 3: initGraphBtn IIFE present (greys out btn-graph on load)');
+
+	# Phase 4: single-numeric-column auto-fill.  Upload a CSV with one numeric
+	# column and one text column; the Y-axis dropdown must be hidden and the
+	# auto-label span + applyYAutoSelect logic must be present in the page.
+	my $one_num_csv = "city,population\nLondon,9000000\nParis,2100000\n";
+
+	$t->post_ok('/upload',
+		{ 'Content-Type' => 'multipart/form-data' },
+		form => { file => { content => $one_num_csv, filename => 'cities.csv' } },
+	)->status_is(200);
+	my $one_path = decode_json($t->tx->res->body)->{path};
+	ok defined $one_path, 'Phase 4: single-numeric upload returned a path';
+
+	$t->get_ok('/open?path=' . url_escape($one_path))
+		->status_is(200, 'Phase 4: /open returns 200 for single-numeric CSV')
+		->content_like(qr/applyYAutoSelect/,
+			'Phase 4: applyYAutoSelect helper present (single-column auto-fill)')
+		->content_like(qr/graph-y-auto/,
+			'Phase 4: graph-y-auto span present (shows auto-selected column name)')
+		->content_like(qr/Y axis \(auto-selected\)/,
+			'Phase 4: auto-selected label text present in page source');
 };
 
 done_testing();
