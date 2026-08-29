@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Controller/Dashboard.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">83.2%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">83.9%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -98,79 +98,85 @@ https://pjcj.net
 <tr><td class="h"><a id="L686">686</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
 <tr><td class="h"><a id="L690">690</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (@sources &gt; 1)</td></tr>
 <tr><td class="h"><a id="L700">700</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;param(&quot;d&quot;)</td></tr>
-<tr><td class="h"><a id="L877">877</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $table and $table =~ /$TABLE_NAME_RE/u)</td></tr>
-<tr><td class="h"><a id="L883">883</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L896">896</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L897">897</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
-<tr><td class="h"><a id="L965">965</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and -d $dir</td></tr>
-<tr><td class="h"><a id="L984">984</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $name</td></tr>
-<tr><td class="h"><a id="L987">987</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $parent-&gt;to_string eq $f-&gt;to_string</td></tr>
-<tr><td class="h"><a id="L993">993</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
-<tr><td class="h"><a id="L1086">1086</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file_path</td></tr>
-<tr><td class="h"><a id="L1089">1089</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
-<tr><td class="h"><a id="L1100">1100</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L1115">1115</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L1116">1116</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
-<tr><td class="h"><a id="L1183">1183</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $idx =~ /\A[0-9]+\z/u</td></tr>
-<tr><td class="h"><a id="L1196">1196</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $url</td></tr>
-<tr><td class="h"><a id="L1197">1197</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $url =~ m[\Ahttps?://]iu</td></tr>
-<tr><td class="h"><a id="L1199">1199</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _is_safe_url($url)</td></tr>
-<tr><td class="h"><a id="L1203">1203</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@ or not $source</td></tr>
-<tr><td class="h"><a id="L1206">1206</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L1212">1212</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L1213">1213</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
-<tr><td class="h"><a id="L1282">1282</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $table_name and $table_name =~ /$TABLE_NAME_RE/u) { }</td></tr>
+<tr><td class="h"><a id="L888">888</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $table and $table =~ /$TABLE_NAME_RE/u)</td></tr>
+<tr><td class="h"><a id="L894">894</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L907">907</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L908">908</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
+<tr><td class="h"><a id="L976">976</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and -d $dir</td></tr>
+<tr><td class="h"><a id="L995">995</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $name</td></tr>
+<tr><td class="h"><a id="L998">998</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $parent-&gt;to_string eq $f-&gt;to_string</td></tr>
+<tr><td class="h"><a id="L1004">1004</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
+<tr><td class="h"><a id="L1097">1097</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file_path</td></tr>
+<tr><td class="h"><a id="L1100">1100</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
+<tr><td class="h"><a id="L1111">1111</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L1126">1126</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L1127">1127</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
+<tr><td class="h"><a id="L1194">1194</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $idx =~ /\A[0-9]+\z/u</td></tr>
+<tr><td class="h"><a id="L1207">1207</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $url</td></tr>
+<tr><td class="h"><a id="L1208">1208</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $url =~ m[\Ahttps?://]iu</td></tr>
+<tr><td class="h"><a id="L1210">1210</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _is_safe_url($url)</td></tr>
+<tr><td class="h"><a id="L1214">1214</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@ or not $source</td></tr>
+<tr><td class="h"><a id="L1217">1217</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L1223">1223</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L1224">1224</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
+<tr><td class="h"><a id="L1298">1298</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $table_name or defined $path)</td></tr>
+<tr><td class="h"><a id="L1300">1300</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($spec =~ /\Atable:([A-Za-z_][A-Za-z0-9_]*)\z/u) { }</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($spec =~ /\Apath:(.+)\z/su) { }</td></tr>
+<tr><td class="h"><a id="L1308">1308</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $table_name and $table_name =~ /$TABLE_NAME_RE/u) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif (defined $path) { }</td></tr>
-<tr><td class="h"><a id="L1285">1285</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {-f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;);} @SUPPORTED_EXT</td></tr>
-<tr><td class="h"><a id="L1290">1290</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
-<tr><td class="h"><a id="L1297">1297</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $source</td></tr>
-<tr><td class="h"><a id="L1300">1300</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$source-&gt;columns ? :</td></tr>
-<tr><td class="h"><a id="L1362">1362</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
-<tr><td class="h"><a id="L1365">1365</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L1384">1384</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $right_spec and defined $left_key and defined $right_key</td></tr>
-<tr><td class="h"><a id="L1388">1388</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $col_set{$left_key}</td></tr>
-<tr><td class="h"><a id="L1391">1391</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $right_src</td></tr>
-<tr><td class="h"><a id="L1394">1394</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L1397">1397</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $right_set{$right_key}</td></tr>
-<tr><td class="h"><a id="L1408">1408</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L1409">1409</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
-<tr><td class="h"><a id="L1412">1412</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @summaries</td></tr>
-<tr><td class="h"><a id="L1494">1494</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
-<tr><td class="h"><a id="L1497">1497</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L1517">1517</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $csrc</td></tr>
-<tr><td class="h"><a id="L1519">1519</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L1525">1525</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">@sources &gt; 1 ? :</td></tr>
-<tr><td class="h"><a id="L1531">1531</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L1532">1532</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
-<tr><td class="h"><a id="L1535">1535</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if @summaries</td></tr>
-<tr><td class="h"><a id="L1619">1619</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L1622">1622</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $format eq &quot;sqlite&quot;</td></tr>
-<tr><td class="h"><a id="L1625">1625</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$format eq &#39;sqlite&#39; ? :</td></tr>
-<tr><td class="h"><a id="L1704">1704</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $dest_dir and -d $dest_dir)</td></tr>
-<tr><td class="h"><a id="L1714">1714</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($filename and $filename =~ /\.csv\z/iu) { }</td></tr>
+<tr><td class="h"><a id="L1311">1311</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {-f $data_dir-&gt;child(lc($table_name) . &quot;.$_&quot;);} @SUPPORTED_EXT</td></tr>
+<tr><td class="h"><a id="L1316">1316</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u)</td></tr>
+<tr><td class="h"><a id="L1323">1323</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $source</td></tr>
+<tr><td class="h"><a id="L1326">1326</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$source-&gt;columns ? :</td></tr>
+<tr><td class="h"><a id="L1388">1388</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
+<tr><td class="h"><a id="L1391">1391</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L1410">1410</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $right_spec and defined $left_key and defined $right_key</td></tr>
+<tr><td class="h"><a id="L1414">1414</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $col_set{$left_key}</td></tr>
+<tr><td class="h"><a id="L1417">1417</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $right_src</td></tr>
+<tr><td class="h"><a id="L1420">1420</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L1423">1423</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $right_set{$right_key}</td></tr>
+<tr><td class="h"><a id="L1434">1434</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L1435">1435</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
+<tr><td class="h"><a id="L1438">1438</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @summaries</td></tr>
+<tr><td class="h"><a id="L1520">1520</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $left_src</td></tr>
+<tr><td class="h"><a id="L1523">1523</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L1543">1543</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $csrc</td></tr>
+<tr><td class="h"><a id="L1545">1545</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L1551">1551</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">@sources &gt; 1 ? :</td></tr>
+<tr><td class="h"><a id="L1557">1557</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L1558">1558</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
+<tr><td class="h"><a id="L1561">1561</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if @summaries</td></tr>
+<tr><td class="h"><a id="L1647">1647</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L1652">1652</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$format eq &#39;json&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$format eq &#39;sqlite&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1731">1731</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $dest_dir and -d $dest_dir)</td></tr>
+<tr><td class="h"><a id="L1741">1741</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($filename and $filename =~ /\.csv\z/iu) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($filename and $filename =~ /\.sql\z/iu) { }</td></tr>
-<tr><td class="h"><a id="L1724">1724</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L1729">1729</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($format eq &#39;csv&#39;) { }</td></tr>
-<tr><td class="h"><a id="L1736">1736</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L1787">1787</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and -d $dir</td></tr>
-<tr><td class="h"><a id="L1797">1797</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
-<tr><td class="h"><a id="L1853">1853</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $path and length $path)</td></tr>
-<tr><td class="h"><a id="L1863">1863</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
-<tr><td class="h"><a id="L1920">1920</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($upload and $upload-&gt;filename)</td></tr>
-<tr><td class="h"><a id="L1932">1932</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($self-&gt;req-&gt;is_limit_exceeded or $upload-&gt;size &gt; $MAX_UPLOAD_BYTES)</td></tr>
-<tr><td class="h"><a id="L1942">1942</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($filename and $filename =~ /$EXT_RE/u)</td></tr>
-<tr><td class="h"><a id="L1954">1954</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_base</td></tr>
-<tr><td class="h"><a id="L1968">1968</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
-<tr><td class="h"><a id="L1977">1977</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (-d $entry) { }</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">elsif ($filename and $filename =~ /\.json\z/iu) { }</td></tr>
+<tr><td class="h"><a id="L1752">1752</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L1757">1757</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($format eq &#39;csv&#39;) { }</td></tr>
+<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">elsif ($format eq &#39;json&#39;) { }</td></tr>
+<tr><td class="h"><a id="L1767">1767</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L1818">1818</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and -d $dir</td></tr>
+<tr><td class="h"><a id="L1828">1828</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$parent-&gt;to_string ne $dir-&gt;to_string ? :</td></tr>
+<tr><td class="h"><a id="L1884">1884</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $path and length $path)</td></tr>
+<tr><td class="h"><a id="L1894">1894</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
+<tr><td class="h"><a id="L1951">1951</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($upload and $upload-&gt;filename)</td></tr>
+<tr><td class="h"><a id="L1963">1963</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($self-&gt;req-&gt;is_limit_exceeded or $upload-&gt;size &gt; $MAX_UPLOAD_BYTES)</td></tr>
+<tr><td class="h"><a id="L1973">1973</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($filename and $filename =~ /$EXT_RE/u)</td></tr>
+<tr><td class="h"><a id="L1985">1985</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_base</td></tr>
+<tr><td class="h"><a id="L1999">1999</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
+<tr><td class="h"><a id="L2008">2008</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (-d $entry) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif (-f $entry) { }</td></tr>
-<tr><td class="h"><a id="L1980">1980</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -f $file</td></tr>
-<tr><td class="h"><a id="L2012">2012</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x_col and length $y_col</td></tr>
-<tr><td class="h"><a id="L2016">2016</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L2021">2021</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $col_set{$x_col}</td></tr>
-<tr><td class="h"><a id="L2023">2023</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$y_col}</td></tr>
-<tr><td class="h"><a id="L2030">2030</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $x and length $y</td></tr>
-<tr><td class="h"><a id="L2032">2032</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
-<tr><td class="h"><a id="L2036">2036</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless @pairs</td></tr>
+<tr><td class="h"><a id="L2011">2011</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -f $file</td></tr>
+<tr><td class="h"><a id="L2045">2045</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x_col and length $y_col</td></tr>
+<tr><td class="h"><a id="L2049">2049</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L2054">2054</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $col_set{$x_col}</td></tr>
+<tr><td class="h"><a id="L2056">2056</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$y_col}</td></tr>
+<tr><td class="h"><a id="L2063">2063</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $x and length $y</td></tr>
+<tr><td class="h"><a id="L2065">2065</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
+<tr><td class="h"><a id="L2066">2066</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $_ ne $x_col</td></tr>
+<tr><td class="h"><a id="L2070">2070</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @pairs</td></tr>
 </table>
 </body>
 </html>
