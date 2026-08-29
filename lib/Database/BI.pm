@@ -8,7 +8,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.004.1';
+our $VERSION = '0.005.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -27,7 +27,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 
 =head1 VERSION
 
-0.004.0
+0.005.0
 
 =head1 SYNOPSIS
 

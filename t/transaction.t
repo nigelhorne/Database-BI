@@ -567,6 +567,17 @@ subtest 'Transaction 7: Columns API -> join coordination' => sub {
 
 	is count_csv_cols($t->tx->res->body), $expected_merged,
 		'Phase 4: merged CSV has left + right non-key columns';
+
+	# Phase 5: /api/columns accepts the unified "spec=table:name" format
+	# used by the join/graph pipeline, so JS can pass l= values directly.
+	$t->get_ok('/api/columns?spec=table:sales')
+		->status_is(200, 'Phase 5: spec=table: returns 200')
+		->json_has('/columns', 'Phase 5: response has columns key');
+
+	# Phase 6: spec=path: resolves an arbitrary file the same way ?path= does.
+	$t->get_ok('/api/columns?spec=path:' . url_escape($right_file->to_string))
+		->status_is(200, 'Phase 6: spec=path: returns 200')
+		->json_has('/columns', 'Phase 6: file columns returned via spec=');
 };
 
 # ======================================================================
@@ -1264,8 +1275,15 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 	$t->get_ok('/graph?l=table:nonexistent_xyzzy&x=product&y=amount')
 		->status_is(404, 'Phase 5: unresolvable left spec returns 404');
 
+	# Phase 8: a Y column with no numeric values returns 200 "No plottable data".
+	# This path returns before requiring HTML::D3, so no SKIP needed.
+	$t->get_ok('/graph?l=table:sales&x=product&y=product')
+		->status_is(200, 'Phase 8: non-numeric Y column returns 200')
+		->content_like(qr/No plottable data/,
+			'Phase 8: "No plottable data" message in response');
+
 	SKIP: {
-		eval { require HTML::D3 } or skip 'HTML::D3 not available', 9;
+		eval { require HTML::D3 } or skip 'HTML::D3 not available', 13;
 
 		# Phase 3: valid params render a D3.js chart page.
 		$t->get_ok('/graph?l=table:sales&x=product&y=amount')
@@ -1275,11 +1293,19 @@ subtest 'Transaction 19: Line graph lifecycle' => sub {
 			->content_like(qr/Export SVG/,    'Phase 3: SVG export button present')
 			->content_like(qr/Export PNG/,    'Phase 3: PNG export button present')
 			->content_like(qr/"extra"\s*:/,
-				'Phase 7: extra row data encoded in chart JSON (full-row tooltip)');
+				'Phase 7: extra row data encoded in chart JSON (full-row tooltip)')
+			->content_like(qr/"region"/,
+				'Phase 7: non-axis column name present in extra data')
+			->content_like(qr/Reset zoom/,
+				'Phase 9: brush-to-zoom Reset button present')
+			->content_like(qr/Plotting \d+ points?/,
+				'Phase 10: point count shown in graph toolbar');
 
 		# Phase 6: graph pipeline honours filters.
 		$t->get_ok('/graph?l=table:sales&x=product&y=amount&f=region:eq:North')
-			->status_is(200, 'Phase 6: graph with filter param returns 200');
+			->status_is(200, 'Phase 6: graph with filter param returns 200')
+			->content_like(qr/Plotting \d+ points?/,
+				'Phase 6: filtered graph shows point count');
 	}
 };
 
@@ -1321,6 +1347,38 @@ subtest 'Transaction 20: Graph UI polish, date-sort JS, and numeric Y-axis filte
 			->content_like(qr/biExportSVG|Export SVG/,
 				'Phase 2: SVG export button present');
 	}
+};
+
+# ======================================================================
+# TRANSACTION 21: JSON export format
+#
+# Verifies that GET /export?format=json streams a valid JSON array download
+# whose records match what the CSV export would contain.
+#
+# Lifecycle:
+#   Phase 1  GET /export?format=json  -> 200, Content-Type application/json
+#   Phase 2  Decoded body is an array of hashrefs
+#   Phase 3  Array length matches sales.csv row count (SALES_ROWS)
+#   Phase 4  Each element has the expected column keys
+# ======================================================================
+
+subtest 'Transaction 21: JSON export format' => sub {
+	$t->get_ok('/export?l=table:sales&format=json')
+		->status_is(200, 'Phase 1: JSON export returns 200')
+		->content_type_like(qr{application/json},
+			'Phase 1: Content-Type is application/json');
+
+	my $body = decode_json($t->tx->res->body);
+	ok ref($body) eq 'ARRAY', 'Phase 2: response body is a JSON array';
+
+	is scalar @{$body}, $SALES_ROWS,
+		'Phase 3: array length matches sales.csv row count';
+
+	my $first = $body->[0];
+	ok ref($first) eq 'HASH', 'Phase 4: each element is a hash';
+	ok exists $first->{product}, 'Phase 4: "product" column present';
+	ok exists $first->{amount},  'Phase 4: "amount" column present';
+	ok exists $first->{region},  'Phase 4: "region" column present';
 };
 
 done_testing();

@@ -1,5 +1,25 @@
 [%- WRAPPER 'web/en/layouts/default.html.tt' -%]
 
+<style>
+  /* Allow rotated X-axis labels on the leftmost tick to render outside the SVG
+     boundary without being clipped -- the default SVG overflow is "hidden". */
+  #chart { overflow: visible; }
+
+  /* Style the HTML::D3-generated Reset zoom button to match .btn-graph-export */
+  #reset-btn {
+    padding: 0.28rem 0.75rem;
+    border: 1px solid #888;
+    border-radius: 6px;
+    background: transparent;
+    color: #444;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.12s;
+    margin-bottom: 0;
+  }
+  #reset-btn:hover { background: #f0f0f0; }
+</style>
+
 <p class="back-link"><a href="[% back_url | html %]">&larr; [% back_label | html %]</a></p>
 
 <h2 class="graph-title">[% title | html %]</h2>
@@ -7,6 +27,7 @@
 <div class="graph-export-bar">
   <button class="btn-graph-export" onclick="biExportSVG()">Export SVG</button>
   <button class="btn-graph-export" onclick="biExportPNG()">Export PNG</button>
+  <span class="graph-point-count">Plotting [% point_count %] point[% IF point_count != 1 %]s[% END %]</span>
 </div>
 
 <div class="graph-container">

@@ -29,7 +29,7 @@ WriteMakefile(
 		'File::Temp'		=> '0.22',
 		'Scalar::Util'		=> '1.40',
 		'Socket'		=> '2.010',
-		'HTML::D3'		=> 0.09,
+		'HTML::D3'	=> 0.10,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'	=> 0,
 		'Mojolicious'	=> '9.49',

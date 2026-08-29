@@ -1,11 +1,32 @@
 Revision history for Database-BI
 
-0.004.1	Fri Aug 28 2026
+0.005.0
     [ Enhancements ]
     - Graph hover tooltips now show all columns for the data point, not just
       the X and Y values.  Mousing over a dot displays every field from that
       row (excluding the axes columns) as additional key/value lines below the
       label and value.  Requires HTML::D3 >= 0.09.
+    - Line graph now supports brush-to-zoom: drag across a range on the X axis
+      to zoom in; a "Reset zoom" button returns to the full view.  Uses
+      HTML::D3's render_zoomable_line_chart_snippet.
+    - Line graph toolbar now shows the number of plotted data points
+      (e.g. "Plotting 6 points") so users know immediately how much data
+      is in view, especially after filtering.
+    - GET /export now accepts format=json to download the current view as a
+      JSON array of objects.  CSV and SQLite remain available as before.
+    - GET /api/columns now accepts a ?spec= parameter in the unified
+      "table:name" or "path:/abs/path" format used by /join and /graph,
+      so JavaScript can pass the l= pipeline spec directly without parsing it.
+
+    [ Bug Fixes ]
+    - Graph page correctly returns HTTP 200 with a "No plottable data" message
+      when the chosen Y column contains no numeric values (e.g. a text column),
+      rather than crashing or producing an empty chart.
+    - The first X-axis label on the line graph is no longer cropped.  D3
+      rotates labels -45 degrees with text-anchor:end, which causes the
+      leftmost label to extend past the SVG boundary and be clipped by the
+      browser.  Setting overflow:visible on the chart SVG element allows
+      the label to render fully.
 
 0.004.0	Thu Aug 27 09:36:22 PM EDT 2026
     [ Enhancements ]
