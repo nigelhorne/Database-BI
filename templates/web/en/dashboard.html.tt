@@ -223,7 +223,7 @@
           <option value="[% col | html %]">[% col | html %]</option>
           [%- END -%]
         </select>
-        <span id="graph-y-auto" hidden style="font-size:0.88rem;padding:0.3rem 0;display:block"></span>
+        <input type="text" id="graph-y-text" readonly hidden tabindex="-1">
       </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
@@ -876,7 +876,7 @@
     return s !== '' && /^-?\d+(?:\.\d+)?$/.test(s);
   }
 
-  var yAutoSpan  = document.getElementById('graph-y-auto');
+  var yTextInput = document.getElementById('graph-y-text');
   var yLabel     = document.getElementById('graph-y-label');
 
   // Rebuild the Y-axis select to show only columns whose non-empty values are
@@ -911,12 +911,12 @@
     if (numericCount === 1) {
       ySel.options[1].selected = true;
       ySel.hidden              = true;
-      if (yAutoSpan) { yAutoSpan.textContent = ySel.options[1].value; yAutoSpan.hidden = false; }
-      if (yLabel)    { yLabel.textContent    = 'Y axis (auto-selected)'; }
+      if (yTextInput) { yTextInput.value = ySel.options[1].value; yTextInput.hidden = false; }
+      if (yLabel)     { yLabel.textContent = 'Y axis (auto-selected)'; }
     } else {
       ySel.hidden = false;
-      if (yAutoSpan) yAutoSpan.hidden = true;
-      if (yLabel)    yLabel.textContent = 'Y axis (vertical, must be numeric)';
+      if (yTextInput) yTextInput.hidden = true;
+      if (yLabel)     yLabel.textContent = 'Y axis (vertical, must be numeric)';
     }
   }
 

@@ -1443,8 +1443,8 @@ subtest 'Transaction 22: Graph button disabled when no numeric column' => sub {
 		->status_is(200, 'Phase 4: /open returns 200 for single-numeric CSV')
 		->content_like(qr/applyYAutoSelect/,
 			'Phase 4: applyYAutoSelect helper present (single-column auto-fill)')
-		->content_like(qr/graph-y-auto/,
-			'Phase 4: graph-y-auto span present (shows auto-selected column name)')
+		->content_like(qr/graph-y-text/,
+			'Phase 4: graph-y-text input present (shows auto-selected column name)')
 		->content_like(qr/Y axis \(auto-selected\)/,
 			'Phase 4: auto-selected label text present in page source');
 };
