@@ -1,5 +1,22 @@
 Revision history for Database-BI
 
+0.005.1
+    [ Enhancements ]
+    - Columns containing accounting-style negative amounts — values written as
+      (1,234.56) rather than -1,234.56 — are now recognised as numeric and
+      handled correctly throughout the application:
+      * Column sort: clicking an Amount header now sorts correctly, with
+        parenthesised values treated as negative numbers rather than being
+        sorted as text or treated as positive values.
+      * Y-axis selector: columns whose values use accounting notation are now
+        included in the "numeric columns" list for line graphs, so Amount (and
+        similar columns) appear in the Y-axis dropdown.
+      * Line graph: Y values in accounting notation are plotted at the correct
+        negative position on the chart rather than at their absolute value.
+      The fix adds a parseAccounting() helper in the browser (shared by sort
+      and graph detection) and updates the server-side graph_view Y-strip logic
+      to detect the leading '(' before stripping non-numeric characters.
+
 0.005.0	Sat Aug 29 02:22:00 PM EDT 2026
     [ Enhancements ]
     - The "Line graph..." toolbar button is now greyed out (disabled) when the
