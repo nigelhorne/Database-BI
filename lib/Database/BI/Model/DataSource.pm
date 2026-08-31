@@ -518,6 +518,12 @@ sub _init_backend :Protected {
 		$pkg->new({
 			directory      => $dir,
 			table          => $table,
+			# D::A >= 0.41 uses the class-name suffix as dbname, not the table
+			# parameter, so a package like Database::BI::_DB::Orders would look
+			# for Orders.csv on a case-sensitive filesystem even when table =>
+			# 'orders' is passed.  Passing dbname explicitly keeps the filename
+			# stem correct regardless of the package name or D::A version.
+			dbname         => $table,
 			id             => $id_col,
 			no_entry       => 1,
 			defined($info->{sep_char})  ? (sep_char       => $info->{sep_char})  : (),
