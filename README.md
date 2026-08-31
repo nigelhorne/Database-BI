@@ -11,8 +11,8 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 `Database::BI` is a self-contained [Mojolicious](https://metacpan.org/pod/Mojolicious) web application that reads arbitrary
 flat data files (CSV, PSV, SQLite, XML, etc.) via [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction)
 and presents them as styled, sortable, reorderable HTML tables.
-
-It has no persistent database of its own - it reads arbitrary data files (CSV, PSV, SQLite, XML etc) presents each file as a styled, sortable, exportable HTML table.
+It has no persistent database of its own,
+it reads arbitrary data files (CSV, PSV, SQLite, XML etc) presents each file as a styled, sortable, exportable HTML table.
 
 Users navigate to pick a file, open the filesystem browser to navigate anywhere on disk, drag-and-drop files to upload, join multiple tables in memory, apply server-side filters, and export results as CSV, SQLite, or JSON.
 A D3.js line graph view plots any numeric column.

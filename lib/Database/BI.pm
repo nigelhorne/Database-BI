@@ -35,8 +35,8 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 C<Database::BI> is a self-contained L<Mojolicious> web application that reads arbitrary
 flat data files (CSV, PSV, SQLite, XML, etc.) via L<Database::Abstraction>
 and presents them as styled, sortable, reorderable HTML tables.
-
-It has no persistent database of its own - it reads arbitrary data files (CSV, PSV, SQLite, XML etc) presents each file as a styled, sortable, exportable HTML table.
+It has no persistent database of its own,
+it reads arbitrary data files (CSV, PSV, SQLite, XML etc) presents each file as a styled, sortable, exportable HTML table.
 
 Users navigate to pick a file, open the filesystem browser to navigate anywhere on disk, drag-and-drop files to upload, join multiple tables in memory, apply server-side filters, and export results as CSV, SQLite, or JSON.
 A D3.js line graph view plots any numeric column.
