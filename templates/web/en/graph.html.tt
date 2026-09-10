@@ -13,6 +13,25 @@
   #chart { overflow: visible; }
   .graph-container { padding-left: 3rem; }
 
+  /* Reference-line checkboxes in the export bar */
+  .graph-refline-controls {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-left: 0.5rem;
+    padding-left: 0.75rem;
+    border-left: 1px solid #ccc;
+  }
+  .refline-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.82rem;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .refline-label input[type="checkbox"] { cursor: pointer; }
+
   /* Style the HTML::D3-generated Reset zoom button to match .btn-graph-export */
   #reset-btn {
     padding: 0.28rem 0.75rem;
@@ -36,6 +55,13 @@
   <button class="btn-graph-export" onclick="biExportSVG()">Export SVG</button>
   <button class="btn-graph-export" onclick="biExportPNG()">Export PNG</button>
   <span class="graph-point-count">Plotting [% point_count %] point[% IF point_count != 1 %]s[% END %]</span>
+  [% IF ref_min_y.defined %]
+  <span class="graph-refline-controls">
+    <label class="refline-label"><input type="checkbox" id="rl-min"> Min ([% ref_min_y %])</label>
+    <label class="refline-label"><input type="checkbox" id="rl-avg"> Avg ([% ref_avg_y %])</label>
+    <label class="refline-label"><input type="checkbox" id="rl-max"> Max ([% ref_max_y %])</label>
+  </span>
+  [% END %]
 </div>
 
 <div class="graph-container">
@@ -99,5 +125,73 @@
   window.biExportPNG = biExportPNG;
 }());
 </script>
+
+[% IF ref_min_y.defined %]
+<script>
+// Reference lines — drawn using the D3 `y` scale and `chart` group that
+// render_zoomable_line_chart_snippet declares at the top level of its <script>
+// block (not inside an IIFE), so they are accessible here.
+(function () {
+  var REF = {
+    min: [% ref_min_y %],
+    avg: [% ref_avg_y %],
+    max: [% ref_max_y %]
+  };
+  var LINE_DEFS = [
+    { id: 'rl-min', key: 'min', color: '#3b82f6', label: 'Min' },
+    { id: 'rl-avg', key: 'avg', color: '#10b981', label: 'Avg' },
+    { id: 'rl-max', key: 'max', color: '#ef4444', label: 'Max' }
+  ];
+
+  function drawRefLines() {
+    // `chart` and `y` and `width` are declared by HTML::D3's snippet at the
+    // top level of its <script> block — they are visible in this scope.
+    if (typeof chart === 'undefined' || typeof y === 'undefined') return;
+    chart.selectAll('.bi-ref-line').remove();
+    chart.selectAll('.bi-ref-label').remove();
+    LINE_DEFS.forEach(function (def) {
+      var cb = document.getElementById(def.id);
+      if (!cb || !cb.checked) return;
+      var val  = REF[def.key];
+      var yPos = y(val);
+      chart.append('line')
+        .attr('class', 'bi-ref-line')
+        .attr('x1', 0).attr('x2', width)
+        .attr('y1', yPos).attr('y2', yPos)
+        .attr('stroke', def.color)
+        .attr('stroke-width', 1.5)
+        .attr('stroke-dasharray', '5 3')
+        .attr('pointer-events', 'none');
+      chart.append('text')
+        .attr('class', 'bi-ref-label')
+        .attr('x', width + 5)
+        .attr('y', yPos + 4)
+        .attr('fill', def.color)
+        .attr('font-size', '11px')
+        .attr('pointer-events', 'none')
+        .text(def.label);
+    });
+  }
+
+  // Patch `redraw` so reference lines are redrawn whenever the chart updates
+  // (zoom in or reset).  `y.domain()` is updated synchronously at the start
+  // of redraw, so drawing immediately after _origRedraw returns places lines
+  // at the correct pixel positions for the new domain.
+  if (typeof redraw === 'function') {
+    var _origRedraw = redraw;
+    redraw = function (newData, ms) {
+      _origRedraw(newData, ms);
+      drawRefLines();
+    };
+  }
+
+  // Wire up checkboxes.
+  LINE_DEFS.forEach(function (def) {
+    var cb = document.getElementById(def.id);
+    if (cb) cb.addEventListener('change', drawRefLines);
+  });
+}());
+</script>
+[% END %]
 
 [%- END -%]
