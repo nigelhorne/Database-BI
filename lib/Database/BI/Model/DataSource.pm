@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.005.2';
+our $VERSION = '0.005.3';
 
 =head1 NAME
 
@@ -401,7 +401,15 @@ sub _detect_file_info :Protected {
 		my $fh;
 		{ no autodie 'open'; open $fh, '<', $path or next }
 		my $line = <$fh>;
-		next unless defined $line;
+		# 0-byte file: no header, no rows.  Return a sentinel so _init_backend
+		# can skip Database::Abstraction entirely.  If we let D::A see an empty
+		# file it falls through to the DBD::CSV path, whose error handling on
+		# an empty SELECT corrupts DBI's internal Errstr SV; on a DEBUGGING perl
+		# (DBI 1.651 + perl 5.44.0) this triggers an XS assertion at cleanup.
+		unless (defined $line) {
+			close $fh;
+			return { _file_is_empty => 1, file_size => 0 };
+		}
 		chomp $line;
 		$line =~ s/\r\z//;	# strip CR from CRLF files before any split
 
@@ -504,6 +512,17 @@ sub _init_backend :Protected {
 	}
 
 	my $info   = _detect_file_info($dir, $table);
+
+	# 0-byte file: skip D::A/DBI entirely.  D::A on an empty file falls through
+	# to DBD::CSV, whose error handling corrupts DBI's Errstr SV and triggers an
+	# XS assertion failure at cleanup on DEBUGGING perls (DBI 1.651, perl 5.44).
+	if ($info->{_file_is_empty}) {
+		$self->{_columns}       = [];
+		$self->{_id_col}        = 'entry';
+		$self->{_file_is_empty} = 1;
+		return;
+	}
+
 	# _detect_file_info returns undef for id when every column header contains
 	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
 	# Falling back to the D::A default ('entry') would silently return 0 rows
@@ -648,6 +667,9 @@ silent failure.
 sub fetch_all {
 	my $self  = shift;
 	my $table = $self->{_table};
+
+	# 0-byte file: no backend was created; nothing to fetch.
+	return [] if $self->{_file_is_empty};
 
 	my $data = eval { $self->{_db}->selectall_hashref() };
 	if ($@) {

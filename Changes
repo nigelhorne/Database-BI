@@ -2,6 +2,21 @@ Revision history for Database-BI
 
 0.005.2
     [ Bug Fixes ]
+    - Fixed SIGABRT crash (DBI XS assertion failure) in t/edge_cases.t on
+      DEBUGGING-enabled perls (observed: perl 5.44.0 + DBI 1.651 + DBD::CSV
+      0.64).  When a 0-byte CSV file was opened, _detect_file_info returned
+      the generic "not CSV" sentinel ({}), causing _init_backend to create a
+      Database::Abstraction object without the max_slurp_size guard.  D::A
+      fell back to the DBD::CSV path, which issued "SELECT * FROM <table>" on
+      an empty file; DBD::CSV's EOF error left DBI's internal Errstr SV in a
+      shape that violated an XS assertion, crashing the process during global
+      destruction after all test assertions had already passed (so the TAP
+      plan was never written and the harness reported FAIL).
+      Fix: _detect_file_info now returns { _file_is_empty => 1, file_size => 0 }
+      for 0-byte files.  _init_backend detects this sentinel and short-circuits
+      before creating D::A; fetch_all returns [] immediately.  DBI is never
+      contacted and no crash occurs.
+      Fixes https://www.cpantesters.org/cpan/report/117b2a76-a4e5-11f1-9192-ffecfaad6fbc
     - Reference lines (Min / Avg / Max) on the line graph now recalculate
       correctly after a brush-to-zoom or Reset zoom interaction.  Two bugs
       were responsible:
