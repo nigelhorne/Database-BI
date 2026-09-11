@@ -27,6 +27,7 @@ WriteMakefile(
 		'DBI'			=> 0,
 		'File::Spec'		=> '3.40',
 		'File::Temp'		=> '0.22',
+		'List::Util'		=> '1.40',
 		'Scalar::Util'		=> '1.40',
 		'Socket'		=> '2.010',
 		'HTML::D3'	=> 0.11,
@@ -41,6 +42,7 @@ WriteMakefile(
 		'Sub::Protected'	=> 0,
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
+		'Encode' => 0,
 		'IPC::System::Simple' => 0,
 		'Test::Memory::Cycle' => 0,
 		'Test::Mockingbird' => 0,

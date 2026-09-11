@@ -13,6 +13,7 @@ requires 'HTML::D3', '0.11';
 requires 'HTML::TableExtract';
 requires 'LWP::UserAgent';
 requires 'LWP::UserAgent::Cached';
+requires 'List::Util', '1.40';
 requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Params::Get';
@@ -24,6 +25,7 @@ requires 'Sub::Protected';
 
 on 'test' => sub {
 	requires 'DBD::CSV';
+	requires 'Encode';
 	requires 'IPC::System::Simple';
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';

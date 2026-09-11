@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.005.2
+0.005.2 Fri Sep 11 06:08:10 AM EDT 2026
     [ Bug Fixes ]
     - Fixed SIGABRT crash (DBI XS assertion failure) in t/edge_cases.t on
       DEBUGGING-enabled perls (observed: perl 5.44.0 + DBI 1.651 + DBD::CSV
@@ -16,7 +16,7 @@ Revision history for Database-BI
       for 0-byte files.  _init_backend detects this sentinel and short-circuits
       before creating D::A; fetch_all returns [] immediately.  DBI is never
       contacted and no crash occurs.
-      Fixes https://www.cpantesters.org/cpan/report/117b2a76-a4e5-11f1-9192-ffecfaad6fbc
+      References: https://www.cpantesters.org/cpan/report/117b2a76-a4e5-11f1-9192-ffecfaad6fbc
     - Reference lines (Min / Avg / Max) on the line graph now recalculate
       correctly after a brush-to-zoom or Reset zoom interaction.  Two bugs
       were responsible:

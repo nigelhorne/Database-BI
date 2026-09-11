@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.005.3';
+our $VERSION = '0.005.2';
 
 =head1 NAME
 
@@ -20,7 +20,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-Version 0.005.1
+Version 0.005.2
 
 =head1 SYNOPSIS
 
@@ -769,6 +769,17 @@ C<E<lt>nameE<gt>>.
 When a table exists but contains no data rows, C<fetch_all> returns C<[]> (an
 empty arrayref), not C<undef>.  Check with C<scalar @{$records}>, not with
 C<defined $records> or C<$records>.
+
+=item B<0-byte CSV/PSV files bypass Database::Abstraction entirely>
+
+When C<_detect_file_info> opens a CSV or PSV file and the first C<readline>
+returns C<undef> (the file is 0 bytes), it returns a C<{ _file_is_empty =E<gt>
+1 }> sentinel instead of the normal C<{ id, sep_char, columns, file_size }>
+hashref.  C<_init_backend> detects this sentinel and skips
+C<Database::Abstraction> construction; C<fetch_all> returns C<[]> immediately.
+B<No DBI connection is created for 0-byte files.>  If you mock or spy on DBI
+handles and open a 0-byte CSV, the mock will never fire — this is expected
+behaviour, not a mock misconfiguration.
 
 =back
 
