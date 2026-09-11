@@ -173,33 +173,56 @@
     });
   }
 
-  // Attach event listeners so reference lines recalculate after the 500 ms
-  // D3 transition that follows a brush-zoom or reset.  We do NOT patch the
-  // `redraw` function: if HTML::D3 declares it with `const`, brushed()'s
-  // closure captures the original binding and our reassignment is invisible
-  // to it.  Instead we add a namespaced D3 brush handler and a reset-button
-  // click listener; both remove the stale lines immediately (so they do not
-  // sit at the wrong y position during the transition) then redraw them 20 ms
-  // after the transition ends.
-  if (typeof chart !== 'undefined') {
-    var biRefBrush = chart.select('.brush');
-    if (!biRefBrush.empty()) {
-      biRefBrush.on('end.biRef', function (event) {
-        // brushed() clears the brush via brush.move(null), which fires a
-        // second end event with event.selection === null.  Ignore it.
-        if (!event || !event.selection) return;
-        chart.selectAll('.bi-ref-line, .bi-ref-label').remove();
-        setTimeout(drawRefLines, 520);
-      });
-    }
-    // HTML::D3 creates the reset button as id="reset-<svg_id>" = "reset-chart".
-    var biRefRst = document.getElementById('reset-chart');
-    if (biRefRst) {
-      biRefRst.addEventListener('click', function () {
-        chart.selectAll('.bi-ref-line, .bi-ref-label').remove();
-        setTimeout(drawRefLines, 520);
-      });
-    }
+  // Patch `redraw` (a function declaration — globally patchable) so that
+  // reference lines recalculate whenever the chart updates.
+  //
+  // Why recalculate REF from newData?  HTML::D3 uses
+  //   y.domain([0, d3.max(newData, d => d.value)]).nice()
+  // so the y-domain minimum is always 0.  When the user zooms into a region
+  // whose maximum is smaller than the full-dataset REF values, those values
+  // fall above the visible domain and their pixel position is negative — i.e.
+  // off-screen above the chart.  Recalculating from newData keeps the lines
+  // inside the visible domain after every zoom or reset.
+  //
+  // Why setTimeout?  The `redraw` transition runs for `ms` ms (500 on zoom /
+  // reset, 0 on initial render).  We must wait until the transition ends
+  // before appending the reference lines; otherwise the y-axis is still
+  // animating from its old position when we compute y(val), producing a
+  // brief positional mismatch.
+  if (typeof redraw === 'function') {
+    var _origRedraw = redraw;
+    redraw = function (newData, ms) {
+      // Recalculate REF from the data currently being drawn so lines stay
+      // within the visible y-domain even after a zoom or reset.
+      if (newData && newData.length) {
+        var yVals = newData.map(function (d) { return d.value; })
+                          .filter(function (v) { return isFinite(v); });
+        if (yVals.length) {
+          REF.min = Math.min.apply(null, yVals);
+          REF.max = Math.max.apply(null, yVals);
+          REF.avg = yVals.reduce(function (a, b) { return a + b; }, 0) / yVals.length;
+          // Update the checkbox label text to show the new recalculated value.
+          // Each label is <label><input id="rl-*"> Min (X)</label>; the number
+          // lives in the text node immediately after the <input>.
+          LINE_DEFS.forEach(function (def) {
+            var cb = document.getElementById(def.id);
+            if (!cb || !cb.parentNode) return;
+            var nodes = cb.parentNode.childNodes;
+            for (var i = 0; i < nodes.length; i++) {
+              if (nodes[i].nodeType === 3) {
+                // 4 significant figures, stripping trailing zeros (like %.4g in Perl)
+                var fmtVal = parseFloat(REF[def.key].toPrecision(4));
+                nodes[i].textContent = nodes[i].textContent.replace(/\([^)]*\)/, '(' + fmtVal + ')');
+              }
+            }
+          });
+        }
+      }
+      // Remove stale lines before the transition starts.
+      chart.selectAll('.bi-ref-line, .bi-ref-label').remove();
+      _origRedraw(newData, ms);
+      setTimeout(drawRefLines, (ms || 0) + 20);
+    };
   }
 
   // Wire up checkboxes.

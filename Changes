@@ -1,5 +1,31 @@
 Revision history for Database-BI
 
+0.005.2
+    [ Bug Fixes ]
+    - Reference lines (Min / Avg / Max) on the line graph now recalculate
+      correctly after a brush-to-zoom or Reset zoom interaction.  Two bugs
+      were responsible:
+      * The previous implementation tried to hook into the zoom by listening
+        for a D3 brush "end" DOM event, but D3 fires brush callbacks through
+        its own internal dispatch, not through DOM events.  The listener
+        never fired.  The fix patches the global `redraw` function (a
+        function declaration, not a `const`) and recalculates the reference
+        values (min / avg / max) from the data currently being drawn
+        (`newData`) rather than the full-dataset values stored at page load.
+        This ensures the lines always fall within the visible y-domain even
+        after zooming into a subset of the data.
+      * `drawRefLines()` was called synchronously during the 500 ms D3
+        transition.  Although `y.domain()` is updated before the transition
+        begins, the y-axis visually animates to the new domain over 500 ms;
+        appending lines mid-transition produced a brief positional mismatch.
+        The call is now deferred with `setTimeout(drawRefLines, ms + 20)`.
+    - Requires HTML::D3 >= 0.11 for the companion fix: the zoomable line
+      chart y-domain now uses `Math.min(0, d3.min(...))` as its lower bound
+      instead of hard-coding 0.  This ensures data points and reference
+      lines with negative Y values (e.g. accounting-notation amounts) are
+      plotted within the visible chart area rather than appearing off-screen
+      below the x-axis.
+
 0.005.1	Sun Aug 30 08:29:03 PM EDT 2026
     [ Bug Fixes ]
     - Fixed compatibility with Database::Abstraction >= 0.41.  D::A 0.41 changed
