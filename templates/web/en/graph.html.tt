@@ -173,16 +173,33 @@
     });
   }
 
-  // Patch `redraw` so reference lines are redrawn whenever the chart updates
-  // (zoom in or reset).  `y.domain()` is updated synchronously at the start
-  // of redraw, so drawing immediately after _origRedraw returns places lines
-  // at the correct pixel positions for the new domain.
-  if (typeof redraw === 'function') {
-    var _origRedraw = redraw;
-    redraw = function (newData, ms) {
-      _origRedraw(newData, ms);
-      drawRefLines();
-    };
+  // Attach event listeners so reference lines recalculate after the 500 ms
+  // D3 transition that follows a brush-zoom or reset.  We do NOT patch the
+  // `redraw` function: if HTML::D3 declares it with `const`, brushed()'s
+  // closure captures the original binding and our reassignment is invisible
+  // to it.  Instead we add a namespaced D3 brush handler and a reset-button
+  // click listener; both remove the stale lines immediately (so they do not
+  // sit at the wrong y position during the transition) then redraw them 20 ms
+  // after the transition ends.
+  if (typeof chart !== 'undefined') {
+    var biRefBrush = chart.select('.brush');
+    if (!biRefBrush.empty()) {
+      biRefBrush.on('end.biRef', function (event) {
+        // brushed() clears the brush via brush.move(null), which fires a
+        // second end event with event.selection === null.  Ignore it.
+        if (!event || !event.selection) return;
+        chart.selectAll('.bi-ref-line, .bi-ref-label').remove();
+        setTimeout(drawRefLines, 520);
+      });
+    }
+    // HTML::D3 creates the reset button as id="reset-<svg_id>" = "reset-chart".
+    var biRefRst = document.getElementById('reset-chart');
+    if (biRefRst) {
+      biRefRst.addEventListener('click', function () {
+        chart.selectAll('.bi-ref-line, .bi-ref-label').remove();
+        setTimeout(drawRefLines, 520);
+      });
+    }
   }
 
   // Wire up checkboxes.
