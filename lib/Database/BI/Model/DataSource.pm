@@ -486,6 +486,41 @@ sub _detect_file_info :Protected {
 				}
 			}
 		}
+		# If no safe identifier was found in the header, check whether the first
+		# row looks like data values rather than column names.  A CSV exported
+		# from a bank or accounting system often has no header row at all — the
+		# first line is already a transaction record.  When that is the case,
+		# synthesize safe column names by inferring the type of each value
+		# (date, amount, description) and pre-read the entire file so
+		# _init_backend can return the rows directly without touching D::A.
+		unless (defined $safe_id) {
+			if (_values_are_data_like(\@cols)) {
+				my @synth = _synthesize_col_names(\@cols);
+				seek $fh, 0, 0;	# rewind: first line is a data row, not a header
+				my @rows;
+				while (defined(my $dline = <$fh>)) {
+					chomp $dline;
+					$dline =~ s/\r\z//;
+					next unless length $dline;
+					my @vals = split /\Q$sep\E/, $dline, scalar @synth;
+					for (@vals) { s/\A[\s"]+//; s/[\s"]+\z// }
+					my %row;
+					for my $i (0 .. $#synth) {
+						$row{ $synth[$i] } = $vals[$i] // '';
+					}
+					push @rows, \%row;
+				}
+				close $fh;
+				return {
+					sep_char         => $sep,
+					id               => $synth[0],
+					columns          => \@synth,
+					_headerless_data => \@rows,
+					file_size        => -s $path,
+				};
+			}
+		}
+
 		close $fh;
 
 		# Return file_size so _init_backend can pass it as max_slurp_size to
@@ -502,6 +537,49 @@ sub _detect_file_info :Protected {
 		};
 	}
 	return {};
+}
+
+# _values_are_data_like( \@vals ) -> bool
+#
+# Return true when the values look like actual data (dates, numbers, free text)
+# rather than column headers.  Used to detect header-less CSV files where the
+# first line is a data row.  At least one value must match a date or numeric
+# pattern — a row of plain hyphenated identifiers (e.g. "First-Name") is NOT
+# considered data-like.
+sub _values_are_data_like {
+	my ($vals) = @_;
+	for my $v (@{$vals}) {
+		return 1 if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;		# YYYY-MM-DD
+		return 1 if $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/;	# M/D/YYYY or D/M/YYYY
+		return 1 if $v =~ /\A[+\-]\d+(?:\.\d+)?\z/;		# signed numeric (e.g. -75.13)
+		return 1 if $v =~ /\A\(\d+(?:\.\d+)?\)\z/;		# accounting negative (e.g. (75.13))
+	}
+	return 0;
+}
+
+# _synthesize_col_names( \@vals ) -> @names
+#
+# Infer a safe SQL identifier for each positional value by examining its
+# content: ISO dates become "date", numeric/currency values become "amount",
+# and free text becomes "description".  Duplicate types are disambiguated with
+# a numeric suffix (date, date2, date3, ...).
+sub _synthesize_col_names {
+	my ($vals) = @_;
+	my %type_count;
+	my @names;
+	for my $v (@{$vals}) {
+		my $type;
+		if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ || $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/) {
+			$type = 'date';
+		} elsif ($v =~ /\A[+\-]?\d+(?:\.\d+)?\z/ || $v =~ /\A\(\d+(?:\.\d+)?\)\z/) {
+			$type = 'amount';
+		} else {
+			$type = 'description';
+		}
+		$type_count{$type}++;
+		push @names, $type_count{$type} == 1 ? $type : $type . $type_count{$type};
+	}
+	return @names;
 }
 
 # _init_backend( $self ) -> void
@@ -553,6 +631,13 @@ sub _init_backend :Protected {
 	my $id_col = $info->{id} // 'entry';
 	$self->{_id_col}  = $id_col;
 	$self->{_columns} = $info->{columns};	# undef for SQLite/XML
+
+	# Headerless CSV: _detect_file_info already parsed every row with
+	# synthesized column names.  Store the result and skip D::A entirely.
+	if ($info->{_headerless_data}) {
+		$self->{_file_data} = $info->{_headerless_data};
+		return;
+	}
 
 	my $db = eval {
 		$pkg->new({
@@ -704,6 +789,7 @@ with no arguments.
 sub selectall_arrayref {
 	my ($self, @args) = @_;
 	return [] if $self->{_file_is_empty};
+	return $self->{_file_data} if $self->{_file_data};
 	return $self->{_db}->selectall_arrayref(@args);
 }
 
@@ -713,6 +799,9 @@ sub fetch_all {
 
 	# 0-byte file: no backend was created; nothing to fetch.
 	return [] if $self->{_file_is_empty};
+
+	# Headerless CSV: data was pre-parsed with synthesized column names.
+	return $self->{_file_data} if $self->{_file_data};
 
 	my $data = eval { $self->{_db}->selectall_hashref() };
 	if ($@) {

@@ -18,6 +18,17 @@ Revision history for Database-BI
       files like "Transactions-2026-09-08.csv" and "1data.csv" can now be
       opened via /open without error.  Only path-separator characters ('/', '\',
       NUL) and the empty string continue to croak error_table_name_invalid.
+    - CSV and PSV files with no header row are now handled automatically.
+      When every value in the first line fails the safe-identifier check,
+      _detect_file_info tests whether any value looks like a date (YYYY-MM-DD,
+      M/D/YYYY) or a signed/accounting-notation number.  If so, the file is
+      treated as header-less: all rows (including the first) are read directly
+      and column names are synthesised from the inferred data types — date
+      values become "date", numeric/currency values become "amount", and free
+      text becomes "description".  Duplicate types are disambiguated with a
+      numeric suffix (date2, amount2, ...).  This allows bank and accounting
+      exports such as "Transactions-current.csv" to open without error or any
+      manual renaming of headers.
 
 0.005.2 Fri Sep 11 06:08:10 AM EDT 2026
     [ Bug Fixes ]
