@@ -33,6 +33,9 @@
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
+  <label class="lbl-totals" id="lbl-totals" title="Show a totals row at the bottom of the table — sums any numeric column">
+    <input type="checkbox" id="chk-totals"> Totals
+  </label>
   <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge data&hellip;</button>
   <button class="btn-combine" id="btn-combine" type="button" title="Stack rows from another data file beneath these rows, using a unified set of columns and leaving blanks where a column does not exist in a given file">&#x229E; Combine data&hellip;</button>
 </div>
@@ -274,8 +277,9 @@ function parseAccounting(v) {
 }
 
 (function () {
-  var table = document.getElementById('bi-table');
+  var table     = document.getElementById('bi-table');
   if (!table) return;
+  var chkTotals = document.getElementById('chk-totals');
 
   var headers    = Array.from(table.querySelectorAll('thead th'));
   var dragSrcIdx = null;
@@ -295,9 +299,48 @@ function parseAccounting(v) {
       localStorage.setItem(STORE_KEY, JSON.stringify({
         columns: headers.map(function (h) { return h.textContent.trim(); }),
         sortCol: sortColIdx >= 0 ? headers[sortColIdx].textContent.trim() : null,
-        sortAsc: sortAsc
+        sortAsc: sortAsc,
+        totals:  chkTotals ? chkTotals.checked : false
       }));
     } catch (e) {}
+  }
+
+  // --- Totals row ---
+
+  // Builds (or rebuilds) a <tfoot> row with the sum of each all-numeric column.
+  // Non-numeric columns are left blank; the first non-numeric cell shows "Total".
+  // moveCol() operates on table.rows (which includes tfoot), so cell reordering
+  // keeps the totals aligned automatically without requiring a rebuild on drag.
+  function buildTotals() {
+    var tbody  = table.tBodies[0];
+    var rows   = Array.from(tbody.rows);
+    var tfoot  = table.tFoot || table.createTFoot();
+    while (tfoot.firstChild) tfoot.removeChild(tfoot.firstChild);
+    var tr        = tfoot.insertRow();
+    var labelDone = false;
+    headers.forEach(function (h, i) {
+      var td   = tr.insertCell();
+      var vals = rows.map(function (r) {
+        return r.cells[i] ? r.cells[i].textContent.trim() : '';
+      }).filter(function (v) { return v !== ''; });
+      var numeric = vals.length > 0 && vals.every(function (v) {
+        return !isNaN(parseAccounting(v));
+      });
+      if (numeric) {
+        var sum    = vals.reduce(function (acc, v) { return acc + parseAccounting(v); }, 0);
+        var hasDec = vals.some(function (v) { return /\.\d+/.test(v.replace(/[^0-9.]/g, '')); });
+        td.textContent = hasDec ? sum.toFixed(2) : String(Math.round(sum));
+        td.className   = 'totals-sum';
+      } else if (!labelDone) {
+        td.textContent = 'Total';
+        td.className   = 'totals-label';
+        labelDone      = true;
+      }
+    });
+  }
+
+  function removeTotals() {
+    if (table.tFoot) table.deleteTFoot();
   }
 
   // --- Column helpers ---
@@ -419,7 +462,19 @@ function parseAccounting(v) {
         sortByCol(sortColIdx, sortAsc);
       }
     }
+
+    if (state.totals && chkTotals) {
+      chkTotals.checked = true;
+      buildTotals();
+    }
   }());
+
+  if (chkTotals) {
+    chkTotals.addEventListener('change', function () {
+      if (chkTotals.checked) buildTotals(); else removeTotals();
+      saveState();
+    });
+  }
 
   // --- Event listeners ---
 
