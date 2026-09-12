@@ -392,13 +392,13 @@ subtest '_detect_file_info path-L: header-less CSV (date+amount+desc) -> _header
 	my $result = $DETECT->($TMPDIR, 'ltest');
 	ok  exists  $result->{_headerless_data},         'path L: _headerless_data key present';
 	ok  defined $result->{id},                       'path L: id is defined (synthesized)';
-	is  $result->{id},       'date',                 'path L: first synthesized id is "date"';
-	is_deeply $result->{columns}, [qw(date amount description)],
-		'path L: synthesized column names: date, amount, description';
+	is  $result->{id},       'Date',                 'path L: first synthesized id is "Date"';
+	is_deeply $result->{columns}, [qw(Date Amount Description)],
+		'path L: synthesized column names: Date, Amount, Description';
 	is scalar @{ $result->{_headerless_data} }, 2,   'path L: both data rows returned';
-	is $result->{_headerless_data}[0]{date},   '2026-09-09', 'path L: row 0 date correct';
-	is $result->{_headerless_data}[0]{amount}, '-75.13',      'path L: row 0 amount correct';
-	is $result->{_headerless_data}[1]{amount}, '-2.25',        'path L: row 1 amount correct';
+	is $result->{_headerless_data}[0]{Date},   '2026-09-09', 'path L: row 0 Date correct';
+	is $result->{_headerless_data}[0]{Amount}, '-75.13',      'path L: row 0 Amount correct';
+	is $result->{_headerless_data}[1]{Amount}, '-2.25',        'path L: row 1 Amount correct';
 };
 
 subtest '_detect_file_info path-M: header-less PSV (date+amount) -> _headerless_data' => sub {
@@ -410,7 +410,7 @@ subtest '_detect_file_info path-M: header-less PSV (date+amount) -> _headerless_
 	my $result = $DETECT->($TMPDIR, 'mtest');
 	ok  exists  $result->{_headerless_data},         'path M: _headerless_data key present for PSV';
 	is  $result->{sep_char}, '|',                    'path M: separator correctly detected as pipe';
-	is_deeply $result->{columns}, [qw(date amount)], 'path M: two synthesized columns';
+	is_deeply $result->{columns}, [qw(Date Amount)], 'path M: two synthesized columns';
 	is scalar @{ $result->{_headerless_data} }, 2,   'path M: two rows returned';
 };
 

@@ -624,9 +624,9 @@ sub _values_are_data_like {
 # _synthesize_col_names( \@vals ) -> @names
 #
 # Infer a safe SQL identifier for each positional value by examining its
-# content: ISO dates become "date", numeric/currency values become "amount",
-# and free text becomes "description".  Duplicate types are disambiguated with
-# a numeric suffix (date, date2, date3, ...).
+# content: ISO dates become "Date", numeric/currency values become "Amount",
+# and free text becomes "Description".  Duplicate types are disambiguated with
+# a numeric suffix (Date, Date2, Date3, ...).
 sub _synthesize_col_names {
 	my $vals = $_[0];
 	my %type_count;
@@ -634,11 +634,11 @@ sub _synthesize_col_names {
 	for my $v (@{$vals}) {
 		my $type;
 		if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ || $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/) {
-			$type = 'date';
+			$type = 'Date';
 		} elsif ($v =~ /\A[+\-]?\d+(?:\.\d+)?\z/ || $v =~ /\A\(\d+(?:\.\d+)?\)\z/) {
-			$type = 'amount';
+			$type = 'Amount';
 		} else {
-			$type = 'description';
+			$type = 'Description';
 		}
 		$type_count{$type}++;
 		push @names, $type_count{$type} == 1 ? $type : $type . $type_count{$type};

@@ -339,20 +339,20 @@ subtest '_detect_file_info -- sniffs separator and column order' => sub {
 	subtest '_synthesize_col_names -- type inference and deduplication' => sub {
 		my $synth = \&Database::BI::Model::DataSource::_synthesize_col_names;
 		is_deeply [ $synth->(['2026-09-09', '-75.13', 'ACME CO']) ],
-			[qw(date amount description)],
-			'ISO date + amount + text -> date, amount, description';
+			[qw(Date Amount Description)],
+			'ISO date + amount + text -> Date, Amount, Description';
 		is_deeply [ $synth->(['15/01/2026', '-10.00', 'Fee']) ],
-			[qw(date amount description)],
-			'slash-date -> date';
+			[qw(Date Amount Description)],
+			'slash-date -> Date';
 		is_deeply [ $synth->(['100.00', '200.00', '300.00']) ],
-			[qw(amount amount2 amount3)],
-			'three numeric cols -> amount, amount2, amount3';
+			[qw(Amount Amount2 Amount3)],
+			'three numeric cols -> Amount, Amount2, Amount3';
 		is_deeply [ $synth->(['2026-01-01', '2026-01-02']) ],
-			[qw(date date2)],
-			'two dates -> date, date2';
+			[qw(Date Date2)],
+			'two dates -> Date, Date2';
 		is_deeply [ $synth->(['foo bar', 'baz qux']) ],
-			[qw(description description2)],
-			'two text cols -> description, description2';
+			[qw(Description Description2)],
+			'two text cols -> Description, Description2';
 	};
 
 	# Full round-trip: DataSource built on a header-less CSV returns rows with
@@ -368,8 +368,8 @@ subtest '_detect_file_info -- sniffs separator and column order' => sub {
 		my $info = $fn->($dir, 'bank');
 		ok exists $info->{_headerless_data},          'headerless sentinel returned';
 		is scalar @{ $info->{_headerless_data} }, 3,  'all three rows parsed';
-		is $info->{_headerless_data}[2]{amount}, '1200.00', 'positive amount on row 3';
-		is $info->{_headerless_data}[0]{description}, 'SUPER MARKET', 'description on row 1';
+		is $info->{_headerless_data}[2]{Amount}, '1200.00', 'positive Amount on row 3';
+		is $info->{_headerless_data}[0]{Description}, 'SUPER MARKET', 'Description on row 1';
 	};
 
 	# CRLF line endings (Windows exports) must not bleed \r into column names.

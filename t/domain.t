@@ -964,11 +964,11 @@ subtest 'headerless CSV VP-iso-date: ISO date first row -> "date" column synthes
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'isodates') }
 		'ISO date headerless CSV opens without error';
-	is_deeply $src->columns, ['date'], 'ISO date column synthesised as "date"';
+	is_deeply $src->columns, ['Date'], 'ISO date column synthesised as "Date"';
 	my $rows = eval { $src->fetch_all };
 	is $@, '', 'fetch_all does not throw';
 	is scalar @{$rows}, 3, 'all three rows returned';
-	is $rows->[0]{date}, '2026-01-01', 'first row date value preserved verbatim';
+	is $rows->[0]{Date}, '2026-01-01', 'first row Date value preserved verbatim';
 };
 
 subtest 'headerless CSV VP-slash-date: M/D/YYYY format -> "date" column' => sub {
@@ -980,8 +980,8 @@ subtest 'headerless CSV VP-slash-date: M/D/YYYY format -> "date" column' => sub 
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'slashdates') }
 		'M/D/YYYY headerless CSV opens without error';
-	is_deeply $src->columns, ['date'], 'slash-date column synthesised as "date"';
-	is $src->fetch_all->[0]{date}, '9/1/2026', 'slash-date value preserved verbatim';
+	is_deeply $src->columns, ['Date'], 'slash-date column synthesised as "Date"';
+	is $src->fetch_all->[0]{Date}, '9/1/2026', 'slash-date value preserved verbatim';
 };
 
 subtest 'headerless CSV VP-signed-neg: signed negative -> "amount" column' => sub {
@@ -993,8 +993,8 @@ subtest 'headerless CSV VP-signed-neg: signed negative -> "amount" column' => su
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'signed') }
 		'signed-negative headerless CSV opens without error';
-	is_deeply $src->columns, ['amount'], 'signed negative column synthesised as "amount"';
-	is $src->fetch_all->[0]{amount}, '-75.13', 'negative value preserved';
+	is_deeply $src->columns, ['Amount'], 'signed negative column synthesised as "Amount"';
+	is $src->fetch_all->[0]{Amount}, '-75.13', 'negative value preserved';
 };
 
 subtest 'headerless CSV VP-acct-neg: accounting negative -> "amount" column' => sub {
@@ -1006,7 +1006,7 @@ subtest 'headerless CSV VP-acct-neg: accounting negative -> "amount" column' => 
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'acct') }
 		'accounting-negative headerless CSV opens without error';
-	is_deeply $src->columns, ['amount'], 'accounting negative synthesised as "amount"';
+	is_deeply $src->columns, ['Amount'], 'accounting negative synthesised as "Amount"';
 };
 
 subtest 'headerless CSV VP-plain-int: unsigned integer first row -> error_no_safe_id' => sub {
@@ -1054,7 +1054,7 @@ subtest 'headerless CSV BV-dup-dates: two date columns -> "date", "date2"' => su
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'dupdates') }
 		'dual-date-column CSV opens without error';
-	is_deeply $src->columns, [qw(date date2)], 'duplicate date columns disambiguated';
+	is_deeply $src->columns, [qw(Date Date2)], 'duplicate date columns disambiguated';
 };
 
 subtest 'headerless CSV BV-full-bank: date+amount+description (full bank row)' => sub {
@@ -1072,12 +1072,12 @@ subtest 'headerless CSV BV-full-bank: date+amount+description (full bank row)' =
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'bank') }
 		'bank-export headerless CSV opens without error';
-	is_deeply $src->columns, [qw(date amount description)],
-		'canonical bank row: date+amount+description synthesised correctly';
+	is_deeply $src->columns, [qw(Date Amount Description)],
+		'canonical bank row: Date+Amount+Description synthesised correctly';
 	my $rows = eval { $src->fetch_all };
 	is scalar @{$rows}, 3, 'all three rows returned';
-	is $rows->[1]{description}, 'COFFEE SHOP', 'description column value preserved';
-	is $rows->[2]{amount},      '1500.00',     'positive amount preserved';
+	is $rows->[1]{Description}, 'COFFEE SHOP', 'Description column value preserved';
+	is $rows->[2]{Amount},      '1500.00',     'positive Amount preserved';
 };
 
 subtest 'headerless PSV BV-psv-bank: pipe-separated date+amount (no header)' => sub {
@@ -1092,8 +1092,8 @@ subtest 'headerless PSV BV-psv-bank: pipe-separated date+amount (no header)' => 
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'bankpsv') }
 		'headerless PSV opens without error';
-	is_deeply $src->columns, [qw(date amount)], 'PSV: date+amount synthesised correctly';
-	is $src->fetch_all->[0]{date}, '2026-09-01', 'date value preserved in PSV';
+	is_deeply $src->columns, [qw(Date Amount)], 'PSV: Date+Amount synthesised correctly';
+	is $src->fetch_all->[0]{Date}, '2026-09-01', 'Date value preserved in PSV';
 };
 
 subtest 'headerless CSV BV-hyphen-no-data: hyphenated first row NOT treated as headerless' => sub {

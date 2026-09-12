@@ -593,12 +593,12 @@ subtest 'DataSource -- headerless CSV: single amount column' => sub {
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'onecol') }
 		'single-amount-column CSV accepted without error';
-	is_deeply $src->columns, ['amount'], 'single synthesized column: amount';
-	is $src->id_column, 'amount',        'id_column is amount';
+	is_deeply $src->columns, ['Amount'], 'single synthesized column: Amount';
+	is $src->id_column, 'Amount',        'id_column is Amount';
 	my $rows = eval { $src->fetch_all };
 	is $@, '', 'fetch_all does not throw';
 	is scalar @{$rows}, 3, 'all three rows returned';
-	is $rows->[2]{amount}, '30.00', 'third row amount correct';
+	is $rows->[2]{Amount}, '30.00', 'third row Amount correct';
 };
 
 subtest 'DataSource -- headerless CSV: many numeric columns -> amount2, amount3 ...' => sub {
@@ -613,11 +613,11 @@ subtest 'DataSource -- headerless CSV: many numeric columns -> amount2, amount3 
 	my $src;
 	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'multiamt') }
 		'three-amount-column CSV accepted';
-	is_deeply $src->columns, [qw(amount amount2 amount3)],
-		'three numeric cols synthesised as amount, amount2, amount3';
+	is_deeply $src->columns, [qw(Amount Amount2 Amount3)],
+		'three numeric cols synthesised as Amount, Amount2, Amount3';
 	my $rows = eval { $src->fetch_all };
-	is scalar @{$rows}, 2,       'two rows returned';
-	is $rows->[0]{amount2}, '200.00', 'amount2 on row 1 correct';
+	is scalar @{$rows}, 2,        'two rows returned';
+	is $rows->[0]{Amount2}, '200.00', 'Amount2 on row 1 correct';
 };
 
 subtest 'DataSource -- headerless CSV: hyphenated names NOT treated as headerless' => sub {
