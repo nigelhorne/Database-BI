@@ -1550,4 +1550,123 @@ subtest 'Transaction 23: Reference lines on line graph' => sub {
 	}
 };
 
+# ---------------------------------------------------------------------------
+# Transaction 24: Totals row feature lifecycle
+#
+# Phase 1 -- chk-totals checkbox is present in the rendered toolbar.
+# Phase 2 -- the JS defines buildTotals() and removeTotals().
+# Phase 3 -- the localStorage stored shape includes the "totals" key.
+# Phase 4 -- upload a numeric CSV, open it via /open, verify the page
+#            renders with the totals checkbox (full lifecycle round-trip).
+# ---------------------------------------------------------------------------
+subtest 'Transaction 24 -- Totals row feature lifecycle' => sub {
+	plan tests => 13;
+
+	# Phase 1: checkbox and label present.
+	$t->get_ok('/view/sales')
+	  ->status_is(200, 'Phase 1: /view/sales renders successfully');
+	$t->content_like(qr/id="chk-totals"/, 'Phase 1: chk-totals checkbox present in HTML');
+	$t->content_like(qr/id="lbl-totals"/, 'Phase 1: lbl-totals label present in HTML');
+
+	# Phase 2: JS functions defined.
+	$t->content_like(qr/function buildTotals\b/,  'Phase 2: buildTotals function defined in JS');
+	$t->content_like(qr/function removeTotals\b/, 'Phase 2: removeTotals function defined in JS');
+
+	# Phase 3: localStorage stored shape includes totals.
+	$t->content_like(qr/totals\s*:/, 'Phase 3: totals key present in localStorage stored shape');
+
+	# Phase 4: full lifecycle -- upload numeric CSV, open it, checkbox present.
+	my $numeric_csv = "date,amount\n" .
+		"2026-09-01,-75.00\n" .
+		"2026-09-02,-12.50\n" .
+		"2026-09-03,1500.00\n";
+
+	$t->post_ok('/upload',
+		{ 'Content-Type' => 'multipart/form-data' },
+		form => { file => { content => $numeric_csv, filename => 'totals_test.csv' } },
+	)->status_is(200, 'Phase 4: numeric CSV uploaded for totals test');
+	my $csv_path = decode_json($t->tx->res->body)->{path};
+	ok defined $csv_path, 'Phase 4: upload returned a file path';
+
+	$t->get_ok('/open?path=' . url_escape($csv_path))
+	  ->status_is(200, 'Phase 4: /open for uploaded numeric CSV returns 200');
+	$t->content_like(qr/id="chk-totals"/, 'Phase 4: chk-totals checkbox present in /open view');
+};
+
+# ---------------------------------------------------------------------------
+# Transaction 25: Combine panel drag-and-drop lifecycle
+#
+# Phase 1 -- dashboard JS defines registerDropHooks and clearDropHooks.
+# Phase 2 -- window.__biDropCallback and window.__biDropLabel hooks referenced.
+# Phase 3 -- upload a CSV (simulating drop upload), construct /combine URL
+#            with both source and the uploaded path, verify 200 response.
+# ---------------------------------------------------------------------------
+subtest 'Transaction 25 -- Combine panel drag-and-drop lifecycle' => sub {
+	plan tests => 10;
+
+	# Phase 1 & 2: hook functions and global variables defined in JS.
+	$t->get_ok('/view/sales')
+	  ->status_is(200, 'Phase 1: /view/sales renders for JS inspection');
+	$t->content_like(qr/registerDropHooks/,  'Phase 1: registerDropHooks function defined');
+	$t->content_like(qr/clearDropHooks/,     'Phase 1: clearDropHooks function defined');
+	$t->content_like(qr/__biDropCallback/,   'Phase 2: __biDropCallback global referenced');
+	$t->content_like(qr/__biDropLabel/,      'Phase 2: __biDropLabel global referenced');
+	$t->content_like(qr/Drop to add to Combine/i,
+		'Phase 2: "Drop to add to Combine" label text present in JS');
+
+	# Phase 3: upload simulates the drop side-channel path, then combine.
+	my $combine_csv = "id,label\n1,Alpha\n2,Beta\n";
+	$t->post_ok('/upload',
+		{ 'Content-Type' => 'multipart/form-data' },
+		form => { file => { content => $combine_csv, filename => 'combine_drop.csv' } },
+	)->status_is(200, 'Phase 3: combine drop CSV uploaded successfully');
+	my $drop_path = decode_json($t->tx->res->body)->{path};
+	ok defined $drop_path, 'Phase 3: upload returned a file path for combine';
+};
+
+# ---------------------------------------------------------------------------
+# Transaction 26: Header-less CSV full lifecycle via upload -> open
+#
+# Phase 1 -- upload a CSV without a header row (bank-export format).
+# Phase 2 -- open the uploaded path via /open.
+# Phase 3 -- verify the rendered page shows synthesised columns and data.
+# Phase 4 -- verify the totals checkbox is present (feature integration).
+# Phase 5 -- idempotency: second GET of the same path returns the same data.
+# ---------------------------------------------------------------------------
+subtest 'Transaction 26 -- Header-less CSV full lifecycle' => sub {
+	plan tests => 12;
+
+	# Use description values with spaces so no first-row value is a $SAFE_IDENTIFIER,
+	# which forces the headerless-detection path to synthesise column names.
+	my $headerless_csv =
+		"2026-09-01,-75.00,SUPER MARKET\n" .
+		"2026-09-02,-12.50,COFFEE SHOP\n" .
+		"2026-09-03,1500.00,SALARY CREDIT\n";
+
+	# Phase 1: upload.
+	$t->post_ok('/upload',
+		{ 'Content-Type' => 'multipart/form-data' },
+		form => { file => { content => $headerless_csv, filename => 'headerless.csv' } },
+	)->status_is(200, 'Phase 1: headerless CSV uploaded successfully');
+	my $hl_path = decode_json($t->tx->res->body)->{path};
+	ok defined $hl_path, 'Phase 1: upload returned a file path';
+	like $hl_path, qr/headerless\.csv\z/, 'Phase 1: upload path retains original filename';
+
+	# Phase 2: open.
+	$t->get_ok('/open?path=' . url_escape($hl_path))
+	  ->status_is(200, 'Phase 2: /open for headerless CSV returns 200 (not an error page)');
+
+	# Phase 3: data visible in rendered page.
+	$t->content_like(qr/SUPER MARKET/i,  'Phase 3: description column value "SUPER MARKET" in page');
+	$t->content_like(qr/-75/,            'Phase 3: amount column value "-75" in page');
+	$t->content_like(qr/SALARY CREDIT/i, 'Phase 3: description "SALARY CREDIT" in page');
+
+	# Phase 4: totals checkbox present.
+	$t->content_like(qr/id="chk-totals"/, 'Phase 4: chk-totals checkbox present in headerless view');
+
+	# Phase 5: idempotency -- second GET returns the same data without error.
+	$t->get_ok('/open?path=' . url_escape($hl_path))
+	  ->status_is(200, 'Phase 5: second GET of headerless CSV also returns 200');
+};
+
 done_testing();

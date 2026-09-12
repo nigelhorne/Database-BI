@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.006.0';
+our $VERSION = '0.005.2';
 
 =head1 NAME
 
@@ -20,7 +20,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-Version 0.006.0
+Version 0.005.2
 
 =head1 SYNOPSIS
 
@@ -160,7 +160,7 @@ Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 # non-alphanumeric characters with underscores.  Falls back to the hostname
 # when the path component is absent or starts with a digit.
 sub _url_label {
-	my ($url) = @_;
+	my $url = $_[0];
 	my ($path) = $url =~ m{https?://[^/?#]+(.*)}i;
 	my @parts  = grep { length } split m{/}, ($path // '');
 	my $last   = @parts ? $parts[-1] : '';
@@ -547,7 +547,7 @@ sub _detect_file_info :Protected {
 # pattern — a row of plain hyphenated identifiers (e.g. "First-Name") is NOT
 # considered data-like.
 sub _values_are_data_like {
-	my ($vals) = @_;
+	my $vals = $_[0];
 	for my $v (@{$vals}) {
 		return 1 if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;		# YYYY-MM-DD
 		return 1 if $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/;	# M/D/YYYY or D/M/YYYY
@@ -564,7 +564,7 @@ sub _values_are_data_like {
 # and free text becomes "description".  Duplicate types are disambiguated with
 # a numeric suffix (date, date2, date3, ...).
 sub _synthesize_col_names {
-	my ($vals) = @_;
+	my $vals = $_[0];
 	my %type_count;
 	my @names;
 	for my $v (@{$vals}) {

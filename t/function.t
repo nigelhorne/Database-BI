@@ -318,6 +318,60 @@ subtest '_detect_file_info -- sniffs separator and column order' => sub {
 		ok !defined $info->{id},    'id is undef when no safe column exists';
 	};
 
+	# _values_are_data_like: true when first line contains dates/numbers.
+	subtest '_values_are_data_like -- date pattern triggers headerless detection' => sub {
+		my $data_like = \&Database::BI::Model::DataSource::_values_are_data_like;
+		ok  $data_like->(['2026-09-09', '-75.13', 'ACME CO']),
+			'ISO date + signed number -> data-like';
+		ok  $data_like->(['15/09/2026', '100.00', 'Coffee']),
+			'slash-date -> data-like';
+		ok  $data_like->(['foo', '-3.14', 'bar']),
+			'signed number alone -> data-like';
+		ok  $data_like->(['foo', '(99.50)', 'bar']),
+			'accounting-notation negative -> data-like';
+		ok !$data_like->(['first-name', 'last-name', 'email']),
+			'hyphenated identifiers -> NOT data-like';
+		ok !$data_like->(['My Col', 'His Col']),
+			'space-separated words (no date/number) -> NOT data-like';
+	};
+
+	# _synthesize_col_names: infers date / amount / description.
+	subtest '_synthesize_col_names -- type inference and deduplication' => sub {
+		my $synth = \&Database::BI::Model::DataSource::_synthesize_col_names;
+		is_deeply [ $synth->(['2026-09-09', '-75.13', 'ACME CO']) ],
+			[qw(date amount description)],
+			'ISO date + amount + text -> date, amount, description';
+		is_deeply [ $synth->(['15/01/2026', '-10.00', 'Fee']) ],
+			[qw(date amount description)],
+			'slash-date -> date';
+		is_deeply [ $synth->(['100.00', '200.00', '300.00']) ],
+			[qw(amount amount2 amount3)],
+			'three numeric cols -> amount, amount2, amount3';
+		is_deeply [ $synth->(['2026-01-01', '2026-01-02']) ],
+			[qw(date date2)],
+			'two dates -> date, date2';
+		is_deeply [ $synth->(['foo bar', 'baz qux']) ],
+			[qw(description description2)],
+			'two text cols -> description, description2';
+	};
+
+	# Full round-trip: DataSource built on a header-less CSV returns rows with
+	# synthesized keys, bypassing Database::Abstraction entirely.
+	subtest '_detect_file_info -- headerless CSV full fetch round-trip' => sub {
+		# Descriptions contain spaces so no first-row value is a $SAFE_IDENTIFIER,
+		# forcing the headerless-detection path.
+		Mojo::File->new("$dir/bank.csv")->spew(
+			"2026-09-01,-50.00,SUPER MARKET\n" .
+			"2026-09-02,-12.50,COFFEE SHOP\n" .
+			"2026-09-03,1200.00,SALARY CREDIT\n"
+		);
+		my $info = $fn->($dir, 'bank');
+		ok exists $info->{_headerless_data},          'headerless sentinel returned';
+		is scalar @{ $info->{_headerless_data} }, 3,  'all three rows parsed';
+		is $info->{_headerless_data}[2]{amount}, '1200.00', 'positive amount on row 3';
+		is $info->{_headerless_data}[0]{description}, 'SUPER MARKET', 'description on row 1';
+	};
+
 	# CRLF line endings (Windows exports) must not bleed \r into column names.
 	subtest '_detect_file_info -- CRLF endings stripped from column names' => sub {
 		{

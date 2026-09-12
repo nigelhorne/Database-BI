@@ -859,6 +859,32 @@ function parseAccounting(v) {
     btnDo.disabled = !combineSpec;
   }
 
+  // Set the path input and combineSpec from an uploaded file path.
+  function applyPath(path) {
+    tblSel.value  = '';
+    pathInp.value = path;
+    combineSpec   = 'path:' + path;
+    checkApply();
+  }
+
+  // Register global drop hooks so the existing overlay uploads to /upload and
+  // then populates the path input instead of navigating away.
+  function registerDropHooks() {
+    window.__biDropLabel    = function () { return 'Drop to add to Combine'; };
+    window.__biDropCallback = function (data) {
+      if (!data || !data.url) return;
+      var path = '';
+      try { path = new URL(data.url, location.origin).searchParams.get('path') || ''; }
+      catch (e) {}
+      if (path) { applyPath(path); btnDo.click(); }
+    };
+  }
+
+  function clearDropHooks() {
+    window.__biDropLabel    = null;
+    window.__biDropCallback = null;
+  }
+
   tblSel.addEventListener('change', function () {
     combineSpec   = this.value ? this.value : '';
     pathInp.value = '';
@@ -892,8 +918,9 @@ function parseAccounting(v) {
       joinPanel.hidden    = true;
       if (btnMerge) btnMerge.disabled = false;
     }
-    panel.hidden         = false;
-    btnCombine.disabled  = true;
+    panel.hidden        = false;
+    btnCombine.disabled = true;
+    registerDropHooks();
   });
 
   btnCancel.addEventListener('click', function () {
@@ -903,6 +930,7 @@ function parseAccounting(v) {
     pathInp.value       = '';
     combineSpec         = '';
     checkApply();
+    clearDropHooks();
   });
 }());
 </script>

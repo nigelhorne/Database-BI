@@ -578,4 +578,74 @@ subtest 'DataSource::new -- undef required arguments croak' => sub {
 	} qr/./, 'croak for no arguments at all';
 };
 
+# ---------------------------------------------------------------------------
+# Header-less CSV detection: hostile and boundary inputs
+# ---------------------------------------------------------------------------
+
+subtest 'DataSource -- headerless CSV: single amount column' => sub {
+	# A one-column file where the only value is a number.  Must synthesise
+	# "amount" as the single column name and return all rows.
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/onecol.csv")->spew(
+		"-10.00\n-20.00\n30.00\n"
+	);
+	my $src;
+	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'onecol') }
+		'single-amount-column CSV accepted without error';
+	is_deeply $src->columns, ['amount'], 'single synthesized column: amount';
+	is $src->id_column, 'amount',        'id_column is amount';
+	my $rows = eval { $src->fetch_all };
+	is $@, '', 'fetch_all does not throw';
+	is scalar @{$rows}, 3, 'all three rows returned';
+	is $rows->[2]{amount}, '30.00', 'third row amount correct';
+};
+
+subtest 'DataSource -- headerless CSV: many numeric columns -> amount2, amount3 ...' => sub {
+	# Three numeric columns must be disambiguated as amount, amount2, amount3.
+	# At least one value in the first row must be signed so _values_are_data_like
+	# fires; positive-only decimals ("100.00") are not signed and don't trigger it.
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/multiamt.csv")->spew(
+		"-100.00,200.00,300.00\n-400.00,500.00,600.00\n"
+	);
+	my $src;
+	lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'multiamt') }
+		'three-amount-column CSV accepted';
+	is_deeply $src->columns, [qw(amount amount2 amount3)],
+		'three numeric cols synthesised as amount, amount2, amount3';
+	my $rows = eval { $src->fetch_all };
+	is scalar @{$rows}, 2,       'two rows returned';
+	is $rows->[0]{amount2}, '200.00', 'amount2 on row 1 correct';
+};
+
+subtest 'DataSource -- headerless CSV: hyphenated names NOT treated as headerless' => sub {
+	# "first-name" fails $SAFE_IDENTIFIER but looks like a header (no date/number).
+	# _values_are_data_like must return false; croak error_no_safe_id as before.
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/hyphdr.csv")->spew(
+		"first-name,last-name\nAlice,Smith\n"
+	);
+	throws_ok {
+		Database::BI::Model::DataSource->new(directory => $dir, table => 'hyphdr')
+	} qr/no column with a safe identifier/i,
+		'hyphenated-header CSV still croaks error_no_safe_id (not treated as headerless)';
+};
+
+subtest 'DataSource -- headerless CSV via HTTP: /open returns 200 with data' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/bank-export.csv")->spew(
+		"2026-09-01,-75.00,SUPERMARKET\n" .
+		"2026-09-02,-12.50,COFFEE SHOP\n"
+	);
+	use Mojo::Util qw(url_escape);
+	my $path = "$dir/bank-export.csv";
+	$t->get_ok('/open?path=' . url_escape($path))
+	  ->status_is(200, 'headerless CSV opens successfully via /open')
+	  ->content_like(qr/SUPERMARKET/i, 'description column value appears in rendered page')
+	  ->content_like(qr/-75/,           'amount value appears in rendered page');
+};
+
 done_testing;

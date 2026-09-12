@@ -539,13 +539,12 @@ subtest 'GET /graph -- all-text Y column returns 200 with No plottable data' => 
 # ---------------------------------------------------------------------------
 # Ledger assertion — every documented state must have been exercised.
 # ---------------------------------------------------------------------------
-if (my @untested = sort keys %ledger) {
+if(my @untested = sort keys %ledger) {
 	for my $key (@untested) {
 		fail "Untested documented state: $key ($ledger{$key})";
 	}
-}
-else {
-	pass 'All documented API states covered by the test suite';
+} else {
+	pass('All documented API states covered by the test suite');
 }
 
-done_testing;
+done_testing();
