@@ -18,6 +18,16 @@ Revision history for Database-BI
       files like "Transactions-2026-09-08.csv" and "1data.csv" can now be
       opened via /open without error.  Only path-separator characters ('/', '\',
       NUL) and the empty string continue to croak error_table_name_invalid.
+    - A "Totals" checkbox in the toolbar appends a summary row to the bottom of
+      any data table.  When checked, every column whose values are all numeric
+      (using the same parseAccounting logic as the sort and graph features, so
+      accounting-notation negatives are handled correctly) shows its sum; date
+      columns (YYYY-MM-DD, M/D/YYYY) are excluded from totalling even though
+      parseFloat can extract a number from them.  Non-numeric columns are left
+      blank.  The checkbox state is persisted in localStorage alongside column
+      order and sort direction, so the totals row reappears automatically on
+      page reload.  The summary row follows column drag-to-reorder automatically
+      because moveCol() operates on all table rows including tfoot.
     - CSV and PSV files with no header row are now handled automatically.
       When every value in the first line fails the safe-identifier check,
       _detect_file_info tests whether any value looks like a date (YYYY-MM-DD,

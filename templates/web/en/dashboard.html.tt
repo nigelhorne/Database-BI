@@ -316,14 +316,16 @@ function parseAccounting(v) {
     var rows   = Array.from(tbody.rows);
     var tfoot  = table.tFoot || table.createTFoot();
     while (tfoot.firstChild) tfoot.removeChild(tfoot.firstChild);
-    var tr        = tfoot.insertRow();
-    var labelDone = false;
+    var tr = tfoot.insertRow();
     headers.forEach(function (h, i) {
       var td   = tr.insertCell();
       var vals = rows.map(function (r) {
         return r.cells[i] ? r.cells[i].textContent.trim() : '';
       }).filter(function (v) { return v !== ''; });
-      var numeric = vals.length > 0 && vals.every(function (v) {
+      var isDate = vals.length > 0 && vals.every(function (v) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v);
+      });
+      var numeric = !isDate && vals.length > 0 && vals.every(function (v) {
         return !isNaN(parseAccounting(v));
       });
       if (numeric) {
@@ -331,10 +333,6 @@ function parseAccounting(v) {
         var hasDec = vals.some(function (v) { return /\.\d+/.test(v.replace(/[^0-9.]/g, '')); });
         td.textContent = hasDec ? sum.toFixed(2) : String(Math.round(sum));
         td.className   = 'totals-sum';
-      } else if (!labelDone) {
-        td.textContent = 'Total';
-        td.className   = 'totals-label';
-        labelDone      = true;
       }
     });
   }
