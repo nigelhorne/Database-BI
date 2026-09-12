@@ -502,9 +502,9 @@ subtest 'POST /upload -- oversized file returns 413 JSON {error}' => sub {
 };
 
 subtest 'POST /upload -- unsupported extension returns 415 JSON {error}' => sub {
-	# POD: error_upload_ext when extension is not csv/db/sql/xml/psv.
+	# POD: error_upload_ext when extension is not csv/db/sql/xml/psv/xlsx.
 	$t->post_ok('/upload', form => {
-		file => { content => 'some data', filename => 'data.xlsx' },
+		file => { content => 'some data', filename => 'data.docx' },
 	})->status_is(415)
 	  ->json_has('/error');
 	delete $ledger{'POST./upload.415'};

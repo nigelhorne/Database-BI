@@ -40,9 +40,12 @@ WriteMakefile(
 		'Params::Get'	=> 0,
 		'Params::Validate::Strict'	=> '0.39',
 		'Readonly'		=> 0,
+		'Spreadsheet::ParseXLSX'	=> 0,
 		'Sub::Protected'	=> 0,
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
+		'DBD::Excel' => 0,
+		'Excel::Writer::XLSX' => 0,
 		'Encode' => 0,
 		'IPC::System::Simple' => 0,
 		'Test::Memory::Cycle' => 0,

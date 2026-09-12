@@ -1,5 +1,27 @@
 Revision history for Database-BI
 
+0.007.0
+    [ Enhancements ]
+    - XLSX files are now supported directly via DBD::Excel (each worksheet
+      is a separate table).  The upload endpoint, filesystem browser, and
+      drag-and-drop drop zone all accept .xlsx files.  DBD::Excel added to
+      TEST_REQUIRES.
+
+    [ Bug Fixes ]
+    - Files whose names contain spaces (e.g. "transactions for Nigel.xlsx")
+      now open correctly.  Database::Abstraction validates its dbname argument
+      as a SQL identifier and rejected names with spaces with an "unsafe dbname"
+      error at fetch time.  DataSource::_init_backend now creates a temporary
+      directory with a symlink using the sanitized name whenever the raw
+      filename stem contains illegal SQL characters, so D::A sees only the
+      safe name.  Regression test added as Transaction 27.
+    - Spreadsheet::ParseXLSX added to PREREQ_PM.  DBD::Excel 0.07 only
+      handles .xls (its source skips .xlsx files entirely); DataSource now
+      reads .xlsx directly via Spreadsheet::ParseXLSX in _detect_file_info,
+      bypassing D::A the same way headerless CSV files do.
+      Excel::Writer::XLSX added to TEST_REQUIRES for fixture creation.
+      Transaction 28 covers XLSX open lifecycle including spaced filenames.
+
 0.006.0
     [ Enhancements ]
     - "Combine data" now allows a file to be drag and dropped

@@ -22,10 +22,13 @@ requires 'Params::Validate::Strict', '0.39';
 requires 'Readonly';
 requires 'Scalar::Util', '1.40';
 requires 'Socket', '2.010';
+requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected';
 
 on 'test' => sub {
 	requires 'DBD::CSV';
+	requires 'DBD::Excel';
+	requires 'Excel::Writer::XLSX';
 	requires 'Encode';
 	requires 'IPC::System::Simple';
 	requires 'Test::Memory::Cycle';

@@ -269,12 +269,12 @@ exist, the controller automatically falls back to the default language.  To
 add German support: (1) create C<templates/web/de/>, (2) copy and translate
 the C<.html.tt> files from C<templates/web/en/>, then (3) set the config.
 
-=item B<Supported data file extensions are: csv, db, sql, xml, psv>
+=item B<Supported data file extensions are: csv, db, sql, xml, psv, xlsx>
 
 The application calls C<Database::Abstraction> which recognises exactly these
-five extensions.  A file called C<inventory.sqlite> is B<not> recognised -- it
-must be renamed to C<inventory.sql>.  A file called C<data.xlsx> (Excel) is
-also not supported; export it as CSV first.
+extensions.  A file called C<inventory.sqlite> is B<not> recognised -- it
+must be renamed to C<inventory.sql>.  Excel C<.xlsx> files are supported
+directly via C<DBD::Excel>; each worksheet becomes a separate table.
 
 =item B<The open_table helper lowercases the table name>
 

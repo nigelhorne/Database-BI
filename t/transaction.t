@@ -1669,4 +1669,94 @@ subtest 'Transaction 26 -- Header-less CSV full lifecycle' => sub {
 	  ->status_is(200, 'Phase 5: second GET of headerless CSV also returns 200');
 };
 
+subtest 'Transaction 27 -- filename with spaces opens without unsafe-dbname error' => sub {
+	# Regression: D::A validates dbname as a SQL identifier and rejects names
+	# that contain spaces (e.g. "transactions for Nigel.xlsx").  The fix creates
+	# a temp directory with a symlink using the sanitized name so D::A never
+	# sees the spaces.  We test with SQLite because it always uses the DBI path
+	# (which triggers the validation) and needs no optional modules.
+	SKIP: {
+		eval { require DBI; DBI->install_driver('SQLite') }
+			or skip 'DBD::SQLite not available', 6;
+
+		plan tests => 6;
+
+		my $dir = tempdir(CLEANUP => 1);
+		# Create "my report.sql" -- a SQLite file whose stem has a space.
+		# The table inside must match the sanitized name (my_report) because D::A
+		# uses the safe dbname as the SQL table name in its SELECT statement.
+		my $db_path = Mojo::File->new($dir)->child('my report.sql')->to_string;
+		{
+			my $dbh = DBI->connect("dbi:SQLite:dbname=$db_path", undef, undef,
+				{ RaiseError => 1, PrintError => 0 });
+			$dbh->do('CREATE TABLE my_report (item TEXT, amount REAL)');
+			$dbh->do(q{INSERT INTO my_report VALUES ('Widget', 9.99)});
+			$dbh->do(q{INSERT INTO my_report VALUES ('Gadget', 14.99)});
+			$dbh->disconnect;
+		}
+		ok(-f $db_path, 'Phase 1: SQLite file with space in name exists on disk');
+
+		# Phase 2: /open must return 200 (not an "unsafe dbname" error page).
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 2: /open returns 200 for spaced filename');
+
+		# Phase 3: page must not contain the "unsafe dbname" error text.
+		$t->content_unlike(qr/unsafe dbname/i,
+			'Phase 3: no unsafe-dbname error in response');
+
+		# Phase 4: data is visible.
+		$t->content_like(qr/Widget/,   'Phase 4a: first row value visible');
+		$t->content_like(qr/Gadget/,   'Phase 4b: second row value visible');
+	}
+};
+
+subtest 'Transaction 28 -- XLSX file open lifecycle (including spaced filename)' => sub {
+	# Covers two issues that were fixed simultaneously:
+	#   1. DBD::Excel 0.07 only handles .xls -- _detect_file_info now reads
+	#      .xlsx directly via Spreadsheet::ParseXLSX, bypassing D::A.
+	#   2. A file named "my sales data.xlsx" (spaces) must also work after the
+	#      sanitized symlink fix and the direct-parse fix together.
+	SKIP: {
+		eval { require Excel::Writer::XLSX; require Spreadsheet::ParseXLSX }
+			or skip 'Excel::Writer::XLSX or Spreadsheet::ParseXLSX not available', 10;
+
+		plan tests => 10;
+
+		my $dir = tempdir(CLEANUP => 1);
+
+		# Phase 1: clean filename -- create and open.
+		my $clean_path = Mojo::File->new($dir)->child('sales_data.xlsx')->to_string;
+		{
+			my $wb = Excel::Writer::XLSX->new($clean_path);
+			my $ws = $wb->add_worksheet('sales_data');
+			$ws->write(0, 0, 'product'); $ws->write(0, 1, 'amount');
+			$ws->write(1, 0, 'Widget');  $ws->write(1, 1, 9.99);
+			$ws->write(2, 0, 'Gadget');  $ws->write(2, 1, 14.99);
+			$wb->close;
+		}
+		ok(-f $clean_path, 'Phase 1: clean-name XLSX written to disk');
+		$t->get_ok('/open?path=' . url_escape($clean_path))
+		  ->status_is(200, 'Phase 1: /open clean-name XLSX returns 200');
+		$t->content_like(qr/Widget/, 'Phase 1: data row visible');
+
+		# Phase 2: spaced filename -- same XLSX, name has spaces.
+		my $spaced_path = Mojo::File->new($dir)->child('my sales data.xlsx')->to_string;
+		{
+			my $wb = Excel::Writer::XLSX->new($spaced_path);
+			my $ws = $wb->add_worksheet('my_sales_data');
+			$ws->write(0, 0, 'product'); $ws->write(0, 1, 'amount');
+			$ws->write(1, 0, 'Sprocket'); $ws->write(1, 1, 4.50);
+			$wb->close;
+		}
+		ok(-f $spaced_path, 'Phase 2: spaced-name XLSX written to disk');
+		$t->get_ok('/open?path=' . url_escape($spaced_path))
+		  ->status_is(200, 'Phase 2: /open spaced-name XLSX returns 200');
+		$t->content_unlike(qr/unsafe dbname/i,
+			'Phase 2: no unsafe-dbname error');
+		$t->content_unlike(qr/no error string/i,
+			'Phase 2: no DBD::Excel "(no error string)" failure');
+		$t->content_like(qr/Sprocket/, 'Phase 2: data row from spaced-name XLSX visible');
+	}
+};
+
 done_testing();

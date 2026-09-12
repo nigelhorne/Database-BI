@@ -409,9 +409,73 @@ sub _init_url_backend :Protected {
 #      per row, producing a single comma-joined string instead of columns.
 #   2. id defaults to 'entry' — the slurp filter greps on that column; if it
 #      doesn't exist every row is silently discarded.
-# Returns an empty hashref for non-CSV/PSV formats (SQLite, XML, etc.).
+# Returns an empty hashref for non-CSV/PSV/XLSX formats (SQLite, XML, etc.).
 sub _detect_file_info :Protected {
 	my ($dir, $table) = @_;
+
+	# XLSX: DBD::Excel 0.07 only handles .xls (its source skips files whose
+	# name does not match /\.xls$/i, so .xlsx is silently ignored).  Parse
+	# directly with Spreadsheet::ParseXLSX and return pre-loaded row data so
+	# _init_backend can skip D::A entirely, exactly like the headerless-CSV path.
+	{
+		my $path = File::Spec->catfile($dir, "$table.xlsx");
+		if (-r $path) {
+			my $ok = eval { require Spreadsheet::ParseXLSX; 1 };
+			if ($ok) {
+				my $parser = Spreadsheet::ParseXLSX->new;
+				my $wb     = $parser->parse($path);
+				my $ws     = $wb ? $wb->worksheet(0) : undef;
+
+				unless ($ws) {
+					# Empty workbook or parse failure: sentinel so _init_backend
+					# skips D::A (which would fail with "(no error string)").
+					return { _file_is_empty => 1, file_size => -s $path };
+				}
+
+				my ($rmin, $rmax) = $ws->row_range;
+				my ($cmin, $cmax) = $ws->col_range;
+
+				# No rows at all (blank worksheet).
+				return { _file_is_empty => 1, file_size => -s $path }
+					if $rmax < $rmin;
+
+				# Row 0 = column headers.
+				my @cols;
+				for my $c ($cmin .. $cmax) {
+					my $cell = $ws->get_cell($rmin, $c);
+					push @cols, defined $cell ? ($cell->value // '') : '';
+				}
+				for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }
+				@cols = grep { length } @cols;
+
+				# No parseable column names.
+				return { _file_is_empty => 1, file_size => -s $path }
+					unless @cols;
+
+				my $safe_re = qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/;
+				my ($safe_id) = grep { $_ =~ $safe_re } @cols;
+
+				# Data rows.
+				my @rows;
+				for my $r ($rmin + 1 .. $rmax) {
+					my %row;
+					for my $i (0 .. $#cols) {
+						my $cell = $ws->get_cell($r, $cmin + $i);
+						$row{ $cols[$i] } = defined $cell ? ($cell->value // '') : '';
+					}
+					push @rows, \%row;
+				}
+
+				return {
+					columns          => \@cols,
+					id               => $safe_id,
+					_headerless_data => \@rows,
+					file_size        => -s $path,
+				};
+			}
+		}
+	}
+
 	for my $ext (qw(csv psv)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
 		next unless -r $path;
@@ -632,26 +696,64 @@ sub _init_backend :Protected {
 	$self->{_id_col}  = $id_col;
 	$self->{_columns} = $info->{columns};	# undef for SQLite/XML
 
-	# Headerless CSV: _detect_file_info already parsed every row with
-	# synthesized column names.  Store the result and skip D::A entirely.
+	# Headerless CSV or XLSX: _detect_file_info already pre-loaded all rows.
+	# Store and skip D::A entirely.
 	if ($info->{_headerless_data}) {
 		$self->{_file_data} = $info->{_headerless_data};
 		return;
 	}
 
+	# D::A validates dbname as a SQL identifier and rejects names that contain
+	# spaces or other characters that are illegal in SQL (e.g. "transactions for
+	# Nigel").  This check fires at query time (inside selectall_arrayref) for
+	# the DBI path used by XLSX, SQLite, and XML files — after construction
+	# succeeds — so the error surfaces as error_fetch_failed, not error_backend_init.
+	#
+	# Fix: when the original filename stem was sanitized (raw_table != table),
+	# create a temporary directory with a symlink that uses the safe name.
+	# D::A opens the symlink, sees a space-free dbname, and builds valid SQL.
+	# The temp-dir object is kept in $self so the symlink persists for the full
+	# lifetime of this DataSource instance and is cleaned up automatically when
+	# $self is destroyed.
+	my $dbname = $raw_table;
+	my $da_dir = $dir;
+	if ($raw_table ne $table) {
+		my $safe_ext;
+		for my $e (qw(xlsx xls db sql xml csv psv)) {
+			$safe_ext = $e, last
+				if -f File::Spec->catfile($dir, "$raw_table.$e");
+		}
+		if (defined $safe_ext) {
+			require File::Temp;
+			my $tmp     = File::Temp->newdir(CLEANUP => 1);
+			my $abs_src = File::Spec->rel2abs(
+				File::Spec->catfile($dir, "$raw_table.$safe_ext"));
+			my $link    = File::Spec->catfile("$tmp", "$table.$safe_ext");
+			{
+				no autodie;	# symlink failure gives our message, not autodie's
+				symlink($abs_src, $link)
+					or croak $self->_msg('error_backend_init', $table,
+						"cannot create safe-name symlink for '$raw_table.$safe_ext': $!");
+			}
+			$self->{_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
+			$dbname = $table;
+			$da_dir = "$tmp";
+		}
+	}
+
 	my $db = eval {
 		$pkg->new({
-			directory      => $dir,
+			directory      => $da_dir,
 			table          => $table,
 			# D::A >= 0.41 uses the class-name suffix as dbname, not the table
 			# parameter, so a package like Database::BI::_DB::Orders would look
 			# for Orders.csv on a case-sensitive filesystem even when table =>
 			# 'orders' is passed.  Passing dbname explicitly keeps the filename
 			# stem correct regardless of the package name or D::A version.
-			# When the table name was sanitized (e.g. "Transactions-2026-09-08"
-			# -> "Transactions_2026_09_08"), raw_table is the original hyphenated
-			# stem so D::A finds the actual file on disk.
-			dbname         => $raw_table,
+			# When the table name was sanitized (spaces, hyphens -> underscores),
+			# $dbname is the safe name so D::A never sees illegal SQL characters,
+			# and D::A finds the file via the symlink in $da_dir.
+			dbname         => $dbname,
 			id             => $id_col,
 			no_entry       => 1,
 			defined($info->{sep_char})  ? (sep_char       => $info->{sep_char})  : (),
