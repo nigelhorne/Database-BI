@@ -618,14 +618,14 @@ subtest 'export write IP-baddir: non-existent directory returns 404' => sub {
 #   Invalid: regular file path       -> croak error_directory_missing
 #   Invalid: empty string ""         -> croak error_directory_missing
 #
-# table (TABLE_NAME_RE = \A[A-Za-z_][A-Za-z0-9_]*\z):
-#   Valid:   any letter/underscore-start identifier
-#   Invalid: digit-start, dot, hyphen, empty -> croak error_table_name_invalid
+# table sanitization: illegal chars replaced with '_'; path separators croak.
+#   Sanitized: digit-start -> '_' prefix; hyphens/dots/spaces -> '_'
+#   Invalid (croak): path separators ('/', '\', NUL), empty string
 #
 # Boundary Values:
 #   BV-table-len1-letter:     "a"  -> valid
 #   BV-table-len1-underscore: "_"  -> valid
-#   BV-table-len1-digit:      "1"  -> croak error_table_name_invalid
+#   BV-table-len1-digit:      "1"  -> sanitized to "_1" (valid)
 # ======================================================================
 
 {
@@ -668,25 +668,31 @@ subtest 'export write IP-baddir: non-existent directory returns 404' => sub {
 			'empty directory string: croak error_directory_missing';
 	};
 
-	subtest 'DataSource IP-table-digit: digit-start table name -> croak' => sub {
-		throws_ok {
-			Database::BI::Model::DataSource->new(directory => $TMPDIR, table => '1data')
-		} qr/contains illegal characters/,
-			'digit-start table: croak error_table_name_invalid';
+	subtest 'DataSource IP-table-digit: digit-start is sanitized (prefixed with _)' => sub {
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $TMPDIR, table => '1data') }
+			'digit-start table name accepted (sanitized)';
+		is $src->table_name, '_1data', 'internal name has underscore prefix';
 	};
 
-	subtest 'DataSource IP-table-dot: table name with dot -> croak' => sub {
-		throws_ok {
-			Database::BI::Model::DataSource->new(directory => $TMPDIR, table => 'my.data')
-		} qr/contains illegal characters/,
-			'dot in table name: croak error_table_name_invalid';
+	subtest 'DataSource IP-table-dot: dot in table name is sanitized to underscore' => sub {
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $TMPDIR, table => 'my.data') }
+			'dot-in-table-name accepted (sanitized)';
+		is $src->table_name, 'my_data', 'internal name has underscore for dot';
 	};
 
-	subtest 'DataSource IP-table-hyphen: table name with hyphen -> croak' => sub {
-		throws_ok {
-			Database::BI::Model::DataSource->new(directory => $TMPDIR, table => 'my-data')
-		} qr/contains illegal characters/,
-			'hyphen in table name: croak error_table_name_invalid';
+	subtest 'DataSource IP-table-hyphen: hyphen sanitized; file is found on disk' => sub {
+		# Core use-case: a date-stamped CSV like "my-data.csv" must be openable.
+		Mojo::File->new("$TMPDIR/my-data.csv")->spew("id,value\n1,hello\n");
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $TMPDIR, table => 'my-data') }
+			'hyphen-in-table-name accepted (sanitized)';
+		is $src->table_name, 'my_data', 'internal name has underscore for hyphen';
+		my $rows = eval { $src->fetch_all };
+		is $@, '', 'fetch_all succeeds for sanitized-name DataSource';
+		is scalar @{$rows}, 1, 'one data row returned from my-data.csv';
+		is $rows->[0]{value}, 'hello', 'correct data value returned';
 	};
 
 	subtest 'DataSource IP-table-empty: empty table name -> croak' => sub {
@@ -708,11 +714,11 @@ subtest 'export write IP-baddir: non-existent directory returns 404' => sub {
 			'single underscore "_": valid table name';
 	};
 
-	subtest 'DataSource BV-table-len1-digit: single digit "1" is invalid' => sub {
-		throws_ok {
-			Database::BI::Model::DataSource->new(directory => $TMPDIR, table => '1')
-		} qr/contains illegal characters/,
-			'single digit "1": croak error_table_name_invalid';
+	subtest 'DataSource BV-table-len1-digit: single digit "1" is sanitized to "_1"' => sub {
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $TMPDIR, table => '1') }
+			'single digit "1" accepted (sanitized to _1)';
+		is $src->table_name, '_1', 'internal name is "_1"';
 	};
 
 	subtest 'DataSource Combinatorial: longest valid name with every char class' => sub {

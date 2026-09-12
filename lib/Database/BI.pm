@@ -8,7 +8,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.005.2';
+our $VERSION = '0.006.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -365,8 +365,8 @@ sub startup ($self) {
 	# The directory=> option overrides the default so open_file and upload_file
 	# can open tables from arbitrary filesystem paths.
 	#
-	# Phase 2: swap Database::BI::Model::DataSource for Database::Join here;
-	# the controller and all templates are untouched.
+	# Joins are handled by Database::Join in the controller pipeline;
+	# open_table returns a single DataSource per table.
 	my $data_dir = $self->home->child($self->config->{data_dir})->to_string;
 
 	$self->helper(open_table => sub($c, $table, %opts) {

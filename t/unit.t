@@ -113,15 +113,15 @@ subtest 'DataSource.new -- non-existent directory croaks error_directory_missing
 };
 
 subtest 'DataSource.new -- invalid table name croaks error_table_name_invalid' => sub {
-	# POD: TABLE_NAME_RE = /\A[A-Za-z_][A-Za-z0-9_]*\z/
-	# A table name with a hyphen or dots must be rejected.
+	# Hyphens, dots, spaces, etc. are now sanitized to underscores.
+	# Only path-separator characters ('/', '\', NUL) and the empty string still croak.
 	throws_ok {
 		Database::BI::Model::DataSource->new(
 			directory => $DATA_DIR,
-			table     => 'bad-table-name!',
+			table     => 'a/b',
 		)
 	} qr/contains illegal characters/,
-	'new() croaks with table-name-invalid message for bad table';
+	'new() croaks with table-name-invalid message for path-separator in table name';
 	delete $ledger{'DataSource.new.table_invalid'};
 };
 

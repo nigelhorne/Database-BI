@@ -217,14 +217,16 @@ subtest 'DataSource::new path-B: directory missing -> croak' => sub {
 		'path B: missing directory -> croak error_directory_missing';
 };
 
-subtest 'DataSource::new path-C: table name invalid -> croak' => sub {
+subtest 'DataSource::new path-C: table name with path separator -> croak' => sub {
+	# Hyphens/dots/digits are now sanitized to underscores.
+	# Only path-separator characters trigger error_table_name_invalid.
 	throws_ok {
 		Database::BI::Model::DataSource->new(
 			directory => $TMPDIR,
-			table     => '1invalid',
+			table     => 'a/invalid',
 		)
 	} qr/contains illegal characters/,
-		'path C: digit-start table -> croak error_table_name_invalid';
+		'path C: path-separator in table name -> croak error_table_name_invalid';
 };
 
 subtest 'DataSource::new path-D: unsafe CSV column names' => sub {

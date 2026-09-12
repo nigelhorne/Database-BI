@@ -139,20 +139,26 @@ subtest 'DataSource::new -- argument validation' => sub {
 		qr/does not exist|not readable/i,
 		'croaks for non-existent directory';
 
-	# Table name with path traversal characters
+	# Table name with path traversal characters (path separators are rejected)
 	throws_ok { $DS->new(directory => $DATA_DIR, table => '../etc/passwd') }
 		qr/illegal characters/i,
 		'croaks for table name with path traversal';
 
-	# Table name with leading digit (not allowed by TABLE_NAME_RE)
-	throws_ok { $DS->new(directory => $DATA_DIR, table => '1bad') }
-		qr/illegal characters/i,
-		'croaks for table name beginning with a digit';
+	# Table name with leading digit: sanitized to _1bad (prepend underscore)
+	{
+		my $src;
+		lives_ok { $src = $DS->new(directory => $DATA_DIR, table => '1bad') }
+			'digit-start table name is sanitized (not rejected)';
+		is $src->table_name, '_1bad', 'sanitized table name has underscore prefix';
+	}
 
-	# Table name with spaces
-	throws_ok { $DS->new(directory => $DATA_DIR, table => 'my table') }
-		qr/illegal characters/i,
-		'croaks for table name containing spaces';
+	# Table name with spaces: sanitized to my_table (spaces -> underscores)
+	{
+		my $src;
+		lives_ok { $src = $DS->new(directory => $DATA_DIR, table => 'my table') }
+			'table name with spaces is sanitized (not rejected)';
+		is $src->table_name, 'my_table', 'sanitized table name has underscores for spaces';
+	}
 
 	# Accept hashref form (Params::Get normalises)
 	my $src2 = eval { $DS->new({ directory => $DATA_DIR, table => $SALES_CSV }) };
@@ -706,76 +712,6 @@ subtest '_csv_row -- newline inside field triggers quoting' => sub {
 	my $fn = \&Database::BI::Controller::Dashboard::_csv_row;
 	my $line = $fn->("line1\nline2");
 	like $line, qr/^"line1\nline2"\r\n$/, 'field with newline is double-quoted';
-};
-
-# ---------------------------------------------------------------------------
-# Subtest: _left_join -- in-memory left join logic
-# ---------------------------------------------------------------------------
-subtest '_left_join -- every left row is preserved' => sub {
-	my $fn = \&Database::BI::Controller::Dashboard::_left_join;
-
-	my $left  = [{ id => 1, name => 'Alice' }, { id => 2, name => 'Bob' }];
-	my $right = [{ uid => 1, dept => 'Eng' }];
-
-	my ($merged, $cols) = $fn->(
-		$left,  [qw(id name)], 'id',
-		$right, [qw(uid dept)], 'uid', 'right',
-	);
-
-	is scalar(@$merged), 2, 'all left rows preserved (including unmatched)';
-	is $merged->[0]{dept}, 'Eng',  'matched row has right-table column';
-	is $merged->[1]{dept}, undef,  'unmatched row has undef for right column';
-};
-
-subtest '_left_join -- join key column is not duplicated' => sub {
-	my $fn = \&Database::BI::Controller::Dashboard::_left_join;
-
-	my $left  = [{ id => 1, x => 'a' }];
-	my $right = [{ id => 1, y => 'b' }];
-
-	my ($merged, $cols) = $fn->(
-		$left,  [qw(id x)], 'id',
-		$right, [qw(id y)], 'id', 'right',
-	);
-
-	# 'id' should appear only once in the merged column list
-	my @id_cols = grep { $_ eq 'id' } @$cols;
-	is scalar(@id_cols), 1, 'join key appears only once in merged columns';
-};
-
-subtest '_left_join -- right column collision gets label prefix' => sub {
-	my $fn = \&Database::BI::Controller::Dashboard::_left_join;
-
-	# Both left and right have a column called "name"
-	my $left  = [{ id => 1, name => 'Alice' }];
-	my $right = [{ key => 1, name => 'HR' }];
-
-	my ($merged, $cols) = $fn->(
-		$left,  [qw(id name)], 'id',
-		$right, [qw(key name)], 'key', 'dept',
-	);
-
-	ok exists($merged->[0]{'dept.name'}),
-		'colliding right column is prefixed with right_label';
-	is $merged->[0]{name},        'Alice', 'original left column name is unchanged';
-	is $merged->[0]{'dept.name'}, 'HR',    'prefixed right column carries correct value';
-};
-
-subtest '_left_join -- multiple matching right rows: first match wins' => sub {
-	my $fn = \&Database::BI::Controller::Dashboard::_left_join;
-
-	my $left  = [{ id => 1 }];
-	my $right = [
-		{ rid => 1, val => 'first'  },
-		{ rid => 1, val => 'second' },
-	];
-
-	my ($merged) = $fn->(
-		$left,  ['id'],        'id',
-		$right, [qw(rid val)], 'rid', 'r',
-	);
-
-	is $merged->[0]{val}, 'first', 'first matching right row wins for duplicate keys';
 };
 
 # ---------------------------------------------------------------------------

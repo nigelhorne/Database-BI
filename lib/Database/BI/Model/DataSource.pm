@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.005.2';
+our $VERSION = '0.006.0';
 
 =head1 NAME
 
@@ -20,7 +20,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-Version 0.005.2
+Version 0.006.0
 
 =head1 SYNOPSIS
 
@@ -241,15 +241,17 @@ C<error_directory_missing>.
 
 =item C<table>
 
-Must match C<TABLE_NAME_RE = \A[A-Za-z_][A-Za-z0-9_]*\z>.  The first
-character must be a letter (A-Z, a-z) or underscore; subsequent
-characters may also be digits.
+The bare file stem (no extension).  Characters that are illegal in SQL
+identifiers — hyphens, dots, spaces, etc. — are silently replaced with
+underscores before the name is used internally.  A stem that starts with a
+digit is prefixed with C<_>.  Only a completely empty string croaks.
 
-  Valid partition:   "sales", "_tmp", "report_2024" (letter/underscore start)
-  Invalid partition: "1sales" (digit-start), "my.data" (dot),
-                     "my-data" (hyphen), "" (empty string)
+  Valid partition:   "sales", "_tmp", "report_2024",
+                     "Transactions-2026-09-08" (hyphens sanitized to underscores),
+                     "my.data" (dot sanitized), "1sales" (prefixed to "_1sales")
+  Invalid partition: "" (empty string)
   Boundary values:   "a" (length-1 letter, valid), "_" (length-1 underscore,
-                     valid), "1" (length-1 digit, croaks error_table_name_invalid)
+                     valid), "" (empty string, croaks error_table_name_invalid)
 
 =back
 
@@ -288,12 +290,30 @@ sub new {
 	croak _fmt('error_directory_missing', $args->{directory})
 		unless -d $args->{directory};
 
+	# Reject path-traversal characters first: '/', '\', and NUL are the only
+	# characters that could let _raw_table escape the intended directory when
+	# D::A constructs "$dir/$dbname.$ext".  Everything else is either safe as a
+	# filename component or will be sanitized below.
 	croak _fmt('error_table_name_invalid', $args->{table})
-		unless $args->{table} =~ $TABLE_NAME_RE;
+		if !length($args->{table}) || $args->{table} =~ m{[/\\\x00]};
+
+	# Silently sanitize table names derived from file stems: replace characters
+	# that are illegal in SQL identifiers (hyphens, dots, spaces, etc.) with
+	# underscores.  A leading digit is prefixed with '_'.  The original name is
+	# kept in _raw_table for filesystem lookup (dbname) so the actual file is
+	# still found; the sanitized name is used only as the internal D::A
+	# identifier and ephemeral package name.
+	my $raw_table = $args->{table};
+	(my $safe_table = $raw_table) =~ s/[^A-Za-z0-9_]/_/g;
+	$safe_table = '_' . $safe_table if $safe_table =~ /\A[0-9]/;
+
+	croak _fmt('error_table_name_invalid', $raw_table)
+		unless $safe_table =~ $TABLE_NAME_RE;
 
 	my $self = bless {
 		_directory => $args->{directory},
-		_table     => $args->{table},
+		_table     => $safe_table,
+		_raw_table => $raw_table,
 		_i18n      => $args->{i18n},
 		_db        => undef,
 	}, $class;
@@ -498,9 +518,10 @@ sub _detect_file_info :Protected {
 # lookups on a primary key.  This stores data as an arrayref instead of a
 # hashref, which the fast-track path in selectall_arrayref returns directly.
 sub _init_backend :Protected {
-	my $self  = shift;
-	my $table = $self->{_table};
-	my $dir   = $self->{_directory};
+	my $self      = shift;
+	my $table     = $self->{_table};     # sanitized: used for pkg name and D::A table param
+	my $raw_table = $self->{_raw_table} // $table;  # original: used for file lookup and dbname
+	my $dir       = $self->{_directory};
 
 	require Database::Abstraction;
 
@@ -511,7 +532,7 @@ sub _init_backend :Protected {
 			unless $pkg->isa('Database::Abstraction');
 	}
 
-	my $info   = _detect_file_info($dir, $table);
+	my $info   = _detect_file_info($dir, $raw_table);
 
 	# 0-byte file: skip D::A/DBI entirely.  D::A on an empty file falls through
 	# to DBD::CSV, whose error handling corrupts DBI's Errstr SV and triggers an
@@ -542,7 +563,10 @@ sub _init_backend :Protected {
 			# for Orders.csv on a case-sensitive filesystem even when table =>
 			# 'orders' is passed.  Passing dbname explicitly keeps the filename
 			# stem correct regardless of the package name or D::A version.
-			dbname         => $table,
+			# When the table name was sanitized (e.g. "Transactions-2026-09-08"
+			# -> "Transactions_2026_09_08"), raw_table is the original hyphenated
+			# stem so D::A finds the actual file on disk.
+			dbname         => $raw_table,
 			id             => $id_col,
 			no_entry       => 1,
 			defined($info->{sep_char})  ? (sep_char       => $info->{sep_char})  : (),
@@ -596,14 +620,18 @@ sub table_name {
 
 =head2 columns
 
-Returns an arrayref of column names in file order, or C<undef> when the
-backend does not expose a fixed column order (e.g. SQLite, XML).
+Returns an arrayref of column names in file order, or C<undef> when no order
+is available.  For CSV and PSV files the order comes from the file header.
+For SQLite and XML, falls back to the underlying C<Database::Abstraction>
+object's C<columns()> — useful when a C<DataSource> is passed directly to
+C<Database::Join> as a component database.
 
 =cut
 
 sub columns {
 	my $self = shift;
-	return $self->{_columns};
+	return $self->{_columns} if defined $self->{_columns};
+	return $self->{_db} ? $self->{_db}->columns() : undef;
 }
 
 =head2 id_column
@@ -663,6 +691,21 @@ silent failure.
   warn_data_normalised   -- backend returned a hashref; converted to arrayref
 
 =cut
+
+=head2 selectall_arrayref
+
+C<Database::Abstraction>-compatible alias that allows a C<DataSource> object
+to be passed directly to C<Database::Join> as a component database.  Passes
+any criteria through to the underlying backend; the BI viewer always calls it
+with no arguments.
+
+=cut
+
+sub selectall_arrayref {
+	my ($self, @args) = @_;
+	return [] if $self->{_file_is_empty};
+	return $self->{_db}->selectall_arrayref(@args);
+}
 
 sub fetch_all {
 	my $self  = shift;
@@ -794,8 +837,9 @@ Only read operations are supported.  Write-back is not in scope.
 =item *
 
 One C<DataSource> instance corresponds to exactly one table.  Multi-table
-left joins are composed at the controller layer by C<Dashboard::_left_join>;
-C<Database::Join> (Phase 2) is not yet in use.
+joins are now delegated to C<Database::Join> (see L<Database::Join>), which
+accepts C<DataSource> objects directly as component databases via the
+C<selectall_arrayref> and C<columns> methods this class exposes.
 
 =item *
 

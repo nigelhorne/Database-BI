@@ -24,6 +24,7 @@ WriteMakefile(
 		'CGI::Info'		=> 0,
 		'CGI::Lingua'		=> 0,
 		'Database::Abstraction'	=> '0.41',
+		'Database::Join'	=> '0.003.0',
 		'DBI'			=> 0,
 		'File::Spec'		=> '3.40',
 		'File::Temp'		=> '0.22',

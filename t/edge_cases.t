@@ -298,40 +298,35 @@ subtest 'GET /view/<letter-start> still works (normal tables)' => sub {
 };
 
 # ---------------------------------------------------------------------------
-# Section 5: open_file with digit-leading filename -- regression test
+# Section 5: open_file with formerly-problematic filenames
 #
-# Bug: upload_file accepts "1data.csv" (extension valid), but when a user
-# later opens it via GET /open, the derived table name "1data" fails
-# DataSource's TABLE_NAME_RE.  The open_table call was OUTSIDE the eval in
-# open_file, so the croak propagated as a Mojolicious 500 Internal Server Error.
-#
-# Fix: open_table is now inside the same eval as fetch_all in open_file, so
-# the croak is caught and the friendly error page (200) is rendered instead.
+# Originally these produced 500 (open_table outside eval).  Then open_table
+# moved inside eval and they produced a friendly error page.  As of 0.006.x,
+# DataSource sanitizes illegal characters in table names (hyphens, dots,
+# digits-at-start -> underscores/prefix), so these files now open successfully.
 # ---------------------------------------------------------------------------
 
-subtest 'GET /open with digit-leading filename renders friendly error (regression: was 500)' => sub {
-	# Create a valid CSV file with a digit-leading stem in the temp dir.
+subtest 'GET /open with digit-leading filename succeeds (stem sanitized to _1data)' => sub {
 	my $path = Mojo::File->new($TMPDIR)->child('1data.csv');
 	$path->spew("id,name\n1,Widget\n");
 
 	$t->get_ok('/open?path=' . url_escape($path->to_string))
 	  ->status_is(200)
-	  ->content_like(qr/Could not open/i,
-	      'friendly error message rendered for digit-leading table name');
-	diag "Regression: was 500 before open_table was wrapped in eval" if $ENV{TEST_VERBOSE};
+	  ->content_like(qr/Widget/,
+	      'CSV data is rendered: digit-leading filename opens successfully after sanitization');
+	diag "Previously produced friendly error; now sanitized and opened" if $ENV{TEST_VERBOSE};
 };
 
-subtest 'GET /open with double-extension filename renders friendly error (not 500)' => sub {
-	# "file.php.csv" passes upload extension check (last ext is .csv) but the
-	# table stem "file.php" contains a dot -> fails DataSource regex -> croak.
-	# With the fix the croak is caught and a 200 error page is rendered.
+subtest 'GET /open with double-extension filename succeeds (stem sanitized to file_php)' => sub {
+	# "file.php.csv": stem = "file.php", sanitized internal name = "file_php",
+	# dbname stays "file.php" so D::A finds the actual file on disk.
 	my $path = Mojo::File->new($TMPDIR)->child('file.php.csv');
 	$path->spew("id,label\n1,safe\n");
 
 	$t->get_ok('/open?path=' . url_escape($path->to_string))
 	  ->status_is(200)
-	  ->content_like(qr/Could not open/i,
-	      'friendly error rendered for dot-in-stem table name');
+	  ->content_like(qr/safe/,
+	      'CSV data is rendered: double-extension filename opens successfully after sanitization');
 };
 
 # ---------------------------------------------------------------------------
@@ -535,31 +530,40 @@ subtest 'DataSource::new -- hostile directory arguments croak correctly' => sub 
 	} qr/does not exist or is not readable/i, 'croak for empty directory';
 };
 
-subtest 'DataSource::new -- hostile table name arguments croak correctly' => sub {
+subtest 'DataSource::new -- table name sanitization and remaining croak cases' => sub {
 	require Database::BI::Model::DataSource;
 	my $dir = $t->app->home->child('data')->to_string;
 
-	# Digit-leading name.
-	throws_ok {
-		Database::BI::Model::DataSource->new(directory => $dir, table => '1data')
-	} qr/contains illegal characters/i, 'croak for digit-leading table name';
+	# Digit-leading name: sanitized to _1data (underscore prefix), not rejected.
+	{
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => '1data') }
+			'digit-leading table name is sanitized, not rejected';
+		is $src->table_name, '_1data', 'sanitized: digit-leading name prefixed with underscore';
+	}
 
-	# Name containing a dot.
-	throws_ok {
-		Database::BI::Model::DataSource->new(directory => $dir, table => 'file.php')
-	} qr/contains illegal characters/i, 'croak for table name with dot';
+	# Dot: sanitized to file_php.
+	{
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'file.php') }
+			'dot-in-table-name is sanitized, not rejected';
+		is $src->table_name, 'file_php', 'sanitized: dot replaced with underscore';
+	}
 
-	# Name with shell metacharacters.
-	throws_ok {
-		Database::BI::Model::DataSource->new(directory => $dir, table => 'name;ls')
-	} qr/contains illegal characters/i, 'croak for table name with semicolon';
+	# Semicolons: sanitized to name_ls.
+	{
+		my $src;
+		lives_ok { $src = Database::BI::Model::DataSource->new(directory => $dir, table => 'name;ls') }
+			'semicolon-in-table-name is sanitized, not rejected';
+		is $src->table_name, 'name_ls', 'sanitized: semicolon replaced with underscore';
+	}
 
-	# Name with path separator.
+	# Path separators still croak (security: prevent directory traversal via dbname).
 	throws_ok {
 		Database::BI::Model::DataSource->new(directory => $dir, table => '../../../etc/passwd')
 	} qr/contains illegal characters/i, 'croak for path-traversal as table name';
 
-	# Empty table name.
+	# Empty table name still croaks.
 	throws_ok {
 		Database::BI::Model::DataSource->new(directory => $dir, table => '')
 	} qr/contains illegal characters/i, 'croak for empty table name';
