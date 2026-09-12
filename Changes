@@ -62,6 +62,12 @@ Revision history for Database-BI
     - Synthesised column headers for header-less CSV/PSV files are now
       capitalised (Date, Amount, Description) so they display correctly as
       table headers in the browser.
+    - Berkeley DB files (.db extension) can now be opened via /view/:table,
+      /open, and the filesystem browser.  Database::Abstraction detects the
+      BerkeleyDB magic bytes automatically and opens the file via DB_File
+      (a Perl core module).  No code change was required in Database::BI;
+      the existing @SUPPORTED_EXT and _detect_file_info already handled .db
+      files correctly.  Transaction 29 confirms the end-to-end lifecycle.
 
 0.005.2 Fri Sep 11 06:08:10 AM EDT 2026
     [ Bug Fixes ]

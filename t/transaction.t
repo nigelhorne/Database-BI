@@ -1759,4 +1759,43 @@ subtest 'Transaction 28 -- XLSX file open lifecycle (including spaced filename)'
 	}
 };
 
+subtest 'Transaction 29 -- Berkeley DB file open lifecycle' => sub {
+	# Database::Abstraction detects BerkeleyDB files by magic-number sniffing
+	# and opens them via DB_File (a Perl core module -- always available).
+	# _detect_file_info returns {} for .db files; D::A handles the rest natively.
+	# Columns are always [entry, value]; every row is {entry=>$key, value=>$val}.
+	SKIP: {
+		eval { require DB_File }
+			or skip 'DB_File not available', 7;
+
+		plan tests => 7;
+
+		my $dir  = tempdir(CLEANUP => 1);
+		my $path = Mojo::File->new($dir)->child('fruits.db')->to_string;
+
+		# Phase 1: create a Berkeley DB file with known key-value pairs.
+		{
+			my %bdb;
+			tie(%bdb, 'DB_File', $path, DB_File::O_CREAT()|DB_File::O_RDWR(), 0644, $DB_File::DB_HASH)
+				or skip "Cannot create Berkeley DB file: $!", 7;
+			$bdb{apple}  = 'red fruit';
+			$bdb{banana} = 'yellow fruit';
+			untie %bdb;
+		}
+		ok(-f $path, 'Phase 1: Berkeley DB file written to disk');
+
+		# Phase 2: open via /open?path= — must return 200.
+		$t->get_ok('/open?path=' . url_escape($path))
+		  ->status_is(200, 'Phase 2: /open returns 200 for Berkeley DB file');
+
+		# Phase 3: both key-value rows must be visible in the response.
+		$t->content_like(qr/apple/,  'Phase 3a: key "apple" visible in response');
+		$t->content_like(qr/banana/, 'Phase 3b: key "banana" visible in response');
+
+		# Phase 4: idempotency -- reopening the same file returns the same data.
+		$t->get_ok('/open?path=' . url_escape($path))
+		  ->status_is(200, 'Phase 4: second /open also returns 200');
+	}
+};
+
 done_testing();
