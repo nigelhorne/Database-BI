@@ -279,6 +279,11 @@ extensions.  A file called C<inventory.sqlite> is B<not> recognised -- it
 must be renamed to C<inventory.sql>.  Excel C<.xlsx> files are supported
 directly via C<DBD::Excel>; each worksheet becomes a separate table.
 
+URLs will work.
+For example enter
+L<https://worldpopulationreview.com/country-rankings/immigration-by-country>
+into the C<Import from a web page> field on the dashboard.
+
 =item B<The open_table helper lowercases the table name>
 
 When the router matches C<GET /view/Sales> or C<GET /view/SALES>, the table
