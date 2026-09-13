@@ -648,4 +648,116 @@ subtest 'DataSource -- headerless CSV via HTTP: /open returns 200 with data' => 
 	  ->content_like(qr/-75/,           'amount value appears in rendered page');
 };
 
-done_testing;
+# ---------------------------------------------------------------------------
+# Section 15: Empty and near-empty file handling
+#
+# Strategy: verify that 0-byte files and files containing only a newline are
+# handled gracefully — no crash, no 500, no misleading "no safe identifier"
+# error.  The expected behaviour is an empty table view (200 OK, "No records
+# found") rather than an error page, for both CSV and PSV.
+#
+# A file with a blank first line is effectively empty: _detect_file_info
+# returns the _file_is_empty sentinel (same path as a 0-byte file), so
+# _init_backend skips Database::Abstraction entirely and fetch_all returns [].
+# ---------------------------------------------------------------------------
+
+# 0-byte CSV via DataSource constructor
+subtest 'DataSource -- 0-byte CSV: fetch_all returns [] without croak' => sub {
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/emptysrc.csv")->spew('');
+	my $src;
+	lives_ok {
+		$src = Database::BI::Model::DataSource->new(directory => $dir, table => 'emptysrc');
+	} '0-byte CSV: constructor succeeds';
+	my $rows = $src->fetch_all;
+	is_deeply $rows, [], '0-byte CSV: fetch_all returns []';
+};
+
+# 0-byte PSV via DataSource constructor
+subtest 'DataSource -- 0-byte PSV: fetch_all returns [] without croak' => sub {
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/emptypsv.psv")->spew('');
+	my $src;
+	lives_ok {
+		$src = Database::BI::Model::DataSource->new(directory => $dir, table => 'emptypsv');
+	} '0-byte PSV: constructor succeeds';
+	my $rows = $src->fetch_all;
+	is_deeply $rows, [], '0-byte PSV: fetch_all returns []';
+};
+
+# Newline-only CSV via DataSource constructor
+subtest 'DataSource -- newline-only CSV: fetch_all returns [] without croak' => sub {
+	# A file containing exactly "\n" has a blank first line.  After chomp the
+	# line is "", yielding zero column names.  This must be treated as an empty
+	# file (returning []), not as "no safe identifier" (which would croak).
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/newlinecsv.csv")->spew("\n");
+	my $src;
+	lives_ok {
+		$src = Database::BI::Model::DataSource->new(directory => $dir, table => 'newlinecsv');
+	} 'newline-only CSV: constructor succeeds (no croak)';
+	my $rows = $src->fetch_all;
+	is_deeply $rows, [], 'newline-only CSV: fetch_all returns []';
+};
+
+# Newline-only PSV via DataSource constructor
+subtest 'DataSource -- newline-only PSV: fetch_all returns [] without croak' => sub {
+	require Database::BI::Model::DataSource;
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/newlinepsv.psv")->spew("\n");
+	my $src;
+	lives_ok {
+		$src = Database::BI::Model::DataSource->new(directory => $dir, table => 'newlinepsv');
+	} 'newline-only PSV: constructor succeeds (no croak)';
+	my $rows = $src->fetch_all;
+	is_deeply $rows, [], 'newline-only PSV: fetch_all returns []';
+};
+
+# 0-byte CSV via HTTP /open endpoint
+subtest 'HTTP -- 0-byte CSV via /open: 200 with empty-table message' => sub {
+	my $dir  = tempdir(CLEANUP => 1);
+	my $path = "$dir/emptyhttp.csv";
+	Mojo::File->new($path)->spew('');
+	$t->get_ok('/open?path=' . url_escape($path))
+	  ->status_is(200, '0-byte CSV: /open returns 200')
+	  ->content_like(qr/No records found/i, '0-byte CSV: empty-state message present');
+};
+
+# 0-byte PSV via HTTP /open endpoint
+subtest 'HTTP -- 0-byte PSV via /open: 200 with empty-table message' => sub {
+	my $dir  = tempdir(CLEANUP => 1);
+	my $path = "$dir/emptyhttppsv.psv";
+	Mojo::File->new($path)->spew('');
+	$t->get_ok('/open?path=' . url_escape($path))
+	  ->status_is(200, '0-byte PSV: /open returns 200')
+	  ->content_like(qr/No records found/i, '0-byte PSV: empty-state message present');
+};
+
+# Newline-only CSV via HTTP /open endpoint
+subtest 'HTTP -- newline-only CSV via /open: 200 with empty-table message' => sub {
+	# Regression guard: before the _file_is_empty fix, a blank first line caused
+	# _init_backend to croak "no safe identifier", and the controller rendered a
+	# 200 error page — but the error message was confusing for what is simply an
+	# empty file.  After the fix, the response is a clean empty-table view.
+	my $dir  = tempdir(CLEANUP => 1);
+	my $path = "$dir/nlcsv.csv";
+	Mojo::File->new($path)->spew("\n");
+	$t->get_ok('/open?path=' . url_escape($path))
+	  ->status_is(200, 'newline-only CSV: /open returns 200')
+	  ->content_like(qr/No records found/i, 'newline-only CSV: empty-state message present');
+};
+
+# Newline-only PSV via HTTP /open endpoint
+subtest 'HTTP -- newline-only PSV via /open: 200 with empty-table message' => sub {
+	my $dir  = tempdir(CLEANUP => 1);
+	my $path = "$dir/nlpsv.psv";
+	Mojo::File->new($path)->spew("\n");
+	$t->get_ok('/open?path=' . url_escape($path))
+	  ->status_is(200, 'newline-only PSV: /open returns 200')
+	  ->content_like(qr/No records found/i, 'newline-only PSV: empty-state message present');
+};
+
+done_testing();

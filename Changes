@@ -66,6 +66,14 @@ Revision history for Database-BI
       canonical column order anyway.
 
     [ Bug Fixes ]
+    - CSV and PSV files whose first line is blank (e.g. a file containing only
+      a single newline character) are now treated as empty files rather than
+      croaking "no column with a safe identifier name".  _detect_file_info now
+      returns the _file_is_empty sentinel when the parsed first line yields
+      zero column names, causing _init_backend to skip Database::Abstraction
+      entirely and fetch_all to return [].  The /open endpoint renders the
+      standard empty-table view ("No records found") instead of an error page.
+      Tests added to t/edge_cases.t.
     - Files whose names contain spaces (e.g. "transactions for Nigel.xlsx")
       now open correctly.  Database::Abstraction validates its dbname argument
       as a SQL identifier and rejected names with spaces with an "unsafe dbname"

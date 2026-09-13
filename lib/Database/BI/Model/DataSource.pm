@@ -523,6 +523,17 @@ sub _detect_file_info :Protected {
 		for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }	# strip whitespace and quotes
 		@cols = grep { length } @cols;
 
+		# A blank first line (e.g. a file containing only "\n") produces an
+		# empty column list.  Treat that the same as a 0-byte file: return the
+		# _file_is_empty sentinel so _init_backend skips D::A entirely.
+		# Attempting to construct D::A with id => undef and an empty columns
+		# list would croak error_no_safe_id — misleading for what is effectively
+		# an empty file.
+		if (!@cols) {
+			close $fh;
+			return { _file_is_empty => 1, file_size => -s $path };
+		}
+
 		# Database::Abstraction validates id against $SAFE_IDENTIFIER
 		# (/\A[a-zA-Z_][a-zA-Z0-9_]*\z/) at construction time and uses it as
 		# a row-existence sentinel: every data row must have a defined, non-#
