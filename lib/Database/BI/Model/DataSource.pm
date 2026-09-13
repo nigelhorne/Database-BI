@@ -280,9 +280,11 @@ sub new {
 
 	my $args = validate_strict(
 		schema => {
-			directory => { type => 'string' },
-			table     => { type => 'string' },
-			i18n      => { type => 'object', optional => 1, default => undef, can => 'maketext' },
+			directory     => { type => 'string' },
+			table         => { type => 'string' },
+			i18n          => { type => 'object', optional => 1, default => undef, can => 'maketext' },
+			cache         => { type => 'object', optional => 1, default => undef },
+			cache_ttl_url => { type => 'string', optional => 1, default => '15 min' },
 		},
 		input => $raw,
 	);
@@ -311,11 +313,13 @@ sub new {
 		unless $safe_table =~ $TABLE_NAME_RE;
 
 	my $self = bless {
-		_directory => $args->{directory},
-		_table     => $safe_table,
-		_raw_table => $raw_table,
-		_i18n      => $args->{i18n},
-		_db        => undef,
+		_directory    => $args->{directory},
+		_table        => $safe_table,
+		_raw_table    => $raw_table,
+		_i18n         => $args->{i18n},
+		_cache        => $args->{cache},
+		_cache_ttl_url => $args->{cache_ttl_url},
+		_db           => undef,
 	}, $class;
 
 	$self->_init_backend();
@@ -340,16 +344,20 @@ sub _new_from_url :Protected {
 	croak _fmt('error_url_invalid', $url)
 		unless $url =~ m{\Ahttps?://}i;
 
+	my $table_idx = $raw->{html_table_index} // 0;
 	my $self = bless {
-		_url   => $url,
-		_table => _url_label($url),
-		_i18n  => $raw->{i18n},
-		_id_col  => undef,
-		_columns => undef,
-		_db      => undef,
+		_url              => $url,
+		_table            => _url_label($url),
+		_i18n             => $raw->{i18n},
+		_cache            => $raw->{cache},
+		_cache_ttl_url    => $raw->{cache_ttl_url} // '15 min',
+		_html_table_index => $table_idx,
+		_id_col           => undef,
+		_columns          => undef,
+		_db               => undef,
 	}, $class;
 
-	$self->_init_url_backend($raw->{html_table_index} // 0);
+	$self->_init_url_backend($table_idx);
 	return $self;
 }
 
@@ -646,6 +654,36 @@ sub _synthesize_col_names {
 	return @names;
 }
 
+# _cache_key( $self ) -> $key | undef
+#
+# Purpose: Derive a stable cache key for this DataSource's full result set.
+#          URL tables use a fixed key (TTL handles invalidation).
+#          File tables encode the file's mtime in the key so a changed file
+#          naturally produces a miss — the stale entry is orphaned and evicts
+#          passively when the CHI driver reclaims memory.
+# Entry:   $self->{_cache} must be defined (caller checks this before calling).
+# Exit:    Returns a non-empty string key, or undef when no key is derivable
+#          (no URL, no file path on disk).
+sub _cache_key :Protected {
+	my $self = shift;
+
+	if (defined $self->{_url}) {
+		my $idx = $self->{_html_table_index} // 0;
+		# Include the table index in the key: a different index on the same URL
+		# selects a different table from the page and must not share a cache entry.
+		return 'bi:url:' . $self->{_url} . ':' . $idx;
+	}
+
+	if (defined $self->{_file_path} && -f $self->{_file_path}) {
+		my $mtime = (stat($self->{_file_path}))[9];
+		return defined $mtime
+			? 'bi:file:' . $self->{_file_path} . ':' . $mtime
+			: undef;
+	}
+
+	return undef;
+}
+
 # _init_backend( $self ) -> void
 #
 # Strategy: Database::Abstraction is designed as a base class where the
@@ -675,6 +713,16 @@ sub _init_backend :Protected {
 	}
 
 	my $info   = _detect_file_info($dir, $raw_table);
+
+	# Probe for the actual file on disk so _cache_key can compute its mtime.
+	# This runs before the early-return paths so even empty files get a path.
+	for my $e (qw(csv psv sql xml db xlsx xls)) {
+		my $p = File::Spec->catfile($dir, "$raw_table.$e");
+		if (-f $p) {
+			$self->{_file_path} = File::Spec->rel2abs($p);
+			last;
+		}
+	}
 
 	# 0-byte file: skip D::A/DBI entirely.  D::A on an empty file falls through
 	# to DBD::CSV, whose error handling corrupts DBI's Errstr SV and triggers an
@@ -818,6 +866,11 @@ C<Database::Join> as a component database.
 sub columns {
 	my $self = shift;
 	return $self->{_columns} if defined $self->{_columns};
+	# URL-backed tables have no canonical column order; D::A fetches lazily so
+	# calling _db->columns() here would trigger a live network request even when
+	# the data came from the CHI cache.  Return undef and let _get_columns derive
+	# the list from the data records instead.
+	return undef if defined $self->{_url};
 	return $self->{_db} ? $self->{_db}->columns() : undef;
 }
 
@@ -892,7 +945,31 @@ sub selectall_arrayref {
 	my ($self, @args) = @_;
 	return [] if $self->{_file_is_empty};
 	return $self->{_file_data} if $self->{_file_data};
-	return $self->{_db}->selectall_arrayref(@args);
+
+	# Cache only plain unfiltered calls — Database::Join passes no args for the
+	# full table scan; a non-empty @args means a narrowed query whose result must
+	# not be mistaken for the full-table cache entry.
+	my $cache = $self->{_cache};
+	if ($cache && !@args) {
+		my $key = $self->_cache_key;
+		if (defined $key) {
+			my $hit = $cache->get($key);
+			return $hit if defined $hit;
+		}
+	}
+
+	my $data = $self->{_db}->selectall_arrayref(@args);
+
+	if ($cache && !@args && defined $data) {
+		my $key = $self->_cache_key;
+		if (defined $key) {
+			defined $self->{_url}
+				? $cache->set($key, $data, $self->{_cache_ttl_url})
+				: $cache->set($key, $data);
+		}
+	}
+
+	return $data;
 }
 
 sub fetch_all {
@@ -902,8 +979,19 @@ sub fetch_all {
 	# 0-byte file: no backend was created; nothing to fetch.
 	return [] if $self->{_file_is_empty};
 
-	# Headerless CSV: data was pre-parsed with synthesized column names.
+	# Headerless CSV/XLSX: data was pre-parsed with synthesized column names.
 	return $self->{_file_data} if $self->{_file_data};
+
+	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
+	# file tables benefit from skipping disk I/O and CSV/PSV parsing.
+	my $cache = $self->{_cache};
+	if ($cache) {
+		my $key = $self->_cache_key;
+		if (defined $key) {
+			my $hit = $cache->get($key);
+			return $hit if defined $hit;
+		}
+	}
 
 	my $data = eval { $self->{_db}->selectall_hashref() };
 	if ($@) {
@@ -923,6 +1011,18 @@ sub fetch_all {
 
 	if (!@{$data}) {
 		carp $self->_msg('warn_empty_result', $table);
+	}
+
+	# Cache store: URL tables use a TTL so stale pages expire automatically;
+	# file tables encode mtime in the key so a changed file produces a natural
+	# miss without any explicit invalidation.
+	if ($cache) {
+		my $key = $self->_cache_key;
+		if (defined $key) {
+			defined $self->{_url}
+				? $cache->set($key, $data, $self->{_cache_ttl_url})
+				: $cache->set($key, $data);
+		}
 	}
 
 	return $data;

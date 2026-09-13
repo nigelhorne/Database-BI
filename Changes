@@ -45,6 +45,26 @@ Revision history for Database-BI
       exports such as "Transactions-current.csv" to open without error or any
       manual renaming of headers.
 
+    [ Enhancements ]
+    - CHI in-process caching is now active for all data sources.  URL-backed
+      tables (fetched via LWP from a remote web page) are cached for 15 minutes
+      using a TTL-based key, so repeated visits to the same /import URL avoid
+      a network round-trip on every page load.  File-backed tables are cached
+      using a key that encodes the file's mtime, so a changed file naturally
+      produces a cache miss without any explicit invalidation — the stale entry
+      is orphaned and reclaimed when the process restarts or the CHI Memory
+      driver's GC runs.  The cache TTL and driver can be overridden in
+      database_bi.conf via the "cache" key: { driver => 'File', ttl_url => '5 min' }.
+      CHI added to PREREQ_PM and cpanfile.
+    - DataSource::columns() now returns undef for URL-backed tables instead of
+      delegating to Database::Abstraction's columns().  D::A fetches URL data
+      lazily (in _open(), not in new()), so calling _db->columns() after a CHI
+      cache hit (which bypasses _open()) would trigger an unexpected live network
+      request — failing with a non-200 error even when valid cached data was
+      available.  Returning undef lets _get_columns derive column names from the
+      cached data records, which is correct since URL/HTML tables have no
+      canonical column order anyway.
+
     [ Bug Fixes ]
     - Files whose names contain spaces (e.g. "transactions for Nigel.xlsx")
       now open correctly.  Database::Abstraction validates its dbname argument

@@ -6,6 +6,7 @@ package Database::BI;
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
 use Carp	qw(croak);
+use CHI		();
 use File::Spec	();
 use Readonly;
 
@@ -15,9 +16,10 @@ our $VERSION = '0.005.2';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
-Readonly my $DEFAULT_DATA_DIR => 'data';
-Readonly my $DEFAULT_PLATFORM => 'web';
-Readonly my $DEFAULT_LANGUAGE => 'en';
+Readonly my $DEFAULT_DATA_DIR     => 'data';
+Readonly my $DEFAULT_PLATFORM     => 'web';
+Readonly my $DEFAULT_LANGUAGE     => 'en';
+Readonly my $DEFAULT_CACHE_TTL_URL => '15 min';
 
 # Transport-layer upload size cap (bytes).  Mojolicious enforces this before
 # the request body is read into memory, so an oversized upload never reaches
@@ -377,12 +379,26 @@ sub startup ($self) {
 	# open_table returns a single DataSource per table.
 	my $data_dir = $self->home->child($self->config->{data_dir})->to_string;
 
+	# In-process CHI cache: shared across all requests in the same worker process.
+	# The Memory driver needs no external services and works out of the box.
+	# Set global => 1 so the same namespace is reused across multiple open_table
+	# calls within one process rather than creating separate isolated caches.
+	my $cache_conf    = $self->config->{cache} // {};
+	my $cache_ttl_url = $cache_conf->{ttl_url} // $DEFAULT_CACHE_TTL_URL;
+	my $chi = CHI->new(
+		driver    => $cache_conf->{driver} // 'Memory',
+		global    => 1,
+		namespace => 'Database::BI',
+	);
+
 	$self->helper(open_table => sub($c, $table, %opts) {
 		# URL mode: fetch a remote HTML table directly via Database::Abstraction's
 		# URL backend (LWP::UserAgent + HTML::TableExtract).
 		if (exists $opts{url}) {
 			return Database::BI::Model::DataSource->new(
-				url => $opts{url},
+				url           => $opts{url},
+				cache         => $chi,
+				cache_ttl_url => $cache_ttl_url,
 				exists $opts{html_table_index}
 					? (html_table_index => $opts{html_table_index})
 					: (),
@@ -390,8 +406,10 @@ sub startup ($self) {
 		}
 		my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
 		Database::BI::Model::DataSource->new(
-			directory => $dir,
-			table     => $table,
+			directory     => $dir,
+			table         => $table,
+			cache         => $chi,
+			cache_ttl_url => $cache_ttl_url,
 		);
 	});
 

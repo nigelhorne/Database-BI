@@ -4,6 +4,7 @@ requires 'perl', '5.020000';
 
 requires 'CGI::Info';
 requires 'CGI::Lingua';
+requires 'CHI';
 requires 'Carp';
 requires 'DBI';
 requires 'Database::Abstraction', '0.41';
@@ -28,8 +29,8 @@ requires 'Sub::Protected';
 on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'DBD::Excel';
-	requires 'Excel::Writer::XLSX';
 	requires 'Encode';
+	requires 'Excel::Writer::XLSX';
 	requires 'IPC::System::Simple';
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';
