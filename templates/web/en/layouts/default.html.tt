@@ -196,6 +196,56 @@
     }
     .btn-dedup--active:hover { background: #3a50a0; }
 
+    /* Row/column selection checkbox column */
+    .sel-th, .sel-td {
+      width: 2.2rem;
+      min-width: 2.2rem;
+      padding: 0.4rem 0.5rem;
+      text-align: center;
+      cursor: default;
+      user-select: none;
+    }
+    .sel-th { background: #2c3e7a; }
+    .sel-td { border-bottom: 1px solid #e4e8f0; }
+    .sel-th input[type="checkbox"],
+    .sel-td input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: #c0392b;
+      width: 1rem;
+      height: 1rem;
+      vertical-align: middle;
+    }
+
+    /* Selected row highlight */
+    tbody tr.row-selected > td,
+    tbody tr.row-selected > .sel-td {
+      background: #fdf0f0 !important;
+      outline: 1px solid #e07070;
+      outline-offset: -1px;
+    }
+
+    /* Selected column highlight — body cells */
+    tbody td.col-selected,
+    tfoot td.col-selected {
+      background: rgba(192, 57, 43, 0.08) !important;
+      outline: 1px solid #e07070;
+      outline-offset: -1px;
+    }
+
+    /* Delete-selected toolbar button — destructive red accent */
+    .btn-delete-sel {
+      flex-shrink: 0;
+      padding: 0.3rem 0.9rem;
+      border: 1px solid #c0392b;
+      border-radius: 6px;
+      background: transparent;
+      color: #c0392b;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    .btn-delete-sel:hover { background: #fdecea; }
+
     /* "Combine data" button — same shape as Merge, teal accent */
     .btn-combine {
       flex-shrink: 0;

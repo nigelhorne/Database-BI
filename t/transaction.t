@@ -1798,4 +1798,90 @@ subtest 'Transaction 29 -- Berkeley DB file open lifecycle' => sub {
 	}
 };
 
+subtest 'Transaction 30 -- Row and column selection / deletion UI contract' => sub {
+	# Verify that the dashboard HTML carries the structural elements required for
+	# in-browser row/column selection and deletion:
+	#
+	#   - An empty selector column <th> injected into the table header
+	#   - A "Delete selected" button (#btn-delete-sel, initially hidden via the
+	#     `hidden` attribute) in the toolbar
+	#   - JS functions for selection state, deletion, and Ctrl+click column selection
+	#   - Delete key listener wired to deleteSelected
+	#   - The sel-th / sel-td CSS classes in the layout stylesheet (default.html.tt)
+	#
+	# These are JavaScript-driven features; only the presence and shape of the
+	# server-rendered HTML scaffolding is verified here.  The JS logic itself is
+	# exercised in the browser by the user.
+
+	plan tests => 14;
+
+	$t->get_ok('/view/sales')->status_is(200, 'GET /view/sales returns 200');
+
+	# Toolbar: delete-selected button present and initially hidden.
+	$t->content_like(
+		qr/id="btn-delete-sel"[^>]*hidden/,
+		'btn-delete-sel button is present and initially hidden'
+	);
+	$t->content_like(
+		qr/btn-delete-sel/,
+		'btn-delete-sel CSS class present in response'
+	);
+
+	# JS: selector-column injection function present.
+	$t->content_like(
+		qr/injectSelCol/,
+		'injectSelCol function present in JS'
+	);
+
+	# JS: deleteSelected function defined.
+	$t->content_like(
+		qr/function deleteSelected/,
+		'deleteSelected function defined in JS'
+	);
+
+	# JS: toggleColSel function for Ctrl+click column selection.
+	$t->content_like(
+		qr/function toggleColSel/,
+		'toggleColSel function defined in JS'
+	);
+
+	# JS: toggleRowSel function for row selection.
+	$t->content_like(
+		qr/function toggleRowSel/,
+		'toggleRowSel function defined in JS'
+	);
+
+	# JS: Ctrl+click handler wired to column header click.
+	$t->content_like(
+		qr/ctrlKey.*metaKey|e\.ctrlKey/,
+		'Ctrl+click handler present in column header click listener'
+	);
+
+	# JS: SEL offset constant defined (used to skip the checkbox column in index math).
+	$t->content_like(
+		qr/var SEL\s*=\s*1/,
+		'SEL offset constant (= 1) defined for checkbox column'
+	);
+
+	# CSS: sel-th and sel-td classes present in the page (via the layout stylesheet).
+	$t->content_like(
+		qr/\.sel-th/,
+		'.sel-th CSS class present in page (layout stylesheet)'
+	);
+	$t->content_like(
+		qr/\.row-selected/,
+		'.row-selected CSS class present in page'
+	);
+	$t->content_like(
+		qr/\.col-selected/,
+		'.col-selected CSS class present in page'
+	);
+
+	# JS: Delete key listener wired to deleteSelected.
+	$t->content_like(
+		qr/e\.key.*Delete|key.*===.*Delete/,
+		'Delete key handler present in JS'
+	);
+};
+
 done_testing();

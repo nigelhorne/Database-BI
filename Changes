@@ -44,8 +44,6 @@ Revision history for Database-BI
       numeric suffix (Date2, Amount2, ...).  This allows bank and accounting
       exports such as "Transactions-current.csv" to open without error or any
       manual renaming of headers.
-
-    [ Enhancements ]
     - CHI in-process caching is now active for all data sources.  URL-backed
       tables (fetched via LWP from a remote web page) are cached for 15 minutes
       using a TTL-based key, so repeated visits to the same /import URL avoid
@@ -64,6 +62,16 @@ Revision history for Database-BI
       available.  Returning undef lets _get_columns derive column names from the
       cached data records, which is correct since URL/HTML tables have no
       canonical column order anyway.
+    - Rows and columns can now be selected and deleted in the virtual table view.
+      A checkbox column is injected at the left edge of every data table;
+      clicking a row's checkbox selects it (turning the row pink) and Ctrl+click
+      on any column header selects the column (highlighting all its cells in red).
+      A "Delete selected" button appears in the toolbar as soon as any rows or
+      columns are selected; clicking it removes them from the in-browser view
+      without touching the underlying file.  Row selection supports a
+      select-all/deselect-all checkbox in the header.  The record count in the
+      toolbar is updated after deletion.  Sorting, drag-to-reorder, and the
+      Totals row all continue to work correctly after deletions.
 
     [ Bug Fixes ]
     - CSV and PSV files whose first line is blank (e.g. a file containing only
