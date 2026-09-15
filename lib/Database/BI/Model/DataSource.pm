@@ -141,6 +141,7 @@ Readonly our %MESSAGES => (
 	error_url_invalid		=> 'DataSource: URL "%s" must begin with http:// or https://',
 	error_url_fetch			=> 'DataSource: failed to open HTML table at "%s": %s',
 	error_no_safe_id		=> 'DataSource: table "%s" has no column with a safe identifier name (letters, digits, underscore); rename at least one column header',
+	error_no_tables			=> 'DataSource: SQLite file "%s" contains no user-defined tables',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -266,6 +267,7 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
   error_directory_missing     -- supplied directory does not exist / is unreadable
   error_table_name_invalid    -- table name fails the safe-identifier check
   error_backend_init          -- Database::Abstraction subclass could not be instantiated
+  error_no_tables             -- SQLite file opened successfully but contains no user-defined tables
 
 =cut
 
@@ -417,7 +419,8 @@ sub _init_url_backend :Protected {
 #      per row, producing a single comma-joined string instead of columns.
 #   2. id defaults to 'entry' — the slurp filter greps on that column; if it
 #      doesn't exist every row is silently discarded.
-# Returns an empty hashref for non-CSV/PSV/XLSX formats (SQLite, XML, etc.).
+# Returns an empty hashref for non-CSV/PSV/XLSX/SQLite formats (XML, etc.).
+# For SQLite/.db files that can be opened, returns { sqlite_tables => [...] }.
 sub _detect_file_info :Protected {
 	my ($dir, $table) = @_;
 
@@ -619,6 +622,33 @@ sub _detect_file_info :Protected {
 			file_size => -s $path,
 		};
 	}
+
+	# SQLite / Berkeley DB: peek at sqlite_master to discover the internal table
+	# names.  _init_backend uses this list to auto-select the correct table when
+	# the filename stem (dbname) differs from the table name inside the file —
+	# e.g. obituaries.sql whose internal table is called "deceased".  If the
+	# file is not a valid SQLite database (e.g. a Berkeley DB file) the eval
+	# fails and we return {} so _init_backend/D::A handles it natively.
+	for my $ext (qw(sql db)) {
+		my $path = File::Spec->catfile($dir, "$table.$ext");
+		next unless -r $path;
+		my $tables = eval {
+			require DBI;
+			my $dbh = DBI->connect(
+				"dbi:SQLite:dbname=$path", q{}, q{},
+				{ RaiseError => 1, PrintError => 0, AutoCommit => 1 });
+			my $t = $dbh->selectcol_arrayref(
+				q{SELECT name FROM sqlite_master }
+				. q{WHERE type='table' AND name NOT LIKE 'sqlite_%' }
+				. q{ORDER BY name});
+			$dbh->disconnect;
+			$t;
+		};
+		# defined $tables means the eval succeeded (even an empty list is valid)
+		return { sqlite_tables => ($tables // []), file_size => -s $path }
+			if defined $tables;
+		last;	# file found but not SQLite — do not try the other ext
+	}
 	return {};
 }
 
@@ -800,10 +830,45 @@ sub _init_backend :Protected {
 		}
 	}
 
+	# SQLite: _detect_file_info probed sqlite_master and returned the internal
+	# table names.  When $dbname (the filename stem or its safe alias) is not
+	# among those names, auto-select the first user table and create a symlink
+	# from <actual_table>.<ext> to the original file so D::A can issue SQL
+	# against the real table name without needing the filename to match.
+	# D::A uses 'dbname' to find the file and 'table' for the SELECT statement,
+	# so both must be set to the actual table name when a mismatch is corrected.
+	my $da_table = $table;	# D::A 'table' param — controls the SQL table name
+	if (exists $info->{sqlite_tables}) {
+		my @tbls = @{ $info->{sqlite_tables} };
+		croak $self->_msg('error_no_tables', $raw_table) unless @tbls;
+		my ($match) = grep { $_ eq $dbname } @tbls;
+		unless (defined $match) {
+			my $actual   = $tbls[0];
+			my ($src_ext) = grep { -f File::Spec->catfile($dir, "$raw_table.$_") }
+				qw(sql db);
+			$src_ext //= 'sql';
+			require File::Temp;
+			my $tmp     = File::Temp->newdir(CLEANUP => 1);
+			my $abs_src = File::Spec->rel2abs(
+				File::Spec->catfile($dir, "$raw_table.$src_ext"));
+			my $link = File::Spec->catfile("$tmp", "$actual.$src_ext");
+			{
+				no autodie;
+				symlink($abs_src, $link)
+					or croak $self->_msg('error_backend_init', $raw_table,
+						"cannot create table-name symlink for '$raw_table.$src_ext': $!");
+			}
+			$self->{_tmpdir} = $tmp;
+			$dbname   = $actual;	# D::A uses this for the filename stem
+			$da_table = $actual;	# D::A uses this for SELECT * FROM <table>
+			$da_dir   = "$tmp";
+		}
+	}
+
 	my $db = eval {
 		$pkg->new({
 			directory      => $da_dir,
-			table          => $table,
+			table          => $da_table,
 			# D::A >= 0.41 uses the class-name suffix as dbname, not the table
 			# parameter, so a package like Database::BI::_DB::Orders would look
 			# for Orders.csv on a case-sensitive filesystem even when table =>

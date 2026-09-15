@@ -2,6 +2,7 @@
 
 [% IF error %]
 <p class="error">[% error | html %]</p>
+[% IF hint %]<p class="hint">[% hint | html %]</p>[% END %]
 [% END %]
 
 [%- IF back_url %]

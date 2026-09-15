@@ -75,6 +75,9 @@ Revision history for Database-BI
       Totals row all continue to work correctly after deletions.
 
     [ Bug Fixes ]
+    - When attempting to drag and drop a file larger than MAX_UPLOAD_BYTES,
+      a better error message is displayed which stays on the screen for
+      3 seconds
     - CSV and PSV files whose first line is blank (e.g. a file containing only
       a single newline character) are now treated as empty files rather than
       croaking "no column with a safe identifier name".  _detect_file_info now

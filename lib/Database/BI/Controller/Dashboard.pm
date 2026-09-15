@@ -112,7 +112,8 @@ sub _i18n :Protected ($self, $key, @args) {
 # Hostname-based targets (e.g. http://internal.corp.example.com/) are allowed
 # at this layer; block them with egress firewall rules instead.
 sub _is_safe_url {
-	my ($url) = @_;
+	my $url = $_[0];
+
 	return 0 unless $url =~ m{\Ahttps?://([^/:?\[\]#]+)}i;
 	my $host = lc $1;
 
@@ -145,7 +146,7 @@ sub _is_safe_url {
 #          no template directory exists for the resolved language.
 # Exit:    Returns ($platform, $language) -- both guaranteed non-empty strings.
 sub _resolve_template :Protected ($self) {
-	my $conf         = $self->app->config;
+	my $conf         = $self->app->config();
 	my $cfg_platform = $conf->{platform} // 'web';
 	my $cfg_language = $conf->{language} // 'en';
 
@@ -198,7 +199,7 @@ sub _detect_platform ($user_agent, $fallback) {
 # Side Effects: filesystem stats for template directories;
 #               temporarily sets $ENV{HTTP_ACCEPT_LANGUAGE} with local().
 sub _resolve_language :Protected ($self, $platform, $default) {
-	my $accept = $self->req->headers->accept_language // '';
+	my $accept = $self->req->headers->accept_language() // '';
 	return $default unless $accept;
 
 	# Discover supported languages from template directories so CGI::Lingua
@@ -268,8 +269,7 @@ sub _open_spec :Protected ($self, $spec) {
 		return () unless grep { -f $data_dir->child("$table.$_") } @SUPPORTED_EXT;
 		my $src = eval { $self->open_table($table, directory => $data_dir->to_string) };
 		return ($src, $table) if $src && !$@;
-	}
-	elsif ($spec =~ /\Apath:(.+)\z/) {
+	} elsif ($spec =~ /\Apath:(.+)\z/) {
 		my $file = eval { Mojo::File->new($1)->realpath };
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
@@ -277,8 +277,7 @@ sub _open_spec :Protected ($self, $spec) {
 			my $src = eval { $self->open_table($table, directory => $dir) };
 			return ($src, $file->basename) if $src && !$@;
 		}
-	}
-	elsif ($spec =~ $URL_SPEC_RE) {
+	} elsif($spec =~ $URL_SPEC_RE) {
 		my $url = $1;
 		return () unless _is_safe_url($url);
 		my $src = eval { $self->open_table('', url => $url) };
@@ -294,9 +293,9 @@ sub _open_spec :Protected ($self, $spec) {
 # Entry:   $spec is a "table:name" or "path:/abs" string.
 # Exit:    Returns a URL string beginning with '/'.
 sub _spec_to_url :Protected ($self, $spec) {
-	return "/view/$1"                         if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
-	return '/open?path=' . url_escape($1)     if $spec =~ /\Apath:(.+)\z/;
-	return '/import?url=' . url_escape($1)    if $spec =~ $URL_SPEC_RE;
+	return "/view/$1" if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
+	return '/open?path=' . url_escape($1) if $spec =~ /\Apath:(.+)\z/;
+	return '/import?url=' . url_escape($1) if $spec =~ $URL_SPEC_RE;
 	return '/';
 }
 
@@ -1064,6 +1063,14 @@ sub open_file ($self) {
 	my ($source, $records);
 	eval { $source = $self->open_table($table, directory => $dir->to_string); $records = $source->fetch_all };
 	if ($@) {
+		# Provide a SQLite-specific hint when the error looks like a table-name
+		# mismatch or a missing-tables failure so the user knows what to do.
+		my $hint;
+		if ($filename =~ /\.(?:sql|db)\z/i) {
+			$hint = 'SQLite files must contain at least one user-defined table. '
+				. 'The table name inside the database does not need to match the '
+				. 'filename — the application auto-detects and uses the first table found.';
+		}
 		return $self->render(
 			template   => "$platform/$language/home",
 			handler    => 'tt',
@@ -1071,6 +1078,7 @@ sub open_file ($self) {
 			tables     => [],
 			title      => 'Error',
 			error      => $self->_i18n('error_file_open', $filename, $@),
+			hint       => $hint,
 			back_url   => $back,
 			back_label => 'Back to browser',
 		);

@@ -1689,6 +1689,9 @@ subtest 'Transaction 27 -- filename with spaces opens without unsafe-dbname erro
 		{
 			my $dbh = DBI->connect("dbi:SQLite:dbname=$db_path", undef, undef,
 				{ RaiseError => 1, PrintError => 0 });
+			# Table is named "my_report" -- matches the sanitized stem; the
+			# auto-detect in _detect_file_info confirms the match, no symlink
+			# is needed beyond the unsafe-dbname sanitization one.
 			$dbh->do('CREATE TABLE my_report (item TEXT, amount REAL)');
 			$dbh->do(q{INSERT INTO my_report VALUES ('Widget', 9.99)});
 			$dbh->do(q{INSERT INTO my_report VALUES ('Gadget', 14.99)});
@@ -1882,6 +1885,55 @@ subtest 'Transaction 30 -- Row and column selection / deletion UI contract' => s
 		qr/e\.key.*Delete|key.*===.*Delete/,
 		'Delete key handler present in JS'
 	);
+};
+
+subtest 'Transaction 31 -- SQLite file with mismatched internal table name opens correctly' => sub {
+	# Regression test: _init_backend previously required the SQLite table name
+	# to match the filename stem (e.g. obituaries.sql must contain a table called
+	# "obituaries").  The fix probes sqlite_master and auto-selects the first
+	# user table via a temporary symlink.
+	SKIP: {
+		eval { DBI->install_driver('SQLite') }
+			or skip 'DBD::SQLite not available', 9;
+
+		plan tests => 9;
+
+		my $dir = tempdir(CLEANUP => 1);
+
+		# Phase 1: create a SQLite file whose internal table name ("deceased")
+		# does NOT match the filename stem ("obituaries").
+		my $db_path = Mojo::File->new($dir)->child('obituaries.sql')->to_string;
+		{
+			my $dbh = DBI->connect("dbi:SQLite:dbname=$db_path", undef, undef,
+				{ RaiseError => 1, PrintError => 0 });
+			$dbh->do('CREATE TABLE deceased (name TEXT, date TEXT)');
+			$dbh->do(q{INSERT INTO deceased VALUES ('Alice Smith', '2024-01-15')});
+			$dbh->do(q{INSERT INTO deceased VALUES ('Bob Jones', '2024-03-22')});
+			$dbh->disconnect;
+		}
+		ok(-f $db_path, 'Phase 1: SQLite file with mismatched table name exists');
+
+		# Phase 2: /open must return 200 -- the old code would get
+		# "no such table: obituaries" and render an error page.
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 2: /open returns 200 despite table/filename mismatch');
+
+		# Phase 3: no error paragraph in the response.
+		# Note: "Could not open file." also appears as a JS string in the drag-
+		# and-drop handler on every page, so we match against the error <p> tag.
+		$t->content_unlike(qr/no such table/i,
+			'Phase 3: no "no such table" error rendered');
+		$t->content_unlike(qr/class="error"/,
+			'Phase 3: no error paragraph rendered');
+
+		# Phase 4: data from the "deceased" table is visible in the page.
+		$t->content_like(qr/Alice Smith/, 'Phase 4a: first row name visible');
+		$t->content_like(qr/Bob Jones/,   'Phase 4b: second row name visible');
+
+		# Phase 5: idempotency -- a second request hits the cached data.
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 5: second /open also succeeds (idempotent)');
+	}
 };
 
 done_testing();
