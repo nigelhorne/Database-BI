@@ -42,8 +42,17 @@
   <div class="action-card">
     <span class="action-card-icon" aria-hidden="true">&#128269;</span>
     <h2 class="action-card-title">Browse your files</h2>
-    <p class="action-card-desc">Navigate your folders to find and open a data file stored on this computer.</p>
-    <a href="/browse" class="btn-action">Browse filesystem&hellip;</a>
+    <p class="action-card-desc">Type a path directly, or navigate your folders to find a data file.</p>
+    <form action="/open" method="GET" class="action-url-form">
+      <input type="text" name="path" id="bi-path-input"
+             placeholder="/path/to/file.csv"
+             required autocomplete="off" class="action-url-input"
+             aria-label="File path">
+      <div class="action-url-row">
+        <button type="submit" class="btn-action">Open</button>
+        <a href="/browse" class="btn-action">Browse filesystem&hellip;</a>
+      </div>
+    </form>
   </div>
 
   <div class="action-card">

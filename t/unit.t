@@ -226,7 +226,14 @@ subtest 'DataSource.fetch_all -- returns arrayref of hashrefs' => sub {
 
 # ---  GET /  ----------------------------------------------------------------
 subtest 'GET / -- home page lists available tables' => sub {
-	$t->get_ok('/')->status_is(200)->content_type_like(qr{text/html});
+	# Status and content-type smoke test.
+	$t->get_ok('/')->status_is(200)->content_type_like(qr{text/html})
+	  # The Browse card must contain a path text input (id="bi-path-input")
+	  # and its form must target /open.  These assertions exist specifically
+	  # to catch the regression where the path input was silently removed
+	  # from home.html.tt without any test failing.
+	  ->content_like(qr/id="bi-path-input"/, 'home page has path input field')
+	  ->content_like(qr/action="\/open"/, 'Browse card form targets /open');
 	delete $ledger{'GET./'};
 };
 
