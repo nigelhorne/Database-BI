@@ -811,22 +811,30 @@ sub _init_backend :Protected {
 		return;
 	}
 
+	# Headerless CSV or XLSX: _detect_file_info already pre-loaded all rows.
+	# MUST check before error_no_safe_id: XLSX files with all-unsafe column
+	# headers (e.g. "First Name", "Account Number") have id => undef because
+	# none of the headers match the safe-identifier regex, but the data is
+	# pre-loaded and the id column is irrelevant for the direct-data fast path.
+	# Checking error_no_safe_id first would croak spuriously for valid XLSX files.
+	if ($info->{_headerless_data}) {
+		$self->{_id_col}  = $info->{id} // 'entry';
+		$self->{_columns} = $info->{columns};
+		$self->{_file_data} = $info->{_headerless_data};
+		return;
+	}
+
 	# _detect_file_info returns undef for id when every column header contains
 	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
 	# Falling back to the D::A default ('entry') would silently return 0 rows
 	# since no 'entry' column exists.  Croak with a human-readable message.
+	# This guard applies only to CSV/PSV/SQLite/XML -- headerless and XLSX paths
+	# are handled by the _headerless_data check immediately above.
 	croak $self->_msg('error_no_safe_id', $table)
 		if exists $info->{columns} && !defined $info->{id};
 	my $id_col = $info->{id} // 'entry';
 	$self->{_id_col}  = $id_col;
 	$self->{_columns} = $info->{columns};	# undef for SQLite/XML
-
-	# Headerless CSV or XLSX: _detect_file_info already pre-loaded all rows.
-	# Store and skip D::A entirely.
-	if ($info->{_headerless_data}) {
-		$self->{_file_data} = $info->{_headerless_data};
-		return;
-	}
 
 	# D::A validates dbname as a SQL identifier and rejects names that contain
 	# spaces or other characters that are illegal in SQL (e.g. "transactions for

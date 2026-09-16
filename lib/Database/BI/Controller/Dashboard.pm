@@ -1661,13 +1661,15 @@ C<POST /export> -- Write the current logical view to a chosen filesystem path.
   f=         string   (repeatable) Filter specs.
   dir=       string   Target directory (must exist; resolved via realpath).
   filename=  string   Output filename including extension.  Extension determines
-                      format: C<.csv> -> RFC 4180 CSV; C<.sql> -> SQLite.
+                      format: C<.csv> -> RFC 4180 CSV; C<.sql> -> SQLite;
+                      C<.json> -> JSON array of row objects.
 
 =head4 DOMAIN CONSTRAINTS: filename=
 
-The extension check uses C</\.csv\z/i> (CSV) or C</\.sql\z/i> (SQLite):
-the C</i> flag makes matching case-insensitive, so C<.CSV> and C<.SQL>
-are accepted alongside lowercase forms.  Everything else returns 415.
+The extension check uses C</\.csv\z/i> (CSV), C</\.sql\z/i> (SQLite), or
+C</\.json\z/i> (JSON): the C</i> flag makes matching case-insensitive, so
+C<.CSV>, C<.SQL>, and C<.JSON> are accepted alongside lowercase forms.
+Everything else returns 415.
 
 Path separator characters (C</> and C<\>) in C<filename> are stripped
 first via C<m{([^/\\]+)\z}> -- only the basename is kept, preventing
@@ -1677,12 +1679,12 @@ directory traversal.
 
 =item Valid partitions
 
-C<report.csv>, C<report.sql>, C<REPORT.CSV>, C<report.SQL>.  A
-single-character stem (C<a.csv>) is also valid.
+C<report.csv>, C<report.sql>, C<report.json>, C<REPORT.CSV>, C<report.SQL>.
+A single-character stem (C<a.csv>) is also valid.
 
 =item Invalid partitions (415)
 
-C<report.txt>, C<report.json>, C<report> (no extension), empty string.
+C<report.txt>, C<report> (no extension), empty string.
 
 =back
 
