@@ -139,6 +139,25 @@ sub _is_safe_url {
 	return 1;
 }
 
+# _safe_back_url($url) -> $url | undef
+#
+# Purpose: Sanitise a user-supplied back-link URL before it is passed to the
+#          template and rendered inside an href="" attribute.  Template Toolkit's
+#          | html filter encodes <>&" but does NOT block the javascript: or
+#          data: URI schemes, so a raw param('back') = "javascript:alert(1)"
+#          would be rendered verbatim inside the href and execute on click.
+#
+# Rule:    Only absolute http(s) URLs and root-relative paths (starting with /)
+#          are permitted.  Anything else (javascript:, data:, vbscript:, empty
+#          strings, undef) returns undef so the template renders no href.
+#
+sub _safe_back_url {
+	my ($url) = @_;
+	return undef unless defined $url && length($url);
+	return $url if $url =~ m{\A(?:/(?!/)|https?://)}i;
+	return undef;
+}
+
 # _resolve_template($self) -> ($platform, $language)
 #
 # Purpose: Read platform and language from config, then resolve the Accept-Language
@@ -877,7 +896,7 @@ sub view ($self) {
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
 		dedup            => $dedup,
-		back_url         => $self->param('back2'),
+		back_url         => _safe_back_url($self->param('back2')),
 		back_label       => $self->param('back2_label') // 'Back',
 		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup),
 	);
@@ -1083,7 +1102,7 @@ sub open_file ($self) {
 			hint       => $hint,
 			back_url   => $back,
 			back_label => 'Back to browser',
-			back2_url  => $self->param('back2'),
+			back2_url  => _safe_back_url($self->param('back2')),
 			back2_label => $self->param('back2_label') // 'Back',
 		);
 	}
@@ -1103,7 +1122,7 @@ sub open_file ($self) {
 		title            => $filename,
 		back_url         => $back,
 		back_label       => 'Back to browser',
-		back2_url        => $self->param('back2'),
+		back2_url        => _safe_back_url($self->param('back2')),
 		back2_label      => $self->param('back2_label') // 'Back',
 		file_path        => $file->to_string,
 		left_spec        => $lspec,
@@ -1420,7 +1439,7 @@ sub join_tables ($self) {
 		title            => $title,
 		back_url         => $self->_spec_to_url($left_spec),
 		back_label       => "Back to $left_label",
-		back2_url        => $self->param('back2'),
+		back2_url        => _safe_back_url($self->param('back2')),
 		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $left_spec,
 		combine_specs    => [],
@@ -1545,7 +1564,7 @@ sub combine_tables ($self) {
 		title            => $title,
 		back_url         => $self->_spec_to_url($left_spec),
 		back_label       => "Back to $left_label",
-		back2_url        => $self->param('back2'),
+		back2_url        => _safe_back_url($self->param('back2')),
 		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $left_spec,
 		combine_specs    => \@combine_specs,
@@ -2015,7 +2034,7 @@ sub clear_uploads ($self) {
 sub graph_view ($self) {
 	my $x_col = $self->param('x') // '';
 	my $y_col = $self->param('y') // '';
-	my $back  = $self->param('back') // '/';
+	my $back  = _safe_back_url($self->param('back')) // '/';
 
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
@@ -2079,7 +2098,7 @@ sub pie_view ($self) {
 	my $cat_col     = $self->param('cat') // '';
 	my $val_col     = $self->param('val') // '';
 	my $donut       = $self->param('donut') ? 1 : 0;
-	my $back        = $self->param('back') // '/';
+	my $back        = _safe_back_url($self->param('back')) // '/';
 	my @filter_specs = $self->every_param('f');
 
 	return $self->render(text => 'Missing cat or val column parameter', status => 400)
