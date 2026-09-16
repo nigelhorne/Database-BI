@@ -2,9 +2,9 @@ package Database::BI;
 
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
-use Carp	qw(croak);
-use CHI		();
-use File::Spec	();
+use Carp qw(croak);
+use CHI	();
+use File::Spec ();
 use Readonly;
 
 use Database::BI::Model::DataSource;
