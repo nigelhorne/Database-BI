@@ -21,17 +21,14 @@ requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Params::Get';
 requires 'Params::Validate::Strict', '0.39';
 requires 'Readonly';
-requires 'Scalar::Util', '1.40';
 requires 'Socket', '2.010';
 requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected';
 
 on 'test' => sub {
 	requires 'DBD::CSV';
-	requires 'DBD::Excel';
 	requires 'Encode';
 	requires 'Excel::Writer::XLSX';
-	requires 'IPC::System::Simple';
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';
 	requires 'Test::Mojo';

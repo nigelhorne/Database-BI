@@ -1,8 +1,5 @@
 package Database::BI;
 
-# FIXME: Don't use Spreadsheet::ParseXLXS files when
-#	Database::Abstraction is fixed
-
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
 use Carp	qw(croak);
