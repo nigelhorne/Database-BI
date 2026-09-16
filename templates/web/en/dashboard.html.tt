@@ -42,7 +42,7 @@
 </style>
 
 [%- IF back_url -%]
-<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a></p>
+<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a>[%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
 [%- ELSE -%]
 <p class="back-link"><a href="/">&larr; Choose another database</a></p>
 [%- END -%]
@@ -325,7 +325,7 @@
 
     <h3 class="graph-panel-title">&#x25D4; Pie chart</h3>
 
-    <p class="graph-panel-desc">Choose a category column and a numeric value column, then click Plot.</p>
+    <p class="graph-panel-desc">Choose a category column, then either count rows per category or pick a numeric column to sum.</p>
 
     <div class="graph-fields-row">
       <div class="join-field">
@@ -338,9 +338,10 @@
         </select>
       </div>
       <div class="join-field">
-        <label for="pie-val-sel">Sum of (numeric)</label>
+        <label for="pie-val-sel">Value</label>
         <select id="pie-val-sel" name="val" required>
-          <option value="">&#x2014; select column &#x2014;</option>
+          <option value="">&#x2014; select &#x2014;</option>
+          <option value="__count__" style="font-weight:bold">Count (rows)</option>
           [%- FOREACH col IN columns -%]
           <option value="[% col | html %]">[% col | html %]</option>
           [%- END -%]
@@ -1402,7 +1403,7 @@ function parseAccounting(v) {
     btnDo.disabled = !(catSel.value && valSel.value);
   }
 
-  // Rebuild the value select to show only numeric (non-date) columns.
+  // Rebuild the value select: Count option first (always), then numeric columns.
   function buildPieValSelect() {
     var tbl = document.querySelector('table[data-table]') || document.querySelector('table');
     if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return;
@@ -1410,6 +1411,13 @@ function parseAccounting(v) {
     var rows    = Array.from(tbl.tBodies[0].rows);
     var prev    = valSel.value;
     while (valSel.options.length > 1) valSel.remove(1);
+    // Count option always appears first, bold to distinguish it from column names.
+    var countOpt = document.createElement('option');
+    countOpt.value = '__count__';
+    countOpt.textContent = 'Count (rows)';
+    countOpt.style.fontWeight = 'bold';
+    if (prev === '__count__') countOpt.selected = true;
+    valSel.appendChild(countOpt);
     headers.forEach(function (th, idx) {
       var name  = th.textContent.trim();
       var vals  = rows.map(function (r) {

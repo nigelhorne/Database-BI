@@ -877,6 +877,8 @@ sub view ($self) {
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
 		dedup            => $dedup,
+		back_url         => $self->param('back2'),
+		back_label       => $self->param('back2_label') // 'Back',
 		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup),
 	);
 }
@@ -1081,6 +1083,8 @@ sub open_file ($self) {
 			hint       => $hint,
 			back_url   => $back,
 			back_label => 'Back to browser',
+			back2_url  => $self->param('back2'),
+			back2_label => $self->param('back2_label') // 'Back',
 		);
 	}
 
@@ -1099,6 +1103,8 @@ sub open_file ($self) {
 		title            => $filename,
 		back_url         => $back,
 		back_label       => 'Back to browser',
+		back2_url        => $self->param('back2'),
+		back2_label      => $self->param('back2_label') // 'Back',
 		file_path        => $file->to_string,
 		left_spec        => $lspec,
 		combine_specs    => [],
@@ -1414,6 +1420,8 @@ sub join_tables ($self) {
 		title            => $title,
 		back_url         => $self->_spec_to_url($left_spec),
 		back_label       => "Back to $left_label",
+		back2_url        => $self->param('back2'),
+		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $left_spec,
 		combine_specs    => [],
 		current_joins    => \@join_specs,
@@ -1537,6 +1545,8 @@ sub combine_tables ($self) {
 		title            => $title,
 		back_url         => $self->_spec_to_url($left_spec),
 		back_label       => "Back to $left_label",
+		back2_url        => $self->param('back2'),
+		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $left_spec,
 		combine_specs    => \@combine_specs,
 		current_joins    => [],
@@ -2082,32 +2092,50 @@ sub pie_view ($self) {
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
 		unless $col_set{$cat_col};
-	return $self->render(text => "Column not found: $val_col", status => 400)
-		unless $col_set{$val_col};
 
-	# Aggregate: sum val_col per cat_col value, using accounting-notation handling.
+	# '__count__' is the sentinel value sent when the user picks "Count (rows)".
+	# In that mode we count rows per category instead of summing a numeric column.
+	my $count_mode = ($val_col eq '__count__');
+	return $self->render(text => "Column not found: $val_col", status => 400)
+		unless $count_mode || $col_set{$val_col};
+
+	# Detect the currency symbol (e.g. $ £ EUR) from the first non-empty raw
+	# value.  The regex captures the first character that is not a digit,
+	# whitespace, comma, period, hyphen, or open-paren -- that character is
+	# the currency prefix.  Accounting-notation values like ($1,234.56) are
+	# handled by the optional open-paren before the currency character.
+	# Not used in count mode because counts are always plain integers.
+	my $currency_symbol = '';
 	my %totals;
 	for my $row (@{$records}) {
 		my $cat = $row->{$cat_col} // '';
 		next unless length($cat);
-		my $v = $row->{$val_col} // '';
-		next unless length($v);
-		my $is_acct_neg = ($v =~ /\A\s*\(/);
-		(my $v_num = $v) =~ s/[^\d.\-]//g;
-		$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
-		next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
-		$totals{$cat} += $v_num + 0;
+		if ($count_mode) {
+			$totals{$cat}++;
+		} else {
+			my $v = $row->{$val_col} // '';
+			next unless length($v);
+			if (!length($currency_symbol) && $v =~ /\A\s*\(?\s*([^\d\s.,\-\(])/) {
+				$currency_symbol = $1;
+			}
+			# Capture accounting-notation sign before stripping non-numeric chars.
+			my $is_acct_neg = ($v =~ /\A\s*\(/);
+			(my $v_num = $v) =~ s/[^\d.\-]//g;
+			$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
+			next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
+			$totals{$cat} += $v_num + 0;
+		}
 	}
 
 	return $self->render(
-		text   => 'No plottable data: no rows have valid numeric values in the value column.',
+		text   => 'No plottable data: no rows have valid data in the selected columns.',
 		status => 200,
 	) unless %totals;
 
 	my @slices = map { [$_, $totals{$_}] } sort keys %totals;
 
 	require HTML::D3;
-	my $title   = "$val_col by $cat_col";
+	my $title   = $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
 	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
 		->render_pie_chart_snippet(\@slices, {
 			animated    => 1,
@@ -2123,12 +2151,13 @@ sub pie_view ($self) {
 		template     => "$platform/$language/pie",
 		format       => 'html',
 		title        => $title,
-		pie_html     => $snippet->{html},
-		back_url     => $back,
-		back_label   => 'Back to table',
-		slice_count  => scalar @slices,
-		cat_col      => $cat_col,
-		val_col      => $val_col,
+		pie_html        => $snippet->{html},
+		back_url        => $back,
+		back_label      => 'Back to table',
+		slice_count     => scalar @slices,
+		cat_col         => $cat_col,
+		val_col         => $val_col,
+		currency_symbol => $currency_symbol,
 	);
 }
 

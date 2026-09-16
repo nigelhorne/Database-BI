@@ -54,19 +54,24 @@
 </div>
 
 <!-- Metadata read by the drill-down click handler below. -->
-<div id="pie-meta" data-back-url="[% back_url | html %]" data-cat-col="[% cat_col | html %]" hidden></div>
+<div id="pie-meta" data-back-url="[% back_url | html %]" data-cat-col="[% cat_col | html %]" data-currency="[% currency_symbol | html %]" hidden></div>
 
 <script>
 // Clicking a slice or legend entry filters the source table to that category.
 (function () {
-  var meta    = document.getElementById('pie-meta');
-  var backUrl = meta ? meta.getAttribute('data-back-url') : '';
-  var catCol  = meta ? meta.getAttribute('data-cat-col')  : '';
+  var meta     = document.getElementById('pie-meta');
+  var backUrl  = meta ? meta.getAttribute('data-back-url') : '';
+  var catCol   = meta ? meta.getAttribute('data-cat-col')  : '';
+  var currency = meta ? (meta.getAttribute('data-currency') || '') : '';
   if (!backUrl || !catCol) return;
 
   function drillDown(label) {
-    var sep = backUrl.indexOf('?') >= 0 ? '&' : '?';
-    window.location.href = backUrl + sep + 'f=' + encodeURIComponent(catCol + ':eq:' + label);
+    var pieUrl = window.location.href;
+    var sep    = backUrl.indexOf('?') >= 0 ? '&' : '?';
+    var target = backUrl + sep + 'f=' + encodeURIComponent(catCol + ':eq:' + label);
+    target    += '&back2='       + encodeURIComponent(pieUrl);
+    target    += '&back2_label=' + encodeURIComponent('Back to pie chart');
+    window.location.href = target;
   }
 
   // D3 creates the path elements synchronously; only the transition is deferred.
@@ -81,7 +86,8 @@
       path.addEventListener('click', function () { drillDown(d.data.label); });
     });
 
-    // Wire legend entries: parse the label as the text before the ' / ' separator.
+    // Wire legend entries: capture label text BEFORE any currency post-processing
+    // so the drill-down navigates to the raw category name, not the display string.
     document.querySelectorAll('#pie_chart_legend .bi-pie-legend-entry').forEach(function (el) {
       var text  = el.textContent.trim();
       var slash = text.indexOf(' / ');
@@ -91,6 +97,21 @@
       el.setAttribute('title', 'Filter table to: ' + label);
       el.addEventListener('click', function () { drillDown(label); });
     });
+
+    // Prepend the currency symbol to each legend amount after the ' / ' separator.
+    // Text nodes are modified directly to leave the .bi-pie-swatch span untouched.
+    // getLegendEntries() reads textContent after this runs, so exports include it.
+    if (currency) {
+      document.querySelectorAll('#pie_chart_legend .bi-pie-legend-entry').forEach(function (el) {
+        Array.from(el.childNodes).forEach(function (node) {
+          if (node.nodeType !== 3) return;
+          node.textContent = node.textContent.replace(
+            /(\/\s*)([\d,])/,
+            function (m, sep, digit) { return sep + currency + digit; }
+          );
+        });
+      });
+    }
   }, 50);
 }());
 </script>
