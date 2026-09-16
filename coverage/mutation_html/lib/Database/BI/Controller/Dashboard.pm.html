@@ -293,7 +293,7 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../../../../../index.html">Index</a>
  <a href="../Model/DataSource.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 94.48%<br>
+TER1 (Statement): 94.36%<br>
 TER2 (Branch): 79.59%<br>
 TER3 (LCSAJ): 96.9% (31/32)<br>
 Approximate LCSAJ segments: 339<br>
@@ -591,7 +591,7 @@ Approximate LCSAJ segments: 339<br>
 </span><span class="">  244: sub _scan_data_dir :Protected ($self) {
 </span><span class="">  245: 	my $dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
 </span><span class="">  246: 	return [] unless -d $dir;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  247: 	return $dir-&gt;list-&gt;map(sub {
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  247: 	return $dir-&gt;list-&gt;map(sub {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1208,7 +1208,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  840: 	my $table = $self-&gt;stash(&#39;table&#39;);
 </span><span class="">  841: 
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  842: 	unless (defined $table &amp;&amp; $table =~ $TABLE_NAME_RE) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  843: 		return $self-&gt;reply-&gt;not_found;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  843: 		return $self-&gt;reply-&gt;not_found;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1235,7 +1235,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">846 → 848 → 859</span></span>  846: 	my ($source, $records);
 </span><span class="">  847: 	eval { $source = $self-&gt;open_table($table); $records = $source-&gt;fetch_all };
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  848: 	if ($@) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  849: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  849: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1337,7 +1337,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  927: 
 </span><span class="">  928: 	my $raw_path = $self-&gt;param(&#39;path&#39;) // $ENV{HOME} // &#39;/&#39;;
 </span><span class="">  929: 	my $dir      = eval { Mojo::File-&gt;new($raw_path)-&gt;realpath };
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  930: 	return $self-&gt;reply-&gt;not_found unless defined $dir &amp;&amp; -d $dir;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  930: 	return $self-&gt;reply-&gt;not_found unless defined $dir &amp;&amp; -d $dir;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1667,7 +1667,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1167: 		);
 </span><span class=""> 1168: 	};
 </span><span class=""> 1169: 
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1170: 	return $err_home-&gt;(&#39;error_url_required&#39;) unless length $url;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1170: 	return $err_home-&gt;(&#39;error_url_required&#39;) unless length $url;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1712,7 +1712,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 								</div>
 							</li></ul></details>
 <span class=""> 1172: 		unless $url =~ m{\Ahttps?://}i;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1173: 	return $err_home-&gt;(&#39;error_url_ssrf&#39;, $url)
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1173: 	return $err_home-&gt;(&#39;error_url_ssrf&#39;, $url)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1737,7 +1737,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class=""> 1174: 		unless _is_safe_url($url);
 </span><span class=""> 1175: 
 </span><span class=""> 1176: 	my $source = eval { $self-&gt;open_table(&#39;&#39;, url =&gt; $url, html_table_index =&gt; $idx) };
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1177: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;unknown error&#39;) if $@ || !$source;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1177: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;unknown error&#39;) if $@ || !$source;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1761,7 +1761,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 							</li></ul></details>
 <span class=""> 1178: 
 </span><span class=""> 1179: 	my $records = eval { $source-&gt;fetch_all };
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1180: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;empty result&#39;) if $@;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1180: 	return $err_home-&gt;(&#39;error_url_fetch&#39;, $url, $@ // &#39;empty result&#39;) if $@;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1875,7 +1875,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1270 → 1271 → 1286</span></span> 1270: 	my $source;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1271: 	if (defined $table_name &amp;&amp; $table_name =~ $TABLE_NAME_RE) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1272: 		my $data_dir = $self-&gt;app-&gt;home-&gt;child($self-&gt;app-&gt;config-&gt;{data_dir} // &#39;data&#39;);
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1273: 		return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1273: 		return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1909,7 +1909,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1283: 		}
 </span><span class=""> 1284: 	}
 </span><span class=""> 1285: 
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1286: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404) unless $source;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1286: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;not found&#39; }, status =&gt; 404) unless $source;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2171,7 +2171,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1482: 
 </span><span class=""> 1483: 	my $left_spec = $self-&gt;param(&#39;l&#39;) // &#39;&#39;;
 </span><span class=""> 1484: 	my ($left_src, $left_label) = $self-&gt;_open_spec($left_spec);
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1485: 	return $self-&gt;reply-&gt;not_found unless $left_src;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1485: 	return $self-&gt;reply-&gt;not_found unless $left_src;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2340,7 +2340,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1609: 
 </span><span class=""> 1610: sub export_data ($self) {
 </span><span class=""> 1611: 	my ($records, $columns, $left_label) = $self-&gt;_run_export_pipeline;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1612: 	return $self-&gt;reply-&gt;not_found unless $records;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1612: 	return $self-&gt;reply-&gt;not_found unless $records;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2501,7 +2501,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1707: 	elsif ($filename &amp;&amp; $filename =~ /\.sql\z/i)  { $format = &#39;sqlite&#39;; }
 </span><span class=""> 1708: 	elsif ($filename &amp;&amp; $filename =~ /\.json\z/i) { $format = &#39;json&#39;;   }
 </span><span class=""> 1709: 	else {
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1710: 		return $self-&gt;render(
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1710: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2529,7 +2529,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1714: 	}
 </span><span class=""> 1715: 
 </span><span class=""> 1716: 	my ($records, $columns, $left_label) = $self-&gt;_run_export_pipeline;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1717: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Table not found&#39; }, status =&gt; 404)
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1717: 	return $self-&gt;render(json =&gt; { error =&gt; &#39;Table not found&#39; }, status =&gt; 404)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2725,7 +2725,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1847: sub stat_api ($self) {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1848 → 1849 → 1856</span></span> 1848: 	my $path = $self-&gt;param(&#39;path&#39;);
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1849: 	unless (defined $path &amp;&amp; length $path) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1850: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1850: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2755,7 +2755,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1856: 	my $file = eval { Mojo::File-&gt;new($path)-&gt;realpath };
 </span><span class=""> 1857: 	# Restrict to files with a supported data extension so stat_api cannot be
 </span><span class=""> 1858: 	# used as a filesystem oracle to probe /etc/shadow, /root/.ssh/, etc.
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1859: 	return $self-&gt;render(json =&gt; { exists =&gt; \0, path =&gt; $path })
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1859: 	return $self-&gt;render(json =&gt; { exists =&gt; \0, path =&gt; $path })
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2834,7 +2834,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1914: sub upload_file ($self) {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1915 → 1916 → 1928</span></span> 1915: 	my $upload = $self-&gt;req-&gt;upload(&#39;file&#39;);
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1916: 	unless ($upload &amp;&amp; $upload-&gt;filename) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1917: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1917: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2898,7 +2898,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1936: 	# must not silently truncate the directory-strip, leaving &quot;dir\ncomponent&quot; in.
 </span><span class=""> 1937: 	(my $filename = $upload-&gt;filename) =~ s{.*[/\\]}{}s;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1938: 	unless ($filename &amp;&amp; $filename =~ $EXT_RE) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1939: 		return $self-&gt;render(
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1939: 		return $self-&gt;render(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2944,7 +2944,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1961: sub clear_uploads ($self) {
 </span><span class=""> 1962: 	my $uploads_dir = $self-&gt;app-&gt;home-&gt;child(&#39;.uploads&#39;);
 </span><span class=""> 1963: 
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1964: 	return $self-&gt;render(json =&gt; { freed =&gt; 0, count =&gt; 0 })
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1964: 	return $self-&gt;render(json =&gt; { freed =&gt; 0, count =&gt; 0 })
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -3061,7 +3061,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class=""> 2015: 		unless $records;
 </span><span class=""> 2016: 
 </span><span class=""> 2017: 	my %col_set = map { $_ =&gt; 1 } @{$columns};
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2018: 	return $self-&gt;render(text =&gt; &quot;Column not found: $x_col&quot;, status =&gt; 400)
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 2018: 	return $self-&gt;render(text =&gt; &quot;Column not found: $x_col&quot;, status =&gt; 400)
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -3175,413 +3175,638 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 2066: }
 </span><span class=""> 2067: 
 </span><span class=""> 2068: sub pie_view ($self) {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 2069 → 2089 → 2101</span></span> 2069: 	my $cat_col = $self-&gt;param(&#39;cat&#39;) // &#39;&#39;;
-</span><span class=""> 2070: 	my $val_col = $self-&gt;param(&#39;val&#39;) // &#39;&#39;;
-</span><span class=""> 2071: 	my $donut   = $self-&gt;param(&#39;donut&#39;) ? 1 : 0;
-</span><span class=""> 2072: 	my $back    = $self-&gt;param(&#39;back&#39;) // &#39;/&#39;;
-</span><span class=""> 2073: 
-</span><span class=""> 2074: 	return $self-&gt;render(text =&gt; &#39;Missing cat or val column parameter&#39;, status =&gt; 400)
-</span><span class=""> 2075: 		unless length($cat_col) &amp;&amp; length($val_col);
-</span><span class=""> 2076: 
-</span><span class=""> 2077: 	my ($records, $columns) = $self-&gt;_run_export_pipeline;
-</span><span class=""> 2078: 	return $self-&gt;render(text =&gt; &#39;Could not open data source&#39;, status =&gt; 404)
-</span><span class=""> 2079: 		unless $records;
-</span><span class=""> 2080: 
-</span><span class=""> 2081: 	my %col_set = map { $_ =&gt; 1 } @{$columns};
-</span><span class=""> 2082: 	return $self-&gt;render(text =&gt; &quot;Column not found: $cat_col&quot;, status =&gt; 400)
-</span><span class=""> 2083: 		unless $col_set{$cat_col};
-</span><span class=""> 2084: 	return $self-&gt;render(text =&gt; &quot;Column not found: $val_col&quot;, status =&gt; 400)
-</span><span class=""> 2085: 		unless $col_set{$val_col};
-</span><span class=""> 2086: 
-</span><span class=""> 2087: 	# Aggregate: sum val_col per cat_col value, using accounting-notation handling.
-</span><span class=""> 2088: 	my %totals;
-</span><span class=""> 2089: 	for my $row (@{$records}) {
-</span><span class=""> 2090: 		my $cat = $row-&gt;{$cat_col} // &#39;&#39;;
-</span><span class=""> 2091: 		next unless length($cat);
-</span><span class=""> 2092: 		my $v = $row-&gt;{$val_col} // &#39;&#39;;
-</span><span class=""> 2093: 		next unless length($v);
-</span><span class=""> 2094: 		my $is_acct_neg = ($v =~ /\A\s*\(/);
-</span><span class=""> 2095: 		(my $v_num = $v) =~ s/[^\d.\-]//g;
-</span><span class=""> 2096: 		$v_num = &quot;-$v_num&quot; if $is_acct_neg &amp;&amp; $v_num =~ /\A\d/;
-</span><span class=""> 2097: 		next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
-</span><span class=""> 2098: 		$totals{$cat} += $v_num + 0;
-</span><span class=""> 2099: 	}
-</span><span class=""> 2100: 
-</span><span class=""> 2101: 	return $self-&gt;render(
-</span><span class=""> 2102: 		text   =&gt; &#39;No plottable data: no rows have valid numeric values in the value column.&#39;,
-</span><span class=""> 2103: 		status =&gt; 200,
-</span><span class=""> 2104: 	) unless %totals;
-</span><span class=""> 2105: 
-</span><span class=""> 2106: 	my @slices = map { [$_, $totals{$_}] } sort keys %totals;
-</span><span class=""> 2107: 
-</span><span class=""> 2108: 	require HTML::D3;
-</span><span class=""> 2109: 	my $title   = &quot;$val_col by $cat_col&quot;;
-</span><span class=""> 2110: 	my $snippet = HTML::D3-&gt;new(title =&gt; $title, width =&gt; 600, height =&gt; 500)
-</span><span class=""> 2111: 		-&gt;render_pie_chart_snippet(\@slices, {
-</span><span class=""> 2112: 			animated    =&gt; 1,
-</span><span class=""> 2113: 			donut       =&gt; $donut,
-</span><span class=""> 2114: 			sort_slices =&gt; &#39;value&#39;,
-</span><span class=""> 2115: 			max_slices  =&gt; 12,
-</span><span class=""> 2116: 			legend      =&gt; 1,
-</span><span class=""> 2117: 		});
-</span><span class=""> 2118: 
-</span><span class=""> 2119: 	my ($platform, $language) = $self-&gt;_resolve_template;
-</span><span class=""> 2120: 	$self-&gt;render(
-</span><span class=""> 2121: 		handler     =&gt; &#39;tt&#39;,
-</span><span class=""> 2122: 		template    =&gt; &quot;$platform/$language/pie&quot;,
-</span><span class=""> 2123: 		format      =&gt; &#39;html&#39;,
-</span><span class=""> 2124: 		title       =&gt; $title,
-</span><span class=""> 2125: 		pie_html    =&gt; $snippet-&gt;{html},
-</span><span class=""> 2126: 		back_url    =&gt; $back,
-</span><span class=""> 2127: 		back_label  =&gt; &#39;Back to table&#39;,
-</span><span class=""> 2128: 		slice_count =&gt; scalar @slices,
-</span><span class=""> 2129: 	);
-</span><span class=""> 2130: }
-</span><span class=""> 2131: 
-</span><span class=""> 2132: 1;
-</span><span class=""> 2133: 
-</span><span class=""> 2134: __END__
-</span><span class=""> 2135: 
-</span><span class=""> 2136: =head1 NAME
-</span><span class=""> 2137: 
-</span><span class=""> 2138: Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
-</span><span class=""> 2139: viewer, left-join engine, result filter, export, and file upload
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 2069 → 2090 → 2102</span></span> 2069: 	my $cat_col     = $self-&gt;param(&#39;cat&#39;) // &#39;&#39;;
+</span><span class=""> 2070: 	my $val_col     = $self-&gt;param(&#39;val&#39;) // &#39;&#39;;
+</span><span class=""> 2071: 	my $donut       = $self-&gt;param(&#39;donut&#39;) ? 1 : 0;
+</span><span class=""> 2072: 	my $back        = $self-&gt;param(&#39;back&#39;) // &#39;/&#39;;
+</span><span class=""> 2073: 	my @filter_specs = $self-&gt;every_param(&#39;f&#39;);
+</span><span class=""> 2074: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2075: 	return $self-&gt;render(text =&gt; &#39;Missing cat or val column parameter&#39;, status =&gt; 400)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_2075_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_2075_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 2076: 		unless length($cat_col) &amp;&amp; length($val_col);
+</span><span class=""> 2077: 
+</span><span class=""> 2078: 	my ($records, $columns) = $self-&gt;_run_export_pipeline;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2079: 	return $self-&gt;render(text =&gt; &#39;Could not open data source&#39;, status =&gt; 404)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_2079_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_2079_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 2080: 		unless $records;
+</span><span class=""> 2081: 
+</span><span class=""> 2082: 	my %col_set = map { $_ =&gt; 1 } @{$columns};
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2083: 	return $self-&gt;render(text =&gt; &quot;Column not found: $cat_col&quot;, status =&gt; 400)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_2083_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_2083_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 2084: 		unless $col_set{$cat_col};
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 2085: 	return $self-&gt;render(text =&gt; &quot;Column not found: $val_col&quot;, status =&gt; 400)
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_2085_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_2085_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 2086: 		unless $col_set{$val_col};
+</span><span class=""> 2087: 
+</span><span class=""> 2088: 	# Aggregate: sum val_col per cat_col value, using accounting-notation handling.
+</span><span class=""> 2089: 	my %totals;
+</span><span class=""> 2090: 	for my $row (@{$records}) {
+</span><span class=""> 2091: 		my $cat = $row-&gt;{$cat_col} // &#39;&#39;;
+</span><span class=""> 2092: 		next unless length($cat);
+</span><span class=""> 2093: 		my $v = $row-&gt;{$val_col} // &#39;&#39;;
+</span><span class=""> 2094: 		next unless length($v);
+</span><span class=""> 2095: 		my $is_acct_neg = ($v =~ /\A\s*\(/);
+</span><span class=""> 2096: 		(my $v_num = $v) =~ s/[^\d.\-]//g;
+</span><span class=""> 2097: 		$v_num = &quot;-$v_num&quot; if $is_acct_neg &amp;&amp; $v_num =~ /\A\d/;
+</span><span class=""> 2098: 		next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
+</span><span class=""> 2099: 		$totals{$cat} += $v_num + 0;
+</span><span class=""> 2100: 	}
+</span><span class=""> 2101: 
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 2102: 	return $self-&gt;render(
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_2102_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_2102_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class=""> 2103: 		text   =&gt; &#39;No plottable data: no rows have valid numeric values in the value column.&#39;,
+</span><span class=""> 2104: 		status =&gt; 200,
+</span><span class=""> 2105: 	) unless %totals;
+</span><span class=""> 2106: 
+</span><span class=""> 2107: 	my @slices = map { [$_, $totals{$_}] } sort keys %totals;
+</span><span class=""> 2108: 
+</span><span class=""> 2109: 	require HTML::D3;
+</span><span class=""> 2110: 	my $title   = &quot;$val_col by $cat_col&quot;;
+</span><span class=""> 2111: 	my $snippet = HTML::D3-&gt;new(title =&gt; $title, width =&gt; 600, height =&gt; 500)
+</span><span class=""> 2112: 		-&gt;render_pie_chart_snippet(\@slices, {
+</span><span class=""> 2113: 			animated    =&gt; 1,
+</span><span class=""> 2114: 			donut       =&gt; $donut,
+</span><span class=""> 2115: 			sort_slices =&gt; &#39;value&#39;,
+</span><span class=""> 2116: 			max_slices  =&gt; 12,
+</span><span class=""> 2117: 			legend      =&gt; 1,
+</span><span class=""> 2118: 		});
+</span><span class=""> 2119: 
+</span><span class=""> 2120: 	my ($platform, $language) = $self-&gt;_resolve_template;
+</span><span class=""> 2121: 	$self-&gt;render(
+</span><span class=""> 2122: 		handler      =&gt; &#39;tt&#39;,
+</span><span class=""> 2123: 		template     =&gt; &quot;$platform/$language/pie&quot;,
+</span><span class=""> 2124: 		format       =&gt; &#39;html&#39;,
+</span><span class=""> 2125: 		title        =&gt; $title,
+</span><span class=""> 2126: 		pie_html     =&gt; $snippet-&gt;{html},
+</span><span class=""> 2127: 		back_url     =&gt; $back,
+</span><span class=""> 2128: 		back_label   =&gt; &#39;Back to table&#39;,
+</span><span class=""> 2129: 		slice_count  =&gt; scalar @slices,
+</span><span class=""> 2130: 		cat_col      =&gt; $cat_col,
+</span><span class=""> 2131: 		val_col      =&gt; $val_col,
+</span><span class=""> 2132: 	);
+</span><span class=""> 2133: }
+</span><span class=""> 2134: 
+</span><span class=""> 2135: 1;
+</span><span class=""> 2136: 
+</span><span class=""> 2137: __END__
+</span><span class=""> 2138: 
+</span><span class=""> 2139: =head1 NAME
 </span><span class=""> 2140: 
-</span><span class=""> 2141: =head1 SYNOPSIS
-</span><span class=""> 2142: 
-</span><span class=""> 2143: All routes in C&lt;Database::BI&gt; are handled by this controller.  You do not
-</span><span class=""> 2144: call its methods directly -- Mojolicious dispatches HTTP requests to them
-</span><span class=""> 2145: automatically.  The examples below show browser URLs and their curl
-</span><span class=""> 2146: equivalents.
-</span><span class=""> 2147: 
-</span><span class=""> 2148: B&lt;Open the home page and see all tables in the data directory:&gt;
-</span><span class=""> 2149: 
-</span><span class=""> 2150:   # Browser
-</span><span class=""> 2151:   http://localhost:3000/
+</span><span class=""> 2141: Database::BI::Controller::Dashboard - Home picker, filesystem browser, table
+</span><span class=""> 2142: viewer, left-join engine, result filter, export, and file upload
+</span><span class=""> 2143: 
+</span><span class=""> 2144: =head1 SYNOPSIS
+</span><span class=""> 2145: 
+</span><span class=""> 2146: All routes in C&lt;Database::BI&gt; are handled by this controller.  You do not
+</span><span class=""> 2147: call its methods directly -- Mojolicious dispatches HTTP requests to them
+</span><span class=""> 2148: automatically.  The examples below show browser URLs and their curl
+</span><span class=""> 2149: equivalents.
+</span><span class=""> 2150: 
+</span><span class=""> 2151: B&lt;Open the home page and see all tables in the data directory:&gt;
 </span><span class=""> 2152: 
-</span><span class=""> 2153:   # curl
-</span><span class=""> 2154:   curl http://localhost:3000/
+</span><span class=""> 2153:   # Browser
+</span><span class=""> 2154:   http://localhost:3000/
 </span><span class=""> 2155: 
-</span><span class=""> 2156: B&lt;View a single table (file: data/sales.csv):&gt;
-</span><span class=""> 2157: 
-</span><span class=""> 2158:   # Browser
-</span><span class=""> 2159:   http://localhost:3000/view/sales
+</span><span class=""> 2156:   # curl
+</span><span class=""> 2157:   curl http://localhost:3000/
+</span><span class=""> 2158: 
+</span><span class=""> 2159: B&lt;View a single table (file: data/sales.csv):&gt;
 </span><span class=""> 2160: 
-</span><span class=""> 2161:   # curl
-</span><span class=""> 2162:   curl http://localhost:3000/view/sales
+</span><span class=""> 2161:   # Browser
+</span><span class=""> 2162:   http://localhost:3000/view/sales
 </span><span class=""> 2163: 
-</span><span class=""> 2164: B&lt;Filter rows -- show only rows where region equals &quot;North&quot;:&gt;
-</span><span class=""> 2165: 
-</span><span class=""> 2166:   # Browser (add ?f=col:op:val to any view URL)
-</span><span class=""> 2167:   http://localhost:3000/view/sales?f=region:eq:North
+</span><span class=""> 2164:   # curl
+</span><span class=""> 2165:   curl http://localhost:3000/view/sales
+</span><span class=""> 2166: 
+</span><span class=""> 2167: B&lt;Filter rows -- show only rows where region equals &quot;North&quot;:&gt;
 </span><span class=""> 2168: 
-</span><span class=""> 2169:   # Multiple filters -- &quot;North&quot; AND amount greater than 100:
-</span><span class=""> 2170:   http://localhost:3000/view/sales?f=region:eq:North&amp;f=amount:gt:100
+</span><span class=""> 2169:   # Browser (add ?f=col:op:val to any view URL)
+</span><span class=""> 2170:   http://localhost:3000/view/sales?f=region:eq:North
 </span><span class=""> 2171: 
-</span><span class=""> 2172:   # curl
-</span><span class=""> 2173:   curl &#39;http://localhost:3000/view/sales?f=region:eq:North&#39;
+</span><span class=""> 2172:   # Multiple filters -- &quot;North&quot; AND amount greater than 100:
+</span><span class=""> 2173:   http://localhost:3000/view/sales?f=region:eq:North&amp;f=amount:gt:100
 </span><span class=""> 2174: 
-</span><span class=""> 2175: B&lt;Join two tables -- left-join sales with products on the product column:&gt;
-</span><span class=""> 2176: 
-</span><span class=""> 2177:   # Browser
-</span><span class=""> 2178:   http://localhost:3000/join?l=table:sales&amp;j=table:products|product|name
+</span><span class=""> 2175:   # curl
+</span><span class=""> 2176:   curl &#39;http://localhost:3000/view/sales?f=region:eq:North&#39;
+</span><span class=""> 2177: 
+</span><span class=""> 2178: B&lt;Join two tables -- left-join sales with products on the product column:&gt;
 </span><span class=""> 2179: 
-</span><span class=""> 2180:   # The j= parameter is: right-table-spec | left-key | right-key
-</span><span class=""> 2181:   # You can chain multiple joins:
-</span><span class=""> 2182:   http://localhost:3000/join?l=table:sales&amp;j=table:products|product|name&amp;j=table:regions|region|id
-</span><span class=""> 2183: 
-</span><span class=""> 2184: B&lt;Open a file anywhere on the filesystem (not just in data/):&gt;
-</span><span class=""> 2185: 
-</span><span class=""> 2186:   http://localhost:3000/open?path=/home/user/reports/q3.csv
-</span><span class=""> 2187: 
-</span><span class=""> 2188: B&lt;Download the current view as a CSV file:&gt;
-</span><span class=""> 2189: 
-</span><span class=""> 2190:   # Uses the same l=, j=, f= parameters as /join
-</span><span class=""> 2191:   http://localhost:3000/export?l=table:sales&amp;format=csv
+</span><span class=""> 2180:   # Browser
+</span><span class=""> 2181:   http://localhost:3000/join?l=table:sales&amp;j=table:products|product|name
+</span><span class=""> 2182: 
+</span><span class=""> 2183:   # The j= parameter is: right-table-spec | left-key | right-key
+</span><span class=""> 2184:   # You can chain multiple joins:
+</span><span class=""> 2185:   http://localhost:3000/join?l=table:sales&amp;j=table:products|product|name&amp;j=table:regions|region|id
+</span><span class=""> 2186: 
+</span><span class=""> 2187: B&lt;Open a file anywhere on the filesystem (not just in data/):&gt;
+</span><span class=""> 2188: 
+</span><span class=""> 2189:   http://localhost:3000/open?path=/home/user/reports/q3.csv
+</span><span class=""> 2190: 
+</span><span class=""> 2191: B&lt;Download the current view as a CSV file:&gt;
 </span><span class=""> 2192: 
-</span><span class=""> 2193:   # Download as a SQLite database file instead:
-</span><span class=""> 2194:   http://localhost:3000/export?l=table:sales&amp;format=sqlite
+</span><span class=""> 2193:   # Uses the same l=, j=, f= parameters as /join
+</span><span class=""> 2194:   http://localhost:3000/export?l=table:sales&amp;format=csv
 </span><span class=""> 2195: 
-</span><span class=""> 2196:   # Download a filtered + joined result:
-</span><span class=""> 2197:   http://localhost:3000/export?l=table:sales&amp;j=table:products|product|name&amp;f=region:eq:North&amp;format=csv
+</span><span class=""> 2196:   # Download as a SQLite database file instead:
+</span><span class=""> 2197:   http://localhost:3000/export?l=table:sales&amp;format=sqlite
 </span><span class=""> 2198: 
-</span><span class=""> 2199: B&lt;Save the current view to a file on the server (instead of downloading):&gt;
-</span><span class=""> 2200: 
-</span><span class=""> 2201:   # POST with form fields; format is inferred from the filename extension
-</span><span class=""> 2202:   curl -X POST http://localhost:3000/export \
-</span><span class=""> 2203:        -F l=table:sales \
-</span><span class=""> 2204:        -F dir=/home/user/exports \
-</span><span class=""> 2205:        -F filename=report.csv
-</span><span class=""> 2206: 
-</span><span class=""> 2207:   # Save as SQLite:
-</span><span class=""> 2208:   curl -X POST http://localhost:3000/export \
-</span><span class=""> 2209:        -F l=table:sales \
-</span><span class=""> 2210:        -F dir=/home/user/exports \
-</span><span class=""> 2211:        -F filename=report.sql
-</span><span class=""> 2212: 
-</span><span class=""> 2213: B&lt;Get the column list for a table (used by the join UI):&gt;
-</span><span class=""> 2214: 
-</span><span class=""> 2215:   curl http://localhost:3000/api/columns?table=sales
-</span><span class=""> 2216:   # Returns: {&quot;columns&quot;:[&quot;product&quot;,&quot;region&quot;,&quot;amount&quot;,&quot;date&quot;]}
+</span><span class=""> 2199:   # Download a filtered + joined result:
+</span><span class=""> 2200:   http://localhost:3000/export?l=table:sales&amp;j=table:products|product|name&amp;f=region:eq:North&amp;format=csv
+</span><span class=""> 2201: 
+</span><span class=""> 2202: B&lt;Save the current view to a file on the server (instead of downloading):&gt;
+</span><span class=""> 2203: 
+</span><span class=""> 2204:   # POST with form fields; format is inferred from the filename extension
+</span><span class=""> 2205:   curl -X POST http://localhost:3000/export \
+</span><span class=""> 2206:        -F l=table:sales \
+</span><span class=""> 2207:        -F dir=/home/user/exports \
+</span><span class=""> 2208:        -F filename=report.csv
+</span><span class=""> 2209: 
+</span><span class=""> 2210:   # Save as SQLite:
+</span><span class=""> 2211:   curl -X POST http://localhost:3000/export \
+</span><span class=""> 2212:        -F l=table:sales \
+</span><span class=""> 2213:        -F dir=/home/user/exports \
+</span><span class=""> 2214:        -F filename=report.sql
+</span><span class=""> 2215: 
+</span><span class=""> 2216: B&lt;Get the column list for a table (used by the join UI):&gt;
 </span><span class=""> 2217: 
-</span><span class=""> 2218: B&lt;Check when a file was last modified (used by the tooltip on the home page):&gt;
-</span><span class=""> 2219: 
-</span><span class=""> 2220:   curl &#39;http://localhost:3000/api/stat?path=/data/sales.csv&#39;
-</span><span class=""> 2221:   # Returns: {&quot;exists&quot;:true,&quot;path&quot;:&quot;/data/sales.csv&quot;,&quot;mtime&quot;:1700000000,&quot;size&quot;:1234}
+</span><span class=""> 2218:   curl http://localhost:3000/api/columns?table=sales
+</span><span class=""> 2219:   # Returns: {&quot;columns&quot;:[&quot;product&quot;,&quot;region&quot;,&quot;amount&quot;,&quot;date&quot;]}
+</span><span class=""> 2220: 
+</span><span class=""> 2221: B&lt;Check when a file was last modified (used by the tooltip on the home page):&gt;
 </span><span class=""> 2222: 
-</span><span class=""> 2223: B&lt;Browse the filesystem to find a data file:&gt;
-</span><span class=""> 2224: 
-</span><span class=""> 2225:   http://localhost:3000/browse
-</span><span class=""> 2226:   http://localhost:3000/browse?path=/home/user/data
+</span><span class=""> 2223:   curl &#39;http://localhost:3000/api/stat?path=/data/sales.csv&#39;
+</span><span class=""> 2224:   # Returns: {&quot;exists&quot;:true,&quot;path&quot;:&quot;/data/sales.csv&quot;,&quot;mtime&quot;:1700000000,&quot;size&quot;:1234}
+</span><span class=""> 2225: 
+</span><span class=""> 2226: B&lt;Browse the filesystem to find a data file:&gt;
 </span><span class=""> 2227: 
-</span><span class=""> 2228: B&lt;Upload a data file by dropping it onto the page (multipart form POST):&gt;
-</span><span class=""> 2229: 
-</span><span class=""> 2230:   curl -X POST http://localhost:3000/upload \
-</span><span class=""> 2231:        -F file=@/home/user/data/sales.csv
-</span><span class=""> 2232:   # Returns: {&quot;url&quot;:&quot;/open?path=/.../.uploads/.../sales.csv&quot;,&quot;path&quot;:&quot;/.../.uploads/.../sales.csv&quot;}
-</span><span class=""> 2233: 
-</span><span class=""> 2234: =head2 graph_view
-</span><span class=""> 2235: 
-</span><span class=""> 2236: C&lt;GET /graph&gt; -- Render a D3.js v7 line chart from the current data pipeline.
-</span><span class=""> 2237: 
-</span><span class=""> 2238: Accepts the same pipeline parameters as L&lt;/join_tables&gt; (C&lt;l=&gt;, C&lt;j=&gt;,
-</span><span class=""> 2239: C&lt;c=&gt;, C&lt;f=&gt;, C&lt;d=&gt;) plus:
+</span><span class=""> 2228:   http://localhost:3000/browse
+</span><span class=""> 2229:   http://localhost:3000/browse?path=/home/user/data
+</span><span class=""> 2230: 
+</span><span class=""> 2231: B&lt;Upload a data file by dropping it onto the page (multipart form POST):&gt;
+</span><span class=""> 2232: 
+</span><span class=""> 2233:   curl -X POST http://localhost:3000/upload \
+</span><span class=""> 2234:        -F file=@/home/user/data/sales.csv
+</span><span class=""> 2235:   # Returns: {&quot;url&quot;:&quot;/open?path=/.../.uploads/.../sales.csv&quot;,&quot;path&quot;:&quot;/.../.uploads/.../sales.csv&quot;}
+</span><span class=""> 2236: 
+</span><span class=""> 2237: =head2 graph_view
+</span><span class=""> 2238: 
+</span><span class=""> 2239: C&lt;GET /graph&gt; -- Render a D3.js v7 line chart from the current data pipeline.
 </span><span class=""> 2240: 
-</span><span class=""> 2241: =over 4
-</span><span class=""> 2242: 
-</span><span class=""> 2243: =item C&lt;x=E&lt;lt&gt;colE&lt;gt&gt;&gt;
-</span><span class=""> 2244: 
-</span><span class=""> 2245: Column name to use as the X axis (required).  Any data type is accepted;
-</span><span class=""> 2246: values are displayed as categorical labels.
+</span><span class=""> 2241: Accepts the same pipeline parameters as L&lt;/join_tables&gt; (C&lt;l=&gt;, C&lt;j=&gt;,
+</span><span class=""> 2242: C&lt;c=&gt;, C&lt;f=&gt;, C&lt;d=&gt;) plus:
+</span><span class=""> 2243: 
+</span><span class=""> 2244: =over 4
+</span><span class=""> 2245: 
+</span><span class=""> 2246: =item C&lt;x=E&lt;lt&gt;colE&lt;gt&gt;&gt;
 </span><span class=""> 2247: 
-</span><span class=""> 2248: =item C&lt;y=E&lt;lt&gt;colE&lt;gt&gt;&gt;
-</span><span class=""> 2249: 
-</span><span class=""> 2250: Column name to use as the Y axis (required).  Non-numeric characters
-</span><span class=""> 2251: (currency symbols, commas, etc.) are stripped before comparison; rows
-</span><span class=""> 2252: where the value is still non-numeric after stripping are silently skipped.
-</span><span class=""> 2253: 
-</span><span class=""> 2254: =item C&lt;back=E&lt;lt&gt;urlE&lt;gt&gt;&gt;
-</span><span class=""> 2255: 
-</span><span class=""> 2256: URL for the &quot;Back to table&quot; link rendered in the graph toolbar.  Defaults
-</span><span class=""> 2257: to C&lt;/&gt; when absent.  The dashboard JS sets this to the current page URL
-</span><span class=""> 2258: before navigating.
-</span><span class=""> 2259: 
-</span><span class=""> 2260: =back
-</span><span class=""> 2261: 
-</span><span class=""> 2262: =head3 API SPECIFICATION
-</span><span class=""> 2263: 
-</span><span class=""> 2264: =head4 INPUT
-</span><span class=""> 2265: 
-</span><span class=""> 2266:   l=&lt;spec&gt;     string   Left-table spec (required).  Same syntax as /join.
-</span><span class=""> 2267:   x=&lt;col&gt;      string   X-axis column name (required).
-</span><span class=""> 2268:   y=&lt;col&gt;      string   Y-axis column name (required; must be numeric).
-</span><span class=""> 2269:   back=&lt;url&gt;   string   Back-link URL (optional; default &quot;/&quot;).
-</span><span class=""> 2270:   j=, c=, f=, d=        Pipeline params -- see L&lt;/join_tables&gt;.
-</span><span class=""> 2271: 
-</span><span class=""> 2272: =head4 OUTPUT
-</span><span class=""> 2273: 
-</span><span class=""> 2274:   200 text/html   TT-rendered graph page.  The HTML::D3 snippet embeds a
-</span><span class=""> 2275:                   C&lt;const data = [...]&gt; JSON array where each element has:
-</span><span class=""> 2276:                     { label: &lt;x-value&gt;, value: &lt;y-value&gt;,
-</span><span class=""> 2277:                       extra: { &lt;col&gt;: &lt;val&gt;, ... } }
-</span><span class=""> 2278:                   C&lt;extra&gt; contains every column not used as X or Y, so
-</span><span class=""> 2279:                   the hover tooltip shows the complete row for each point.
-</span><span class=""> 2280:                   The chart supports brush-to-zoom; a &quot;Reset zoom&quot; button
-</span><span class=""> 2281:                   appears after a brush selection.  The toolbar shows the
-</span><span class=""> 2282:                   count of plotted data points.
-</span><span class=""> 2283: 
-</span><span class=""> 2284:   400 text/plain  C&lt;x=&gt; or C&lt;y=&gt; absent, or named column not found.
-</span><span class=""> 2285:   404 text/plain  Data source could not be opened.
+</span><span class=""> 2248: Column name to use as the X axis (required).  Any data type is accepted;
+</span><span class=""> 2249: values are displayed as categorical labels.
+</span><span class=""> 2250: 
+</span><span class=""> 2251: =item C&lt;y=E&lt;lt&gt;colE&lt;gt&gt;&gt;
+</span><span class=""> 2252: 
+</span><span class=""> 2253: Column name to use as the Y axis (required).  Non-numeric characters
+</span><span class=""> 2254: (currency symbols, commas, etc.) are stripped before comparison; rows
+</span><span class=""> 2255: where the value is still non-numeric after stripping are silently skipped.
+</span><span class=""> 2256: 
+</span><span class=""> 2257: =item C&lt;back=E&lt;lt&gt;urlE&lt;gt&gt;&gt;
+</span><span class=""> 2258: 
+</span><span class=""> 2259: URL for the &quot;Back to table&quot; link rendered in the graph toolbar.  Defaults
+</span><span class=""> 2260: to C&lt;/&gt; when absent.  The dashboard JS sets this to the current page URL
+</span><span class=""> 2261: before navigating.
+</span><span class=""> 2262: 
+</span><span class=""> 2263: =back
+</span><span class=""> 2264: 
+</span><span class=""> 2265: =head3 API SPECIFICATION
+</span><span class=""> 2266: 
+</span><span class=""> 2267: =head4 INPUT
+</span><span class=""> 2268: 
+</span><span class=""> 2269:   l=&lt;spec&gt;     string   Left-table spec (required).  Same syntax as /join.
+</span><span class=""> 2270:   x=&lt;col&gt;      string   X-axis column name (required).
+</span><span class=""> 2271:   y=&lt;col&gt;      string   Y-axis column name (required; must be numeric).
+</span><span class=""> 2272:   back=&lt;url&gt;   string   Back-link URL (optional; default &quot;/&quot;).
+</span><span class=""> 2273:   j=, c=, f=, d=        Pipeline params -- see L&lt;/join_tables&gt;.
+</span><span class=""> 2274: 
+</span><span class=""> 2275: =head4 OUTPUT
+</span><span class=""> 2276: 
+</span><span class=""> 2277:   200 text/html   TT-rendered graph page.  The HTML::D3 snippet embeds a
+</span><span class=""> 2278:                   C&lt;const data = [...]&gt; JSON array where each element has:
+</span><span class=""> 2279:                     { label: &lt;x-value&gt;, value: &lt;y-value&gt;,
+</span><span class=""> 2280:                       extra: { &lt;col&gt;: &lt;val&gt;, ... } }
+</span><span class=""> 2281:                   C&lt;extra&gt; contains every column not used as X or Y, so
+</span><span class=""> 2282:                   the hover tooltip shows the complete row for each point.
+</span><span class=""> 2283:                   The chart supports brush-to-zoom; a &quot;Reset zoom&quot; button
+</span><span class=""> 2284:                   appears after a brush selection.  The toolbar shows the
+</span><span class=""> 2285:                   count of plotted data points.
 </span><span class=""> 2286: 
-</span><span class=""> 2287: =head3 MESSAGES
-</span><span class=""> 2288: 
-</span><span class=""> 2289:   Missing x or y column parameter          C&lt;x=&gt; or C&lt;y=&gt; query param absent.
-</span><span class=""> 2290:   Column not found: &lt;name&gt;                  Named column absent from result set.
-</span><span class=""> 2291:   Could not open data source                Left-table spec unresolvable or 404.
-</span><span class=""> 2292:   No plottable data: no rows have valid ... All rows lack a numeric Y value.
-</span><span class=""> 2293: 
-</span><span class=""> 2294: =head3 EXAMPLE
-</span><span class=""> 2295: 
-</span><span class=""> 2296:   GET /graph?l=table:sales&amp;x=product&amp;y=amount
-</span><span class=""> 2297: 
-</span><span class=""> 2298: Renders a line chart of C&lt;amount&gt; (Y) against C&lt;product&gt; (X).  Mousing over
-</span><span class=""> 2299: a dot shows a tooltip with the product name, the amount, and every other
-</span><span class=""> 2300: column in that row (e.g. C&lt;region&gt;, C&lt;date&gt;).
-</span><span class=""> 2301: 
-</span><span class=""> 2302: =head3 FORMAL SPECIFICATION
-</span><span class=""> 2303: 
-</span><span class=""> 2304:   graph_view : Controller &Atilde;&#151; Params &acirc;&#134;&#146; HTML | Error
-</span><span class=""> 2305: 
-</span><span class=""> 2306:   let pipeline = run_export_pipeline(l, j, c, f, d)
-</span><span class=""> 2307:   let pairs    = [ [row[x], num(row[y]), row \ {x,y}]
-</span><span class=""> 2308:                    | row &acirc;&#136;&#136; pipeline.records,  num(row[y]) &acirc;&#137;&nbsp; &acirc;&#138;&yen; ]
-</span><span class=""> 2309: 
-</span><span class=""> 2310:   pre  x &acirc;&#136;&#136; params &acirc;&#136;&sect; y &acirc;&#136;&#136; params           else 400
-</span><span class=""> 2311:   pre  x &acirc;&#136;&#136; pipeline.cols                  else 400
-</span><span class=""> 2312:   pre  y &acirc;&#136;&#136; pipeline.cols                  else 400
-</span><span class=""> 2313:   pre  pairs &acirc;&#137;&nbsp; []                          else 200 &quot;No plottable data&quot;
-</span><span class=""> 2314:   post HTML::D3-&gt;render_line_chart_snippet(pairs) embedded in TT layout
-</span><span class=""> 2315: 
-</span><span class=""> 2316: =cut
-</span><span class=""> 2317: 
-</span><span class=""> 2318: =head2 clear_uploads
-</span><span class=""> 2319: 
-</span><span class=""> 2320: C&lt;POST /uploads/clear&gt; -- Delete every file from the C&lt;.uploads/&gt; staging
-</span><span class=""> 2321: directory and return the total disk space recovered.
+</span><span class=""> 2287:   400 text/plain  C&lt;x=&gt; or C&lt;y=&gt; absent, or named column not found.
+</span><span class=""> 2288:   404 text/plain  Data source could not be opened.
+</span><span class=""> 2289: 
+</span><span class=""> 2290: =head3 MESSAGES
+</span><span class=""> 2291: 
+</span><span class=""> 2292:   Missing x or y column parameter          C&lt;x=&gt; or C&lt;y=&gt; query param absent.
+</span><span class=""> 2293:   Column not found: &lt;name&gt;                  Named column absent from result set.
+</span><span class=""> 2294:   Could not open data source                Left-table spec unresolvable or 404.
+</span><span class=""> 2295:   No plottable data: no rows have valid ... All rows lack a numeric Y value.
+</span><span class=""> 2296: 
+</span><span class=""> 2297: =head3 EXAMPLE
+</span><span class=""> 2298: 
+</span><span class=""> 2299:   GET /graph?l=table:sales&amp;x=product&amp;y=amount
+</span><span class=""> 2300: 
+</span><span class=""> 2301: Renders a line chart of C&lt;amount&gt; (Y) against C&lt;product&gt; (X).  Mousing over
+</span><span class=""> 2302: a dot shows a tooltip with the product name, the amount, and every other
+</span><span class=""> 2303: column in that row (e.g. C&lt;region&gt;, C&lt;date&gt;).
+</span><span class=""> 2304: 
+</span><span class=""> 2305: =head3 FORMAL SPECIFICATION
+</span><span class=""> 2306: 
+</span><span class=""> 2307:   graph_view : Controller &Atilde;&#151; Params &acirc;&#134;&#146; HTML | Error
+</span><span class=""> 2308: 
+</span><span class=""> 2309:   let pipeline = run_export_pipeline(l, j, c, f, d)
+</span><span class=""> 2310:   let pairs    = [ [row[x], num(row[y]), row \ {x,y}]
+</span><span class=""> 2311:                    | row &acirc;&#136;&#136; pipeline.records,  num(row[y]) &acirc;&#137;&nbsp; &acirc;&#138;&yen; ]
+</span><span class=""> 2312: 
+</span><span class=""> 2313:   pre  x &acirc;&#136;&#136; params &acirc;&#136;&sect; y &acirc;&#136;&#136; params           else 400
+</span><span class=""> 2314:   pre  x &acirc;&#136;&#136; pipeline.cols                  else 400
+</span><span class=""> 2315:   pre  y &acirc;&#136;&#136; pipeline.cols                  else 400
+</span><span class=""> 2316:   pre  pairs &acirc;&#137;&nbsp; []                          else 200 &quot;No plottable data&quot;
+</span><span class=""> 2317:   post HTML::D3-&gt;render_line_chart_snippet(pairs) embedded in TT layout
+</span><span class=""> 2318: 
+</span><span class=""> 2319: =cut
+</span><span class=""> 2320: 
+</span><span class=""> 2321: =head2 pie_view
 </span><span class=""> 2322: 
-</span><span class=""> 2323: The C&lt;.uploads/&gt; directory accumulates files from drag-and-drop uploads.
-</span><span class=""> 2324: It grows indefinitely; this action lets users reclaim that space without
-</span><span class=""> 2325: needing shell access.
-</span><span class=""> 2326: 
-</span><span class=""> 2327: =head3 API SPECIFICATION
-</span><span class=""> 2328: 
-</span><span class=""> 2329: =head4 INPUT
-</span><span class=""> 2330: 
-</span><span class=""> 2331: No parameters.  The C&lt;.uploads/&gt; path is always the one under C&lt;app-&gt;home&gt;.
-</span><span class=""> 2332: 
-</span><span class=""> 2333: =head4 OUTPUT
-</span><span class=""> 2334: 
-</span><span class=""> 2335:   200 application/json   { &quot;freed&quot;: &lt;bytes&gt;, &quot;count&quot;: &lt;n&gt; }
-</span><span class=""> 2336: 
-</span><span class=""> 2337: C&lt;freed&gt; is the total number of bytes removed.  C&lt;count&gt; is the number of
-</span><span class=""> 2338: files deleted.  Both are 0 when the directory is absent or already empty.
+</span><span class=""> 2323: C&lt;GET /pie&gt; -- Render a D3.js v7 animated pie chart from the current data
+</span><span class=""> 2324: pipeline.
+</span><span class=""> 2325: 
+</span><span class=""> 2326: Each row&#39;s category value (C&lt;cat=&gt;) is used as a slice label; the numeric
+</span><span class=""> 2327: value column (C&lt;val=&gt;) is summed per category.  Accounting-notation
+</span><span class=""> 2328: negatives such as C&lt;(1,234.56)&gt; are handled automatically.  Slices are
+</span><span class=""> 2329: sorted by total descending; when there are more than 12 distinct categories
+</span><span class=""> 2330: the smallest ones are collapsed into a single &quot;Other&quot; slice.
+</span><span class=""> 2331: 
+</span><span class=""> 2332: Clicking any slice or legend entry navigates back to the table view with
+</span><span class=""> 2333: an C&lt;f=cat:eq:value&gt; filter applied automatically, so the user can drill
+</span><span class=""> 2334: into the data behind a slice without leaving the application.
+</span><span class=""> 2335: 
+</span><span class=""> 2336: =head3 API SPECIFICATION
+</span><span class=""> 2337: 
+</span><span class=""> 2338: =head4 INPUT
 </span><span class=""> 2339: 
-</span><span class=""> 2340: =cut
-</span><span class=""> 2341: 
-</span><span class=""> 2342: =head1 DESCRIPTION
-</span><span class=""> 2343: 
-</span><span class=""> 2344: All user-facing routes in C&lt;Database::BI&gt; are handled by this controller.
-</span><span class=""> 2345: See the individual action POD above for per-endpoint documentation.
+</span><span class=""> 2340:   l=&lt;spec&gt;    string   Left-table spec (required).  Same syntax as /join.
+</span><span class=""> 2341:   cat=&lt;col&gt;   string   Category column name (required; used as slice labels).
+</span><span class=""> 2342:   val=&lt;col&gt;   string   Numeric value column name (required; values are summed).
+</span><span class=""> 2343:   donut=1     flag     Render as a donut chart with a hole in the centre (optional).
+</span><span class=""> 2344:   back=&lt;url&gt;  string   URL for the &quot;Back to table&quot; breadcrumb link (optional; default &quot;/&quot;).
+</span><span class=""> 2345:   f=&lt;spec&gt;    string   Result filter (repeatable; same syntax as /join).
 </span><span class=""> 2346: 
-</span><span class=""> 2347: =head2 Filter operators
+</span><span class=""> 2347: =head4 OUTPUT
 </span><span class=""> 2348: 
-</span><span class=""> 2349: The C&lt;f=col:op:val&gt; filter spec supports:
-</span><span class=""> 2350: 
-</span><span class=""> 2351:   eq        case-insensitive string equality
-</span><span class=""> 2352:   ne        case-insensitive string inequality
-</span><span class=""> 2353:   contains  case-insensitive substring match
-</span><span class=""> 2354:   starts    case-insensitive prefix match
-</span><span class=""> 2355:   lt        numeric less-than
-</span><span class=""> 2356:   le        numeric less-than-or-equal
-</span><span class=""> 2357:   gt        numeric greater-than
-</span><span class=""> 2358:   ge        numeric greater-than-or-equal
-</span><span class=""> 2359:   empty     cell is undef or empty string (val ignored)
-</span><span class=""> 2360:   notempty  cell is defined and non-empty (val ignored)
-</span><span class=""> 2361: 
-</span><span class=""> 2362: The colon separator is split with a limit of 3, so values may themselves
-</span><span class=""> 2363: contain colons (e.g. C&lt;f=sale_date:eq:2025-01-15&gt;).
-</span><span class=""> 2364: 
-</span><span class=""> 2365: =head1 COMMON PITFALLS
-</span><span class=""> 2366: 
-</span><span class=""> 2367: These are the most common mistakes when working with this controller.
+</span><span class=""> 2349:   200 text/html   TT-rendered pie chart page containing:
+</span><span class=""> 2350:                   - Two-level breadcrumb (Home &gt; Back to table).
+</span><span class=""> 2351:                   - Export buttons for SVG and PNG (legend is composited in).
+</span><span class=""> 2352:                   - An animated D3.js pie or donut chart with a colour-coded
+</span><span class=""> 2353:                     legend.  Each slice and legend entry is clickable and
+</span><span class=""> 2354:                     navigates to the filtered table view.
+</span><span class=""> 2355:                   - Slice count (e.g. &quot;7 slices&quot;).
+</span><span class=""> 2356: 
+</span><span class=""> 2357:   200 text/plain  &quot;No plottable data&quot; when every row has a non-numeric or
+</span><span class=""> 2358:                   missing value column (HTTP 200, not 4xx, so the page can
+</span><span class=""> 2359:                   render a friendly message).
+</span><span class=""> 2360: 
+</span><span class=""> 2361:   400 text/plain  C&lt;cat=&gt; or C&lt;val=&gt; absent, or named column not found.
+</span><span class=""> 2362:   404 text/plain  Data source could not be opened.
+</span><span class=""> 2363: 
+</span><span class=""> 2364: =head4 DOMAIN CONSTRAINTS
+</span><span class=""> 2365: 
+</span><span class=""> 2366:   cat=    Any column name that exists in the result set.  Cell values are
+</span><span class=""> 2367:           used verbatim as slice labels.  Empty-string cells are skipped.
 </span><span class=""> 2368: 
-</span><span class=""> 2369: =over 4
-</span><span class=""> 2370: 
-</span><span class=""> 2371: =item B&lt;SQLite files must use the .sql extension, not .sqlite&gt;
-</span><span class=""> 2372: 
-</span><span class=""> 2373: C&lt;Database::Abstraction&gt; (the data-reading library) probes for a file called
-</span><span class=""> 2374: C&lt;tablename.sql&gt; when it wants to open a SQLite database.  It does B&lt;not&gt;
-</span><span class=""> 2375: look for C&lt;.sqlite&gt; or C&lt;.db3&gt;.  If your file is called C&lt;inventory.sqlite&gt;,
-</span><span class=""> 2376: rename it to C&lt;inventory.sql&gt; or it will not appear in the file browser and
-</span><span class=""> 2377: will return 404 when opened.
-</span><span class=""> 2378: 
-</span><span class=""> 2379: =item B&lt;Filter values that contain a colon still work&gt;
-</span><span class=""> 2380: 
-</span><span class=""> 2381: A date like C&lt;2025-01-15&gt; contains hyphens, not colons, so it is fine.  But
-</span><span class=""> 2382: if your value itself contains a colon (for example, a time like C&lt;14:30:00&gt;),
-</span><span class=""> 2383: the filter still works because the C&lt;col:op:val&gt; spec is split on the B&lt;first
-</span><span class=""> 2384: two&gt; colons only -- the rest of the string becomes the value.
-</span><span class=""> 2385: 
-</span><span class=""> 2386:   # This correctly matches &quot;14:30:00&quot; in the start_time column:
-</span><span class=""> 2387:   ?f=start_time:eq:14:30:00
+</span><span class=""> 2369:   val=    Must be a column whose cells contain numbers (after stripping
+</span><span class=""> 2370:           currency symbols, commas, and handling accounting-notation negatives).
+</span><span class=""> 2371:           Rows where the value is still non-numeric after stripping are skipped.
+</span><span class=""> 2372:           Negative totals are included in the chart (slice values may be negative
+</span><span class=""> 2373:           if the source data contains credits or reversals).
+</span><span class=""> 2374: 
+</span><span class=""> 2375:   donut=  Any truthy value (e.g. &quot;1&quot;) enables the donut hole.  Absent or
+</span><span class=""> 2376:           &quot;0&quot; renders a solid pie.
+</span><span class=""> 2377: 
+</span><span class=""> 2378: =head3 MESSAGES
+</span><span class=""> 2379: 
+</span><span class=""> 2380:   Missing cat or val column parameter    C&lt;cat=&gt; or C&lt;val=&gt; query param absent.
+</span><span class=""> 2381:   Column not found: &lt;name&gt;               Named column absent from the result set.
+</span><span class=""> 2382:   Could not open data source             Left-table spec unresolvable or 404.
+</span><span class=""> 2383:   No plottable data: ...                 All rows lack a valid numeric value.
+</span><span class=""> 2384: 
+</span><span class=""> 2385: =head3 EXAMPLE
+</span><span class=""> 2386: 
+</span><span class=""> 2387:   GET /pie?l=table:sales&amp;cat=region&amp;val=amount&amp;back=/view/sales
 </span><span class=""> 2388: 
-</span><span class=""> 2389: =item B&lt;Left join keeps only the FIRST matching right-table row&gt;
-</span><span class=""> 2390: 
-</span><span class=""> 2391: When the right table has two rows with the same join key, only the first one
-</span><span class=""> 2392: (in file order) is used.  The second is silently ignored.  If you need all
-</span><span class=""> 2393: matches, consider pre-processing your data so join keys are unique.
-</span><span class=""> 2394: 
-</span><span class=""> 2395: =item B&lt;Export format comes from the filename extension, not a Content-Type header&gt;
-</span><span class=""> 2396: 
-</span><span class=""> 2397: When using C&lt;POST /export&gt; to save a file to disk, the format (CSV or SQLite)
-</span><span class=""> 2398: is determined by the extension of the C&lt;filename&gt; parameter.  C&lt;.csv&gt; produces
-</span><span class=""> 2399: a CSV file; C&lt;.sql&gt; produces a SQLite database.  Any other extension returns
-</span><span class=""> 2400: HTTP 415 (Unsupported Media Type).  The C&lt;Content-Type&gt; request header is
-</span><span class=""> 2401: ignored entirely.
-</span><span class=""> 2402: 
-</span><span class=""> 2403: =item B&lt;Template Toolkit variables starting with underscore are silently dropped&gt;
+</span><span class=""> 2389: Renders a pie chart of total C&lt;amount&gt; per C&lt;region&gt;.  Clicking the
+</span><span class=""> 2390: &quot;North&quot; slice navigates to C&lt;/view/sales?f=region:eq:North&gt;.
+</span><span class=""> 2391: 
+</span><span class=""> 2392: With a donut hole:
+</span><span class=""> 2393: 
+</span><span class=""> 2394:   GET /pie?l=table:sales&amp;cat=region&amp;val=amount&amp;donut=1
+</span><span class=""> 2395: 
+</span><span class=""> 2396: =head3 FORMAL SPECIFICATION
+</span><span class=""> 2397: 
+</span><span class=""> 2398:   pie_view : Controller x Params -&gt; HTML | Error
+</span><span class=""> 2399: 
+</span><span class=""> 2400:   let pipeline = run_export_pipeline(l, j, f, d)
+</span><span class=""> 2401:   let totals   = { cat =&gt; sum { val(row) | row in pipeline.records,
+</span><span class=""> 2402:                                            cat(row) != &#39;&#39;, num(val(row)) != bot }
+</span><span class=""> 2403:                  | cat in range(cat_col) }
 </span><span class=""> 2404: 
-</span><span class=""> 2405: If you add a stash variable with a name starting with C&lt;_&gt; (for example,
-</span><span class=""> 2406: C&lt;_tmp&gt; or C&lt;_result&gt;), Template Toolkit will silently produce an empty string
-</span><span class=""> 2407: when the template tries to read it.  This is a TT quirk when C&lt;TRIM =E&lt;gt&gt; 1&gt;
-</span><span class=""> 2408: is active.  Always use names that start with a letter.
-</span><span class=""> 2409: 
-</span><span class=""> 2410: =item B&lt;_apply_filter_spec always passes all records through for unknown operators&gt;
+</span><span class=""> 2405:   pre  cat in params /\ val in params     else 400
+</span><span class=""> 2406:   pre  cat in pipeline.cols               else 400
+</span><span class=""> 2407:   pre  val in pipeline.cols               else 400
+</span><span class=""> 2408:   pre  totals != {}                        else 200 &quot;No plottable data&quot;
+</span><span class=""> 2409:   post HTML::D3-&gt;render_pie_chart_snippet(slices) embedded in TT layout
+</span><span class=""> 2410:        where slices = sort_desc { |s.value| | s in totals }
 </span><span class=""> 2411: 
-</span><span class=""> 2412: If you pass an operator that is not in the supported list (for example C&lt;regex&gt;
-</span><span class=""> 2413: or C&lt;like&gt;), the filter is treated as a no-op and B&lt;all rows are returned&gt;.  No
-</span><span class=""> 2414: error is produced.  This is intentional so that future operators can be added
-</span><span class=""> 2415: without breaking existing clients that read a wider response.
-</span><span class=""> 2416: 
-</span><span class=""> 2417: =item B&lt;Uploading a file does not clean up automatically&gt;
+</span><span class=""> 2412: =cut
+</span><span class=""> 2413: 
+</span><span class=""> 2414: =head2 clear_uploads
+</span><span class=""> 2415: 
+</span><span class=""> 2416: C&lt;POST /uploads/clear&gt; -- Delete every file from the C&lt;.uploads/&gt; staging
+</span><span class=""> 2417: directory and return the total disk space recovered.
 </span><span class=""> 2418: 
-</span><span class=""> 2419: Files uploaded via C&lt;POST /upload&gt; are stored in C&lt;.uploads/&gt; under the
-</span><span class=""> 2420: application&#39;s home directory and are B&lt;never deleted automatically&gt;.  They
-</span><span class=""> 2421: accumulate until you manually remove the C&lt;.uploads/&gt; directory.  This is
-</span><span class=""> 2422: intentional for a single-user local tool, but you should be aware of it on
-</span><span class=""> 2423: long-running servers.
+</span><span class=""> 2419: The C&lt;.uploads/&gt; directory accumulates files from drag-and-drop uploads.
+</span><span class=""> 2420: It grows indefinitely; this action lets users reclaim that space without
+</span><span class=""> 2421: needing shell access.
+</span><span class=""> 2422: 
+</span><span class=""> 2423: =head3 API SPECIFICATION
 </span><span class=""> 2424: 
-</span><span class=""> 2425: =item B&lt;Open C&lt;data/&gt; tables by name; open other files by absolute path&gt;
+</span><span class=""> 2425: =head4 INPUT
 </span><span class=""> 2426: 
-</span><span class=""> 2427: The C&lt;view&gt; action (C&lt;GET /view/:table&gt;) only looks inside C&lt;data_dir&gt;.
-</span><span class=""> 2428: To open a file from anywhere else on the filesystem, use C&lt;open_file&gt;
-</span><span class=""> 2429: (C&lt;GET /open?path=/abs/path&gt;).  The two routes use different URL schemes and
-</span><span class=""> 2430: are not interchangeable.
-</span><span class=""> 2431: 
-</span><span class=""> 2432: =back
-</span><span class=""> 2433: 
-</span><span class=""> 2434: =head1 LIMITATIONS
+</span><span class=""> 2427: No parameters.  The C&lt;.uploads/&gt; path is always the one under C&lt;app-&gt;home&gt;.
+</span><span class=""> 2428: 
+</span><span class=""> 2429: =head4 OUTPUT
+</span><span class=""> 2430: 
+</span><span class=""> 2431:   200 application/json   { &quot;freed&quot;: &lt;bytes&gt;, &quot;count&quot;: &lt;n&gt; }
+</span><span class=""> 2432: 
+</span><span class=""> 2433: C&lt;freed&gt; is the total number of bytes removed.  C&lt;count&gt; is the number of
+</span><span class=""> 2434: files deleted.  Both are 0 when the directory is absent or already empty.
 </span><span class=""> 2435: 
-</span><span class=""> 2436: =over 4
+</span><span class=""> 2436: =cut
 </span><span class=""> 2437: 
-</span><span class=""> 2438: =item *
+</span><span class=""> 2438: =head1 DESCRIPTION
 </span><span class=""> 2439: 
-</span><span class=""> 2440: Multi-table joins are delegated to C&lt;Database::Join&gt;.  All component tables
-</span><span class=""> 2441: are fetched into memory before the merge; this is not suitable for very large
-</span><span class=""> 2442: result sets.  C&lt;Database::Join&gt; operates in-memory only.
-</span><span class=""> 2443: 
-</span><span class=""> 2444: =item *
-</span><span class=""> 2445: 
-</span><span class=""> 2446: C&lt;_resolve_language&gt; extracts only the primary language subtag from the first
-</span><span class=""> 2447: C&lt;Accept-Language&gt; tag (e.g. C&lt;de&gt; from C&lt;de-DE,de;q=0.9,en;q=0.8&gt;).
-</span><span class=""> 2448: Quality weights and multiple alternatives are not ranked.
-</span><span class=""> 2449: 
-</span><span class=""> 2450: =item *
-</span><span class=""> 2451: 
-</span><span class=""> 2452: No GeoIP-based language resolution is implemented.  The language is resolved
-</span><span class=""> 2453: from the HTTP C&lt;Accept-Language&gt; header only.
+</span><span class=""> 2440: All user-facing routes in C&lt;Database::BI&gt; are handled by this controller.
+</span><span class=""> 2441: See the individual action POD above for per-endpoint documentation.
+</span><span class=""> 2442: 
+</span><span class=""> 2443: =head2 Filter operators and the quick-filter bar
+</span><span class=""> 2444: 
+</span><span class=""> 2445: Filters are expressed as C&lt;f=col:op:val&gt; query parameters and are applied
+</span><span class=""> 2446: server-side after all joins.  Multiple C&lt;f=&gt; params are applied in order
+</span><span class=""> 2447: (AND semantics).
+</span><span class=""> 2448: 
+</span><span class=""> 2449: The colon separator is split with a limit of 3, so values may themselves
+</span><span class=""> 2450: contain colons (e.g. C&lt;f=sale_date:eq:2025-01-15&gt;, or a time value like
+</span><span class=""> 2451: C&lt;f=start_time:eq:14:30:00&gt;).
+</span><span class=""> 2452: 
+</span><span class=""> 2453: B&lt;Supported operators:&gt;
 </span><span class=""> 2454: 
-</span><span class=""> 2455: =item *
-</span><span class=""> 2456: 
-</span><span class=""> 2457: C&lt;Sub::Protected&gt; enforcement requires the CHECK compilation phase; when modules
-</span><span class=""> 2458: are loaded dynamically at test time the &quot;Too late to run CHECK block&quot; warning
-</span><span class=""> 2459: is emitted and the restriction is not enforced in that context.
-</span><span class=""> 2460: 
-</span><span class=""> 2461: =back
-</span><span class=""> 2462: 
-</span><span class=""> 2463: =head1 AUTHOR
-</span><span class=""> 2464: 
-</span><span class=""> 2465: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class=""> 2466: 
-</span><span class=""> 2467: =head1 LICENCE AND COPYRIGHT
-</span><span class=""> 2468: 
-</span><span class=""> 2469: Copyright 2026 Nigel Horne.
-</span><span class=""> 2470: 
-</span><span class=""> 2471: Usage is subject to the GPL2 licence terms.
-</span><span class=""> 2472: If you use it,
-</span><span class=""> 2473: please let me know.
-</span><span class=""> 2474: 
-</span><span class=""> 2475: =cut
+</span><span class=""> 2455:   eq        case-insensitive string equality
+</span><span class=""> 2456:   ne        case-insensitive string inequality
+</span><span class=""> 2457:   contains  case-insensitive substring match
+</span><span class=""> 2458:   starts    case-insensitive prefix match
+</span><span class=""> 2459:   lt        numeric less-than
+</span><span class=""> 2460:   le        numeric less-than-or-equal
+</span><span class=""> 2461:   gt        numeric greater-than
+</span><span class=""> 2462:   ge        numeric greater-than-or-equal
+</span><span class=""> 2463:   empty     cell is undef or empty string (val ignored)
+</span><span class=""> 2464:   notempty  cell is defined and non-empty (val ignored)
+</span><span class=""> 2465: 
+</span><span class=""> 2466: B&lt;Quick-filter bar (table view):&gt;
+</span><span class=""> 2467: 
+</span><span class=""> 2468: A filter row below the toolbar lets the user pick a column, operator, and
+</span><span class=""> 2469: value and press &quot;Apply filter&quot; (or Enter) to add a condition without
+</span><span class=""> 2470: opening any panel.  The current URL is updated with the new C&lt;f=&gt; param
+</span><span class=""> 2471: and the page reloads; all other URL parameters (joins, dedup, etc.) are
+</span><span class=""> 2472: preserved automatically via the browser C&lt;URL&gt; API.
+</span><span class=""> 2473: 
+</span><span class=""> 2474: Active filter chips appear in the toolbar.  Each chip has an individual
+</span><span class=""> 2475: x-button to remove just that condition.  The &quot;x Clear filters&quot; link
+</span><span class=""> 2476: removes all C&lt;f=&gt; params at once.
+</span><span class=""> 2477: 
+</span><span class=""> 2478: B&lt;Drill-down from pie chart:&gt;
+</span><span class=""> 2479: 
+</span><span class=""> 2480: Clicking a pie slice or legend entry on C&lt;/pie&gt; navigates to the table
+</span><span class=""> 2481: view with C&lt;f=cat_col:eq:label&gt; appended, so the user can inspect the
+</span><span class=""> 2482: rows behind any slice without manually typing a filter.
+</span><span class=""> 2483: 
+</span><span class=""> 2484: =head1 COMMON PITFALLS
+</span><span class=""> 2485: 
+</span><span class=""> 2486: These are the most common mistakes when working with this controller.
+</span><span class=""> 2487: 
+</span><span class=""> 2488: =over 4
+</span><span class=""> 2489: 
+</span><span class=""> 2490: =item B&lt;SQLite files must use the .sql extension, not .sqlite&gt;
+</span><span class=""> 2491: 
+</span><span class=""> 2492: C&lt;Database::Abstraction&gt; (the data-reading library) probes for a file called
+</span><span class=""> 2493: C&lt;tablename.sql&gt; when it wants to open a SQLite database.  It does B&lt;not&gt;
+</span><span class=""> 2494: look for C&lt;.sqlite&gt; or C&lt;.db3&gt;.  If your file is called C&lt;inventory.sqlite&gt;,
+</span><span class=""> 2495: rename it to C&lt;inventory.sql&gt; or it will not appear in the file browser and
+</span><span class=""> 2496: will return 404 when opened.
+</span><span class=""> 2497: 
+</span><span class=""> 2498: =item B&lt;Filter values that contain a colon still work&gt;
+</span><span class=""> 2499: 
+</span><span class=""> 2500: A date like C&lt;2025-01-15&gt; contains hyphens, not colons, so it is fine.  But
+</span><span class=""> 2501: if your value itself contains a colon (for example, a time like C&lt;14:30:00&gt;),
+</span><span class=""> 2502: the filter still works because the C&lt;col:op:val&gt; spec is split on the B&lt;first
+</span><span class=""> 2503: two&gt; colons only -- the rest of the string becomes the value.
+</span><span class=""> 2504: 
+</span><span class=""> 2505:   # This correctly matches &quot;14:30:00&quot; in the start_time column:
+</span><span class=""> 2506:   ?f=start_time:eq:14:30:00
+</span><span class=""> 2507: 
+</span><span class=""> 2508: =item B&lt;Left join keeps only the FIRST matching right-table row&gt;
+</span><span class=""> 2509: 
+</span><span class=""> 2510: When the right table has two rows with the same join key, only the first one
+</span><span class=""> 2511: (in file order) is used.  The second is silently ignored.  If you need all
+</span><span class=""> 2512: matches, consider pre-processing your data so join keys are unique.
+</span><span class=""> 2513: 
+</span><span class=""> 2514: =item B&lt;Export format comes from the filename extension, not a Content-Type header&gt;
+</span><span class=""> 2515: 
+</span><span class=""> 2516: When using C&lt;POST /export&gt; to save a file to disk, the format (CSV or SQLite)
+</span><span class=""> 2517: is determined by the extension of the C&lt;filename&gt; parameter.  C&lt;.csv&gt; produces
+</span><span class=""> 2518: a CSV file; C&lt;.sql&gt; produces a SQLite database.  Any other extension returns
+</span><span class=""> 2519: HTTP 415 (Unsupported Media Type).  The C&lt;Content-Type&gt; request header is
+</span><span class=""> 2520: ignored entirely.
+</span><span class=""> 2521: 
+</span><span class=""> 2522: =item B&lt;Template Toolkit variables starting with underscore are silently dropped&gt;
+</span><span class=""> 2523: 
+</span><span class=""> 2524: If you add a stash variable with a name starting with C&lt;_&gt; (for example,
+</span><span class=""> 2525: C&lt;_tmp&gt; or C&lt;_result&gt;), Template Toolkit will silently produce an empty string
+</span><span class=""> 2526: when the template tries to read it.  This is a TT quirk when C&lt;TRIM =E&lt;gt&gt; 1&gt;
+</span><span class=""> 2527: is active.  Always use names that start with a letter.
+</span><span class=""> 2528: 
+</span><span class=""> 2529: =item B&lt;_apply_filter_spec always passes all records through for unknown operators&gt;
+</span><span class=""> 2530: 
+</span><span class=""> 2531: If you pass an operator that is not in the supported list (for example C&lt;regex&gt;
+</span><span class=""> 2532: or C&lt;like&gt;), the filter is treated as a no-op and B&lt;all rows are returned&gt;.  No
+</span><span class=""> 2533: error is produced.  This is intentional so that future operators can be added
+</span><span class=""> 2534: without breaking existing clients that read a wider response.
+</span><span class=""> 2535: 
+</span><span class=""> 2536: =item B&lt;Uploaded files are evicted automatically, but not immediately&gt;
+</span><span class=""> 2537: 
+</span><span class=""> 2538: Files uploaded via C&lt;POST /upload&gt; are stored in C&lt;.uploads/&gt; under the
+</span><span class=""> 2539: application home directory.  C&lt;Database::BI&gt; evicts upload subdirectories
+</span><span class=""> 2540: whose modification time is older than 24 hours B&lt;on every server startup&gt;.
+</span><span class=""> 2541: Between restarts, files accumulate.  For an immediate full purge (regardless
+</span><span class=""> 2542: of age), post to C&lt;POST /uploads/clear&gt; or click the &quot;Clear upload cache&quot;
+</span><span class=""> 2543: button in the UI.
+</span><span class=""> 2544: 
+</span><span class=""> 2545: =item B&lt;Open C&lt;data/&gt; tables by name; open other files by absolute path&gt;
+</span><span class=""> 2546: 
+</span><span class=""> 2547: The C&lt;view&gt; action (C&lt;GET /view/:table&gt;) only looks inside C&lt;data_dir&gt;.
+</span><span class=""> 2548: To open a file from anywhere else on the filesystem, use C&lt;open_file&gt;
+</span><span class=""> 2549: (C&lt;GET /open?path=/abs/path&gt;).  The two routes use different URL schemes and
+</span><span class=""> 2550: are not interchangeable.
+</span><span class=""> 2551: 
+</span><span class=""> 2552: =back
+</span><span class=""> 2553: 
+</span><span class=""> 2554: =head1 LIMITATIONS
+</span><span class=""> 2555: 
+</span><span class=""> 2556: =over 4
+</span><span class=""> 2557: 
+</span><span class=""> 2558: =item *
+</span><span class=""> 2559: 
+</span><span class=""> 2560: Multi-table joins are delegated to C&lt;Database::Join&gt;.  All component tables
+</span><span class=""> 2561: are fetched into memory before the merge; this is not suitable for very large
+</span><span class=""> 2562: result sets.  C&lt;Database::Join&gt; operates in-memory only.
+</span><span class=""> 2563: 
+</span><span class=""> 2564: =item *
+</span><span class=""> 2565: 
+</span><span class=""> 2566: C&lt;_resolve_language&gt; extracts only the primary language subtag from the first
+</span><span class=""> 2567: C&lt;Accept-Language&gt; tag (e.g. C&lt;de&gt; from C&lt;de-DE,de;q=0.9,en;q=0.8&gt;).
+</span><span class=""> 2568: Quality weights and multiple alternatives are not ranked.
+</span><span class=""> 2569: 
+</span><span class=""> 2570: =item *
+</span><span class=""> 2571: 
+</span><span class=""> 2572: No GeoIP-based language resolution is implemented.  The language is resolved
+</span><span class=""> 2573: from the HTTP C&lt;Accept-Language&gt; header only.
+</span><span class=""> 2574: 
+</span><span class=""> 2575: =item *
+</span><span class=""> 2576: 
+</span><span class=""> 2577: C&lt;Sub::Protected&gt; enforcement requires the CHECK compilation phase; when modules
+</span><span class=""> 2578: are loaded dynamically at test time the &quot;Too late to run CHECK block&quot; warning
+</span><span class=""> 2579: is emitted and the restriction is not enforced in that context.
+</span><span class=""> 2580: 
+</span><span class=""> 2581: =back
+</span><span class=""> 2582: 
+</span><span class=""> 2583: =head1 AUTHOR
+</span><span class=""> 2584: 
+</span><span class=""> 2585: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class=""> 2586: 
+</span><span class=""> 2587: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 2588: 
+</span><span class=""> 2589: Copyright 2026 Nigel Horne.
+</span><span class=""> 2590: 
+</span><span class=""> 2591: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 2592: If you use it,
+</span><span class=""> 2593: please let me know.
+</span><span class=""> 2594: 
+</span><span class=""> 2595: =cut
 </span></pre>
 
 <script>
