@@ -29,6 +29,7 @@ on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'Encode';
 	requires 'Excel::Writer::XLSX';
+	requires 'IPC::System::Simple';   # For autodie (:all)
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';
 	requires 'Test::Mojo';

@@ -46,6 +46,7 @@ WriteMakefile(
 		'DBD::CSV' => 0,
 		'Excel::Writer::XLSX' => 0,
 		'Encode' => 0,
+		'IPC::System::Simple' => 0,	# For autodie (:all)
 		'Test::Memory::Cycle' => 0,
 		'Test::Mockingbird' => 0,
 		'Test::Most' => 0,
