@@ -20,7 +20,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-Version 0.005.2
+0.007.0
 
 =head1 SYNOPSIS
 
@@ -73,6 +73,22 @@ B<Use a custom i18n object to translate error messages:>
         i18n      => My::I18N::Handle->new,
     );
 
+B<Open a remote HTML table from a URL:>
+
+    # Requires LWP::UserAgent::Cached and HTML::TableExtract.
+    # The table is fetched and cached in memory; no file is saved to disk.
+    my $source = Database::BI::Model::DataSource->new(
+        url => 'https://example.com/data-page.html',
+    );
+    my $records = $source->fetch_all;
+
+B<Select a specific table when a page has more than one HTML table:>
+
+    my $source = Database::BI::Model::DataSource->new(
+        url              => 'https://example.com/page.html',
+        html_table_index => 2,   # zero-based: 0 = first table, 2 = third table
+    );
+
 B<Handle errors gracefully:>
 
     my $source = eval {
@@ -120,6 +136,26 @@ returns.  C<DataSource> itself is filter-unaware.
 All user-visible strings and exception messages are keyed through the
 C<%MESSAGES> dictionary and routed via C<_msg()>, making every diagnostic
 replaceable by an i18n object at instantiation time.
+
+=head2 UTF-8 and Encoding
+
+C<DataSource> passes cell values through as Perl character strings exactly
+as L<Database::Abstraction> and the underlying DBI driver return them.
+For CSV and PSV files smaller than 16 KB, L<Text::xSV::Slurp> is used and
+bytes are returned without re-encoding; for larger files the L<DBD::CSV>
+path is used.  In both cases the caller (the controller) is responsible
+for setting the correct C<Content-Type> header.
+
+The C<table> argument and all column names must be B<ASCII-only>
+identifiers.  Full Unicode is supported inside B<cell values> -- the
+restriction applies only to structural metadata (column headers, table
+name), not to the data itself.
+
+URL-backed tables (the C<url =E<gt>> constructor path) are fetched with
+L<LWP::UserAgent::Cached>.  If the remote server declares a charset in
+its HTTP headers or HTML meta tag, L<Database::Abstraction> uses it to
+decode the response body.  If the declaration is absent or wrong, cell
+values may contain raw bytes rather than character strings.
 
 =cut
 

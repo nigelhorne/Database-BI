@@ -2318,6 +2318,99 @@ column in that row (e.g. C<region>, C<date>).
 
 =cut
 
+=head2 pie_view
+
+C<GET /pie> -- Render a D3.js v7 animated pie chart from the current data
+pipeline.
+
+Each row's category value (C<cat=>) is used as a slice label; the numeric
+value column (C<val=>) is summed per category.  Accounting-notation
+negatives such as C<(1,234.56)> are handled automatically.  Slices are
+sorted by total descending; when there are more than 12 distinct categories
+the smallest ones are collapsed into a single "Other" slice.
+
+Clicking any slice or legend entry navigates back to the table view with
+an C<f=cat:eq:value> filter applied automatically, so the user can drill
+into the data behind a slice without leaving the application.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l=<spec>    string   Left-table spec (required).  Same syntax as /join.
+  cat=<col>   string   Category column name (required; used as slice labels).
+  val=<col>   string   Numeric value column name (required; values are summed).
+  donut=1     flag     Render as a donut chart with a hole in the centre (optional).
+  back=<url>  string   URL for the "Back to table" breadcrumb link (optional; default "/").
+  f=<spec>    string   Result filter (repeatable; same syntax as /join).
+
+=head4 OUTPUT
+
+  200 text/html   TT-rendered pie chart page containing:
+                  - Two-level breadcrumb (Home > Back to table).
+                  - Export buttons for SVG and PNG (legend is composited in).
+                  - An animated D3.js pie or donut chart with a colour-coded
+                    legend.  Each slice and legend entry is clickable and
+                    navigates to the filtered table view.
+                  - Slice count (e.g. "7 slices").
+
+  200 text/plain  "No plottable data" when every row has a non-numeric or
+                  missing value column (HTTP 200, not 4xx, so the page can
+                  render a friendly message).
+
+  400 text/plain  C<cat=> or C<val=> absent, or named column not found.
+  404 text/plain  Data source could not be opened.
+
+=head4 DOMAIN CONSTRAINTS
+
+  cat=    Any column name that exists in the result set.  Cell values are
+          used verbatim as slice labels.  Empty-string cells are skipped.
+
+  val=    Must be a column whose cells contain numbers (after stripping
+          currency symbols, commas, and handling accounting-notation negatives).
+          Rows where the value is still non-numeric after stripping are skipped.
+          Negative totals are included in the chart (slice values may be negative
+          if the source data contains credits or reversals).
+
+  donut=  Any truthy value (e.g. "1") enables the donut hole.  Absent or
+          "0" renders a solid pie.
+
+=head3 MESSAGES
+
+  Missing cat or val column parameter    C<cat=> or C<val=> query param absent.
+  Column not found: <name>               Named column absent from the result set.
+  Could not open data source             Left-table spec unresolvable or 404.
+  No plottable data: ...                 All rows lack a valid numeric value.
+
+=head3 EXAMPLE
+
+  GET /pie?l=table:sales&cat=region&val=amount&back=/view/sales
+
+Renders a pie chart of total C<amount> per C<region>.  Clicking the
+"North" slice navigates to C</view/sales?f=region:eq:North>.
+
+With a donut hole:
+
+  GET /pie?l=table:sales&cat=region&val=amount&donut=1
+
+=head3 FORMAL SPECIFICATION
+
+  pie_view : Controller x Params -> HTML | Error
+
+  let pipeline = run_export_pipeline(l, j, f, d)
+  let totals   = { cat => sum { val(row) | row in pipeline.records,
+                                           cat(row) != '', num(val(row)) != bot }
+                 | cat in range(cat_col) }
+
+  pre  cat in params /\ val in params     else 400
+  pre  cat in pipeline.cols               else 400
+  pre  val in pipeline.cols               else 400
+  pre  totals != {}                        else 200 "No plottable data"
+  post HTML::D3->render_pie_chart_snippet(slices) embedded in TT layout
+       where slices = sort_desc { |s.value| | s in totals }
+
+=cut
+
 =head2 clear_uploads
 
 C<POST /uploads/clear> -- Delete every file from the C<.uploads/> staging
@@ -2347,9 +2440,17 @@ files deleted.  Both are 0 when the directory is absent or already empty.
 All user-facing routes in C<Database::BI> are handled by this controller.
 See the individual action POD above for per-endpoint documentation.
 
-=head2 Filter operators
+=head2 Filter operators and the quick-filter bar
 
-The C<f=col:op:val> filter spec supports:
+Filters are expressed as C<f=col:op:val> query parameters and are applied
+server-side after all joins.  Multiple C<f=> params are applied in order
+(AND semantics).
+
+The colon separator is split with a limit of 3, so values may themselves
+contain colons (e.g. C<f=sale_date:eq:2025-01-15>, or a time value like
+C<f=start_time:eq:14:30:00>).
+
+B<Supported operators:>
 
   eq        case-insensitive string equality
   ne        case-insensitive string inequality
@@ -2362,8 +2463,23 @@ The C<f=col:op:val> filter spec supports:
   empty     cell is undef or empty string (val ignored)
   notempty  cell is defined and non-empty (val ignored)
 
-The colon separator is split with a limit of 3, so values may themselves
-contain colons (e.g. C<f=sale_date:eq:2025-01-15>).
+B<Quick-filter bar (table view):>
+
+A filter row below the toolbar lets the user pick a column, operator, and
+value and press "Apply filter" (or Enter) to add a condition without
+opening any panel.  The current URL is updated with the new C<f=> param
+and the page reloads; all other URL parameters (joins, dedup, etc.) are
+preserved automatically via the browser C<URL> API.
+
+Active filter chips appear in the toolbar.  Each chip has an individual
+x-button to remove just that condition.  The "x Clear filters" link
+removes all C<f=> params at once.
+
+B<Drill-down from pie chart:>
+
+Clicking a pie slice or legend entry on C</pie> navigates to the table
+view with C<f=cat_col:eq:label> appended, so the user can inspect the
+rows behind any slice without manually typing a filter.
 
 =head1 COMMON PITFALLS
 
@@ -2417,13 +2533,14 @@ or C<like>), the filter is treated as a no-op and B<all rows are returned>.  No
 error is produced.  This is intentional so that future operators can be added
 without breaking existing clients that read a wider response.
 
-=item B<Uploading a file does not clean up automatically>
+=item B<Uploaded files are evicted automatically, but not immediately>
 
 Files uploaded via C<POST /upload> are stored in C<.uploads/> under the
-application's home directory and are B<never deleted automatically>.  They
-accumulate until you manually remove the C<.uploads/> directory.  This is
-intentional for a single-user local tool, but you should be aware of it on
-long-running servers.
+application home directory.  C<Database::BI> evicts upload subdirectories
+whose modification time is older than 24 hours B<on every server startup>.
+Between restarts, files accumulate.  For an immediate full purge (regardless
+of age), post to C<POST /uploads/clear> or click the "Clear upload cache"
+button in the UI.
 
 =item B<Open C<data/> tables by name; open other files by absolute path>
 

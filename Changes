@@ -12,6 +12,13 @@ Revision history for Database-BI
       legend enabled).  HTML::D3 minimum bumped from 0.13 to 0.14.
     - Pie and line graph pages now show a two-level breadcrumb
       ("Home > Back to table") matching the dashboard style.
+    - The table view now has a quick-filter bar below the toolbar.  A column
+      select, operator select (equals, not equals, contains, starts with, less
+      than, less or equal, greater than, greater or equal, is empty, is not
+      empty), and a value input let the user add a filter condition without
+      opening the "Merge data" panel.  Pressing Enter in the value field
+      triggers Apply.  Active filter chips now each have an individual x-remove
+      button to drop a single condition without clearing all filters.
     [ Bug Fixes ]
     - Opening the line graph panel after the pie chart panel (or vice versa)
       now correctly hides the previously open panel.  The graph panel's
