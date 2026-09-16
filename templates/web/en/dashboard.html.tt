@@ -1,5 +1,46 @@
 [%- WRAPPER 'web/en/layouts/default.html.tt' -%]
 
+<style>
+  /* Quick-filter bar below the toolbar */
+  .dash-add-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin: 0.4rem 0 0.6rem;
+  }
+  .dash-add-filter select,
+  .dash-add-filter input[type="text"] {
+    padding: 0.25rem 0.45rem;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    font-size: 0.82rem;
+  }
+  .btn-dash-filter-apply {
+    padding: 0.28rem 0.75rem;
+    border: 1px solid #888;
+    border-radius: 6px;
+    background: transparent;
+    color: #444;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .btn-dash-filter-apply:hover { background: #f0f0f0; }
+  /* x-button inside active filter chips */
+  .chip-remove {
+    background: none;
+    border: none;
+    cursor: pointer;
+    color: #7a5800;
+    font-size: 0.75rem;
+    padding: 0 0 0 0.3em;
+    line-height: 1;
+    vertical-align: middle;
+  }
+  .chip-remove:hover { color: #c00; }
+</style>
+
 [%- IF back_url -%]
 <p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a></p>
 [%- ELSE -%]
@@ -19,7 +60,7 @@
   [%- IF filter_specs.size -%]
   <span class="filter-chips" id="filter-chip-row">
     [%- FOREACH fs IN filter_specs -%]
-    <span class="filter-chip">[% fs | html %]</span>
+    <span class="filter-chip" data-spec="[% fs | html %]">[% fs | html %]<button class="chip-remove" title="Remove this filter" aria-label="Remove filter">&#x2715;</button></span>
     [%- END -%]
   </span>
   <a class="btn-clear-filters" id="btn-clear-filters" href="#">&#x2715; Clear filters</a>
@@ -43,6 +84,31 @@
   <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge data&hellip;</button>
   <button class="btn-combine" id="btn-combine" type="button" title="Stack rows from another data file beneath these rows, using a unified set of columns and leaving blanks where a column does not exist in a given file">&#x229E; Combine data&hellip;</button>
 </div>
+
+[%- IF left_spec -%]
+<div class="dash-add-filter" id="dash-add-filter">
+  <select id="dash-f-col" aria-label="Column to filter">
+    <option value="">&#x2014; filter column &#x2014;</option>
+    [%- FOREACH col IN columns -%]
+    <option value="[% col | html %]">[% col | html %]</option>
+    [%- END -%]
+  </select>
+  <select id="dash-f-op" aria-label="Filter operator">
+    <option value="eq">equals</option>
+    <option value="ne">not equals</option>
+    <option value="contains">contains</option>
+    <option value="starts">starts with</option>
+    <option value="lt">less than</option>
+    <option value="le">less or equal</option>
+    <option value="gt">greater than</option>
+    <option value="ge">greater or equal</option>
+    <option value="empty">is empty</option>
+    <option value="notempty">is not empty</option>
+  </select>
+  <input type="text" id="dash-f-val" placeholder="value" aria-label="Filter value">
+  <button id="dash-f-apply" class="btn-dash-filter-apply">Apply filter</button>
+</div>
+[%- END -%]
 
 [%- IF left_spec -%]
 <div class="export-panel" id="export-panel"
@@ -1038,11 +1104,9 @@ function parseAccounting(v) {
   if (btnClear) {
     btnClear.addEventListener('click', function (e) {
       e.preventDefault();
-      var url = location.href
-        .replace(/[?&]f=[^&]*/g, '')
-        .replace(/\?&/, '?')
-        .replace(/[?&]$/, '');
-      location.href = url;
+      var u = new URL(location.href);
+      u.searchParams.delete('f');
+      location.href = u.toString();
     });
   }
 }());
@@ -1056,6 +1120,41 @@ function parseAccounting(v) {
   var btn = document.getElementById('btn-refresh');
   if (!btn) return;
   btn.addEventListener('click', function () { location.reload(); });
+}());
+
+// Filter bar - per-chip remove and apply-new-filter
+// ---------------------------------------------------------------------------
+(function () {
+  // Remove one active filter chip.
+  document.querySelectorAll('.chip-remove').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var chip = btn.closest('[data-spec]');
+      var spec = chip ? chip.getAttribute('data-spec') : '';
+      if (!spec) return;
+      var u = new URL(location.href);
+      var kept = u.searchParams.getAll('f').filter(function (v) { return v !== spec; });
+      u.searchParams.delete('f');
+      kept.forEach(function (v) { u.searchParams.append('f', v); });
+      location.href = u.toString();
+    });
+  });
+
+  // Apply a new filter condition from the quick-filter bar.
+  var applyBtn = document.getElementById('dash-f-apply');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function () {
+      var col = document.getElementById('dash-f-col').value;
+      var op  = document.getElementById('dash-f-op').value;
+      var val = document.getElementById('dash-f-val').value;
+      if (!col || !op) return;
+      var u = new URL(location.href);
+      u.searchParams.append('f', col + ':' + op + ':' + val);
+      location.href = u.toString();
+    });
+    document.getElementById('dash-f-val').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') applyBtn.click();
+    });
+  }
 }());
 
 // Dedup button — toggle d=1 in the URL and reload

@@ -53,6 +53,48 @@
   [% pie_html %]
 </div>
 
+<!-- Metadata read by the drill-down click handler below. -->
+<div id="pie-meta" data-back-url="[% back_url | html %]" data-cat-col="[% cat_col | html %]" hidden></div>
+
+<script>
+// Clicking a slice or legend entry filters the source table to that category.
+(function () {
+  var meta    = document.getElementById('pie-meta');
+  var backUrl = meta ? meta.getAttribute('data-back-url') : '';
+  var catCol  = meta ? meta.getAttribute('data-cat-col')  : '';
+  if (!backUrl || !catCol) return;
+
+  function drillDown(label) {
+    var sep = backUrl.indexOf('?') >= 0 ? '&' : '?';
+    window.location.href = backUrl + sep + 'f=' + encodeURIComponent(catCol + ':eq:' + label);
+  }
+
+  // D3 creates the path elements synchronously; only the transition is deferred.
+  // A short delay ensures the elements are in the DOM before we query them.
+  setTimeout(function () {
+    // Wire pie slices: D3 v7 stores the datum on element.__data__.
+    document.querySelectorAll('#pie_chart path').forEach(function (path) {
+      var d = path.__data__;
+      if (!d || !d.data || !d.data.label) return;
+      path.style.cursor = 'pointer';
+      path.setAttribute('title', 'Filter table to: ' + d.data.label);
+      path.addEventListener('click', function () { drillDown(d.data.label); });
+    });
+
+    // Wire legend entries: parse the label as the text before the ' / ' separator.
+    document.querySelectorAll('#pie_chart_legend .bi-pie-legend-entry').forEach(function (el) {
+      var text  = el.textContent.trim();
+      var slash = text.indexOf(' / ');
+      var label = slash >= 0 ? text.substring(0, slash).trim() : text;
+      if (!label) return;
+      el.style.cursor = 'pointer';
+      el.setAttribute('title', 'Filter table to: ' + label);
+      el.addEventListener('click', function () { drillDown(label); });
+    });
+  }, 50);
+}());
+</script>
+
 <script>
 (function () {
   // Read legend entries from the HTML legend panel that HTML::D3 renders beside

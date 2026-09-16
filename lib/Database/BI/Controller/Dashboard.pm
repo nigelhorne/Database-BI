@@ -2066,10 +2066,11 @@ sub graph_view ($self) {
 }
 
 sub pie_view ($self) {
-	my $cat_col = $self->param('cat') // '';
-	my $val_col = $self->param('val') // '';
-	my $donut   = $self->param('donut') ? 1 : 0;
-	my $back    = $self->param('back') // '/';
+	my $cat_col     = $self->param('cat') // '';
+	my $val_col     = $self->param('val') // '';
+	my $donut       = $self->param('donut') ? 1 : 0;
+	my $back        = $self->param('back') // '/';
+	my @filter_specs = $self->every_param('f');
 
 	return $self->render(text => 'Missing cat or val column parameter', status => 400)
 		unless length($cat_col) && length($val_col);
@@ -2118,14 +2119,16 @@ sub pie_view ($self) {
 
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
-		handler     => 'tt',
-		template    => "$platform/$language/pie",
-		format      => 'html',
-		title       => $title,
-		pie_html    => $snippet->{html},
-		back_url    => $back,
-		back_label  => 'Back to table',
-		slice_count => scalar @slices,
+		handler      => 'tt',
+		template     => "$platform/$language/pie",
+		format       => 'html',
+		title        => $title,
+		pie_html     => $snippet->{html},
+		back_url     => $back,
+		back_label   => 'Back to table',
+		slice_count  => scalar @slices,
+		cat_col      => $cat_col,
+		val_col      => $val_col,
 	);
 }
 
