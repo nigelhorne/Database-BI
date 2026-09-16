@@ -2065,6 +2065,70 @@ sub graph_view ($self) {
 	);
 }
 
+sub pie_view ($self) {
+	my $cat_col = $self->param('cat') // '';
+	my $val_col = $self->param('val') // '';
+	my $donut   = $self->param('donut') ? 1 : 0;
+	my $back    = $self->param('back') // '/';
+
+	return $self->render(text => 'Missing cat or val column parameter', status => 400)
+		unless length($cat_col) && length($val_col);
+
+	my ($records, $columns) = $self->_run_export_pipeline;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless $records;
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $cat_col", status => 400)
+		unless $col_set{$cat_col};
+	return $self->render(text => "Column not found: $val_col", status => 400)
+		unless $col_set{$val_col};
+
+	# Aggregate: sum val_col per cat_col value, using accounting-notation handling.
+	my %totals;
+	for my $row (@{$records}) {
+		my $cat = $row->{$cat_col} // '';
+		next unless length($cat);
+		my $v = $row->{$val_col} // '';
+		next unless length($v);
+		my $is_acct_neg = ($v =~ /\A\s*\(/);
+		(my $v_num = $v) =~ s/[^\d.\-]//g;
+		$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
+		next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
+		$totals{$cat} += $v_num + 0;
+	}
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid numeric values in the value column.',
+		status => 200,
+	) unless %totals;
+
+	my @slices = map { [$_, $totals{$_}] } sort keys %totals;
+
+	require HTML::D3;
+	my $title   = "$val_col by $cat_col";
+	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
+		->render_pie_chart_snippet(\@slices, {
+			animated    => 1,
+			donut       => $donut,
+			sort_slices => 'value',
+			max_slices  => 12,
+			legend      => 1,
+		});
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler     => 'tt',
+		template    => "$platform/$language/pie",
+		format      => 'html',
+		title       => $title,
+		pie_html    => $snippet->{html},
+		back_url    => $back,
+		back_label  => 'Back to table',
+		slice_count => scalar @slices,
+	);
+}
+
 1;
 
 __END__

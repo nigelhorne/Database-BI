@@ -32,6 +32,8 @@
           title="Remove the selected rows and/or columns from this view">&#x1F5D1; Delete selected</button>
   <button class="btn-graph" id="btn-graph" type="button"
           title="Plot the current data as a line chart - choose the X and Y axes">&#x1F4C8; Line graph&hellip;</button>
+  <button class="btn-pie" id="btn-pie" type="button"
+          title="Plot the current data as a pie chart - choose the category and value columns">&#x25D4; Pie chart&hellip;</button>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
@@ -235,6 +237,60 @@
         <div class="graph-btn-row">
           <button type="submit" id="btn-do-graph" class="btn-primary" disabled>Plot</button>
           <button type="button" id="btn-cancel-graph" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="graph-panel" id="pie-panel" hidden>
+  <form id="pie-form" method="get" action="/pie">
+    <input type="hidden" name="l" value="[% left_spec | html %]">
+    [%- FOREACH jspec IN current_joins -%]
+    <input type="hidden" name="j" value="[% jspec | html %]">
+    [%- END -%]
+    [%- FOREACH fs IN filter_specs -%]
+    <input type="hidden" name="f" value="[% fs | html %]">
+    [%- END -%]
+    [%- IF dedup -%]
+    <input type="hidden" name="d" value="1">
+    [%- END -%]
+    <input type="hidden" name="back" id="pie-back-inp" value="">
+
+    <h3 class="graph-panel-title">&#x25D4; Pie chart</h3>
+
+    <p class="graph-panel-desc">Choose a category column and a numeric value column, then click Plot.</p>
+
+    <div class="graph-fields-row">
+      <div class="join-field">
+        <label for="pie-cat-sel">Slice by</label>
+        <select id="pie-cat-sel" name="cat" required>
+          <option value="">&#x2014; select column &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="pie-val-sel">Sum of (numeric)</label>
+        <select id="pie-val-sel" name="val" required>
+          <option value="">&#x2014; select column &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="pie-donut-chk" title="Show a hole in the centre of the pie">Donut style</label>
+        <label style="display:flex;align-items:center;gap:0.4rem;padding-top:0.3rem;">
+          <input type="checkbox" id="pie-donut-chk" name="donut" value="1"> Donut
+        </label>
+      </div>
+      <div class="graph-btn-col">
+        <span class="graph-btn-spacer"></span>
+        <div class="graph-btn-row">
+          <button type="submit" id="btn-do-pie" class="btn-primary" disabled>Plot</button>
+          <button type="button" id="btn-cancel-pie" class="btn-secondary">Cancel</button>
         </div>
       </div>
     </div>
@@ -1131,7 +1187,7 @@ function parseAccounting(v) {
   var ySel      = document.getElementById('graph-y-sel');
   var backInp   = document.getElementById('graph-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1221,6 +1277,76 @@ function parseAccounting(v) {
 
   xSel.addEventListener('change', checkPlot);
   ySel.addEventListener('change', checkPlot);
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Pie chart panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-pie');
+  var panel     = document.getElementById('pie-panel');
+  if (!btnOpen || !panel) return;
+
+  var btnCancel = document.getElementById('btn-cancel-pie');
+  var btnDo     = document.getElementById('btn-do-pie');
+  var catSel    = document.getElementById('pie-cat-sel');
+  var valSel    = document.getElementById('pie-val-sel');
+  var backInp   = document.getElementById('pie-back-inp');
+
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel'].map(function (id) {
+    return document.getElementById(id);
+  }).filter(Boolean);
+
+  function checkPie() {
+    btnDo.disabled = !(catSel.value && valSel.value);
+  }
+
+  // Rebuild the value select to show only numeric (non-date) columns.
+  function buildPieValSelect() {
+    var tbl = document.querySelector('table[data-table]') || document.querySelector('table');
+    if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return;
+    var headers = Array.from(tbl.tHead.rows[0].cells);
+    var rows    = Array.from(tbl.tBodies[0].rows);
+    var prev    = valSel.value;
+    while (valSel.options.length > 1) valSel.remove(1);
+    headers.forEach(function (th, idx) {
+      var name  = th.textContent.trim();
+      var vals  = rows.map(function (r) {
+        return r.cells[idx] ? r.cells[idx].textContent.trim() : '';
+      }).filter(function (v) { return v !== ''; });
+      if (vals.length === 0) return;
+      // Exclude date-shaped columns.
+      if (vals.every(function (v) {
+        return /^\d{4}-\d{2}-\d{2}$/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v);
+      })) return;
+      // Only show columns whose non-empty values are all numeric.
+      if (!vals.every(function (v) {
+        if (v === '') return true;
+        return !isNaN(parseAccounting(v));
+      })) return;
+      var opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === prev) opt.selected = true;
+      valSel.appendChild(opt);
+    });
+  }
+
+  btnOpen.addEventListener('click', function () {
+    otherPanels.forEach(function (p) { p.hidden = true; });
+    backInp.value = window.location.href;
+    buildPieValSelect();
+    panel.hidden = !panel.hidden;
+    checkPie();
+  });
+
+  btnCancel && btnCancel.addEventListener('click', function () {
+    panel.hidden = true;
+  });
+
+  catSel.addEventListener('change', checkPie);
+  valSel.addEventListener('change', checkPie);
 }());
 </script>
 

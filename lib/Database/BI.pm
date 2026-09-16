@@ -429,6 +429,7 @@ sub startup ($self) {
 	$r->post('/upload')->to('Dashboard#upload_file');
 	$r->post('/uploads/clear')->to('Dashboard#clear_uploads');
 	$r->get('/graph')->to('Dashboard#graph_view');
+	$r->get('/pie')->to('Dashboard#pie_view');
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is

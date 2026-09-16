@@ -1,0 +1,97 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt' -%]
+
+<style>
+  /* Centre the pie chart and legend inside the page */
+  .pie-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1rem;
+    margin: 1rem 0;
+  }
+  /* Export bar matches the line graph page style */
+  .pie-export-bar {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+    margin-bottom: 0.5rem;
+  }
+  .btn-pie-export {
+    padding: 0.28rem 0.75rem;
+    border: 1px solid #888;
+    border-radius: 6px;
+    background: transparent;
+    color: #444;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .btn-pie-export:hover { background: #f0f0f0; }
+  .pie-slice-count {
+    font-size: 0.82rem;
+    color: #666;
+    margin-left: 0.25rem;
+  }
+</style>
+
+<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a></p>
+
+<h2 class="graph-title">[% title | html %]</h2>
+
+<div class="pie-export-bar">
+  <button class="btn-pie-export" onclick="biPieExportSVG()">Export SVG</button>
+  <button class="btn-pie-export" onclick="biPieExportPNG()">Export PNG</button>
+  <span class="pie-slice-count">
+    [% slice_count %] slice[% IF slice_count != 1 %]s[% END %]
+    [% IF slice_count > 12 %](top 12 shown)[% END %]
+  </span>
+</div>
+
+<div class="pie-container">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  [% pie_html %]
+</div>
+
+<script>
+(function () {
+  function biPieExportSVG() {
+    var svg = document.getElementById('pie_chart');
+    if (!svg) return;
+    var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
+            + new XMLSerializer().serializeToString(svg);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+    a.download = 'pie.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function biPieExportPNG() {
+    var svg = document.getElementById('pie_chart');
+    if (!svg) return;
+    var w = parseInt(svg.getAttribute('width'), 10)  || 600;
+    var h = parseInt(svg.getAttribute('height'), 10) || 500;
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    var src = new XMLSerializer().serializeToString(svg);
+    var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+    var img = new Image();
+    img.onload = function () {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      var a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'pie.png';
+      a.click();
+    };
+    img.src = url;
+  }
+  window.biPieExportSVG = biPieExportSVG;
+  window.biPieExportPNG = biPieExportPNG;
+}());
+</script>
+
+[%- END -%]
