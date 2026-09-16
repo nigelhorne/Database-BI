@@ -1342,7 +1342,7 @@ subtest 'Transaction 20: Graph UI polish, date-sort JS, and numeric Y-axis filte
 			'Phase 1: isDateVal exclusion helper present');
 
 	SKIP: {
-		eval { require HTML::D3 } or skip 'HTML::D3 not available', 7;
+		eval { require HTML::D3 } or skip 'HTML::D3 not available', 9;
 
 		# Phase 2: /graph renders via the TT layout with the snippet embedded.
 		$t->get_ok('/graph?l=table:sales&x=product&y=amount')
@@ -1356,7 +1356,12 @@ subtest 'Transaction 20: Graph UI polish, date-sort JS, and numeric Y-axis filte
 			->content_like(qr/d3\.v7/,
 				'Phase 2: D3.js v7 loaded via CDN script tag')
 			->content_like(qr/biExportSVG|Export SVG/,
-				'Phase 2: SVG export button present');
+				'Phase 2: SVG export button present')
+			# Phase 2a: animated initial draw (HTML::D3 >= 0.13 animated => 1).
+			->content_like(qr/stroke-dashoffset/,
+				'Phase 2a: stroke-dashoffset animation emitted by HTML::D3')
+			->content_like(qr/initialDrawDone/,
+				'Phase 2a: initialDrawDone guard present -- zoom redraws not animated');
 	}
 };
 
@@ -1433,6 +1438,19 @@ subtest 'Transaction 22: Graph button disabled when no numeric column' => sub {
 	# The initGraphBtn IIFE is also present in the source.
 	$t->content_like(qr/initGraphBtn/,
 		'Phase 3: initGraphBtn IIFE present (greys out btn-graph on load)');
+
+	# Regression guard: buildYSelect iterates tHead.cells (which includes the
+	# injected sel-th at idx=0) and reads r.cells[idx] to get the matching
+	# data cell.  Both thead and tbody are shifted identically by injectSelCol,
+	# so no additional SEL offset is needed.  Using r.cells[idx + SEL] would
+	# double-correct, reading one column to the right of the examined header
+	# and producing wrong Y-axis options (e.g. "Description" shown as numeric
+	# because Debit values were tested against it).
+	my $body = $t->tx->res->body;
+	my ($build_y_body) = ($body =~ /function buildYSelect\b(.*?)return ySel\.options\.length/s);
+	ok(defined $build_y_body && $build_y_body !~ /idx\s*\+\s*SEL/,
+		'Phase 3: buildYSelect uses r.cells[idx] not r.cells[idx+SEL] (column-alignment guard)');
+
 
 	# Phase 4: single-numeric-column auto-fill.  Upload a CSV with one numeric
 	# column and one text column; the Y-axis dropdown must be hidden and the

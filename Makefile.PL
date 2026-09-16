@@ -32,7 +32,7 @@ WriteMakefile(
 		'List::Util'		=> '1.40',
 		'Scalar::Util'		=> '1.40',
 		'Socket'		=> '2.010',
-		'HTML::D3'	=> 0.11,
+		'HTML::D3'	=> 0.13,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'		=> 0,
 		'LWP::UserAgent::Cached'	=> 0,

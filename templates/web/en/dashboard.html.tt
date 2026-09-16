@@ -1167,7 +1167,7 @@ function parseAccounting(v) {
     headers.forEach(function (th, idx) {
       var name  = th.textContent.trim();
       var vals  = rows.map(function (r) {
-        return r.cells[idx + SEL] ? r.cells[idx + SEL].textContent.trim() : '';
+        return r.cells[idx] ? r.cells[idx].textContent.trim() : '';
       }).filter(function (v) { return v !== ''; });
       if (vals.length === 0) return;
       if (vals.every(isDateVal)) return;

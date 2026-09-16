@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.006.0
+0.006.0	Tue Sep 15 08:03:20 PM EDT 2026
     [ Enhancements ]
     - Added a 'home' link on the table display page
     - XLSX files are now supported directly via DBD::Excel (each worksheet
@@ -8,7 +8,7 @@ Revision history for Database-BI
       drag-and-drop drop zone all accept .xlsx files.  DBD::Excel added to
       TEST_REQUIRES.
     - "Combine data" now allows a file to be drag and dropped
-    - Multi-table left joins are now delegated to Database::Join (>= 0.002.0)
+    - Multi-table left joins are now delegated to Database::Join (>= 0.003.0)
       instead of the bespoke _left_join helper.  Column collision handling
       (prefixing right-table columns with "label.col" when a name clashes) is
       provided by Database::Join's new collision_prefix parameter.
@@ -73,6 +73,14 @@ Revision history for Database-BI
       select-all/deselect-all checkbox in the header.  The record count in the
       toolbar is updated after deletion.  Sorting, drag-to-reorder, and the
       Totals row all continue to work correctly after deletions.
+    - Line graphs now animate on initial page load (requires HTML::D3 >= 0.13).
+      The line draws left-to-right via a stroke-dashoffset transition (1200 ms,
+      easeLinear); data-point circles fade in after the line finishes (300 ms
+      fade, 1200 ms delay).  Zoom and reset redraws are not animated — a
+      per-page initialDrawDone flag ensures the effect fires only once.
+      When the viewer's OS has prefers-reduced-motion enabled the animation
+      is skipped entirely and the chart appears instantly.
+      HTML::D3 minimum version bumped to 0.13 in PREREQ_PM and cpanfile.
 
     [ Bug Fixes ]
     - When attempting to drag and drop a file larger than MAX_UPLOAD_BYTES,
@@ -93,6 +101,27 @@ Revision history for Database-BI
       directory with a symlink using the sanitized name whenever the raw
       filename stem contains illegal SQL characters, so D::A sees only the
       safe name.  Regression test added as Transaction 27.
+    - The "Line graph..." toolbar button was silently broken: clicking it did
+      nothing.  buildYSelect() referenced SEL from the table-management IIFE
+      where it was declared, but the graph-panel IIFE lives in a separate
+      <script> block and cannot access that scope.  The ReferenceError thrown
+      during initGraphBtn() prevented the click listener from ever being
+      registered.  Fixed by removing the cross-IIFE reference entirely:
+      buildYSelect() now uses r.cells[idx] instead of r.cells[idx + SEL],
+      because Array.from(tHead.rows[0].cells) already includes the injected
+      sel-th at position 0, so both the header and data arrays are shifted
+      identically and no additional offset is needed.  A regression test in
+      Transaction 22 verifies that buildYSelect does not reintroduce
+      the idx+SEL double-offset.
+    - The Y-axis dropdown in the "Line graph..." panel was listing non-numeric
+      columns (e.g. Description) as valid Y-axis choices, and omitting the
+      correct numeric ones (e.g. Balance).  Root cause: buildYSelect() used
+      r.cells[idx + SEL] where idx came from headers.forEach() over
+      tHead.rows[0].cells.  Because injectSelCol shifts both thead (sel-th)
+      and tbody (checkbox) by one position, the header and data arrays are
+      already aligned; adding SEL read one cell to the right of the header
+      under test, causing every column's numeric check to be evaluated against
+      the data of the column to its right.  Fix: changed to r.cells[idx].
     - Spreadsheet::ParseXLSX added to PREREQ_PM.  DBD::Excel 0.07 only
       handles .xls (its source skips .xlsx files entirely); DataSource now
       reads .xlsx directly via Spreadsheet::ParseXLSX in _detect_file_info,

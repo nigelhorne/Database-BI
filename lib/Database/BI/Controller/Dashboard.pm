@@ -2047,7 +2047,7 @@ sub graph_view ($self) {
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
 	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
-		->render_zoomable_line_chart_snippet(\@pairs);
+		->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 });
 
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
