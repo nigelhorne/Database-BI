@@ -22,7 +22,7 @@ use Sub::Protected;
 
 # File extensions that Database::Abstraction can probe, in probe order.
 # Note: D::A uses ".sql" for SQLite -- NOT ".sqlite".
-Readonly my @SUPPORTED_EXT => qw( csv db sql xml psv xlsx );
+Readonly my @SUPPORTED_EXT => qw( csv db sql xml tsv psv xlsx );
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
 # that passes the extension guard and reaches realpath with an embedded newline.
@@ -55,7 +55,7 @@ Readonly my %MESSAGES => (
 	error_write_failed     => 'Write failed: %s',
 	error_ext_required     => 'Use a .csv, .sql, or .json filename extension',
 	error_upload_none      => 'No file received',
-	error_upload_ext       => 'Unsupported file type. Accepted: CSV, PSV, XML, SQLite (.sql), Berkeley DB (.db), XLSX',
+	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, SQLite (.sql), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_path_required    => '"path" parameter is required',
 	error_url_required     => 'Please enter a URL',
@@ -321,7 +321,7 @@ sub _spec_to_url :Protected ($self, $spec) {
 # _get_columns($source, $records) -> @column_names
 #
 # Purpose: Return an ordered column list from a DataSource object.
-#          For CSV/PSV the DataSource stores the original file-header order.
+#          For CSV/TSV/PSV the DataSource stores the original file-header order.
 #          For SQLite/XML where no file-header order is available, the fallback
 #          is: id_column first (only if it actually appears in the data), then
 #          the remaining columns sorted alphabetically.
@@ -1011,7 +1011,7 @@ C<GET /open> -- Open a supported data file from any absolute filesystem path.
 
 =item Extension filter (C<EXT_RE>)
 
-The basename must match C<\.(?:csv|db|sql|xml|psv)\z> (case-insensitive).
+The basename must match C<\.(?:csv|db|sql|xml|tsv|psv)\z> (case-insensitive).
 The C<\z> anchor (absolute end-of-string) means a URL-encoded trailing
 newline (e.g. C<file.csv%0A> decoded to C<file.csv\n>) does NOT pass --
 the C<\n> falls after the C<\z> boundary and the extension check fails.
@@ -1019,7 +1019,7 @@ the C<\n> falls after the C<\z> boundary and the extension check fails.
 =item Valid partition
 
 C</data/sales.csv> (lowercase extension), C</tmp/REPORT.CSV> (uppercase
-extension, /i matches), any C<.db>, C<.sql>, C<.xml>, C<.psv> regular
+extension, /i matches), any C<.db>, C<.sql>, C<.xml>, C<.tsv>, C<.psv> regular
 file.
 
 =item Invalid partition
@@ -1604,7 +1604,7 @@ absent/undef (defaults to CSV).
 
 =item Invalid partitions (all fall back to CSV)
 
-Any value not in the valid set (e.g. C<SQLITE>, C<Json>, C<tsv>).
+Any value not in the valid set (e.g. C<SQLITE>, C<Json>).
 
 =back
 
@@ -1913,7 +1913,7 @@ concurrent uploads of files with the same name do not collide.
 
 Multipart form upload, field name: C<file>.
 
-  file   upload   Supported extensions: csv, db, sql, xml, psv.
+  file   upload   Supported extensions: csv, db, sql, xml, tsv, psv.
 
 =head4 OUTPUT
 

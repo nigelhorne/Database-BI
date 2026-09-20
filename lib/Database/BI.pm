@@ -35,7 +35,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 =head1 DESCRIPTION
 
 C<Database::BI> is a self-contained L<Mojolicious> web application that reads
-arbitrary flat data files (CSV, PSV, SQLite, XML, XLSX, etc.) via
+arbitrary flat data files (CSV, PSV, TSV, SQLite, XML, XLSX, etc.) via
 L<Database::Abstraction> and presents them as styled, sortable, reorderable
 HTML tables.  It has no persistent database of its own -- it reads your files
 on every request.
@@ -116,7 +116,7 @@ renders it in the browser without saving to disk.
 
 =head2 UTF-8 and Encoding
 
-All file data is returned as Perl character strings.  CSV/PSV files are
+All file data is returned as Perl character strings.  CSV/PSV/TSV files are
 read by L<Text::xSV::Slurp> or L<DBD::CSV>, both of which pass bytes
 through without re-encoding; the application serves the resulting page as
 C<text/html; charset=UTF-8>, so full Unicode is displayed correctly as
@@ -341,7 +341,7 @@ exist, the controller automatically falls back to the default language.  To
 add German support: (1) create C<templates/web/de/>, (2) copy and translate
 the C<.html.tt> files from C<templates/web/en/>, then (3) set the config.
 
-=item B<Supported data file extensions are: csv, db, sql, xml, psv, xlsx>
+=item B<Supported data file extensions are: csv, db, sql, xml, psv, tsv, xlsx>
 
 The application calls C<Database::Abstraction> which recognises exactly these
 extensions.  A file called C<inventory.sqlite> is B<not> recognised -- it

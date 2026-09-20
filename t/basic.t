@@ -128,6 +128,26 @@ subtest 'PSV format' => sub {
 };
 
 # ---------------------------------------------------------------------------
+subtest 'TSV format' => sub {
+    my $psv = File::Spec->rel2abs('data/employees.tsv');
+    plan skip_all => 'data/employees.tsv not found' unless -f $psv;
+
+    $t->get_ok('/view/employees')
+      ->status_is(200)->content_like(qr/Alice/)->content_like(qr/Engineering/);
+
+    $t->get_ok('/api/columns?table=employees')->status_is(200)->json_has('/columns');
+
+    $t->get_ok('/view/employees?f=' . url_escape('City:eq:Seattle'))
+      ->status_is(200)->content_like(qr/Alice/);
+
+    $t->get_ok('/export?l=' . url_escape('table:employees') . '&format=csv')
+      ->status_is(200)->content_type_like(qr{text/csv})->content_like(qr/Alice/);
+
+    $t->get_ok('/export?l=' . url_escape('table:employees') . '&format=sqlite')
+      ->status_is(200)->content_type_like(qr{sqlite});
+};
+
+# ---------------------------------------------------------------------------
 subtest 'XML format' => sub {
 	test_needs 'XML::Simple';
 	my $xml = File::Spec->rel2abs('data/catalog.xml');

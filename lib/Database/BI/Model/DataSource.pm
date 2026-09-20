@@ -30,7 +30,7 @@ B<Read all rows from a CSV file:>
 
     my $source = Database::BI::Model::DataSource->new(
         directory => '/path/to/data',
-        table     => 'sales',           # looks for data/sales.csv, .psv, .sql, .xml, etc.
+        table     => 'sales',           # looks for data/sales.csv, tsv, .psv, .sql, .xml, etc.
     );
 
     my $records = $source->fetch_all;   # arrayref of hashrefs -- one hashref per row
@@ -39,7 +39,7 @@ B<Read all rows from a CSV file:>
         printf "Product: %s, Amount: %s\n", $row->{product}, $row->{amount};
     }
 
-B<Get column names in the original file order (CSV/PSV only):>
+B<Get column names in the original file order (CSV/PSV/TSV only):>
 
     my $cols = $source->columns;        # returns undef for SQLite and XML
     if ($cols) {
@@ -62,6 +62,13 @@ B<Open a pipe-separated file (.psv extension):>
     my $source = Database::BI::Model::DataSource->new(
         directory => '/var/data',
         table     => 'products',        # looks for /var/data/products.psv
+    );
+
+B<Open a tab-separated file (.tsv extension):>
+
+    my $source = Database::BI::Model::DataSource->new(
+        directory => '/var/data',
+        table     => 'products',        # looks for /var/data/products.tsv
     );
 
 B<Use a custom i18n object to translate error messages:>
@@ -114,14 +121,14 @@ wraps L<Database::Abstraction> and exposes three accessors (C<fetch_all>,
 C<columns>, C<id_column>) used by the controller.
 
 L<Database::Abstraction> is a read-only ORM that discovers data files
-(CSV, PSV, SQLite, XML, etc.) automatically from a directory based on the
+(CSV, PSV, TSV, SQLite, XML, etc.) automatically from a directory based on the
 calling class name.  C<DataSource> generates an ephemeral subclass at
 construction time so callers never interact with L<Database::Abstraction>
 directly.  To swap the backend for L<Database::Join> in Phase 2, only the
 C<open_table> helper in C<Database::BI> needs to change; the controller and
 C<DataSource> are untouched.
 
-C<_detect_file_info> peeks at the first header line of CSV/PSV files to
+C<_detect_file_info> peeks at the first header line of CSV/PSV/TSV files to
 extract the correct separator character, the primary-key column name, and
 the full ordered column list.  Without this, two silent L<Database::Abstraction>
 defaults corrupt every result: C<sep_char> defaults to C<'!'> (turning a
@@ -141,7 +148,7 @@ replaceable by an i18n object at instantiation time.
 
 C<DataSource> passes cell values through as Perl character strings exactly
 as L<Database::Abstraction> and the underlying DBI driver return them.
-For CSV and PSV files smaller than 16 KB, L<Text::xSV::Slurp> is used and
+For CSV, TSV and PSV files smaller than 16 KB, L<Text::xSV::Slurp> is used and
 bytes are returned without re-encoding; for larger files the L<DBD::CSV>
 path is used.  In both cases the caller (the controller) is responsible
 for setting the correct C<Content-Type> header.
@@ -445,7 +452,7 @@ sub _init_url_backend :Protected {
 
 # _detect_file_info( $dir, $table ) -> \%info
 #
-# Peek at the first header line of a CSV or PSV file and return a hashref:
+# Peek at the first header line of a CSV, TSV or PSV file and return a hashref:
 #   sep_char => field separator character (',' or '|')
 #   id       => first column name (used as Database::Abstraction's id key)
 #   columns  => arrayref of all column names in file order
@@ -455,7 +462,7 @@ sub _init_url_backend :Protected {
 #      per row, producing a single comma-joined string instead of columns.
 #   2. id defaults to 'entry' — the slurp filter greps on that column; if it
 #      doesn't exist every row is silently discarded.
-# Returns an empty hashref for non-CSV/PSV/XLSX/SQLite formats (XML, etc.).
+# Returns an empty hashref for non-CSV/TSV/PSV/XLSX/SQLite formats (XML, etc.).
 # For SQLite/.db files that can be opened, returns { sqlite_tables => [...] }.
 sub _detect_file_info :Protected {
 	my ($dir, $table) = @_;
@@ -523,7 +530,7 @@ sub _detect_file_info :Protected {
 		}
 	}
 
-	for my $ext (qw(csv psv)) {
+	for my $ext (qw(csv psv tsv)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
 		next unless -r $path;
 		# "use autodie" makes open() die on failure, so "or next" would be dead
@@ -545,8 +552,10 @@ sub _detect_file_info :Protected {
 		$line =~ s/\r\z//;	# strip CR from CRLF files before any split
 
 		my $sep;
-		if ($ext eq 'psv') {
+		if($ext eq 'psv') {
 			$sep = '|';
+		} elsif($ext eq 'tsv') {
+			$sep = "\t";
 		} else {
 			# Sniff the separator: Database::Abstraction uses '!' natively and
 			# sometimes stores those files with a .csv extension.  If splitting
@@ -793,7 +802,7 @@ sub _init_backend :Protected {
 
 	# Probe for the actual file on disk so _cache_key can compute its mtime.
 	# This runs before the early-return paths so even empty files get a path.
-	for my $e (qw(csv psv sql xml db xlsx xls)) {
+	for my $e (qw(csv tsv psv sql xml db xlsx xls)) {
 		my $p = File::Spec->catfile($dir, "$raw_table.$e");
 		if (-f $p) {
 			$self->{_file_path} = File::Spec->rel2abs($p);
@@ -828,7 +837,7 @@ sub _init_backend :Protected {
 	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
 	# Falling back to the D::A default ('entry') would silently return 0 rows
 	# since no 'entry' column exists.  Croak with a human-readable message.
-	# This guard applies only to CSV/PSV/SQLite/XML -- headerless and XLSX paths
+	# This guard applies only to CSV/TSV/PSV/SQLite/XML -- headerless and XLSX paths
 	# are handled by the _headerless_data check immediately above.
 	croak $self->_msg('error_no_safe_id', $table)
 		if exists $info->{columns} && !defined $info->{id};
@@ -852,7 +861,7 @@ sub _init_backend :Protected {
 	my $da_dir = $dir;
 	if ($raw_table ne $table) {
 		my $safe_ext;
-		for my $e (qw(xlsx xls db sql xml csv psv)) {
+		for my $e (qw(xlsx xls db sql xml csv tsv psv)) {
 			$safe_ext = $e, last
 				if -f File::Spec->catfile($dir, "$raw_table.$e");
 		}
@@ -925,7 +934,7 @@ sub _init_backend :Protected {
 			id             => $id_col,
 			no_entry       => 1,
 			defined($info->{sep_char})  ? (sep_char       => $info->{sep_char})  : (),
-			# Force the Text::xSV::Slurp path for CSV/PSV files: D::A's default
+			# Force the Text::xSV::Slurp path for CSV/TSV/PSV files: D::A's default
 			# slurp threshold is 16 KB; larger files fall back to DBD::CSV, which
 			# sanitizes column names (lowercases and replaces spaces with
 			# underscores).  Passing the actual file size ensures the slurp path
@@ -976,7 +985,7 @@ sub table_name {
 =head2 columns
 
 Returns an arrayref of column names in file order, or C<undef> when no order
-is available.  For CSV and PSV files the order comes from the file header.
+is available.  For CSV, TSV and PSV files the order comes from the file header.
 For SQLite and XML, falls back to the underlying C<Database::Abstraction>
 object's C<columns()> — useful when a C<DataSource> is passed directly to
 C<Database::Join> as a component database.
@@ -1103,7 +1112,7 @@ sub fetch_all {
 	return $self->{_file_data} if $self->{_file_data};
 
 	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
-	# file tables benefit from skipping disk I/O and CSV/PSV parsing.
+	# file tables benefit from skipping disk I/O and CSV/TSV/PSV parsing.
 	my $cache = $self->{_cache};
 	if ($cache) {
 		my $key = $self->_cache_key;
@@ -1194,7 +1203,7 @@ setting C<no_entry =E<gt> 1> so all rows are kept as an ordered array.
 =item B<columns() returns undef for SQLite and XML files>
 
 C<columns()> only returns an arrayref for file formats where the header order
-is visible before data is read (CSV and PSV).  For SQLite and XML files it
+is visible before data is read (CSV, TSV and PSV).  For SQLite and XML files it
 returns C<undef>.  Always check: C<if ($source-E<gt>columns) { ... }>.  The
 controller falls back to putting C<id_column> first and then sorting the rest
 alphabetically when C<columns()> is C<undef>.
@@ -1224,9 +1233,9 @@ When a table exists but contains no data rows, C<fetch_all> returns C<[]> (an
 empty arrayref), not C<undef>.  Check with C<scalar @{$records}>, not with
 C<defined $records> or C<$records>.
 
-=item B<0-byte CSV/PSV files bypass Database::Abstraction entirely>
+=item B<0-byte CSV/TSV/PSV files bypass Database::Abstraction entirely>
 
-When C<_detect_file_info> opens a CSV or PSV file and the first C<readline>
+When C<_detect_file_info> opens a CSV, TSV or PSV file and the first C<readline>
 returns C<undef> (the file is 0 bytes), it returns a C<{ _file_is_empty =E<gt>
 1 }> sentinel instead of the normal C<{ id, sep_char, columns, file_size }>
 hashref.  C<_init_backend> detects this sentinel and skips
