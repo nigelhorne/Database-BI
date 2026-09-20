@@ -7,7 +7,7 @@ requires 'CGI::Lingua';
 requires 'CHI';
 requires 'Carp';
 requires 'DBI';
-requires 'Database::Abstraction', '0.43';
+requires 'Database::Abstraction', '0.44';
 requires 'Database::Join', '0.004.0';
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';

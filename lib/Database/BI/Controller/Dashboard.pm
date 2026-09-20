@@ -21,8 +21,8 @@ use Sub::Protected;
 # ---------------------------------------------------------------------------
 
 # File extensions that Database::Abstraction can probe, in probe order.
-# Note: D::A uses ".sql" for SQLite -- NOT ".sqlite".
-Readonly my @SUPPORTED_EXT => qw( csv db sql xml tsv psv xlsx );
+# .sql and .sqlite3 are both SQLite databases; .db is Berkeley DB.
+Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite3 xml tsv psv xlsx );
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
 # that passes the extension guard and reaches realpath with an embedded newline.
@@ -55,7 +55,7 @@ Readonly my %MESSAGES => (
 	error_write_failed     => 'Write failed: %s',
 	error_ext_required     => 'Use a .csv, .sql, or .json filename extension',
 	error_upload_none      => 'No file received',
-	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, SQLite (.sql), Berkeley DB (.db), XLSX',
+	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, SQLite (.sql, .sqlite3), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_path_required    => '"path" parameter is required',
 	error_url_required     => 'Please enter a URL',

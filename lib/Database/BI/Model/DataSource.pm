@@ -674,7 +674,8 @@ sub _detect_file_info :Protected {
 	# e.g. obituaries.sql whose internal table is called "deceased".  If the
 	# file is not a valid SQLite database (e.g. a Berkeley DB file) the eval
 	# fails and we return {} so _init_backend/D::A handles it natively.
-	for my $ext (qw(sql db)) {
+	# .sqlite3 is a common alternative SQLite extension — treated identically to .sql.
+	for my $ext (qw(sql sqlite3 db)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
 		next unless -r $path;
 		my $tables = eval {
@@ -802,7 +803,7 @@ sub _init_backend :Protected {
 
 	# Probe for the actual file on disk so _cache_key can compute its mtime.
 	# This runs before the early-return paths so even empty files get a path.
-	for my $e (qw(csv tsv psv sql xml db xlsx xls)) {
+	for my $e (qw(csv tsv psv sql sqlite3 xml db xlsx xls)) {
 		my $p = File::Spec->catfile($dir, "$raw_table.$e");
 		if (-f $p) {
 			$self->{_file_path} = File::Spec->rel2abs($p);
@@ -861,7 +862,7 @@ sub _init_backend :Protected {
 	my $da_dir = $dir;
 	if ($raw_table ne $table) {
 		my $safe_ext;
-		for my $e (qw(xlsx xls db sql xml csv tsv psv)) {
+		for my $e (qw(xlsx xls db sql sqlite3 xml csv tsv psv)) {
 			$safe_ext = $e, last
 				if -f File::Spec->catfile($dir, "$raw_table.$e");
 		}
@@ -898,7 +899,7 @@ sub _init_backend :Protected {
 		unless (defined $match) {
 			my $actual   = $tbls[0];
 			my ($src_ext) = grep { -f File::Spec->catfile($dir, "$raw_table.$_") }
-				qw(sql db);
+				qw(sql sqlite3 db);
 			$src_ext //= 'sql';
 			require File::Temp;
 			my $tmp     = File::Temp->newdir(CLEANUP => 1);
@@ -1167,12 +1168,12 @@ These are the most common mistakes when using C<DataSource>.
 
 =over 4
 
-=item B<SQLite databases must use .sql as their file extension>
+=item B<SQLite databases may use .sql or .sqlite3 as their file extension>
 
-C<Database::Abstraction> looks for SQLite databases with the C<.sql> extension.
-It does B<not> recognise C<.sqlite>, C<.sqlite3>, or C<.db3>.  If you have a
-file called C<inventory.sqlite>, rename it to C<inventory.sql> before passing
-it to C<DataSource>.
+C<DataSource> recognises C<.sql> and C<.sqlite3> as SQLite database files.
+It does B<not> recognise C<.sqlite> or C<.db3>.  If you have a file called
+C<inventory.sqlite>, rename it to C<inventory.sql> or C<inventory.sqlite3>
+before passing it to C<DataSource>.
 
 =item B<The table name is always lowercased>
 
