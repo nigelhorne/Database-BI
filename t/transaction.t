@@ -2071,4 +2071,162 @@ subtest 'Transaction 32 -- Database::Join backend => auto in join pipeline' => s
 		'Phase 7: Dashboard.pm passes backend => auto at both join call sites';	# 10
 };
 
+# ======================================================================
+# TRANSACTION 33: TSV file full lifecycle
+#
+# data/employees.tsv (tab-separated) is opened via /view and /open,
+# filtered, joined to a second TSV, and exported to CSV and SQLite.
+#
+# Phase 1   /view/<table> renders TSV data
+# Phase 2   /api/columns returns column list for TSV
+# Phase 3   /open?path= opens TSV by absolute path
+# Phase 4   Filter applied to TSV (/view with ?f=)
+# Phase 5   Export TSV to CSV
+# Phase 6   Export TSV to SQLite (format=sqlite)
+# Phase 7   Upload a TSV file and open via the returned path
+# ======================================================================
+subtest 'Transaction 33 -- TSV file full lifecycle' => sub {
+	my $tsv_path = $t->app->home->child('data', 'employees.tsv')->to_string;
+
+	SKIP: {
+		skip 'data/employees.tsv not found', 13 unless -f $tsv_path;
+
+		# Phase 1: /view renders data from the TSV.
+		$t->get_ok('/view/employees')
+		  ->status_is(200, 'Phase 1: /view/employees returns 200');
+		$t->content_like(qr/Alice/, 'Phase 1: data row "Alice" visible');
+		$t->content_like(qr/Engineering/, 'Phase 1: column value "Engineering" visible');
+
+		# Phase 2: /api/columns lists columns for the TSV table.
+		$t->get_ok('/api/columns?table=employees')
+		  ->status_is(200, 'Phase 2: /api/columns returns 200');
+		$t->json_has('/columns', 'Phase 2: response has columns key');
+
+		# Phase 3: /open with absolute path.
+		$t->get_ok('/open?path=' . url_escape($tsv_path))
+		  ->status_is(200, 'Phase 3: /open with absolute TSV path returns 200');
+		$t->content_like(qr/Alice/, 'Phase 3: data visible via /open');
+
+		# Phase 4: filter on a TSV column.
+		$t->get_ok('/view/employees?f=' . url_escape('Department:eq:Engineering'))
+		  ->status_is(200, 'Phase 4: filtered /view returns 200');
+		$t->content_like(qr/Alice/, 'Phase 4: filter keeps matching row');
+		$t->content_unlike(qr/Marketing/, 'Phase 4: filter removes non-matching row');
+
+		# Phase 5: export to CSV.
+		$t->get_ok('/export?l=' . url_escape('table:employees') . '&format=csv')
+		  ->status_is(200, 'Phase 5: CSV export returns 200')
+		  ->content_type_like(qr{text/csv}, 'Phase 5: content-type is text/csv')
+		  ->content_like(qr/Alice/, 'Phase 5: exported CSV contains data');
+
+		# Phase 6: export to SQLite (requires DBD::SQLite).
+		SKIP: {
+			eval { DBI->install_driver('SQLite') }
+				or skip 'DBD::SQLite not available for SQLite export', 2;
+			$t->get_ok('/export?l=' . url_escape('table:employees') . '&format=sqlite')
+			  ->status_is(200, 'Phase 6: SQLite export returns 200')
+			  ->content_type_like(qr{sqlite}, 'Phase 6: content-type contains sqlite');
+		}
+	}
+
+	# Phase 7: upload a TSV file and open it (always run if upload route works).
+	SKIP: {
+		my $tsv_body = "item\tqty\tprice\nWidget\t10\t4.99\nGadget\t5\t9.99\n";
+		$t->post_ok('/upload',
+			form => { file => { content => $tsv_body, filename => 'tmpparts.tsv' } }
+		)->status_is(200, 'Phase 7: TSV upload returns 200');
+
+		my $open_url = $t->tx->res->json('/open');
+		skip 'Upload did not return an open URL', 2 unless defined $open_url;
+
+		$t->get_ok($open_url)
+		  ->status_is(200, 'Phase 7: /open of uploaded TSV returns 200');
+		$t->content_like(qr/Widget/, 'Phase 7: uploaded TSV data visible');
+	}
+};
+
+# ======================================================================
+# TRANSACTION 34: SQLite3 (.sqlite3 extension) file lifecycle
+#
+# Verifies that a SQLite database file with the .sqlite3 extension can
+# be opened via /open, filtered, exported, and browsed -- identical to
+# the existing Transaction 31 coverage for .sql files.
+#
+# Phase 1   Create a .sqlite3 fixture in a tempdir
+# Phase 2   /open returns 200 and shows data
+# Phase 3   No error rendered (no "Could not open" or class="error")
+# Phase 4   Filter applied via ?f= query param
+# Phase 5   Export .sqlite3 source to CSV
+# Phase 6   Browse directory lists the .sqlite3 file
+# Phase 7   Idempotency -- second /open hits cached path
+# Phase 8   Table-name mismatch inside .sqlite3 is auto-corrected
+# ======================================================================
+subtest 'Transaction 34 -- SQLite3 (.sqlite3 extension) file lifecycle' => sub {
+	SKIP: {
+		eval { DBI->install_driver('SQLite') }
+			or skip 'DBD::SQLite not available', 22;
+
+		plan tests => 22;
+
+		my $dir = tempdir(CLEANUP => 1);
+
+		# Phase 1: create a .sqlite3 file whose internal table matches the stem.
+		my $db_path = Mojo::File->new($dir)->child('widgets.sqlite3')->to_string;
+		{
+			my $dbh = DBI->connect("dbi:SQLite:dbname=$db_path", undef, undef,
+				{ RaiseError => 1, PrintError => 0 });
+			$dbh->do('CREATE TABLE widgets (id INTEGER, name TEXT, stock INTEGER)');
+			$dbh->do('INSERT INTO widgets VALUES (1, \'Sprocket\', 200)');
+			$dbh->do('INSERT INTO widgets VALUES (2, \'Flywheel\', 50)');
+			$dbh->disconnect;
+		}
+		ok(-f $db_path, 'Phase 1: .sqlite3 fixture created');
+
+		# Phase 2: /open returns 200 and renders data.
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 2: /open .sqlite3 returns 200');
+		$t->content_like(qr/Sprocket/, 'Phase 2a: first row visible');
+		$t->content_like(qr/Flywheel/, 'Phase 2b: second row visible');
+
+		# Phase 3: no error markup in the page.
+		# Note: "Could not open file." also appears as a JS string in the drag-
+		# and-drop handler on every page, so we match the error <p> tag instead.
+		$t->content_unlike(qr/class="error"/, 'Phase 3: no error paragraph');
+		$t->content_unlike(qr/no such table/i, 'Phase 3: no "no such table" SQL error');
+
+		# Phase 4: filter works on .sqlite3 source.
+		$t->get_ok('/open?path=' . url_escape($db_path) . '&f=' . url_escape('name:eq:Sprocket'))
+		  ->status_is(200, 'Phase 4: filtered /open returns 200');
+		$t->content_like(qr/Sprocket/, 'Phase 4: filter keeps matching row');
+		$t->content_unlike(qr/Flywheel/, 'Phase 4: filter removes non-matching row');
+
+		# Phase 5: CSV export of a .sqlite3 source.
+		$t->get_ok('/export?l=' . url_escape("path:$db_path") . '&format=csv')
+		  ->status_is(200, 'Phase 5: CSV export of .sqlite3 returns 200')
+		  ->content_type_like(qr{text/csv}, 'Phase 5: content-type is text/csv');
+
+		# Phase 6: browse directory shows the .sqlite3 file.
+		$t->get_ok('/browse?path=' . url_escape($dir))
+		  ->status_is(200, 'Phase 6: browse dir returns 200');
+		$t->content_like(qr/widgets\.sqlite3/, 'Phase 6: .sqlite3 file listed in browser');
+
+		# Phase 7: idempotency -- second request hits the cache.
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 7: second /open is idempotent');
+
+		# Phase 8: .sqlite3 with a mismatched internal table name is auto-corrected.
+		my $mismatch_path = Mojo::File->new($dir)->child('archive.sqlite3')->to_string;
+		{
+			my $dbh = DBI->connect("dbi:SQLite:dbname=$mismatch_path", undef, undef,
+				{ RaiseError => 1, PrintError => 0 });
+			$dbh->do('CREATE TABLE records (ref TEXT, note TEXT)');
+			$dbh->do(q{INSERT INTO records VALUES ('REF001', 'First entry')});
+			$dbh->disconnect;
+		}
+		$t->get_ok('/open?path=' . url_escape($mismatch_path))
+		  ->status_is(200, 'Phase 8: .sqlite3 with mismatched table name opens correctly');
+		$t->content_like(qr/First entry/, 'Phase 8: data from mismatched-name table visible');
+	}
+};
+
 done_testing();

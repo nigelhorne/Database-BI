@@ -201,6 +201,35 @@ subtest 'SQLite format (.sql extension)' => sub {
 };
 
 # ---------------------------------------------------------------------------
+subtest 'SQLite3 format (.sqlite3 extension)' => sub {
+	test_needs 'DBI', 'DBD::SQLite';
+
+    my $sql_dir  = File::Temp::tempdir(CLEANUP => 1);
+    my $sql_file = File::Spec->catfile($sql_dir, 'parts.sqlite3');
+
+    my $dbh = DBI->connect(
+        "dbi:SQLite:dbname=$sql_file", '', '',
+        { RaiseError => 1, AutoCommit => 1 },
+    );
+    $dbh->do('CREATE TABLE parts (partno TEXT, name TEXT, stock INTEGER)');
+    $dbh->do("INSERT INTO parts VALUES ('P001', 'Washer',  500)");
+    $dbh->do("INSERT INTO parts VALUES ('P002', 'Gasket',  150)");
+    $dbh->disconnect;
+
+    $t->get_ok('/open?path=' . url_escape($sql_file))
+      ->status_is(200)->content_like(qr/Washer/);
+
+    $t->get_ok('/open?path=' . url_escape($sql_file) . '&f=' . url_escape('partno:eq:P001'))
+      ->status_is(200)->content_like(qr/Washer/);
+
+    $t->get_ok('/export?l=' . url_escape("path:$sql_file") . '&format=csv')
+      ->status_is(200)->content_type_like(qr{text/csv})->content_like(qr/Gasket/);
+
+    $t->get_ok('/browse?path=' . url_escape($sql_dir))
+      ->status_is(200)->content_like(qr/parts\.sqlite3/);
+};
+
+# ---------------------------------------------------------------------------
 subtest 'POST /export -- write to filesystem' => sub {
 	test_needs 'DBI';
 

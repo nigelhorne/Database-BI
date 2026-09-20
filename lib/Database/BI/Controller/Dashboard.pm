@@ -21,8 +21,8 @@ use Sub::Protected;
 # ---------------------------------------------------------------------------
 
 # File extensions that Database::Abstraction can probe, in probe order.
-# .sql and .sqlite3 are both SQLite databases; .db is Berkeley DB.
-Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite3 xml tsv psv xlsx );
+# .sql, .sqlite, and .sqlite3 are all SQLite databases; .db is Berkeley DB.
+Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx );
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
 # that passes the extension guard and reaches realpath with an embedded newline.
