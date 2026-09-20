@@ -1021,8 +1021,8 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  674: 	# e.g. obituaries.sql whose internal table is called &quot;deceased&quot;.  If the
 </span><span class="">  675: 	# file is not a valid SQLite database (e.g. a Berkeley DB file) the eval
 </span><span class="">  676: 	# fails and we return {} so _init_backend/D::A handles it natively.
-</span><span class="">  677: 	# .sqlite3 is a common alternative SQLite extension &acirc;&#128;&#148; treated identically to .sql.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">678 → 678 → 698</span></span>  678: 	for my $ext (qw(sql sqlite3 db)) {
+</span><span class="">  677: 	# .sqlite and .sqlite3 are common alternative SQLite extensions &acirc;&#128;&#148; treated identically to .sql.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">678 → 678 → 698</span></span>  678: 	for my $ext (qw(sql sqlite sqlite3 db)) {
 </span><span class="">  679: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.$ext&quot;);
 </span><span class="">  680: 		next unless -r $path;
 </span><span class="">  681: 		my $tables = eval {
@@ -1150,7 +1150,7 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  803: 
 </span><span class="">  804: 	# Probe for the actual file on disk so _cache_key can compute its mtime.
 </span><span class="">  805: 	# This runs before the early-return paths so even empty files get a path.
-</span><span class="">  806: 	for my $e (qw(csv tsv psv sql sqlite3 xml db xlsx xls)) {
+</span><span class="">  806: 	for my $e (qw(csv tsv psv sql sqlite sqlite3 xml db xlsx xls)) {
 </span><span class="">  807: 		my $p = File::Spec-&gt;catfile($dir, &quot;$raw_table.$e&quot;);
 </span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  808: 		if (-f $p) {
 </span>
@@ -1221,7 +1221,7 @@ Approximate LCSAJ segments: 173<br>
 				<li><b>COND_INV_863_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
 <span class="">  864: 		my $safe_ext;
-</span><span class="">  865: 		for my $e (qw(xlsx xls db sql sqlite3 xml csv tsv psv)) {
+</span><span class="">  865: 		for my $e (qw(xlsx xls db sql sqlite sqlite3 xml csv tsv psv)) {
 </span><span class="">  866: 			$safe_ext = $e, last
 </span><span class="">  867: 				if -f File::Spec-&gt;catfile($dir, &quot;$raw_table.$e&quot;);
 </span><span class="">  868: 		}
@@ -1264,7 +1264,7 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  899: 		unless (defined $match) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  900: 			my $actual   = $tbls[0];
 </span><span class="">  901: 			my ($src_ext) = grep { -f File::Spec-&gt;catfile($dir, &quot;$raw_table.$_&quot;) }
-</span><span class="">  902: 				qw(sql sqlite3 db);
+</span><span class="">  902: 				qw(sql sqlite sqlite3 db);
 </span><span class="">  903: 			$src_ext //= &#39;sql&#39;;
 </span><span class="">  904: 			require File::Temp;
 </span><span class="">  905: 			my $tmp     = File::Temp-&gt;newdir(CLEANUP =&gt; 1);
@@ -1545,12 +1545,12 @@ Approximate LCSAJ segments: 173<br>
 </span><span class=""> 1168: 
 </span><span class=""> 1169: =over 4
 </span><span class=""> 1170: 
-</span><span class=""> 1171: =item B&lt;SQLite databases may use .sql or .sqlite3 as their file extension&gt;
+</span><span class=""> 1171: =item B&lt;SQLite databases may use .sql, .sqlite, or .sqlite3 as their file extension&gt;
 </span><span class=""> 1172: 
-</span><span class=""> 1173: C&lt;DataSource&gt; recognises C&lt;.sql&gt; and C&lt;.sqlite3&gt; as SQLite database files.
-</span><span class=""> 1174: It does B&lt;not&gt; recognise C&lt;.sqlite&gt; or C&lt;.db3&gt;.  If you have a file called
-</span><span class=""> 1175: C&lt;inventory.sqlite&gt;, rename it to C&lt;inventory.sql&gt; or C&lt;inventory.sqlite3&gt;
-</span><span class=""> 1176: before passing it to C&lt;DataSource&gt;.
+</span><span class=""> 1173: C&lt;DataSource&gt; recognises C&lt;.sql&gt;, C&lt;.sqlite&gt;, and C&lt;.sqlite3&gt; as SQLite
+</span><span class=""> 1174: database files.  It does B&lt;not&gt; recognise C&lt;.db3&gt;.  If you have a file called
+</span><span class=""> 1175: C&lt;inventory.db3&gt;, rename it to C&lt;inventory.sql&gt; before passing it to
+</span><span class=""> 1176: C&lt;DataSource&gt;.
 </span><span class=""> 1177: 
 </span><span class=""> 1178: =item B&lt;The table name is always lowercased&gt;
 </span><span class=""> 1179: 
