@@ -546,47 +546,47 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  205: # when the path component is absent or starts with a digit.
 </span><span class="">  206: sub _url_label {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">207 → 215 → 222</span></span>  207: 	my $url = $_[0];
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  208: 	my ($path) = $url =~ m{https?://[^/?#]+(.*)}i;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  209: 	my @parts  = grep { length } split m{/}, ($path // &#39;&#39;);
+</span><span class="">  208: 	my ($path) = $url =~ m{https?://[^/?#]+(.*)}i;
+</span><span class="">  209: 	my @parts  = grep { length } split m{/}, ($path // &#39;&#39;);
 </span><span class="">  210: 	my $last   = @parts ? $parts[-1] : &#39;&#39;;
 </span><span class="">  211: 	# /s: . must cross \n in case a percent-decoded newline hides inside the URL.
 </span><span class="">  212: 	$last =~ s/[?#].*//s;		# strip query / fragment
 </span><span class="">  213: 	$last =~ s/\.[^.]+\z//;	# strip file extension (\z: no trailing-\n loophole)
 </span><span class="">  214: 	$last =~ s/[^A-Za-z0-9_]/_/g;	# sanitize
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  215: 	unless (length $last &amp;&amp; $last =~ /\A[A-Za-z_]/) {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  216: 		# No usable path component -- fall back to hostname
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  216: 		# No usable path component -- fall back to hostname
 </span><span class="">  217: 		my ($host) = $url =~ m{https?://([^/:?#]+)};
 </span><span class="">  218: 		$last = defined $host ? do { (my $h = $host) =~ s/[^A-Za-z0-9_]/_/g; $h } : &#39;html&#39;;
 </span><span class="">  219: 	}
 </span><span class="">  220: 	# $last is always non-empty here: the unless-block sets it to either
 </span><span class="">  221: 	# the sanitized hostname (&gt;= 1 char) or the literal &#39;html&#39;.
-</span><span class="">  222: 	return lc($last);
-</span><span class="">  223: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  222: 	return lc($last);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  223: }
 </span><span class="">  224: 
 </span><span class="">  225: # _fmt( $key [, @sprintf_args] ) -&gt; $string
 </span><span class="">  226: #
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  227: # Package-level (not a method) i18n formatter. Looks up $key in %MESSAGES and
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  228: # applies sprintf if positional arguments are supplied. This function is used
+</span><span class="">  227: # Package-level (not a method) i18n formatter. Looks up $key in %MESSAGES and
+</span><span class="">  228: # applies sprintf if positional arguments are supplied. This function is used
 </span><span class="">  229: # in new() before the object exists; instance methods should use _msg() instead
 </span><span class="">  230: # so that a caller-supplied i18n object can override the built-in strings.
 </span><span class="">  231: sub _fmt :Protected {
 </span><span class="">  232: 	my ($key, @args) = @_;
 </span><span class="">  233: 	my $tmpl = $MESSAGES{$key} // &quot;Internal error: unknown message key &#39;$key&#39;&quot;;
-</span><span class="">  234: 	return @args ? sprintf($tmpl, @args) : $tmpl;
-</span><span class="">  235: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  234: 	return @args ? sprintf($tmpl, @args) : $tmpl;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  235: }
 </span><span class="">  236: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  237: # _msg( $self, $key [, @sprintf_args] ) -&gt; $string
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  238: #
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  239: # Instance-level i18n formatter. Delegates to the caller-supplied i18n object
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  240: # (if any) before falling back to _fmt(). The i18n object must implement
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  241: # maketext($key, @args).
+</span><span class="">  237: # _msg( $self, $key [, @sprintf_args] ) -&gt; $string
+</span><span class="">  238: #
+</span><span class="">  239: # Instance-level i18n formatter. Delegates to the caller-supplied i18n object
+</span><span class="">  240: # (if any) before falling back to _fmt(). The i18n object must implement
+</span><span class="">  241: # maketext($key, @args).
 </span><span class="">  242: sub _msg :Protected {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">243 → 244 → 247</span></span>  243: 	my ($self, $key, @args) = @_;
-</span><span class="">  244: 	if (my $i18n = $self-&gt;{_i18n}) {
-</span><span class="">  245: 		return $i18n-&gt;maketext($key, @args);
-</span><span class="">  246: 	}
-</span><span class="">  247: 	return _fmt($key, @args);
-</span><span class="">  248: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  244: 	if (my $i18n = $self-&gt;{_i18n}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  245: 		return $i18n-&gt;maketext($key, @args);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  246: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  247: 	return _fmt($key, @args);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  248: }
 </span><span class="">  249: 
 </span><span class="">  250: # ---------------------------------------------------------------------------
 </span><span class="">  251: # Constructor
@@ -655,15 +655,15 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  314: 
 </span><span class="">  315: =cut
 </span><span class="">  316: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  317: sub new {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  318: 	# Strategy: normalise the argument list with Params::Get so callers may
+</span><span class="">  317: sub new {
+</span><span class="">  318: 	# Strategy: normalise the argument list with Params::Get so callers may
 </span><span class="">  319: 	# pass a hashref or a flat list interchangeably, then validate strictly
 </span><span class="">  320: 	# with Params::Validate before touching any value.
 </span><span class="">  321: 	# When a &quot;url&quot; key is present, dispatch to the URL/HTML-table path instead.
 </span><span class="">  322: 	my $class = shift;
 </span><span class="">  323: 	my $raw   = Params::Get::get_params(undef, \@_) // {};
-</span><span class="">  324: 	return $class-&gt;_new_from_url($raw) if exists $raw-&gt;{url};
-</span><span class="">  325: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  324: 	return $class-&gt;_new_from_url($raw) if exists $raw-&gt;{url};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  325: 
 </span><span class="">  326: 	my $args = validate_strict(
 </span><span class="">  327: 		schema =&gt; {
 </span><span class="">  328: 			directory     =&gt; { type =&gt; &#39;string&#39; },
@@ -702,15 +702,15 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  361: 		_directory    =&gt; $args-&gt;{directory},
 </span><span class="">  362: 		_table        =&gt; $safe_table,
 </span><span class="">  363: 		_raw_table    =&gt; $raw_table,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  364: 		_i18n         =&gt; $args-&gt;{i18n},
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  365: 		_cache        =&gt; $args-&gt;{cache},
+</span><span class="">  364: 		_i18n         =&gt; $args-&gt;{i18n},
+</span><span class="">  365: 		_cache        =&gt; $args-&gt;{cache},
 </span><span class="">  366: 		_cache_ttl_url =&gt; $args-&gt;{cache_ttl_url},
 </span><span class="">  367: 		_db           =&gt; undef,
 </span><span class="">  368: 	}, $class;
 </span><span class="">  369: 
 </span><span class="">  370: 	$self-&gt;_init_backend();
-</span><span class="">  371: 	return $self;
-</span><span class="">  372: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  371: 	return $self;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  372: 
 </span><span class="">  373: }
 </span><span class="">  374: 
 </span><span class="">  375: # _new_from_url( $class, \%raw_params ) -&gt; $self
@@ -737,15 +737,15 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  396: 		_i18n             =&gt; $raw-&gt;{i18n},
 </span><span class="">  397: 		_cache            =&gt; $raw-&gt;{cache},
 </span><span class="">  398: 		_cache_ttl_url    =&gt; $raw-&gt;{cache_ttl_url} // &#39;15 min&#39;,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  399: 		_html_table_index =&gt; $table_idx,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  400: 		_id_col           =&gt; undef,
+</span><span class="">  399: 		_html_table_index =&gt; $table_idx,
+</span><span class="">  400: 		_id_col           =&gt; undef,
 </span><span class="">  401: 		_columns          =&gt; undef,
 </span><span class="">  402: 		_db               =&gt; undef,
 </span><span class="">  403: 	}, $class;
 </span><span class="">  404: 
 </span><span class="">  405: 	$self-&gt;_init_url_backend($table_idx);
-</span><span class="">  406: 	return $self;
-</span><span class="">  407: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  406: 	return $self;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  407: }
 </span><span class="">  408: 
 </span><span class="">  409: # _init_url_backend( $self, $table_index ) -&gt; void
 </span><span class="">  410: #
@@ -806,40 +806,40 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  465: # Returns an empty hashref for non-CSV/TSV/PSV/XLSX/SQLite formats (XML, etc.).
 </span><span class="">  466: # For SQLite/.db files that can be opened, returns { sqlite_tables =&gt; [...] }.
 </span><span class="">  467: sub _detect_file_info :Protected {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">468 → 533 → 677</span></span>  468: 	my ($dir, $table) = @_;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  469: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  470: 	# XLSX: DBD::Excel 0.07 only handles .xls (its source skips files whose
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  471: 	# name does not match /\.xls$/i, so .xlsx is silently ignored).  Parse
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
-					<ul>
-				<li><b>COND_INV_471_4: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
-</li></ul></details>
-<span class="">  472: 	# directly with Spreadsheet::ParseXLSX and return pre-loaded row data so
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">468 → 533 → 678</span></span>  468: 	my ($dir, $table) = @_;
+</span><span class="">  469: 
+</span><span class="">  470: 	# XLSX: DBD::Excel 0.07 only handles .xls (its source skips files whose
+</span><span class="">  471: 	# name does not match /\.xls$/i, so .xlsx is silently ignored).  Parse
+</span><span class="">  472: 	# directly with Spreadsheet::ParseXLSX and return pre-loaded row data so
 </span><span class="">  473: 	# _init_backend can skip D::A entirely, exactly like the headerless-CSV path.
 </span><span class="">  474: 	{
 </span><span class="">  475: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.xlsx&quot;);
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  476: 		if (-r $path) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  477: 			my $ok = eval { require Spreadsheet::ParseXLSX; 1 };
-</span><span class="">  478: 			if ($ok) {
-</span><span class="">  479: 				my $parser = Spreadsheet::ParseXLSX-&gt;new;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  478: 			if ($ok) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<ul>
+				<li><b>COND_INV_478_4: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+</li></ul></details>
+<span class="">  479: 				my $parser = Spreadsheet::ParseXLSX-&gt;new;
 </span><span class="">  480: 				my $wb     = $parser-&gt;parse($path);
 </span><span class="">  481: 				my $ws     = $wb ? $wb-&gt;worksheet(0) : undef;
 </span><span class="">  482: 
-</span><span class="">  483: 				unless ($ws) {
-</span><span class="">  484: 					# Empty workbook or parse failure: sentinel so _init_backend
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  483: 				unless ($ws) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  484: 					# Empty workbook or parse failure: sentinel so _init_backend
 </span><span class="">  485: 					# skips D::A (which would fail with &quot;(no error string)&quot;).
 </span><span class="">  486: 					return { _file_is_empty =&gt; 1, file_size =&gt; -s $path };
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  487: 				}
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  488: 
+</span><span class="">  487: 				}
+</span><span class="">  488: 
 </span><span class="">  489: 				my ($rmin, $rmax) = $ws-&gt;row_range;
 </span><span class="">  490: 				my ($cmin, $cmax) = $ws-&gt;col_range;
 </span><span class="">  491: 
 </span><span class="">  492: 				# No rows at all (blank worksheet).
 </span><span class="">  493: 				return { _file_is_empty =&gt; 1, file_size =&gt; -s $path }
-</span><span class="">  494: 					if $rmax &lt; $rmin;
-</span><span class="">  495: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  494: 					if $rmax &lt; $rmin;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  495: 
 </span><span class="">  496: 				# Row 0 = column headers.
 </span><span class="">  497: 				my @cols;
 </span><span class="">  498: 				for my $c ($cmin .. $cmax) {
@@ -884,24 +884,24 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  537: 		# code.  Disable autodie for this open so a vanishing file (race between
 </span><span class="">  538: 		# the -r probe and the open) results in a clean skip rather than a croak.
 </span><span class="">  539: 		my $fh;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  540: 		{ no autodie &#39;open&#39;; open $fh, &#39;&lt;&#39;, $path or next }
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  541: 		my $line = &lt;$fh&gt;;
+</span><span class="">  540: 		{ no autodie &#39;open&#39;; open $fh, &#39;&lt;&#39;, $path or next }
+</span><span class="">  541: 		my $line = &lt;$fh&gt;;
 </span><span class="">  542: 		# 0-byte file: no header, no rows.  Return a sentinel so _init_backend
 </span><span class="">  543: 		# can skip Database::Abstraction entirely.  If we let D::A see an empty
 </span><span class="">  544: 		# file it falls through to the DBD::CSV path, whose error handling on
 </span><span class="">  545: 		# an empty SELECT corrupts DBI&#39;s internal Errstr SV; on a DEBUGGING perl
 </span><span class="">  546: 		# (DBI 1.651 + perl 5.44.0) this triggers an XS assertion at cleanup.
-</span><span class="">  547: 		unless (defined $line) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  548: 			close $fh;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  549: 			return { _file_is_empty =&gt; 1, file_size =&gt; 0 };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  547: 		unless (defined $line) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  548: 			close $fh;
+</span><span class="">  549: 			return { _file_is_empty =&gt; 1, file_size =&gt; 0 };
 </span><span class="">  550: 		}
 </span><span class="">  551: 		chomp $line;
 </span><span class="">  552: 		$line =~ s/\r\z//;	# strip CR from CRLF files before any split
 </span><span class="">  553: 
 </span><span class="">  554: 		my $sep;
-</span><span class="">  555: 		if($ext eq &#39;psv&#39;) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  556: 			$sep = &#39;|&#39;;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  557: 		} elsif($ext eq &#39;tsv&#39;) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  555: 		if($ext eq &#39;psv&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  556: 			$sep = &#39;|&#39;;
+</span><span class="">  557: 		} elsif($ext eq &#39;tsv&#39;) {
 </span><span class="">  558: 			$sep = &quot;\t&quot;;
 </span><span class="">  559: 		} else {
 </span><span class="">  560: 			# Sniff the separator: Database::Abstraction uses &#39;!&#39; natively and
@@ -909,14 +909,14 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  562: 			# on &#39;,&#39; yields a single field that itself contains &#39;!&#39;, the real
 </span><span class="">  563: 			# separator is almost certainly &#39;!&#39;.
 </span><span class="">  564: 			my @probe = split /,/, $line, -1;
-</span><span class="">  565: 			$sep = (@probe == 1 &amp;&amp; $line =~ /!/) ? &#39;!&#39; : &#39;,&#39;;
-</span><span class="">  566: 		}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  565: 			$sep = (@probe == 1 &amp;&amp; $line =~ /!/) ? &#39;!&#39; : &#39;,&#39;;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  566: 		}
 </span><span class="">  567: 
 </span><span class="">  568: 		my @cols = split /\Q$sep\E/, $line;
 </span><span class="">  569: 		# Two separate substitutions: the /g on an anchored alternation wastes
 </span><span class="">  570: 		# O(N) engine cycles retrying \A (which can only match at position 0).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  571: 		for (@cols) { s/\A[\s&quot;]+//; s/[\s&quot;]+\z// }	# strip whitespace and quotes
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  572: 		@cols = grep { length } @cols;
+</span><span class="">  571: 		for (@cols) { s/\A[\s&quot;]+//; s/[\s&quot;]+\z// }	# strip whitespace and quotes
+</span><span class="">  572: 		@cols = grep { length } @cols;
 </span><span class="">  573: 
 </span><span class="">  574: 		# A blank first line (e.g. a file containing only &quot;\n&quot;) produces an
 </span><span class="">  575: 		# empty column list.  Treat that the same as a 0-byte file: return the
@@ -924,8 +924,8 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  577: 		# Attempting to construct D::A with id =&gt; undef and an empty columns
 </span><span class="">  578: 		# list would croak error_no_safe_id &acirc;&#128;&#148; misleading for what is effectively
 </span><span class="">  579: 		# an empty file.
-</span><span class="">  580: 		if (!@cols) {
-</span><span class="">  581: 			close $fh;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  580: 		if (!@cols) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  581: 			close $fh;
 </span><span class="">  582: 			return { _file_is_empty =&gt; 1, file_size =&gt; -s $path };
 </span><span class="">  583: 		}
 </span><span class="">  584: 
@@ -942,38 +942,38 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  595: 		# whether a given index position is blank &acirc;&#128;&#148; sufficient for id selection.
 </span><span class="">  596: 		# Fall back to the first safe column in the header if the data row
 </span><span class="">  597: 		# check is inconclusive (e.g. file has only a header line).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  598: 		my $safe_re = qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  599: 		my ($safe_id) = grep { $_ =~ $safe_re } @cols;	# header-only fallback
+</span><span class="">  598: 		my $safe_re = qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/;
+</span><span class="">  599: 		my ($safe_id) = grep { $_ =~ $safe_re } @cols;	# header-only fallback
 </span><span class="">  600: 
 </span><span class="">  601: 		my $data_line;
 </span><span class="">  602: 		while (defined($data_line = &lt;$fh&gt;)) {
 </span><span class="">  603: 			chomp $data_line;
 </span><span class="">  604: 			$data_line =~ s/\r\z//;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  605: 			last if length $data_line;	# skip blank lines between header and data
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  606: 		}
-</span><span class="">  607: 		if (defined $data_line) {
-</span><span class="">  608: 			my @vals = split /\Q$sep\E/, $data_line, -1;
+</span><span class="">  605: 			last if length $data_line;	# skip blank lines between header and data
+</span><span class="">  606: 		}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  607: 		if (defined $data_line) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  608: 			my @vals = split /\Q$sep\E/, $data_line, -1;
 </span><span class="">  609: 			for my $i (0 .. $#cols) {
 </span><span class="">  610: 				next unless $cols[$i] =~ $safe_re;
 </span><span class="">  611: 				my $val = $vals[$i] // &#39;&#39;;
 </span><span class="">  612: 				$val =~ s/\A[\s&quot;]+//;
 </span><span class="">  613: 				$val =~ s/[\s&quot;]+\z//;
-</span><span class="">  614: 				if (length $val) {
-</span><span class="">  615: 					$safe_id = $cols[$i];
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  614: 				if (length $val) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  615: 					$safe_id = $cols[$i];
 </span><span class="">  616: 					last;
 </span><span class="">  617: 				}
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  618: 			}
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  619: 		}
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  620: 		# If no safe identifier was found in the header, check whether the first
+</span><span class="">  618: 			}
+</span><span class="">  619: 		}
+</span><span class="">  620: 		# If no safe identifier was found in the header, check whether the first
 </span><span class="">  621: 		# row looks like data values rather than column names.  A CSV exported
 </span><span class="">  622: 		# from a bank or accounting system often has no header row at all &acirc;&#128;&#148; the
 </span><span class="">  623: 		# first line is already a transaction record.  When that is the case,
 </span><span class="">  624: 		# synthesize safe column names by inferring the type of each value
 </span><span class="">  625: 		# (date, amount, description) and pre-read the entire file so
 </span><span class="">  626: 		# _init_backend can return the rows directly without touching D::A.
-</span><span class="">  627: 		unless (defined $safe_id) {
-</span><span class="">  628: 			if (_values_are_data_like(\@cols)) {
-</span><span class="">  629: 				my @synth = _synthesize_col_names(\@cols);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  627: 		unless (defined $safe_id) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  628: 			if (_values_are_data_like(\@cols)) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  629: 				my @synth = _synthesize_col_names(\@cols);
 </span><span class="">  630: 				seek $fh, 0, 0;	# rewind: first line is a data row, not a header
 </span><span class="">  631: 				my @rows;
 </span><span class="">  632: 				while (defined(my $dline = &lt;$fh&gt;)) {
@@ -1021,690 +1021,691 @@ Approximate LCSAJ segments: 173<br>
 </span><span class="">  674: 	# e.g. obituaries.sql whose internal table is called &quot;deceased&quot;.  If the
 </span><span class="">  675: 	# file is not a valid SQLite database (e.g. a Berkeley DB file) the eval
 </span><span class="">  676: 	# fails and we return {} so _init_backend/D::A handles it natively.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">677 → 677 → 697</span></span>  677: 	for my $ext (qw(sql db)) {
-</span><span class="">  678: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.$ext&quot;);
-</span><span class="">  679: 		next unless -r $path;
-</span><span class="">  680: 		my $tables = eval {
-</span><span class="">  681: 			require DBI;
-</span><span class="">  682: 			my $dbh = DBI-&gt;connect(
-</span><span class="">  683: 				&quot;dbi:SQLite:dbname=$path&quot;, q{}, q{},
-</span><span class="">  684: 				{ RaiseError =&gt; 1, PrintError =&gt; 0, AutoCommit =&gt; 1 });
-</span><span class="">  685: 			my $t = $dbh-&gt;selectcol_arrayref(
-</span><span class="">  686: 				q{SELECT name FROM sqlite_master }
-</span><span class="">  687: 				. q{WHERE type=&#39;table&#39; AND name NOT LIKE &#39;sqlite_%&#39; }
-</span><span class="">  688: 				. q{ORDER BY name});
-</span><span class="">  689: 			$dbh-&gt;disconnect;
-</span><span class="">  690: 			$t;
-</span><span class="">  691: 		};
-</span><span class="">  692: 		# defined $tables means the eval succeeded (even an empty list is valid)
-</span><span class="">  693: 		return { sqlite_tables =&gt; ($tables // []), file_size =&gt; -s $path }
-</span><span class="">  694: 			if defined $tables;
-</span><span class="">  695: 		last;	# file found but not SQLite &acirc;&#128;&#148; do not try the other ext
-</span><span class="">  696: 	}
-</span><span class="">  697: 	return {};
-</span><span class="">  698: }
-</span><span class="">  699: 
-</span><span class="">  700: # _values_are_data_like( \@vals ) -&gt; bool
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  701: #
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  702: # Return true when the values look like actual data (dates, numbers, free text)
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  703: # rather than column headers.  Used to detect header-less CSV files where the
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  704: # first line is a data row.  At least one value must match a date or numeric
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  705: # pattern &acirc;&#128;&#148; a row of plain hyphenated identifiers (e.g. &quot;First-Name&quot;) is NOT
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  706: # considered data-like.
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  707: sub _values_are_data_like {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">708 → 709 → 715</span></span>  708: 	my $vals = $_[0];
-</span><span class="">  709: 	for my $v (@{$vals}) {
-</span><span class="">  710: 		return 1 if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;		# YYYY-MM-DD
-</span><span class="">  711: 		return 1 if $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/;	# M/D/YYYY or D/M/YYYY
-</span><span class="">  712: 		return 1 if $v =~ /\A[+\-]\d+(?:\.\d+)?\z/;		# signed numeric (e.g. -75.13)
-</span><span class="">  713: 		return 1 if $v =~ /\A\(\d+(?:\.\d+)?\)\z/;		# accounting negative (e.g. (75.13))
-</span><span class="">  714: 	}
-</span><span class="">  715: 	return 0;
-</span><span class="">  716: }
-</span><span class="">  717: 
-</span><span class="">  718: # _synthesize_col_names( \@vals ) -&gt; @names
-</span><span class="">  719: #
-</span><span class="">  720: # Infer a safe SQL identifier for each positional value by examining its
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  721: # content: ISO dates become &quot;Date&quot;, numeric/currency values become &quot;Amount&quot;,
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  722: # and free text becomes &quot;Description&quot;.  Duplicate types are disambiguated with
-</span><span class="">  723: # a numeric suffix (Date, Date2, Date3, ...).
-</span><span class="">  724: sub _synthesize_col_names {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">725 → 728 → 740</span></span>  725: 	my $vals = $_[0];
-</span><span class="">  726: 	my %type_count;
-</span><span class="">  727: 	my @names;
-</span><span class="">  728: 	for my $v (@{$vals}) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  729: 		my $type;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  730: 		if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ || $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  731: 			$type = &#39;Date&#39;;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  732: 		} elsif ($v =~ /\A[+\-]?\d+(?:\.\d+)?\z/ || $v =~ /\A\(\d+(?:\.\d+)?\)\z/) {
-</span><span class="">  733: 			$type = &#39;Amount&#39;;
-</span><span class="">  734: 		} else {
-</span><span class="">  735: 			$type = &#39;Description&#39;;
-</span><span class="">  736: 		}
-</span><span class="">  737: 		$type_count{$type}++;
-</span><span class="">  738: 		push @names, $type_count{$type} == 1 ? $type : $type . $type_count{$type};
-</span><span class="">  739: 	}
-</span><span class="">  740: 	return @names;
-</span><span class="">  741: }
-</span><span class="">  742: 
-</span><span class="">  743: # _cache_key( $self ) -&gt; $key | undef
-</span><span class="">  744: #
-</span><span class="">  745: # Purpose: Derive a stable cache key for this DataSource&#39;s full result set.
-</span><span class="">  746: #          URL tables use a fixed key (TTL handles invalidation).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  747: #          File tables encode the file&#39;s mtime in the key so a changed file
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  748: #          naturally produces a miss &acirc;&#128;&#148; the stale entry is orphaned and evicts
-</span><span class="">  749: #          passively when the CHI driver reclaims memory.
-</span><span class="">  750: # Entry:   $self-&gt;{_cache} must be defined (caller checks this before calling).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  751: # Exit:    Returns a non-empty string key, or undef when no key is derivable
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  752: #          (no URL, no file path on disk).
-</span><span class="">  753: sub _cache_key :Protected {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">754 → 756 → 763</span></span>  754: 	my $self = shift;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  755: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  756: 	if (defined $self-&gt;{_url}) {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  757: 		my $idx = $self-&gt;{_html_table_index} // 0;
-</span><span class="">  758: 		# Include the table index in the key: a different index on the same URL
-</span><span class="">  759: 		# selects a different table from the page and must not share a cache entry.
-</span><span class="">  760: 		return &#39;bi:url:&#39; . $self-&gt;{_url} . &#39;:&#39; . $idx;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  761: 	}
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  762: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">763 → 763 → 770</span></span>  763: 	if (defined $self-&gt;{_file_path} &amp;&amp; -f $self-&gt;{_file_path}) {
-</span><span class="">  764: 		my $mtime = (stat($self-&gt;{_file_path}))[9];
-</span><span class="">  765: 		return defined $mtime
-</span><span class="">  766: 			? &#39;bi:file:&#39; . $self-&gt;{_file_path} . &#39;:&#39; . $mtime
-</span><span class="">  767: 			: undef;
-</span><span class="">  768: 	}
-</span><span class="">  769: 
-</span><span class="">  770: 	return undef;
-</span><span class="">  771: }
-</span><span class="">  772: 
-</span><span class="">  773: # _init_backend( $self ) -&gt; void
-</span><span class="">  774: #
-</span><span class="">  775: # Strategy: Database::Abstraction is designed as a base class where the
-</span><span class="">  776: # lowercased package name maps to the data file in the directory
-</span><span class="">  777: # (e.g. &quot;Database::BI::_DB::Sales&quot; -&gt; data/sales.csv or data/sales.db).
-</span><span class="">  778: # We synthesise an ephemeral subclass at runtime so DataSource remains
-</span><span class="">  779: # fully table-agnostic and callers never need to touch Database::Abstraction
-</span><span class="">  780: # directly. In Phase 2, this method can be replaced with Database::Join
-</span><span class="">  781: # instantiation without any change to the public API.
-</span><span class="">  782: #
-</span><span class="">  783: # no_entry =&gt; 1: a BI viewer wants every row; we do not need O(1) keyed
-</span><span class="">  784: # lookups on a primary key.  This stores data as an arrayref instead of a
-</span><span class="">  785: # hashref, which the fast-track path in selectall_arrayref returns directly.
-</span><span class="">  786: sub _init_backend :Protected {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">787 → 805 → 816</span></span>  787: 	my $self      = shift;
-</span><span class="">  788: 	my $table     = $self-&gt;{_table};     # sanitized: used for pkg name and D::A table param
-</span><span class="">  789: 	my $raw_table = $self-&gt;{_raw_table} // $table;  # original: used for file lookup and dbname
-</span><span class="">  790: 	my $dir       = $self-&gt;{_directory};
-</span><span class="">  791: 
-</span><span class="">  792: 	require Database::Abstraction;
-</span><span class="">  793: 
-</span><span class="">  794: 	my $pkg = &#39;Database::BI::_DB::&#39; . ucfirst($table);
-</span><span class="">  795: 	{
-</span><span class="">  796: 		no strict &#39;refs&#39;;
-</span><span class="">  797: 		push @{&quot;${pkg}::ISA&quot;}, &#39;Database::Abstraction&#39;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  798: 			unless $pkg-&gt;isa(&#39;Database::Abstraction&#39;);
+</span><span class="">  677: 	# .sqlite3 is a common alternative SQLite extension &acirc;&#128;&#148; treated identically to .sql.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">678 → 678 → 698</span></span>  678: 	for my $ext (qw(sql sqlite3 db)) {
+</span><span class="">  679: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.$ext&quot;);
+</span><span class="">  680: 		next unless -r $path;
+</span><span class="">  681: 		my $tables = eval {
+</span><span class="">  682: 			require DBI;
+</span><span class="">  683: 			my $dbh = DBI-&gt;connect(
+</span><span class="">  684: 				&quot;dbi:SQLite:dbname=$path&quot;, q{}, q{},
+</span><span class="">  685: 				{ RaiseError =&gt; 1, PrintError =&gt; 0, AutoCommit =&gt; 1 });
+</span><span class="">  686: 			my $t = $dbh-&gt;selectcol_arrayref(
+</span><span class="">  687: 				q{SELECT name FROM sqlite_master }
+</span><span class="">  688: 				. q{WHERE type=&#39;table&#39; AND name NOT LIKE &#39;sqlite_%&#39; }
+</span><span class="">  689: 				. q{ORDER BY name});
+</span><span class="">  690: 			$dbh-&gt;disconnect;
+</span><span class="">  691: 			$t;
+</span><span class="">  692: 		};
+</span><span class="">  693: 		# defined $tables means the eval succeeded (even an empty list is valid)
+</span><span class="">  694: 		return { sqlite_tables =&gt; ($tables // []), file_size =&gt; -s $path }
+</span><span class="">  695: 			if defined $tables;
+</span><span class="">  696: 		last;	# file found but not SQLite &acirc;&#128;&#148; do not try the other ext
+</span><span class="">  697: 	}
+</span><span class="">  698: 	return {};
+</span><span class="">  699: }
+</span><span class="">  700: 
+</span><span class="">  701: # _values_are_data_like( \@vals ) -&gt; bool
+</span><span class="">  702: #
+</span><span class="">  703: # Return true when the values look like actual data (dates, numbers, free text)
+</span><span class="">  704: # rather than column headers.  Used to detect header-less CSV files where the
+</span><span class="">  705: # first line is a data row.  At least one value must match a date or numeric
+</span><span class="">  706: # pattern &acirc;&#128;&#148; a row of plain hyphenated identifiers (e.g. &quot;First-Name&quot;) is NOT
+</span><span class="">  707: # considered data-like.
+</span><span class="">  708: sub _values_are_data_like {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">709 → 710 → 716</span></span>  709: 	my $vals = $_[0];
+</span><span class="">  710: 	for my $v (@{$vals}) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  711: 		return 1 if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;		# YYYY-MM-DD
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  712: 		return 1 if $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/;	# M/D/YYYY or D/M/YYYY
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  713: 		return 1 if $v =~ /\A[+\-]\d+(?:\.\d+)?\z/;		# signed numeric (e.g. -75.13)
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  714: 		return 1 if $v =~ /\A\(\d+(?:\.\d+)?\)\z/;		# accounting negative (e.g. (75.13))
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  715: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  716: 	return 0;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  717: }
+</span><span class="">  718: 
+</span><span class="">  719: # _synthesize_col_names( \@vals ) -&gt; @names
+</span><span class="">  720: #
+</span><span class="">  721: # Infer a safe SQL identifier for each positional value by examining its
+</span><span class="">  722: # content: ISO dates become &quot;Date&quot;, numeric/currency values become &quot;Amount&quot;,
+</span><span class="">  723: # and free text becomes &quot;Description&quot;.  Duplicate types are disambiguated with
+</span><span class="">  724: # a numeric suffix (Date, Date2, Date3, ...).
+</span><span class="">  725: sub _synthesize_col_names {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">726 → 729 → 741</span></span>  726: 	my $vals = $_[0];
+</span><span class="">  727: 	my %type_count;
+</span><span class="">  728: 	my @names;
+</span><span class="">  729: 	for my $v (@{$vals}) {
+</span><span class="">  730: 		my $type;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  731: 		if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ || $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  732: 			$type = &#39;Date&#39;;
+</span><span class="">  733: 		} elsif ($v =~ /\A[+\-]?\d+(?:\.\d+)?\z/ || $v =~ /\A\(\d+(?:\.\d+)?\)\z/) {
+</span><span class="">  734: 			$type = &#39;Amount&#39;;
+</span><span class="">  735: 		} else {
+</span><span class="">  736: 			$type = &#39;Description&#39;;
+</span><span class="">  737: 		}
+</span><span class="">  738: 		$type_count{$type}++;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  739: 		push @names, $type_count{$type} == 1 ? $type : $type . $type_count{$type};
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  740: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  741: 	return @names;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  742: }
+</span><span class="">  743: 
+</span><span class="">  744: # _cache_key( $self ) -&gt; $key | undef
+</span><span class="">  745: #
+</span><span class="">  746: # Purpose: Derive a stable cache key for this DataSource&#39;s full result set.
+</span><span class="">  747: #          URL tables use a fixed key (TTL handles invalidation).
+</span><span class="">  748: #          File tables encode the file&#39;s mtime in the key so a changed file
+</span><span class="">  749: #          naturally produces a miss &acirc;&#128;&#148; the stale entry is orphaned and evicts
+</span><span class="">  750: #          passively when the CHI driver reclaims memory.
+</span><span class="">  751: # Entry:   $self-&gt;{_cache} must be defined (caller checks this before calling).
+</span><span class="">  752: # Exit:    Returns a non-empty string key, or undef when no key is derivable
+</span><span class="">  753: #          (no URL, no file path on disk).
+</span><span class="">  754: sub _cache_key :Protected {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">755 → 757 → 764</span></span>  755: 	my $self = shift;
+</span><span class="">  756: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  757: 	if (defined $self-&gt;{_url}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  758: 		my $idx = $self-&gt;{_html_table_index} // 0;
+</span><span class="">  759: 		# Include the table index in the key: a different index on the same URL
+</span><span class="">  760: 		# selects a different table from the page and must not share a cache entry.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  761: 		return &#39;bi:url:&#39; . $self-&gt;{_url} . &#39;:&#39; . $idx;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  762: 	}
+</span><span class="">  763: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">764 → 764 → 771</span></span>  764: 	if (defined $self-&gt;{_file_path} &amp;&amp; -f $self-&gt;{_file_path}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  765: 		my $mtime = (stat($self-&gt;{_file_path}))[9];
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  766: 		return defined $mtime
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  767: 			? &#39;bi:file:&#39; . $self-&gt;{_file_path} . &#39;:&#39; . $mtime
+</span><span class="">  768: 			: undef;
+</span><span class="">  769: 	}
+</span><span class="">  770: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  771: 	return undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  772: }
+</span><span class="">  773: 
+</span><span class="">  774: # _init_backend( $self ) -&gt; void
+</span><span class="">  775: #
+</span><span class="">  776: # Strategy: Database::Abstraction is designed as a base class where the
+</span><span class="">  777: # lowercased package name maps to the data file in the directory
+</span><span class="">  778: # (e.g. &quot;Database::BI::_DB::Sales&quot; -&gt; data/sales.csv or data/sales.db).
+</span><span class="">  779: # We synthesise an ephemeral subclass at runtime so DataSource remains
+</span><span class="">  780: # fully table-agnostic and callers never need to touch Database::Abstraction
+</span><span class="">  781: # directly. In Phase 2, this method can be replaced with Database::Join
+</span><span class="">  782: # instantiation without any change to the public API.
+</span><span class="">  783: #
+</span><span class="">  784: # no_entry =&gt; 1: a BI viewer wants every row; we do not need O(1) keyed
+</span><span class="">  785: # lookups on a primary key.  This stores data as an arrayref instead of a
+</span><span class="">  786: # hashref, which the fast-track path in selectall_arrayref returns directly.
+</span><span class="">  787: sub _init_backend :Protected {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">788 → 806 → 817</span></span>  788: 	my $self      = shift;
+</span><span class="">  789: 	my $table     = $self-&gt;{_table};     # sanitized: used for pkg name and D::A table param
+</span><span class="">  790: 	my $raw_table = $self-&gt;{_raw_table} // $table;  # original: used for file lookup and dbname
+</span><span class="">  791: 	my $dir       = $self-&gt;{_directory};
+</span><span class="">  792: 
+</span><span class="">  793: 	require Database::Abstraction;
+</span><span class="">  794: 
+</span><span class="">  795: 	my $pkg = &#39;Database::BI::_DB::&#39; . ucfirst($table);
+</span><span class="">  796: 	{
+</span><span class="">  797: 		no strict &#39;refs&#39;;
+</span><span class="">  798: 		push @{&quot;${pkg}::ISA&quot;}, &#39;Database::Abstraction&#39;
+</span><span class="">  799: 			unless $pkg-&gt;isa(&#39;Database::Abstraction&#39;);
+</span><span class="">  800: 	}
+</span><span class="">  801: 
+</span><span class="">  802: 	my $info   = _detect_file_info($dir, $raw_table);
+</span><span class="">  803: 
+</span><span class="">  804: 	# Probe for the actual file on disk so _cache_key can compute its mtime.
+</span><span class="">  805: 	# This runs before the early-return paths so even empty files get a path.
+</span><span class="">  806: 	for my $e (qw(csv tsv psv sql sqlite3 xml db xlsx xls)) {
+</span><span class="">  807: 		my $p = File::Spec-&gt;catfile($dir, &quot;$raw_table.$e&quot;);
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  808: 		if (-f $p) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_798_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_808_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  799: 	}
-</span><span class="">  800: 
-</span><span class="">  801: 	my $info   = _detect_file_info($dir, $raw_table);
-</span><span class="">  802: 
-</span><span class="">  803: 	# Probe for the actual file on disk so _cache_key can compute its mtime.
-</span><span class="">  804: 	# This runs before the early-return paths so even empty files get a path.
-</span><span class="">  805: 	for my $e (qw(csv tsv psv sql xml db xlsx xls)) {
-</span><span class="">  806: 		my $p = File::Spec-&gt;catfile($dir, &quot;$raw_table.$e&quot;);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  807: 		if (-f $p) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  808: 			$self-&gt;{_file_path} = File::Spec-&gt;rel2abs($p);
-</span><span class="">  809: 			last;
-</span><span class="">  810: 		}
-</span><span class="">  811: 	}
-</span><span class="">  812: 
-</span><span class="">  813: 	# 0-byte file: skip D::A/DBI entirely.  D::A on an empty file falls through
-</span><span class="">  814: 	# to DBD::CSV, whose error handling corrupts DBI&#39;s Errstr SV and triggers an
-</span><span class="">  815: 	# XS assertion failure at cleanup on DEBUGGING perls (DBI 1.651, perl 5.44).
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">816 → 816 → 829</span></span>  816: 	if ($info-&gt;{_file_is_empty}) {
-</span><span class="">  817: 		$self-&gt;{_columns}       = [];
-</span><span class="">  818: 		$self-&gt;{_id_col}        = &#39;entry&#39;;
-</span><span class="">  819: 		$self-&gt;{_file_is_empty} = 1;
-</span><span class="">  820: 		return;
-</span><span class="">  821: 	}
-</span><span class="">  822: 
-</span><span class="">  823: 	# Headerless CSV or XLSX: _detect_file_info already pre-loaded all rows.
-</span><span class="">  824: 	# MUST check before error_no_safe_id: XLSX files with all-unsafe column
-</span><span class="">  825: 	# headers (e.g. &quot;First Name&quot;, &quot;Account Number&quot;) have id =&gt; undef because
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  826: 	# none of the headers match the safe-identifier regex, but the data is
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  827: 	# pre-loaded and the id column is irrelevant for the direct-data fast path.
-</span><span class="">  828: 	# Checking error_no_safe_id first would croak spuriously for valid XLSX files.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">829 → 829 → 842</span></span>  829: 	if ($info-&gt;{_headerless_data}) {
-</span><span class="">  830: 		$self-&gt;{_id_col}  = $info-&gt;{id} // &#39;entry&#39;;
-</span><span class="">  831: 		$self-&gt;{_columns} = $info-&gt;{columns};
-</span><span class="">  832: 		$self-&gt;{_file_data} = $info-&gt;{_headerless_data};
-</span><span class="">  833: 		return;
-</span><span class="">  834: 	}
-</span><span class="">  835: 
-</span><span class="">  836: 	# _detect_file_info returns undef for id when every column header contains
-</span><span class="">  837: 	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
-</span><span class="">  838: 	# Falling back to the D::A default (&#39;entry&#39;) would silently return 0 rows
-</span><span class="">  839: 	# since no &#39;entry&#39; column exists.  Croak with a human-readable message.
-</span><span class="">  840: 	# This guard applies only to CSV/TSV/PSV/SQLite/XML -- headerless and XLSX paths
-</span><span class="">  841: 	# are handled by the _headerless_data check immediately above.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">842 → 862 → 893</span></span>  842: 	croak $self-&gt;_msg(&#39;error_no_safe_id&#39;, $table)
-</span><span class="">  843: 		if exists $info-&gt;{columns} &amp;&amp; !defined $info-&gt;{id};
-</span><span class="">  844: 	my $id_col = $info-&gt;{id} // &#39;entry&#39;;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  845: 	$self-&gt;{_id_col}  = $id_col;
+<span class="">  809: 			$self-&gt;{_file_path} = File::Spec-&gt;rel2abs($p);
+</span><span class="">  810: 			last;
+</span><span class="">  811: 		}
+</span><span class="">  812: 	}
+</span><span class="">  813: 
+</span><span class="">  814: 	# 0-byte file: skip D::A/DBI entirely.  D::A on an empty file falls through
+</span><span class="">  815: 	# to DBD::CSV, whose error handling corrupts DBI&#39;s Errstr SV and triggers an
+</span><span class="">  816: 	# XS assertion failure at cleanup on DEBUGGING perls (DBI 1.651, perl 5.44).
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">817 → 817 → 830</span></span>  817: 	if ($info-&gt;{_file_is_empty}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  818: 		$self-&gt;{_columns}       = [];
+</span><span class="">  819: 		$self-&gt;{_id_col}        = &#39;entry&#39;;
+</span><span class="">  820: 		$self-&gt;{_file_is_empty} = 1;
+</span><span class="">  821: 		return;
+</span><span class="">  822: 	}
+</span><span class="">  823: 
+</span><span class="">  824: 	# Headerless CSV or XLSX: _detect_file_info already pre-loaded all rows.
+</span><span class="">  825: 	# MUST check before error_no_safe_id: XLSX files with all-unsafe column
+</span><span class="">  826: 	# headers (e.g. &quot;First Name&quot;, &quot;Account Number&quot;) have id =&gt; undef because
+</span><span class="">  827: 	# none of the headers match the safe-identifier regex, but the data is
+</span><span class="">  828: 	# pre-loaded and the id column is irrelevant for the direct-data fast path.
+</span><span class="">  829: 	# Checking error_no_safe_id first would croak spuriously for valid XLSX files.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">830 → 830 → 843</span></span>  830: 	if ($info-&gt;{_headerless_data}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  831: 		$self-&gt;{_id_col}  = $info-&gt;{id} // &#39;entry&#39;;
+</span><span class="">  832: 		$self-&gt;{_columns} = $info-&gt;{columns};
+</span><span class="">  833: 		$self-&gt;{_file_data} = $info-&gt;{_headerless_data};
+</span><span class="">  834: 		return;
+</span><span class="">  835: 	}
+</span><span class="">  836: 
+</span><span class="">  837: 	# _detect_file_info returns undef for id when every column header contains
+</span><span class="">  838: 	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
+</span><span class="">  839: 	# Falling back to the D::A default (&#39;entry&#39;) would silently return 0 rows
+</span><span class="">  840: 	# since no &#39;entry&#39; column exists.  Croak with a human-readable message.
+</span><span class="">  841: 	# This guard applies only to CSV/TSV/PSV/SQLite/XML -- headerless and XLSX paths
+</span><span class="">  842: 	# are handled by the _headerless_data check immediately above.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">843 → 863 → 894</span></span>  843: 	croak $self-&gt;_msg(&#39;error_no_safe_id&#39;, $table)
+</span><span class="">  844: 		if exists $info-&gt;{columns} &amp;&amp; !defined $info-&gt;{id};
+</span><span class="">  845: 	my $id_col = $info-&gt;{id} // &#39;entry&#39;;
+</span><span class="">  846: 	$self-&gt;{_id_col}  = $id_col;
+</span><span class="">  847: 	$self-&gt;{_columns} = $info-&gt;{columns};	# undef for SQLite/XML
+</span><span class="">  848: 
+</span><span class="">  849: 	# D::A validates dbname as a SQL identifier and rejects names that contain
+</span><span class="">  850: 	# spaces or other characters that are illegal in SQL (e.g. &quot;transactions for
+</span><span class="">  851: 	# Nigel&quot;).  This check fires at query time (inside selectall_arrayref) for
+</span><span class="">  852: 	# the DBI path used by XLSX, SQLite, and XML files &acirc;&#128;&#148; after construction
+</span><span class="">  853: 	# succeeds &acirc;&#128;&#148; so the error surfaces as error_fetch_failed, not error_backend_init.
+</span><span class="">  854: 	#
+</span><span class="">  855: 	# Fix: when the original filename stem was sanitized (raw_table != table),
+</span><span class="">  856: 	# create a temporary directory with a symlink that uses the safe name.
+</span><span class="">  857: 	# D::A opens the symlink, sees a space-free dbname, and builds valid SQL.
+</span><span class="">  858: 	# The temp-dir object is kept in $self so the symlink persists for the full
+</span><span class="">  859: 	# lifetime of this DataSource instance and is cleaned up automatically when
+</span><span class="">  860: 	# $self is destroyed.
+</span><span class="">  861: 	my $dbname = $raw_table;
+</span><span class="">  862: 	my $da_dir = $dir;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  863: 	if ($raw_table ne $table) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_845_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_863_2: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  846: 	$self-&gt;{_columns} = $info-&gt;{columns};	# undef for SQLite/XML
-</span><span class="">  847: 
-</span><span class="">  848: 	# D::A validates dbname as a SQL identifier and rejects names that contain
-</span><span class="">  849: 	# spaces or other characters that are illegal in SQL (e.g. &quot;transactions for
-</span><span class="">  850: 	# Nigel&quot;).  This check fires at query time (inside selectall_arrayref) for
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  851: 	# the DBI path used by XLSX, SQLite, and XML files &acirc;&#128;&#148; after construction
+<span class="">  864: 		my $safe_ext;
+</span><span class="">  865: 		for my $e (qw(xlsx xls db sql sqlite3 xml csv tsv psv)) {
+</span><span class="">  866: 			$safe_ext = $e, last
+</span><span class="">  867: 				if -f File::Spec-&gt;catfile($dir, &quot;$raw_table.$e&quot;);
+</span><span class="">  868: 		}
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  869: 		if (defined $safe_ext) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_851_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_869_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  852: 	# succeeds &acirc;&#128;&#148; so the error surfaces as error_fetch_failed, not error_backend_init.
-</span><span class="">  853: 	#
-</span><span class="">  854: 	# Fix: when the original filename stem was sanitized (raw_table != table),
-</span><span class="">  855: 	# create a temporary directory with a symlink that uses the safe name.
-</span><span class="">  856: 	# D::A opens the symlink, sees a space-free dbname, and builds valid SQL.
-</span><span class="">  857: 	# The temp-dir object is kept in $self so the symlink persists for the full
-</span><span class="">  858: 	# lifetime of this DataSource instance and is cleaned up automatically when
-</span><span class="">  859: 	# $self is destroyed.
-</span><span class="">  860: 	my $dbname = $raw_table;
-</span><span class="">  861: 	my $da_dir = $dir;
-</span><span class="">  862: 	if ($raw_table ne $table) {
-</span><span class="">  863: 		my $safe_ext;
-</span><span class="">  864: 		for my $e (qw(xlsx xls db sql xml csv tsv psv)) {
-</span><span class="">  865: 			$safe_ext = $e, last
-</span><span class="">  866: 				if -f File::Spec-&gt;catfile($dir, &quot;$raw_table.$e&quot;);
-</span><span class="">  867: 		}
-</span><span class="">  868: 		if (defined $safe_ext) {
-</span><span class="">  869: 			require File::Temp;
-</span><span class="">  870: 			my $tmp     = File::Temp-&gt;newdir(CLEANUP =&gt; 1);
-</span><span class="">  871: 			my $abs_src = File::Spec-&gt;rel2abs(
-</span><span class="">  872: 				File::Spec-&gt;catfile($dir, &quot;$raw_table.$safe_ext&quot;));
-</span><span class="">  873: 			my $link    = File::Spec-&gt;catfile(&quot;$tmp&quot;, &quot;$table.$safe_ext&quot;);
-</span><span class="">  874: 			{
-</span><span class="">  875: 				no autodie;	# symlink failure gives our message, not autodie&#39;s
-</span><span class="">  876: 				symlink($abs_src, $link)
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  877: 					or croak $self-&gt;_msg(&#39;error_backend_init&#39;, $table,
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  878: 						&quot;cannot create safe-name symlink for &#39;$raw_table.$safe_ext&#39;: $!&quot;);
-</span><span class="">  879: 			}
-</span><span class="">  880: 			$self-&gt;{_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  881: 			$dbname = $table;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  882: 			$da_dir = &quot;$tmp&quot;;
-</span><span class="">  883: 		}
-</span><span class="">  884: 	}
-</span><span class="">  885: 
-</span><span class="">  886: 	# SQLite: _detect_file_info probed sqlite_master and returned the internal
-</span><span class="">  887: 	# table names.  When $dbname (the filename stem or its safe alias) is not
-</span><span class="">  888: 	# among those names, auto-select the first user table and create a symlink
-</span><span class="">  889: 	# from &lt;actual_table&gt;.&lt;ext&gt; to the original file so D::A can issue SQL
-</span><span class="">  890: 	# against the real table name without needing the filename to match.
-</span><span class="">  891: 	# D::A uses &#39;dbname&#39; to find the file and &#39;table&#39; for the SELECT statement,
-</span><span class="">  892: 	# so both must be set to the actual table name when a mismatch is corrected.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">893 → 894 → 921</span></span>  893: 	my $da_table = $table;	# D::A &#39;table&#39; param &acirc;&#128;&#148; controls the SQL table name
-</span><span class="">  894: 	if (exists $info-&gt;{sqlite_tables}) {
-</span><span class="">  895: 		my @tbls = @{ $info-&gt;{sqlite_tables} };
-</span><span class="">  896: 		croak $self-&gt;_msg(&#39;error_no_tables&#39;, $raw_table) unless @tbls;
-</span><span class="">  897: 		my ($match) = grep { $_ eq $dbname } @tbls;
-</span><span class="">  898: 		unless (defined $match) {
-</span><span class="">  899: 			my $actual   = $tbls[0];
-</span><span class="">  900: 			my ($src_ext) = grep { -f File::Spec-&gt;catfile($dir, &quot;$raw_table.$_&quot;) }
-</span><span class="">  901: 				qw(sql db);
-</span><span class="">  902: 			$src_ext //= &#39;sql&#39;;
-</span><span class="">  903: 			require File::Temp;
-</span><span class="">  904: 			my $tmp     = File::Temp-&gt;newdir(CLEANUP =&gt; 1);
-</span><span class="">  905: 			my $abs_src = File::Spec-&gt;rel2abs(
-</span><span class="">  906: 				File::Spec-&gt;catfile($dir, &quot;$raw_table.$src_ext&quot;));
-</span><span class="">  907: 			my $link = File::Spec-&gt;catfile(&quot;$tmp&quot;, &quot;$actual.$src_ext&quot;);
-</span><span class="">  908: 			{
-</span><span class="">  909: 				no autodie;
-</span><span class="">  910: 				symlink($abs_src, $link)
-</span><span class="">  911: 					or croak $self-&gt;_msg(&#39;error_backend_init&#39;, $raw_table,
-</span><span class="">  912: 						&quot;cannot create table-name symlink for &#39;$raw_table.$src_ext&#39;: $!&quot;);
-</span><span class="">  913: 			}
-</span><span class="">  914: 			$self-&gt;{_tmpdir} = $tmp;
-</span><span class="">  915: 			$dbname   = $actual;	# D::A uses this for the filename stem
-</span><span class="">  916: 			$da_table = $actual;	# D::A uses this for SELECT * FROM &lt;table&gt;
-</span><span class="">  917: 			$da_dir   = &quot;$tmp&quot;;
-</span><span class="">  918: 		}
-</span><span class="">  919: 	}
-</span><span class="">  920: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">921 → 946 → 950</span></span>  921: 	my $db = eval {
-</span><span class="">  922: 		$pkg-&gt;new({
-</span><span class="">  923: 			directory      =&gt; $da_dir,
-</span><span class="">  924: 			table          =&gt; $da_table,
-</span><span class="">  925: 			# D::A &gt;= 0.41 uses the class-name suffix as dbname, not the table
-</span><span class="">  926: 			# parameter, so a package like Database::BI::_DB::Orders would look
-</span><span class="">  927: 			# for Orders.csv on a case-sensitive filesystem even when table =&gt;
-</span><span class="">  928: 			# &#39;orders&#39; is passed.  Passing dbname explicitly keeps the filename
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  929: 			# stem correct regardless of the package name or D::A version.
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  930: 			# When the table name was sanitized (spaces, hyphens -&gt; underscores),
-</span><span class="">  931: 			# $dbname is the safe name so D::A never sees illegal SQL characters,
-</span><span class="">  932: 			# and D::A finds the file via the symlink in $da_dir.
-</span><span class="">  933: 			dbname         =&gt; $dbname,
-</span><span class="">  934: 			id             =&gt; $id_col,
-</span><span class="">  935: 			no_entry       =&gt; 1,
-</span><span class="">  936: 			defined($info-&gt;{sep_char})  ? (sep_char       =&gt; $info-&gt;{sep_char})  : (),
-</span><span class="">  937: 			# Force the Text::xSV::Slurp path for CSV/TSV/PSV files: D::A&#39;s default
-</span><span class="">  938: 			# slurp threshold is 16 KB; larger files fall back to DBD::CSV, which
-</span><span class="">  939: 			# sanitizes column names (lowercases and replaces spaces with
-</span><span class="">  940: 			# underscores).  Passing the actual file size ensures the slurp path
-</span><span class="">  941: 			# is always taken, so &quot;Account Number&quot; stays &quot;Account Number&quot; rather
-</span><span class="">  942: 			# than becoming &quot;account_number&quot;.
-</span><span class="">  943: 			defined($info-&gt;{file_size}) ? (max_slurp_size =&gt; $info-&gt;{file_size}) : (),
-</span><span class="">  944: 		});
-</span><span class="">  945: 	};
-</span><span class="">  946: 	if ($@) {
-</span><span class="">  947: 		croak $self-&gt;_msg(&#39;error_backend_init&#39;, $table, $@);
-</span><span class="">  948: 	}
-</span><span class="">  949: 
-</span><span class="">  950: 	$self-&gt;{_db} = $db;
-</span><span class="">  951: 	return;
-</span><span class="">  952: }
-</span><span class="">  953: 
-</span><span class="">  954: # ---------------------------------------------------------------------------
-</span><span class="">  955: # Public accessors
-</span><span class="">  956: # ---------------------------------------------------------------------------
-</span><span class="">  957: 
-</span><span class="">  958: =head1 ACCESSORS
-</span><span class="">  959: 
-</span><span class="">  960: =head2 table_name
-</span><span class="">  961: 
-</span><span class="">  962: Returns the (lowercased) table name this instance was opened against.
-</span><span class="">  963: 
-</span><span class="">  964: =head3 API SPECIFICATION
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  965: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  966: =head4 INPUT
-</span><span class="">  967: 
-</span><span class="">  968: None.
-</span><span class="">  969: 
-</span><span class="">  970: =head4 OUTPUT
-</span><span class="">  971: 
-</span><span class="">  972: Returns a C&lt;SCALAR&gt; string.
-</span><span class="">  973: 
-</span><span class="">  974: =head3 MESSAGES
-</span><span class="">  975: 
-</span><span class="">  976: None.
-</span><span class="">  977: 
-</span><span class="">  978: =cut
-</span><span class="">  979: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  980: sub table_name {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  981: 	my $self = shift;
-</span><span class="">  982: 	return $self-&gt;{_table};
-</span><span class="">  983: }
-</span><span class="">  984: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  985: =head2 columns
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  986: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  987: Returns an arrayref of column names in file order, or C&lt;undef&gt; when no order
-</span><span class="">  988: is available.  For CSV, TSV and PSV files the order comes from the file header.
-</span><span class="">  989: For SQLite and XML, falls back to the underlying C&lt;Database::Abstraction&gt;
-</span><span class="">  990: object&#39;s C&lt;columns()&gt; &acirc;&#128;&#148; useful when a C&lt;DataSource&gt; is passed directly to
-</span><span class="">  991: C&lt;Database::Join&gt; as a component database.
-</span><span class="">  992: 
-</span><span class="">  993: =cut
-</span><span class="">  994: 
-</span><span class="">  995: sub columns {
-</span><span class="">  996: 	my $self = shift;
-</span><span class="">  997: 	return $self-&gt;{_columns} if defined $self-&gt;{_columns};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  998: 	# URL-backed tables have no canonical column order; D::A fetches lazily so
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  999: 	# calling _db-&gt;columns() here would trigger a live network request even when
-</span><span class=""> 1000: 	# the data came from the CHI cache.  Return undef and let _get_columns derive
-</span><span class=""> 1001: 	# the list from the data records instead.
-</span><span class=""> 1002: 	return undef if defined $self-&gt;{_url};
-</span><span class=""> 1003: 	return $self-&gt;{_db} ? $self-&gt;{_db}-&gt;columns() : undef;
-</span><span class=""> 1004: }
-</span><span class=""> 1005: 
-</span><span class=""> 1006: =head2 id_column
-</span><span class=""> 1007: 
-</span><span class=""> 1008: Returns the name of the column used as the primary key / slurp-filter anchor.
-</span><span class=""> 1009: Returns C&lt;undef&gt; for URL/HTML-table backends (no primary-key concept applies).
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1010: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1011: =cut
-</span><span class=""> 1012: 
-</span><span class=""> 1013: sub id_column {
-</span><span class=""> 1014: 	my $self = shift;
-</span><span class=""> 1015: 	return $self-&gt;{_id_col};
-</span><span class=""> 1016: }
-</span><span class=""> 1017: 
-</span><span class=""> 1018: =head2 source_url
-</span><span class=""> 1019: 
-</span><span class=""> 1020: Returns the source URL for URL/HTML-table-backed instances, or C&lt;undef&gt; for
-</span><span class=""> 1021: file-backed instances.
-</span><span class=""> 1022: 
-</span><span class=""> 1023: =cut
-</span><span class=""> 1024: 
-</span><span class=""> 1025: sub source_url {
-</span><span class=""> 1026: 	my $self = shift;
-</span><span class=""> 1027: 	return $self-&gt;{_url};
-</span><span class=""> 1028: }
-</span><span class=""> 1029: 
-</span><span class=""> 1030: # ---------------------------------------------------------------------------
-</span><span class=""> 1031: # Public data-access methods
-</span><span class=""> 1032: # ---------------------------------------------------------------------------
-</span><span class=""> 1033: 
-</span><span class=""> 1034: =head1 METHODS
-</span><span class=""> 1035: 
-</span><span class=""> 1036: =head2 fetch_all
-</span><span class=""> 1037: 
-</span><span class=""> 1038: Returns every record in the table as an arrayref of hashrefs.
-</span><span class=""> 1039: 
-</span><span class=""> 1040: =head3 API SPECIFICATION
-</span><span class=""> 1041: 
-</span><span class=""> 1042: =head4 INPUT
-</span><span class=""> 1043: 
-</span><span class=""> 1044: None.  Filtering is performed at the controller layer (C&lt;Dashboard::_apply_filter_spec&gt;)
-</span><span class=""> 1045: after C&lt;fetch_all&gt; returns, not inside C&lt;DataSource&gt;.
-</span><span class=""> 1046: 
-</span><span class=""> 1047: =head4 OUTPUT
-</span><span class=""> 1048: 
-</span><span class=""> 1049: 	ARRAYREF of HASHREF   # one hashref per row, keys are column names
-</span><span class=""> 1050: 	                      # returns [] when the table exists but is empty
-</span><span class=""> 1051: 
-</span><span class=""> 1052: Croaks if the backend raises an exception. Carps (non-fatal) when the result
-</span><span class=""> 1053: set is empty so the caller can distinguish &quot;open succeeded, no rows&quot; from a
-</span><span class=""> 1054: silent failure.
-</span><span class=""> 1055: 
-</span><span class=""> 1056: =head3 MESSAGES
-</span><span class=""> 1057: 
-</span><span class=""> 1058:   error_fetch_failed     -- backend threw an exception during retrieval
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1059:   warn_empty_result      -- query succeeded but returned zero records
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1060:   warn_data_normalised   -- backend returned a hashref; converted to arrayref
-</span><span class=""> 1061: 
-</span><span class=""> 1062: =cut
-</span><span class=""> 1063: 
-</span><span class=""> 1064: =head2 selectall_arrayref
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1065: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1066: C&lt;Database::Abstraction&gt;-compatible alias that allows a C&lt;DataSource&gt; object
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1067: to be passed directly to C&lt;Database::Join&gt; as a component database.  Passes
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1068: any criteria through to the underlying backend; the BI viewer always calls it
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1069: with no arguments.
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1070: 
-</span><span class=""> 1071: =cut
-</span><span class=""> 1072: 
-</span><span class=""> 1073: sub selectall_arrayref {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1074 → 1082 → 1090</span></span> 1074: 	my ($self, @args) = @_;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1075: 	return [] if $self-&gt;{_file_is_empty};
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1076: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1077: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1078: 	# Cache only plain unfiltered calls &acirc;&#128;&#148; Database::Join passes no args for the
-</span><span class=""> 1079: 	# full table scan; a non-empty @args means a narrowed query whose result must
-</span><span class=""> 1080: 	# not be mistaken for the full-table cache entry.
-</span><span class=""> 1081: 	my $cache = $self-&gt;{_cache};
-</span><span class=""> 1082: 	if ($cache &amp;&amp; !@args) {
-</span><span class=""> 1083: 		my $key = $self-&gt;_cache_key;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1084: 		if (defined $key) {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1085: 			my $hit = $cache-&gt;get($key);
-</span><span class=""> 1086: 			return $hit if defined $hit;
-</span><span class=""> 1087: 		}
-</span><span class=""> 1088: 	}
-</span><span class=""> 1089: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1090 → 1092 → 1101</span></span> 1090: 	my $data = $self-&gt;{_db}-&gt;selectall_arrayref(@args);
-</span><span class=""> 1091: 
-</span><span class=""> 1092: 	if ($cache &amp;&amp; !@args &amp;&amp; defined $data) {
-</span><span class=""> 1093: 		my $key = $self-&gt;_cache_key;
-</span><span class=""> 1094: 		if (defined $key) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1095: 			defined $self-&gt;{_url}
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1096: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
-</span><span class=""> 1097: 				: $cache-&gt;set($key, $data);
-</span><span class=""> 1098: 		}
-</span><span class=""> 1099: 	}
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1100: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1101: 	return $data;
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."> 1102: }
+<span class="">  870: 			require File::Temp;
+</span><span class="">  871: 			my $tmp     = File::Temp-&gt;newdir(CLEANUP =&gt; 1);
+</span><span class="">  872: 			my $abs_src = File::Spec-&gt;rel2abs(
+</span><span class="">  873: 				File::Spec-&gt;catfile($dir, &quot;$raw_table.$safe_ext&quot;));
+</span><span class="">  874: 			my $link    = File::Spec-&gt;catfile(&quot;$tmp&quot;, &quot;$table.$safe_ext&quot;);
+</span><span class="">  875: 			{
+</span><span class="">  876: 				no autodie;	# symlink failure gives our message, not autodie&#39;s
+</span><span class="">  877: 				symlink($abs_src, $link)
+</span><span class="">  878: 					or croak $self-&gt;_msg(&#39;error_backend_init&#39;, $table,
+</span><span class="">  879: 						&quot;cannot create safe-name symlink for &#39;$raw_table.$safe_ext&#39;: $!&quot;);
+</span><span class="">  880: 			}
+</span><span class="">  881: 			$self-&gt;{_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
+</span><span class="">  882: 			$dbname = $table;
+</span><span class="">  883: 			$da_dir = &quot;$tmp&quot;;
+</span><span class="">  884: 		}
+</span><span class="">  885: 	}
+</span><span class="">  886: 
+</span><span class="">  887: 	# SQLite: _detect_file_info probed sqlite_master and returned the internal
+</span><span class="">  888: 	# table names.  When $dbname (the filename stem or its safe alias) is not
+</span><span class="">  889: 	# among those names, auto-select the first user table and create a symlink
+</span><span class="">  890: 	# from &lt;actual_table&gt;.&lt;ext&gt; to the original file so D::A can issue SQL
+</span><span class="">  891: 	# against the real table name without needing the filename to match.
+</span><span class="">  892: 	# D::A uses &#39;dbname&#39; to find the file and &#39;table&#39; for the SELECT statement,
+</span><span class="">  893: 	# so both must be set to the actual table name when a mismatch is corrected.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">894 → 895 → 922</span></span>  894: 	my $da_table = $table;	# D::A &#39;table&#39; param &acirc;&#128;&#148; controls the SQL table name
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  895: 	if (exists $info-&gt;{sqlite_tables}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  896: 		my @tbls = @{ $info-&gt;{sqlite_tables} };
+</span><span class="">  897: 		croak $self-&gt;_msg(&#39;error_no_tables&#39;, $raw_table) unless @tbls;
+</span><span class="">  898: 		my ($match) = grep { $_ eq $dbname } @tbls;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  899: 		unless (defined $match) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  900: 			my $actual   = $tbls[0];
+</span><span class="">  901: 			my ($src_ext) = grep { -f File::Spec-&gt;catfile($dir, &quot;$raw_table.$_&quot;) }
+</span><span class="">  902: 				qw(sql sqlite3 db);
+</span><span class="">  903: 			$src_ext //= &#39;sql&#39;;
+</span><span class="">  904: 			require File::Temp;
+</span><span class="">  905: 			my $tmp     = File::Temp-&gt;newdir(CLEANUP =&gt; 1);
+</span><span class="">  906: 			my $abs_src = File::Spec-&gt;rel2abs(
+</span><span class="">  907: 				File::Spec-&gt;catfile($dir, &quot;$raw_table.$src_ext&quot;));
+</span><span class="">  908: 			my $link = File::Spec-&gt;catfile(&quot;$tmp&quot;, &quot;$actual.$src_ext&quot;);
+</span><span class="">  909: 			{
+</span><span class="">  910: 				no autodie;
+</span><span class="">  911: 				symlink($abs_src, $link)
+</span><span class="">  912: 					or croak $self-&gt;_msg(&#39;error_backend_init&#39;, $raw_table,
+</span><span class="">  913: 						&quot;cannot create table-name symlink for &#39;$raw_table.$src_ext&#39;: $!&quot;);
+</span><span class="">  914: 			}
+</span><span class="">  915: 			$self-&gt;{_tmpdir} = $tmp;
+</span><span class="">  916: 			$dbname   = $actual;	# D::A uses this for the filename stem
+</span><span class="">  917: 			$da_table = $actual;	# D::A uses this for SELECT * FROM &lt;table&gt;
+</span><span class="">  918: 			$da_dir   = &quot;$tmp&quot;;
+</span><span class="">  919: 		}
+</span><span class="">  920: 	}
+</span><span class="">  921: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">922 → 947 → 951</span></span>  922: 	my $db = eval {
+</span><span class="">  923: 		$pkg-&gt;new({
+</span><span class="">  924: 			directory      =&gt; $da_dir,
+</span><span class="">  925: 			table          =&gt; $da_table,
+</span><span class="">  926: 			# D::A &gt;= 0.41 uses the class-name suffix as dbname, not the table
+</span><span class="">  927: 			# parameter, so a package like Database::BI::_DB::Orders would look
+</span><span class="">  928: 			# for Orders.csv on a case-sensitive filesystem even when table =&gt;
+</span><span class="">  929: 			# &#39;orders&#39; is passed.  Passing dbname explicitly keeps the filename
+</span><span class="">  930: 			# stem correct regardless of the package name or D::A version.
+</span><span class="">  931: 			# When the table name was sanitized (spaces, hyphens -&gt; underscores),
+</span><span class="">  932: 			# $dbname is the safe name so D::A never sees illegal SQL characters,
+</span><span class="">  933: 			# and D::A finds the file via the symlink in $da_dir.
+</span><span class="">  934: 			dbname         =&gt; $dbname,
+</span><span class="">  935: 			id             =&gt; $id_col,
+</span><span class="">  936: 			no_entry       =&gt; 1,
+</span><span class="">  937: 			defined($info-&gt;{sep_char})  ? (sep_char       =&gt; $info-&gt;{sep_char})  : (),
+</span><span class="">  938: 			# Force the Text::xSV::Slurp path for CSV/TSV/PSV files: D::A&#39;s default
+</span><span class="">  939: 			# slurp threshold is 16 KB; larger files fall back to DBD::CSV, which
+</span><span class="">  940: 			# sanitizes column names (lowercases and replaces spaces with
+</span><span class="">  941: 			# underscores).  Passing the actual file size ensures the slurp path
+</span><span class="">  942: 			# is always taken, so &quot;Account Number&quot; stays &quot;Account Number&quot; rather
+</span><span class="">  943: 			# than becoming &quot;account_number&quot;.
+</span><span class="">  944: 			defined($info-&gt;{file_size}) ? (max_slurp_size =&gt; $info-&gt;{file_size}) : (),
+</span><span class="">  945: 		});
+</span><span class="">  946: 	};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  947: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  948: 		croak $self-&gt;_msg(&#39;error_backend_init&#39;, $table, $@);
+</span><span class="">  949: 	}
+</span><span class="">  950: 
+</span><span class="">  951: 	$self-&gt;{_db} = $db;
+</span><span class="">  952: 	return;
+</span><span class="">  953: }
+</span><span class="">  954: 
+</span><span class="">  955: # ---------------------------------------------------------------------------
+</span><span class="">  956: # Public accessors
+</span><span class="">  957: # ---------------------------------------------------------------------------
+</span><span class="">  958: 
+</span><span class="">  959: =head1 ACCESSORS
+</span><span class="">  960: 
+</span><span class="">  961: =head2 table_name
+</span><span class="">  962: 
+</span><span class="">  963: Returns the (lowercased) table name this instance was opened against.
+</span><span class="">  964: 
+</span><span class="">  965: =head3 API SPECIFICATION
+</span><span class="">  966: 
+</span><span class="">  967: =head4 INPUT
+</span><span class="">  968: 
+</span><span class="">  969: None.
+</span><span class="">  970: 
+</span><span class="">  971: =head4 OUTPUT
+</span><span class="">  972: 
+</span><span class="">  973: Returns a C&lt;SCALAR&gt; string.
+</span><span class="">  974: 
+</span><span class="">  975: =head3 MESSAGES
+</span><span class="">  976: 
+</span><span class="">  977: None.
+</span><span class="">  978: 
+</span><span class="">  979: =cut
+</span><span class="">  980: 
+</span><span class="">  981: sub table_name {
+</span><span class="">  982: 	my $self = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  983: 	return $self-&gt;{_table};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  984: }
+</span><span class="">  985: 
+</span><span class="">  986: =head2 columns
+</span><span class="">  987: 
+</span><span class="">  988: Returns an arrayref of column names in file order, or C&lt;undef&gt; when no order
+</span><span class="">  989: is available.  For CSV, TSV and PSV files the order comes from the file header.
+</span><span class="">  990: For SQLite and XML, falls back to the underlying C&lt;Database::Abstraction&gt;
+</span><span class="">  991: object&#39;s C&lt;columns()&gt; &acirc;&#128;&#148; useful when a C&lt;DataSource&gt; is passed directly to
+</span><span class="">  992: C&lt;Database::Join&gt; as a component database.
+</span><span class="">  993: 
+</span><span class="">  994: =cut
+</span><span class="">  995: 
+</span><span class="">  996: sub columns {
+</span><span class="">  997: 	my $self = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  998: 	return $self-&gt;{_columns} if defined $self-&gt;{_columns};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  999: 	# URL-backed tables have no canonical column order; D::A fetches lazily so
+</span><span class=""> 1000: 	# calling _db-&gt;columns() here would trigger a live network request even when
+</span><span class=""> 1001: 	# the data came from the CHI cache.  Return undef and let _get_columns derive
+</span><span class=""> 1002: 	# the list from the data records instead.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1003: 	return undef if defined $self-&gt;{_url};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1004: 	return $self-&gt;{_db} ? $self-&gt;{_db}-&gt;columns() : undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1005: }
+</span><span class=""> 1006: 
+</span><span class=""> 1007: =head2 id_column
+</span><span class=""> 1008: 
+</span><span class=""> 1009: Returns the name of the column used as the primary key / slurp-filter anchor.
+</span><span class=""> 1010: Returns C&lt;undef&gt; for URL/HTML-table backends (no primary-key concept applies).
+</span><span class=""> 1011: 
+</span><span class=""> 1012: =cut
+</span><span class=""> 1013: 
+</span><span class=""> 1014: sub id_column {
+</span><span class=""> 1015: 	my $self = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1016: 	return $self-&gt;{_id_col};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1017: }
+</span><span class=""> 1018: 
+</span><span class=""> 1019: =head2 source_url
+</span><span class=""> 1020: 
+</span><span class=""> 1021: Returns the source URL for URL/HTML-table-backed instances, or C&lt;undef&gt; for
+</span><span class=""> 1022: file-backed instances.
+</span><span class=""> 1023: 
+</span><span class=""> 1024: =cut
+</span><span class=""> 1025: 
+</span><span class=""> 1026: sub source_url {
+</span><span class=""> 1027: 	my $self = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1028: 	return $self-&gt;{_url};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1029: }
+</span><span class=""> 1030: 
+</span><span class=""> 1031: # ---------------------------------------------------------------------------
+</span><span class=""> 1032: # Public data-access methods
+</span><span class=""> 1033: # ---------------------------------------------------------------------------
+</span><span class=""> 1034: 
+</span><span class=""> 1035: =head1 METHODS
+</span><span class=""> 1036: 
+</span><span class=""> 1037: =head2 fetch_all
+</span><span class=""> 1038: 
+</span><span class=""> 1039: Returns every record in the table as an arrayref of hashrefs.
+</span><span class=""> 1040: 
+</span><span class=""> 1041: =head3 API SPECIFICATION
+</span><span class=""> 1042: 
+</span><span class=""> 1043: =head4 INPUT
+</span><span class=""> 1044: 
+</span><span class=""> 1045: None.  Filtering is performed at the controller layer (C&lt;Dashboard::_apply_filter_spec&gt;)
+</span><span class=""> 1046: after C&lt;fetch_all&gt; returns, not inside C&lt;DataSource&gt;.
+</span><span class=""> 1047: 
+</span><span class=""> 1048: =head4 OUTPUT
+</span><span class=""> 1049: 
+</span><span class=""> 1050: 	ARRAYREF of HASHREF   # one hashref per row, keys are column names
+</span><span class=""> 1051: 	                      # returns [] when the table exists but is empty
+</span><span class=""> 1052: 
+</span><span class=""> 1053: Croaks if the backend raises an exception. Carps (non-fatal) when the result
+</span><span class=""> 1054: set is empty so the caller can distinguish &quot;open succeeded, no rows&quot; from a
+</span><span class=""> 1055: silent failure.
+</span><span class=""> 1056: 
+</span><span class=""> 1057: =head3 MESSAGES
+</span><span class=""> 1058: 
+</span><span class=""> 1059:   error_fetch_failed     -- backend threw an exception during retrieval
+</span><span class=""> 1060:   warn_empty_result      -- query succeeded but returned zero records
+</span><span class=""> 1061:   warn_data_normalised   -- backend returned a hashref; converted to arrayref
+</span><span class=""> 1062: 
+</span><span class=""> 1063: =cut
+</span><span class=""> 1064: 
+</span><span class=""> 1065: =head2 selectall_arrayref
+</span><span class=""> 1066: 
+</span><span class=""> 1067: C&lt;Database::Abstraction&gt;-compatible alias that allows a C&lt;DataSource&gt; object
+</span><span class=""> 1068: to be passed directly to C&lt;Database::Join&gt; as a component database.  Passes
+</span><span class=""> 1069: any criteria through to the underlying backend; the BI viewer always calls it
+</span><span class=""> 1070: with no arguments.
+</span><span class=""> 1071: 
+</span><span class=""> 1072: =cut
+</span><span class=""> 1073: 
+</span><span class=""> 1074: sub selectall_arrayref {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1075 → 1083 → 1091</span></span> 1075: 	my ($self, @args) = @_;
+</span><span class=""> 1076: 	return [] if $self-&gt;{_file_is_empty};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1077: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1078: 
+</span><span class=""> 1079: 	# Cache only plain unfiltered calls &acirc;&#128;&#148; Database::Join passes no args for the
+</span><span class=""> 1080: 	# full table scan; a non-empty @args means a narrowed query whose result must
+</span><span class=""> 1081: 	# not be mistaken for the full-table cache entry.
+</span><span class=""> 1082: 	my $cache = $self-&gt;{_cache};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1083: 	if ($cache &amp;&amp; !@args) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1084: 		my $key = $self-&gt;_cache_key;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1085: 		if (defined $key) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1086: 			my $hit = $cache-&gt;get($key);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1087: 			return $hit if defined $hit;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1088: 		}
+</span><span class=""> 1089: 	}
+</span><span class=""> 1090: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1091 → 1093 → 1102</span></span> 1091: 	my $data = $self-&gt;{_db}-&gt;selectall_arrayref(@args);
+</span><span class=""> 1092: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1093: 	if ($cache &amp;&amp; !@args &amp;&amp; defined $data) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1094: 		my $key = $self-&gt;_cache_key;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1095: 		if (defined $key) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1096: 			defined $self-&gt;{_url}
+</span><span class=""> 1097: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
+</span><span class=""> 1098: 				: $cache-&gt;set($key, $data);
+</span><span class=""> 1099: 		}
+</span><span class=""> 1100: 	}
+</span><span class=""> 1101: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1102: 	return $data;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1103: }
+</span><span class=""> 1104: 
+</span><span class=""> 1105: sub fetch_all {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1106 → 1118 → 1126</span></span> 1106: 	my $self  = shift;
+</span><span class=""> 1107: 	my $table = $self-&gt;{_table};
+</span><span class=""> 1108: 
+</span><span class=""> 1109: 	# 0-byte file: no backend was created; nothing to fetch.
+</span><span class=""> 1110: 	return [] if $self-&gt;{_file_is_empty};
+</span><span class=""> 1111: 
+</span><span class=""> 1112: 	# Headerless CSV/XLSX: data was pre-parsed with synthesized column names.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1113: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1114: 
+</span><span class=""> 1115: 	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
+</span><span class=""> 1116: 	# file tables benefit from skipping disk I/O and CSV/TSV/PSV parsing.
+</span><span class=""> 1117: 	my $cache = $self-&gt;{_cache};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1118: 	if ($cache) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1119: 		my $key = $self-&gt;_cache_key;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."> 1120: 		if (defined $key) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_1102_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_1120_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class=""> 1103: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1104: sub fetch_all {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1105 → 1117 → 1125</span></span> 1105: 	my $self  = shift;
-</span><span class=""> 1106: 	my $table = $self-&gt;{_table};
-</span><span class=""> 1107: 
-</span><span class=""> 1108: 	# 0-byte file: no backend was created; nothing to fetch.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1109: 	return [] if $self-&gt;{_file_is_empty};
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1110: 
-</span><span class=""> 1111: 	# Headerless CSV/XLSX: data was pre-parsed with synthesized column names.
-</span><span class=""> 1112: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
-</span><span class=""> 1113: 
-</span><span class=""> 1114: 	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
-</span><span class=""> 1115: 	# file tables benefit from skipping disk I/O and CSV/TSV/PSV parsing.
-</span><span class=""> 1116: 	my $cache = $self-&gt;{_cache};
-</span><span class=""> 1117: 	if ($cache) {
-</span><span class=""> 1118: 		my $key = $self-&gt;_cache_key;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1119: 		if (defined $key) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1120: 			my $hit = $cache-&gt;get($key);
-</span><span class=""> 1121: 			return $hit if defined $hit;
-</span><span class=""> 1122: 		}
-</span><span class=""> 1123: 	}
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1124: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1125 → 1126 → 1130</span></span> 1125: 	my $data = eval { $self-&gt;{_db}-&gt;selectall_hashref() };
-</span><span class=""> 1126: 	if ($@) {
-</span><span class=""> 1127: 		croak $self-&gt;_msg(&#39;error_fetch_failed&#39;, $table, $@);
-</span><span class=""> 1128: 	}
-</span><span class=""> 1129: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1130 → 1136 → 1141</span></span> 1130: 	return [] unless defined $data;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1131: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1132: 	# Strategy: Database::Abstraction can return either an arrayref (when the
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."> 1133: 	# underlying driver iterates rows) or a hashref keyed by primary key (when
+<span class=""> 1121: 			my $hit = $cache-&gt;get($key);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1122: 			return $hit if defined $hit;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1123: 		}
+</span><span class=""> 1124: 	}
+</span><span class=""> 1125: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1126 → 1127 → 1131</span></span> 1126: 	my $data = eval { $self-&gt;{_db}-&gt;selectall_hashref() };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1127: 	if ($@) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1128: 		croak $self-&gt;_msg(&#39;error_fetch_failed&#39;, $table, $@);
+</span><span class=""> 1129: 	}
+</span><span class=""> 1130: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1131 → 1137 → 1142</span></span> 1131: 	return [] unless defined $data;
+</span><span class=""> 1132: 
+</span><span class=""> 1133: 	# Strategy: Database::Abstraction can return either an arrayref (when the
+</span><span class=""> 1134: 	# underlying driver iterates rows) or a hashref keyed by primary key (when
+</span><span class=""> 1135: 	# it mirrors DBI&#39;s selectall_hashref semantics). We normalise to arrayref
+</span><span class=""> 1136: 	# here so every caller above this layer sees a uniform structure.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1137: 	if (ref $data eq &#39;HASH&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1138: 		carp $self-&gt;_msg(&#39;warn_data_normalised&#39;, $table);
+</span><span class=""> 1139: 		$data = [ values %{$data} ];
+</span><span class=""> 1140: 	}
+</span><span class=""> 1141: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1142 → 1142 → 1149</span></span> 1142: 	if (!@{$data}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1143: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
+</span><span class=""> 1144: 	}
+</span><span class=""> 1145: 
+</span><span class=""> 1146: 	# Cache store: URL tables use a TTL so stale pages expire automatically;
+</span><span class=""> 1147: 	# file tables encode mtime in the key so a changed file produces a natural
+</span><span class=""> 1148: 	# miss without any explicit invalidation.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1149 → 1149 → 1158</span></span> 1149: 	if ($cache) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1150: 		my $key = $self-&gt;_cache_key;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch."> 1151: 		if (defined $key) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>COND_INV_1133_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>COND_INV_1151_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class=""> 1134: 	# it mirrors DBI&#39;s selectall_hashref semantics). We normalise to arrayref
-</span><span class=""> 1135: 	# here so every caller above this layer sees a uniform structure.
-</span><span class=""> 1136: 	if (ref $data eq &#39;HASH&#39;) {
-</span><span class=""> 1137: 		carp $self-&gt;_msg(&#39;warn_data_normalised&#39;, $table);
-</span><span class=""> 1138: 		$data = [ values %{$data} ];
-</span><span class=""> 1139: 	}
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1140: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1141 → 1141 → 1148</span></span> 1141: 	if (!@{$data}) {
-</span><span class=""> 1142: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
-</span><span class=""> 1143: 	}
-</span><span class=""> 1144: 
-</span><span class=""> 1145: 	# Cache store: URL tables use a TTL so stale pages expire automatically;
-</span><span class=""> 1146: 	# file tables encode mtime in the key so a changed file produces a natural
-</span><span class=""> 1147: 	# miss without any explicit invalidation.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1148 → 1148 → 1157</span></span> 1148: 	if ($cache) {
-</span><span class=""> 1149: 		my $key = $self-&gt;_cache_key;
-</span><span class=""> 1150: 		if (defined $key) {
-</span><span class=""> 1151: 			defined $self-&gt;{_url}
-</span><span class=""> 1152: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
-</span><span class=""> 1153: 				: $cache-&gt;set($key, $data);
-</span><span class=""> 1154: 		}
-</span><span class=""> 1155: 	}
-</span><span class=""> 1156: 
-</span><span class=""> 1157: 	return $data;
-</span><span class=""> 1158: }
-</span><span class=""> 1159: 
-</span><span class=""> 1160: 1;
-</span><span class=""> 1161: 
-</span><span class=""> 1162: __END__
-</span><span class=""> 1163: 
-</span><span class=""> 1164: =head1 COMMON PITFALLS
-</span><span class=""> 1165: 
-</span><span class=""> 1166: These are the most common mistakes when using C&lt;DataSource&gt;.
-</span><span class=""> 1167: 
-</span><span class=""> 1168: =over 4
-</span><span class=""> 1169: 
-</span><span class=""> 1170: =item B&lt;SQLite databases must use .sql as their file extension&gt;
-</span><span class=""> 1171: 
-</span><span class=""> 1172: C&lt;Database::Abstraction&gt; looks for SQLite databases with the C&lt;.sql&gt; extension.
-</span><span class=""> 1173: It does B&lt;not&gt; recognise C&lt;.sqlite&gt;, C&lt;.sqlite3&gt;, or C&lt;.db3&gt;.  If you have a
-</span><span class=""> 1174: file called C&lt;inventory.sqlite&gt;, rename it to C&lt;inventory.sql&gt; before passing
-</span><span class=""> 1175: it to C&lt;DataSource&gt;.
-</span><span class=""> 1176: 
-</span><span class=""> 1177: =item B&lt;The table name is always lowercased&gt;
-</span><span class=""> 1178: 
-</span><span class=""> 1179: The constructor lowercases the C&lt;table&gt; argument before using it.  Passing
-</span><span class=""> 1180: C&lt;table =E&lt;gt&gt; &#39;Sales&#39;&gt; and C&lt;table =E&lt;gt&gt; &#39;sales&#39;&gt; both look for
-</span><span class=""> 1181: C&lt;sales.csv&gt; (or C&lt;sales.sql&gt;, etc.).  The matching is case-insensitive on the
-</span><span class=""> 1182: table name but B&lt;case-sensitive on the directory path&gt;.
-</span><span class=""> 1183: 
-</span><span class=""> 1184: =item B&lt;CSV files with the wrong separator appear as one giant field per row&gt;
-</span><span class=""> 1185: 
-</span><span class=""> 1186: C&lt;Database::Abstraction&gt; defaults to C&lt;!&gt; (exclamation mark) as its field
-</span><span class=""> 1187: separator.  A standard comma-separated CSV file will look like one big field
-</span><span class=""> 1188: per row (for example, C&lt;1,Widget A,North,100&gt;) because the library never sees
-</span><span class=""> 1189: the commas as separators.  C&lt;DataSource&gt; fixes this automatically by reading
-</span><span class=""> 1190: the first line of the file and detecting the actual separator.  If you bypass
-</span><span class=""> 1191: C&lt;DataSource&gt; and call C&lt;Database::Abstraction&gt; directly, you B&lt;must&gt; pass
-</span><span class=""> 1192: C&lt;sep_char =E&lt;gt&gt; &#39;,&#39;&gt; yourself.
-</span><span class=""> 1193: 
-</span><span class=""> 1194: =item B&lt;A table with no &quot;entry&quot; column returns zero rows (without DataSource)&gt;
-</span><span class=""> 1195: 
-</span><span class=""> 1196: C&lt;Database::Abstraction&gt; uses C&lt;entry&gt; as its default primary-key column name.
-</span><span class=""> 1197: When slurping a CSV, it discards any row where C&lt;$row-E&lt;gt&gt;{entry}&gt; is
-</span><span class=""> 1198: undefined.  Because most CSV files do not have an C&lt;entry&gt; column, B&lt;all rows
-</span><span class=""> 1199: are silently discarded&gt;.  C&lt;DataSource&gt; prevents this by reading the actual
-</span><span class=""> 1200: first column name from the CSV header and passing it as C&lt;id&gt;, and also by
-</span><span class=""> 1201: setting C&lt;no_entry =E&lt;gt&gt; 1&gt; so all rows are kept as an ordered array.
-</span><span class=""> 1202: 
-</span><span class=""> 1203: =item B&lt;columns() returns undef for SQLite and XML files&gt;
-</span><span class=""> 1204: 
-</span><span class=""> 1205: C&lt;columns()&gt; only returns an arrayref for file formats where the header order
-</span><span class=""> 1206: is visible before data is read (CSV, TSV and PSV).  For SQLite and XML files it
-</span><span class=""> 1207: returns C&lt;undef&gt;.  Always check: C&lt;if ($source-E&lt;gt&gt;columns) { ... }&gt;.  The
-</span><span class=""> 1208: controller falls back to putting C&lt;id_column&gt; first and then sorting the rest
-</span><span class=""> 1209: alphabetically when C&lt;columns()&gt; is C&lt;undef&gt;.
-</span><span class=""> 1210: 
-</span><span class=""> 1211: =item B&lt;XML elements named &quot;name&quot;, &quot;id&quot;, or &quot;key&quot; cause parse failures&gt;
-</span><span class=""> 1212: 
-</span><span class=""> 1213: C&lt;XML::Simple&gt; (used by C&lt;Database::Abstraction&gt; for XML files) automatically
-</span><span class=""> 1214: turns a child element called C&lt;name&gt;, C&lt;id&gt;, or C&lt;key&gt; into a hash key instead
-</span><span class=""> 1215: of keeping it as an array element.  This breaks the expected data structure.
-</span><span class=""> 1216: Use different element names in your XML: for example, C&lt;E&lt;lt&gt;skuE&lt;gt&gt;&gt;,
-</span><span class=""> 1217: C&lt;E&lt;lt&gt;labelE&lt;gt&gt;&gt;, or C&lt;E&lt;lt&gt;codeE&lt;gt&gt;&gt; instead of C&lt;E&lt;lt&gt;idE&lt;gt&gt;&gt; and
-</span><span class=""> 1218: C&lt;E&lt;lt&gt;nameE&lt;gt&gt;&gt;.
-</span><span class=""> 1219: 
-</span><span class=""> 1220:   &lt;!-- WRONG: these element names trigger XMLin key-folding --&gt;
-</span><span class=""> 1221:   &lt;items&gt;
-</span><span class=""> 1222:     &lt;item&gt;&lt;id&gt;1&lt;/id&gt;&lt;name&gt;Widget&lt;/name&gt;&lt;/item&gt;
-</span><span class=""> 1223:   &lt;/items&gt;
-</span><span class=""> 1224: 
-</span><span class=""> 1225:   &lt;!-- CORRECT: use neutral element names --&gt;
-</span><span class=""> 1226:   &lt;items&gt;
-</span><span class=""> 1227:     &lt;item&gt;&lt;sku&gt;1&lt;/sku&gt;&lt;label&gt;Widget&lt;/label&gt;&lt;/item&gt;
-</span><span class=""> 1228:   &lt;/items&gt;
-</span><span class=""> 1229: 
-</span><span class=""> 1230: =item B&lt;fetch_all returns an empty arrayref, not undef, for an empty table&gt;
-</span><span class=""> 1231: 
-</span><span class=""> 1232: When a table exists but contains no data rows, C&lt;fetch_all&gt; returns C&lt;[]&gt; (an
-</span><span class=""> 1233: empty arrayref), not C&lt;undef&gt;.  Check with C&lt;scalar @{$records}&gt;, not with
-</span><span class=""> 1234: C&lt;defined $records&gt; or C&lt;$records&gt;.
-</span><span class=""> 1235: 
-</span><span class=""> 1236: =item B&lt;0-byte CSV/TSV/PSV files bypass Database::Abstraction entirely&gt;
-</span><span class=""> 1237: 
-</span><span class=""> 1238: When C&lt;_detect_file_info&gt; opens a CSV, TSV or PSV file and the first C&lt;readline&gt;
-</span><span class=""> 1239: returns C&lt;undef&gt; (the file is 0 bytes), it returns a C&lt;{ _file_is_empty =E&lt;gt&gt;
-</span><span class=""> 1240: 1 }&gt; sentinel instead of the normal C&lt;{ id, sep_char, columns, file_size }&gt;
-</span><span class=""> 1241: hashref.  C&lt;_init_backend&gt; detects this sentinel and skips
-</span><span class=""> 1242: C&lt;Database::Abstraction&gt; construction; C&lt;fetch_all&gt; returns C&lt;[]&gt; immediately.
-</span><span class=""> 1243: B&lt;No DBI connection is created for 0-byte files.&gt;  If you mock or spy on DBI
-</span><span class=""> 1244: handles and open a 0-byte CSV, the mock will never fire &acirc;&#128;&#148; this is expected
-</span><span class=""> 1245: behaviour, not a mock misconfiguration.
-</span><span class=""> 1246: 
-</span><span class=""> 1247: =back
-</span><span class=""> 1248: 
-</span><span class=""> 1249: =head1 LIMITATIONS
-</span><span class=""> 1250: 
-</span><span class=""> 1251: =over 4
-</span><span class=""> 1252: 
-</span><span class=""> 1253: =item *
-</span><span class=""> 1254: 
-</span><span class=""> 1255: Only read operations are supported.  Write-back is not in scope.
-</span><span class=""> 1256: 
-</span><span class=""> 1257: =item *
-</span><span class=""> 1258: 
-</span><span class=""> 1259: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Multi-table
-</span><span class=""> 1260: joins are now delegated to C&lt;Database::Join&gt; (see L&lt;Database::Join&gt;), which
-</span><span class=""> 1261: accepts C&lt;DataSource&gt; objects directly as component databases via the
-</span><span class=""> 1262: C&lt;selectall_arrayref&gt; and C&lt;columns&gt; methods this class exposes.
-</span><span class=""> 1263: 
-</span><span class=""> 1264: =item *
-</span><span class=""> 1265: 
-</span><span class=""> 1266: The ephemeral backend class is generated into a package namespace
-</span><span class=""> 1267: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
-</span><span class=""> 1268: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
-</span><span class=""> 1269: the same ephemeral class.
-</span><span class=""> 1270: 
-</span><span class=""> 1271: =item *
-</span><span class=""> 1272: 
-</span><span class=""> 1273: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
-</span><span class=""> 1274: compatible with L&lt;Locale::Maketext&gt;.
-</span><span class=""> 1275: 
-</span><span class=""> 1276: =back
-</span><span class=""> 1277: 
-</span><span class=""> 1278: =head1 CONFIGURATION AND ENVIRONMENT
-</span><span class=""> 1279: 
-</span><span class=""> 1280: No environment variables are read.  All configuration is passed through
-</span><span class=""> 1281: the constructor.
-</span><span class=""> 1282: 
-</span><span class=""> 1283: =head1 DEPENDENCIES
-</span><span class=""> 1284: 
-</span><span class=""> 1285: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
-</span><span class=""> 1286: L&lt;Database::Abstraction&gt;.
-</span><span class=""> 1287: 
-</span><span class=""> 1288: =head1 INCOMPATIBILITIES
-</span><span class=""> 1289: 
-</span><span class=""> 1290: None known.
-</span><span class=""> 1291: 
-</span><span class=""> 1292: =head1 BUGS AND LIMITATIONS
-</span><span class=""> 1293: 
-</span><span class=""> 1294: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
-</span><span class=""> 1295: 
-</span><span class=""> 1296: =head1 AUTHOR
-</span><span class=""> 1297: 
-</span><span class=""> 1298: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class=""> 1299: 
-</span><span class=""> 1300: =head1 FORMAL SPECIFICATION
-</span><span class=""> 1301: 
-</span><span class=""> 1302: =head2 new
-</span><span class=""> 1303: 
-</span><span class=""> 1304:   new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
-</span><span class=""> 1305:          pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
-</span><span class=""> 1306:               /\ table =~ TABLE_NAME_RE
-</span><span class=""> 1307:          post result.class = DataSource
-</span><span class=""> 1308:               /\ result._db.class = Database::Abstraction
-</span><span class=""> 1309: 
-</span><span class=""> 1310: =head2 table_name
-</span><span class=""> 1311: 
-</span><span class=""> 1312:   table_name == lambda self . self._table
-</span><span class=""> 1313: 
-</span><span class=""> 1314: =head2 fetch_all
-</span><span class=""> 1315: 
-</span><span class=""> 1316:   fetch_all == lambda self .
-</span><span class=""> 1317:     let rows = self._db.selectall_hashref() in
-</span><span class=""> 1318:     pre  self._db /= undef
-</span><span class=""> 1319:     post result : seq HASHREF
-</span><span class=""> 1320:          /\ #result &gt;= 0
-</span><span class=""> 1321: 
-</span><span class=""> 1322: =head1 LICENCE AND COPYRIGHT
-</span><span class=""> 1323: 
-</span><span class=""> 1324: Copyright 2026 Nigel Horne.
-</span><span class=""> 1325: 
-</span><span class=""> 1326: Usage is subject to the GPL2 licence terms.
-</span><span class=""> 1327: If you use it,
-</span><span class=""> 1328: please let me know.
-</span><span class=""> 1329: 
-</span><span class=""> 1330: =cut
+<span class=""> 1152: 			defined $self-&gt;{_url}
+</span><span class=""> 1153: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
+</span><span class=""> 1154: 				: $cache-&gt;set($key, $data);
+</span><span class=""> 1155: 		}
+</span><span class=""> 1156: 	}
+</span><span class=""> 1157: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1158: 	return $data;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1159: }
+</span><span class=""> 1160: 
+</span><span class=""> 1161: 1;
+</span><span class=""> 1162: 
+</span><span class=""> 1163: __END__
+</span><span class=""> 1164: 
+</span><span class=""> 1165: =head1 COMMON PITFALLS
+</span><span class=""> 1166: 
+</span><span class=""> 1167: These are the most common mistakes when using C&lt;DataSource&gt;.
+</span><span class=""> 1168: 
+</span><span class=""> 1169: =over 4
+</span><span class=""> 1170: 
+</span><span class=""> 1171: =item B&lt;SQLite databases may use .sql or .sqlite3 as their file extension&gt;
+</span><span class=""> 1172: 
+</span><span class=""> 1173: C&lt;DataSource&gt; recognises C&lt;.sql&gt; and C&lt;.sqlite3&gt; as SQLite database files.
+</span><span class=""> 1174: It does B&lt;not&gt; recognise C&lt;.sqlite&gt; or C&lt;.db3&gt;.  If you have a file called
+</span><span class=""> 1175: C&lt;inventory.sqlite&gt;, rename it to C&lt;inventory.sql&gt; or C&lt;inventory.sqlite3&gt;
+</span><span class=""> 1176: before passing it to C&lt;DataSource&gt;.
+</span><span class=""> 1177: 
+</span><span class=""> 1178: =item B&lt;The table name is always lowercased&gt;
+</span><span class=""> 1179: 
+</span><span class=""> 1180: The constructor lowercases the C&lt;table&gt; argument before using it.  Passing
+</span><span class=""> 1181: C&lt;table =E&lt;gt&gt; &#39;Sales&#39;&gt; and C&lt;table =E&lt;gt&gt; &#39;sales&#39;&gt; both look for
+</span><span class=""> 1182: C&lt;sales.csv&gt; (or C&lt;sales.sql&gt;, etc.).  The matching is case-insensitive on the
+</span><span class=""> 1183: table name but B&lt;case-sensitive on the directory path&gt;.
+</span><span class=""> 1184: 
+</span><span class=""> 1185: =item B&lt;CSV files with the wrong separator appear as one giant field per row&gt;
+</span><span class=""> 1186: 
+</span><span class=""> 1187: C&lt;Database::Abstraction&gt; defaults to C&lt;!&gt; (exclamation mark) as its field
+</span><span class=""> 1188: separator.  A standard comma-separated CSV file will look like one big field
+</span><span class=""> 1189: per row (for example, C&lt;1,Widget A,North,100&gt;) because the library never sees
+</span><span class=""> 1190: the commas as separators.  C&lt;DataSource&gt; fixes this automatically by reading
+</span><span class=""> 1191: the first line of the file and detecting the actual separator.  If you bypass
+</span><span class=""> 1192: C&lt;DataSource&gt; and call C&lt;Database::Abstraction&gt; directly, you B&lt;must&gt; pass
+</span><span class=""> 1193: C&lt;sep_char =E&lt;gt&gt; &#39;,&#39;&gt; yourself.
+</span><span class=""> 1194: 
+</span><span class=""> 1195: =item B&lt;A table with no &quot;entry&quot; column returns zero rows (without DataSource)&gt;
+</span><span class=""> 1196: 
+</span><span class=""> 1197: C&lt;Database::Abstraction&gt; uses C&lt;entry&gt; as its default primary-key column name.
+</span><span class=""> 1198: When slurping a CSV, it discards any row where C&lt;$row-E&lt;gt&gt;{entry}&gt; is
+</span><span class=""> 1199: undefined.  Because most CSV files do not have an C&lt;entry&gt; column, B&lt;all rows
+</span><span class=""> 1200: are silently discarded&gt;.  C&lt;DataSource&gt; prevents this by reading the actual
+</span><span class=""> 1201: first column name from the CSV header and passing it as C&lt;id&gt;, and also by
+</span><span class=""> 1202: setting C&lt;no_entry =E&lt;gt&gt; 1&gt; so all rows are kept as an ordered array.
+</span><span class=""> 1203: 
+</span><span class=""> 1204: =item B&lt;columns() returns undef for SQLite and XML files&gt;
+</span><span class=""> 1205: 
+</span><span class=""> 1206: C&lt;columns()&gt; only returns an arrayref for file formats where the header order
+</span><span class=""> 1207: is visible before data is read (CSV, TSV and PSV).  For SQLite and XML files it
+</span><span class=""> 1208: returns C&lt;undef&gt;.  Always check: C&lt;if ($source-E&lt;gt&gt;columns) { ... }&gt;.  The
+</span><span class=""> 1209: controller falls back to putting C&lt;id_column&gt; first and then sorting the rest
+</span><span class=""> 1210: alphabetically when C&lt;columns()&gt; is C&lt;undef&gt;.
+</span><span class=""> 1211: 
+</span><span class=""> 1212: =item B&lt;XML elements named &quot;name&quot;, &quot;id&quot;, or &quot;key&quot; cause parse failures&gt;
+</span><span class=""> 1213: 
+</span><span class=""> 1214: C&lt;XML::Simple&gt; (used by C&lt;Database::Abstraction&gt; for XML files) automatically
+</span><span class=""> 1215: turns a child element called C&lt;name&gt;, C&lt;id&gt;, or C&lt;key&gt; into a hash key instead
+</span><span class=""> 1216: of keeping it as an array element.  This breaks the expected data structure.
+</span><span class=""> 1217: Use different element names in your XML: for example, C&lt;E&lt;lt&gt;skuE&lt;gt&gt;&gt;,
+</span><span class=""> 1218: C&lt;E&lt;lt&gt;labelE&lt;gt&gt;&gt;, or C&lt;E&lt;lt&gt;codeE&lt;gt&gt;&gt; instead of C&lt;E&lt;lt&gt;idE&lt;gt&gt;&gt; and
+</span><span class=""> 1219: C&lt;E&lt;lt&gt;nameE&lt;gt&gt;&gt;.
+</span><span class=""> 1220: 
+</span><span class=""> 1221:   &lt;!-- WRONG: these element names trigger XMLin key-folding --&gt;
+</span><span class=""> 1222:   &lt;items&gt;
+</span><span class=""> 1223:     &lt;item&gt;&lt;id&gt;1&lt;/id&gt;&lt;name&gt;Widget&lt;/name&gt;&lt;/item&gt;
+</span><span class=""> 1224:   &lt;/items&gt;
+</span><span class=""> 1225: 
+</span><span class=""> 1226:   &lt;!-- CORRECT: use neutral element names --&gt;
+</span><span class=""> 1227:   &lt;items&gt;
+</span><span class=""> 1228:     &lt;item&gt;&lt;sku&gt;1&lt;/sku&gt;&lt;label&gt;Widget&lt;/label&gt;&lt;/item&gt;
+</span><span class=""> 1229:   &lt;/items&gt;
+</span><span class=""> 1230: 
+</span><span class=""> 1231: =item B&lt;fetch_all returns an empty arrayref, not undef, for an empty table&gt;
+</span><span class=""> 1232: 
+</span><span class=""> 1233: When a table exists but contains no data rows, C&lt;fetch_all&gt; returns C&lt;[]&gt; (an
+</span><span class=""> 1234: empty arrayref), not C&lt;undef&gt;.  Check with C&lt;scalar @{$records}&gt;, not with
+</span><span class=""> 1235: C&lt;defined $records&gt; or C&lt;$records&gt;.
+</span><span class=""> 1236: 
+</span><span class=""> 1237: =item B&lt;0-byte CSV/TSV/PSV files bypass Database::Abstraction entirely&gt;
+</span><span class=""> 1238: 
+</span><span class=""> 1239: When C&lt;_detect_file_info&gt; opens a CSV, TSV or PSV file and the first C&lt;readline&gt;
+</span><span class=""> 1240: returns C&lt;undef&gt; (the file is 0 bytes), it returns a C&lt;{ _file_is_empty =E&lt;gt&gt;
+</span><span class=""> 1241: 1 }&gt; sentinel instead of the normal C&lt;{ id, sep_char, columns, file_size }&gt;
+</span><span class=""> 1242: hashref.  C&lt;_init_backend&gt; detects this sentinel and skips
+</span><span class=""> 1243: C&lt;Database::Abstraction&gt; construction; C&lt;fetch_all&gt; returns C&lt;[]&gt; immediately.
+</span><span class=""> 1244: B&lt;No DBI connection is created for 0-byte files.&gt;  If you mock or spy on DBI
+</span><span class=""> 1245: handles and open a 0-byte CSV, the mock will never fire &acirc;&#128;&#148; this is expected
+</span><span class=""> 1246: behaviour, not a mock misconfiguration.
+</span><span class=""> 1247: 
+</span><span class=""> 1248: =back
+</span><span class=""> 1249: 
+</span><span class=""> 1250: =head1 LIMITATIONS
+</span><span class=""> 1251: 
+</span><span class=""> 1252: =over 4
+</span><span class=""> 1253: 
+</span><span class=""> 1254: =item *
+</span><span class=""> 1255: 
+</span><span class=""> 1256: Only read operations are supported.  Write-back is not in scope.
+</span><span class=""> 1257: 
+</span><span class=""> 1258: =item *
+</span><span class=""> 1259: 
+</span><span class=""> 1260: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Multi-table
+</span><span class=""> 1261: joins are now delegated to C&lt;Database::Join&gt; (see L&lt;Database::Join&gt;), which
+</span><span class=""> 1262: accepts C&lt;DataSource&gt; objects directly as component databases via the
+</span><span class=""> 1263: C&lt;selectall_arrayref&gt; and C&lt;columns&gt; methods this class exposes.
+</span><span class=""> 1264: 
+</span><span class=""> 1265: =item *
+</span><span class=""> 1266: 
+</span><span class=""> 1267: The ephemeral backend class is generated into a package namespace
+</span><span class=""> 1268: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
+</span><span class=""> 1269: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
+</span><span class=""> 1270: the same ephemeral class.
+</span><span class=""> 1271: 
+</span><span class=""> 1272: =item *
+</span><span class=""> 1273: 
+</span><span class=""> 1274: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
+</span><span class=""> 1275: compatible with L&lt;Locale::Maketext&gt;.
+</span><span class=""> 1276: 
+</span><span class=""> 1277: =back
+</span><span class=""> 1278: 
+</span><span class=""> 1279: =head1 CONFIGURATION AND ENVIRONMENT
+</span><span class=""> 1280: 
+</span><span class=""> 1281: No environment variables are read.  All configuration is passed through
+</span><span class=""> 1282: the constructor.
+</span><span class=""> 1283: 
+</span><span class=""> 1284: =head1 DEPENDENCIES
+</span><span class=""> 1285: 
+</span><span class=""> 1286: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
+</span><span class=""> 1287: L&lt;Database::Abstraction&gt;.
+</span><span class=""> 1288: 
+</span><span class=""> 1289: =head1 INCOMPATIBILITIES
+</span><span class=""> 1290: 
+</span><span class=""> 1291: None known.
+</span><span class=""> 1292: 
+</span><span class=""> 1293: =head1 BUGS AND LIMITATIONS
+</span><span class=""> 1294: 
+</span><span class=""> 1295: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
+</span><span class=""> 1296: 
+</span><span class=""> 1297: =head1 AUTHOR
+</span><span class=""> 1298: 
+</span><span class=""> 1299: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class=""> 1300: 
+</span><span class=""> 1301: =head1 FORMAL SPECIFICATION
+</span><span class=""> 1302: 
+</span><span class=""> 1303: =head2 new
+</span><span class=""> 1304: 
+</span><span class=""> 1305:   new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
+</span><span class=""> 1306:          pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
+</span><span class=""> 1307:               /\ table =~ TABLE_NAME_RE
+</span><span class=""> 1308:          post result.class = DataSource
+</span><span class=""> 1309:               /\ result._db.class = Database::Abstraction
+</span><span class=""> 1310: 
+</span><span class=""> 1311: =head2 table_name
+</span><span class=""> 1312: 
+</span><span class=""> 1313:   table_name == lambda self . self._table
+</span><span class=""> 1314: 
+</span><span class=""> 1315: =head2 fetch_all
+</span><span class=""> 1316: 
+</span><span class=""> 1317:   fetch_all == lambda self .
+</span><span class=""> 1318:     let rows = self._db.selectall_hashref() in
+</span><span class=""> 1319:     pre  self._db /= undef
+</span><span class=""> 1320:     post result : seq HASHREF
+</span><span class=""> 1321:          /\ #result &gt;= 0
+</span><span class=""> 1322: 
+</span><span class=""> 1323: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 1324: 
+</span><span class=""> 1325: Copyright 2026 Nigel Horne.
+</span><span class=""> 1326: 
+</span><span class=""> 1327: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 1328: If you use it,
+</span><span class=""> 1329: please let me know.
+</span><span class=""> 1330: 
+</span><span class=""> 1331: =cut
 </span></pre>
 
 <script>
