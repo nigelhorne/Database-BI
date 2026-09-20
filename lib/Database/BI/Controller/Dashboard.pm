@@ -637,6 +637,7 @@ sub _run_export_pipeline :Protected ($self) {
 		$src = Database::Join->new(
 			databases        => [$src, $right_src],
 			join_column      => $left_key,
+			backend          => 'auto',
 			($left_key ne $right_key ? (join_map         => {1 => $right_key})   : ()),
 			($right_label             ? (collision_prefix => {1 => $right_label}) : ()),
 		);
@@ -1400,6 +1401,7 @@ sub join_tables ($self) {
 		$src = Database::Join->new(
 			databases        => [$src, $right_src],
 			join_column      => $left_key,
+			backend          => 'auto',
 			($left_key ne $right_key ? (join_map         => {1 => $right_key})   : ()),
 			($right_label             ? (collision_prefix => {1 => $right_label}) : ()),
 		);
@@ -2607,9 +2609,10 @@ are not interchangeable.
 
 =item *
 
-Multi-table joins are delegated to C<Database::Join>.  All component tables
-are fetched into memory before the merge; this is not suitable for very large
-result sets.  C<Database::Join> operates in-memory only.
+Multi-table joins are delegated to C<Database::Join> with C<backend =E<gt> 'auto'>.
+For datasets up to C<max_array_rows> rows (default 10,000) the join runs in
+Perl memory; larger datasets spill to a temporary SQLite database so peak RAM
+is bounded by the result set rather than the sum of all source tables.
 
 =item *
 
