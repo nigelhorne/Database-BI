@@ -3,11 +3,12 @@ Revision history for Database-BI
 0.008.0
     [ Enhancements ]
     - Added support for TSV (tab separated) files.
-    - Added support for .sqlite3 file extension as an alias for SQLite
-      databases.  Files with .sqlite3 are treated identically to .sql:
-      sqlite_master is probed for table names, mismatched stems are
-      auto-corrected via a symlink, and the extension appears in the
-      filesystem browser and upload accepted-types list.
+    - Added support for .sqlite and .sqlite3 file extensions as aliases
+      for SQLite databases.  Files with either extension are treated
+      identically to .sql: sqlite_master is probed for table names,
+      mismatched stems are auto-corrected via a symlink, and the
+      extensions appear in the filesystem browser and upload
+      accepted-types list.
     - Multi-table joins now pass backend => 'auto' to Database::Join
       (>= 0.004.0).  Datasets up to 10,000 combined rows continue to
       join in Perl memory; larger datasets automatically spill to a
@@ -19,7 +20,9 @@ Revision history for Database-BI
       upload).
     - Transaction 34: full .sqlite3 lifecycle (open, filter, export,
       browse, idempotency, table-name mismatch auto-correction).
-    - basic.t: added "SQLite3 format (.sqlite3 extension)" subtest.
+    - Transaction 35: full .sqlite lifecycle (same phases as T34).
+    - basic.t: added "SQLite3 format (.sqlite3 extension)" subtest and
+      "SQLite format (.sqlite extension)" subtest.
 
 0.007.0	Wed Sep 16 07:33:53 PM EDT 2026
     [ Enhancements ]

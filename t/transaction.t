@@ -2229,4 +2229,86 @@ subtest 'Transaction 34 -- SQLite3 (.sqlite3 extension) file lifecycle' => sub {
 	}
 };
 
+# ======================================================================
+# TRANSACTION 35: SQLite (.sqlite extension) file lifecycle
+#
+# Verifies that a SQLite database file with the .sqlite extension
+# behaves identically to .sql and .sqlite3: open, filter, export,
+# browse, idempotency, and table-name mismatch auto-correction.
+#
+# Phase 1   Create a .sqlite fixture in a tempdir
+# Phase 2   /open returns 200 and shows data
+# Phase 3   No error rendered
+# Phase 4   Filter applied via ?f= query param
+# Phase 5   Export .sqlite source to CSV
+# Phase 6   Browse directory lists the .sqlite file
+# Phase 7   Idempotency -- second /open returns 200
+# Phase 8   Table-name mismatch inside .sqlite is auto-corrected
+# ======================================================================
+subtest 'Transaction 35 -- SQLite (.sqlite extension) file lifecycle' => sub {
+	SKIP: {
+		eval { DBI->install_driver('SQLite') }
+			or skip 'DBD::SQLite not available', 22;
+
+		plan tests => 22;
+
+		my $dir = tempdir(CLEANUP => 1);
+
+		# Phase 1: create a .sqlite file whose internal table matches the stem.
+		my $db_path = Mojo::File->new($dir)->child('readings.sqlite')->to_string;
+		{
+			my $dbh = DBI->connect("dbi:SQLite:dbname=$db_path", undef, undef,
+				{ RaiseError => 1, PrintError => 0 });
+			$dbh->do('CREATE TABLE readings (sensor TEXT, value REAL)');
+			$dbh->do(q{INSERT INTO readings VALUES ('Alpha', 1.23)});
+			$dbh->do(q{INSERT INTO readings VALUES ('Beta',  4.56)});
+			$dbh->disconnect;
+		}
+		ok(-f $db_path, 'Phase 1: .sqlite fixture created');
+
+		# Phase 2: /open returns 200 and renders data.
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 2: /open .sqlite returns 200');
+		$t->content_like(qr/Alpha/, 'Phase 2a: first row visible');
+		$t->content_like(qr/Beta/,  'Phase 2b: second row visible');
+
+		# Phase 3: no error markup in the page.
+		$t->content_unlike(qr/class="error"/, 'Phase 3: no error paragraph');
+		$t->content_unlike(qr/no such table/i, 'Phase 3: no SQL error');
+
+		# Phase 4: filter works on .sqlite source.
+		$t->get_ok('/open?path=' . url_escape($db_path) . '&f=' . url_escape('sensor:eq:Alpha'))
+		  ->status_is(200, 'Phase 4: filtered /open returns 200');
+		$t->content_like(qr/Alpha/, 'Phase 4: filter keeps matching row');
+		$t->content_unlike(qr/Beta/, 'Phase 4: filter removes non-matching row');
+
+		# Phase 5: CSV export of a .sqlite source.
+		$t->get_ok('/export?l=' . url_escape("path:$db_path") . '&format=csv')
+		  ->status_is(200, 'Phase 5: CSV export of .sqlite returns 200')
+		  ->content_type_like(qr{text/csv}, 'Phase 5: content-type is text/csv');
+
+		# Phase 6: browse directory shows the .sqlite file.
+		$t->get_ok('/browse?path=' . url_escape($dir))
+		  ->status_is(200, 'Phase 6: browse dir returns 200');
+		$t->content_like(qr/readings\.sqlite/, 'Phase 6: .sqlite file listed in browser');
+
+		# Phase 7: idempotency -- second request hits the cache.
+		$t->get_ok('/open?path=' . url_escape($db_path))
+		  ->status_is(200, 'Phase 7: second /open is idempotent');
+
+		# Phase 8: .sqlite with a mismatched internal table name is auto-corrected.
+		my $mismatch_path = Mojo::File->new($dir)->child('events.sqlite')->to_string;
+		{
+			my $dbh = DBI->connect("dbi:SQLite:dbname=$mismatch_path", undef, undef,
+				{ RaiseError => 1, PrintError => 0 });
+			$dbh->do('CREATE TABLE log (ts TEXT, msg TEXT)');
+			$dbh->do(q{INSERT INTO log VALUES ('2026-01-01', 'Boot')});
+			$dbh->disconnect;
+		}
+		$t->get_ok('/open?path=' . url_escape($mismatch_path))
+		  ->status_is(200, 'Phase 8: .sqlite with mismatched table name opens correctly');
+		$t->content_like(qr/Boot/, 'Phase 8: data from mismatched-name table visible');
+	}
+};
+
 done_testing();

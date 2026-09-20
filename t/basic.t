@@ -230,6 +230,35 @@ subtest 'SQLite3 format (.sqlite3 extension)' => sub {
 };
 
 # ---------------------------------------------------------------------------
+subtest 'SQLite format (.sqlite extension)' => sub {
+	test_needs 'DBI', 'DBD::SQLite';
+
+    my $sql_dir  = File::Temp::tempdir(CLEANUP => 1);
+    my $sql_file = File::Spec->catfile($sql_dir, 'sensors.sqlite');
+
+    my $dbh = DBI->connect(
+        "dbi:SQLite:dbname=$sql_file", '', '',
+        { RaiseError => 1, AutoCommit => 1 },
+    );
+    $dbh->do('CREATE TABLE sensors (id INTEGER, label TEXT, value REAL)');
+    $dbh->do("INSERT INTO sensors VALUES (1, 'Temp',     21.5)");
+    $dbh->do("INSERT INTO sensors VALUES (2, 'Humidity', 55.0)");
+    $dbh->disconnect;
+
+    $t->get_ok('/open?path=' . url_escape($sql_file))
+      ->status_is(200)->content_like(qr/Temp/);
+
+    $t->get_ok('/open?path=' . url_escape($sql_file) . '&f=' . url_escape('label:eq:Humidity'))
+      ->status_is(200)->content_like(qr/Humidity/);
+
+    $t->get_ok('/export?l=' . url_escape("path:$sql_file") . '&format=csv')
+      ->status_is(200)->content_type_like(qr{text/csv})->content_like(qr/Temp/);
+
+    $t->get_ok('/browse?path=' . url_escape($sql_dir))
+      ->status_is(200)->content_like(qr/sensors\.sqlite/);
+};
+
+# ---------------------------------------------------------------------------
 subtest 'POST /export -- write to filesystem' => sub {
 	test_needs 'DBI';
 
