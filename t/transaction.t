@@ -1954,4 +1954,121 @@ subtest 'Transaction 31 -- SQLite file with mismatched internal table name opens
 	}
 };
 
+# ======================================================================
+# TRANSACTION 32: Database::Join backend => 'auto' in the join pipeline
+#
+# Dashboard.pm passes backend => 'auto' to every Database::Join->new()
+# call (added in 0.008.0).  For datasets larger than max_array_rows
+# (default 10,000 combined rows) Database::Join spills to a temporary
+# SQLite file; smaller datasets use the existing in-memory array path.
+#
+# Phase 1   Create left/right CSV fixtures in tempdir
+# Phase 2   Database::Join backend => 'array' (control group)
+# Phase 3   Database::Join backend => 'sqlite' (SQLite disk-spill path)
+# Phase 4   Results from Phases 2 and 3 are identical (sorted by row)
+# Phase 5   columns() output identical on both backends
+# Phase 6   GET /join endpoint returns 200 with merged data
+#           (backend => 'auto' is active via Dashboard.pm)
+# Phase 7   Source-code guard: Dashboard.pm passes backend => 'auto'
+#           in exactly 2 Database::Join->new() call sites
+# ======================================================================
+
+subtest 'Transaction 32 -- Database::Join backend => auto in join pipeline' => sub {
+	my $has_dj = eval { require Database::Join; 1 };
+
+	SKIP: {
+		skip 'Database::Join not available', 9 unless $has_dj;
+
+		require Database::BI::Model::DataSource;
+
+		my $dir = tempdir(CLEANUP => 1);
+
+		# ------------------------------------------------------------------
+		# Phase 1: write the shared join fixtures to a tempdir.
+		# ------------------------------------------------------------------
+		my $left_file  = Mojo::File->new($dir)->child('t32left.csv');
+		my $right_file = Mojo::File->new($dir)->child('t32right.csv');
+		$left_file->spurt($JOIN_LEFT);
+		$right_file->spurt($JOIN_RIGHT);
+		ok(-f $left_file->to_string,  'Phase 1a: left CSV fixture exists');		# 1
+		ok(-f $right_file->to_string, 'Phase 1b: right CSV fixture exists');	# 2
+
+		my $make_src = sub {
+			my ($table) = @_;
+			Database::BI::Model::DataSource->new(directory => $dir, table => $table);
+		};
+
+		# ------------------------------------------------------------------
+		# Phase 2: array backend -- control group for result identity check.
+		# ------------------------------------------------------------------
+		my $join_array = Database::Join->new(
+			databases   => [$make_src->('t32left'), $make_src->('t32right')],
+			join_column => 'item',
+			backend     => 'array',
+		);
+		my $rows_array = $join_array->selectall_arrayref;
+		ok(ref $rows_array eq 'ARRAY' && @$rows_array == $JOIN_TOTAL_ROWS,
+			'Phase 2: array backend returns correct row count');			# 3
+
+		# ------------------------------------------------------------------
+		# Phase 3-5: sqlite backend -- available in Database::Join >= 0.004.0.
+		# Guard with eval; if the parameter is unrecognised, skip gracefully.
+		# ------------------------------------------------------------------
+		my $join_sqlite = eval {
+			Database::Join->new(
+				databases   => [$make_src->('t32left'), $make_src->('t32right')],
+				join_column => 'item',
+				backend     => 'sqlite',
+			)
+		};
+		SKIP: {
+			skip 'Database::Join sqlite backend not available (need >= 0.004.0)', 3
+				if $@ || !$join_sqlite;
+
+			my $rows_sqlite = $join_sqlite->selectall_arrayref;
+			ok(ref $rows_sqlite eq 'ARRAY' && @$rows_sqlite == $JOIN_TOTAL_ROWS,
+				'Phase 3: sqlite backend returns correct row count');		# 4
+
+			# Canonicalise each row as a sorted "key=value" string so the two
+			# result sets can be compared order-independently.
+			my $canon = sub {
+				my ($rows) = @_;
+				return [
+					sort map {
+						my $r = $_;
+						join "\x1c", map { "$_=" . ($r->{$_} // '') } sort keys %$r
+					} @$rows
+				];
+			};
+			is_deeply($canon->($rows_sqlite), $canon->($rows_array),
+				'Phase 4: SQLite backend produces identical rows to array backend');	# 5
+
+			is_deeply(
+				[sort @{ $join_sqlite->columns }],
+				[sort @{ $join_array->columns  }],
+				'Phase 5: sqlite backend columns() matches array backend',		# 6
+			);
+		}
+
+		# ------------------------------------------------------------------
+		# Phase 6: HTTP /join -- backend => 'auto' is in play via Dashboard.pm.
+		# ------------------------------------------------------------------
+		my $lspec = 'path:' . $left_file->to_string;
+		my $jspec = 'path:' . $right_file->to_string . '|item|item';
+		$t->get_ok('/join?l=' . url_escape($lspec) . '&j=' . url_escape($jspec))
+		  ->status_is(200, 'Phase 6: /join returns 200 with backend => auto active');	# 7, 8
+		$t->content_like(qr/apple/,
+			'Phase 6: /join result contains expected join data');			# 9
+	}
+
+	# Phase 7 runs regardless of Database::Join availability: it checks the
+	# source code, not the runtime behaviour of Database::Join itself.
+	my $dash = Mojo::File->new(
+		$t->app->home->child('lib/Database/BI/Controller/Dashboard.pm')
+	)->slurp;
+	my $auto_count = () = $dash =~ /backend\s*=>\s*'auto'/g;
+	is $auto_count, 2,
+		'Phase 7: Dashboard.pm passes backend => auto at both join call sites';	# 10
+};
+
 done_testing();

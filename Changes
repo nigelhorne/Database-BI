@@ -3,6 +3,11 @@ Revision history for Database-BI
 0.008.0
     [ Enhancements ]
     - Added support for TSV (tab separated) files
+    - Multi-table joins now pass backend => 'auto' to Database::Join
+      (>= 0.004.0).  Datasets up to 10,000 combined rows continue to
+      join in Perl memory; larger datasets automatically spill to a
+      temporary SQLite file so peak RAM is bounded by the result set
+      rather than the sum of all source tables.
 
 0.007.0	Wed Sep 16 07:33:53 PM EDT 2026
     [ Enhancements ]
