@@ -9,7 +9,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 # DESCRIPTION
 
 `Database::BI` is a self-contained [Mojolicious](https://metacpan.org/pod/Mojolicious) web application that reads
-arbitrary flat data files (CSV, PSV, SQLite, XML, XLSX, etc.) via
+arbitrary flat data files (CSV, PSV, TSV, SQLite, XML, XLSX, etc.) via
 [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction) and presents them as styled, sortable, reorderable
 HTML tables.  It has no persistent database of its own -- it reads your files
 on every request.
@@ -57,7 +57,7 @@ renders it in the browser without saving to disk.
 
 ## UTF-8 and Encoding
 
-All file data is returned as Perl character strings.  CSV/PSV files are
+All file data is returned as Perl character strings.  CSV/PSV/TSV files are
 read by [Text::xSV::Slurp](https://metacpan.org/pod/Text%3A%3AxSV%3A%3ASlurp) or [DBD::CSV](https://metacpan.org/pod/DBD%3A%3ACSV), both of which pass bytes
 through without re-encoding; the application serves the resulting page as
 `text/html; charset=UTF-8`, so full Unicode is displayed correctly as
@@ -276,7 +276,7 @@ defaults:
     add German support: (1) create `templates/web/de/`, (2) copy and translate
     the `.html.tt` files from `templates/web/en/`, then (3) set the config.
 
-- **Supported data file extensions are: csv, db, sql, xml, psv, xlsx**
+- **Supported data file extensions are: csv, db, sql, xml, psv, tsv, xlsx**
 
     The application calls `Database::Abstraction` which recognises exactly these
     extensions.  A file called `inventory.sqlite` is **not** recognised -- it
