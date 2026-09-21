@@ -276,12 +276,13 @@ defaults:
     add German support: (1) create `templates/web/de/`, (2) copy and translate
     the `.html.tt` files from `templates/web/en/`, then (3) set the config.
 
-- **Supported data file extensions are: csv, db, sql, xml, psv, tsv, xlsx**
+- **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx**
 
-    The application calls `Database::Abstraction` which recognises exactly these
-    extensions.  A file called `inventory.sqlite` is **not** recognised -- it
-    must be renamed to `inventory.sql`.  Excel `.xlsx` files are supported
-    directly via `DBD::Excel`; each worksheet becomes a separate table.
+    The application recognises `.csv`, `.db`, `.sql`, `.sqlite`, `.sqlite3`,
+    `.xml`, `.psv`, `.tsv`, and `.xlsx` files.  All three SQLite extensions
+    (`.sql`, `.sqlite`, `.sqlite3`) are treated identically -- `inventory.sqlite`
+    and `inventory.sqlite3` are both opened as SQLite databases without renaming.
+    Excel `.xlsx` files are read directly via `Spreadsheet::ParseXLSX`.
 
     URLs will work.
     For example enter

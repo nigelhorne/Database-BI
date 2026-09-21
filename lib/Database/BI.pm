@@ -341,12 +341,13 @@ exist, the controller automatically falls back to the default language.  To
 add German support: (1) create C<templates/web/de/>, (2) copy and translate
 the C<.html.tt> files from C<templates/web/en/>, then (3) set the config.
 
-=item B<Supported data file extensions are: csv, db, sql, xml, psv, tsv, xlsx>
+=item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx>
 
-The application calls C<Database::Abstraction> which recognises exactly these
-extensions.  A file called C<inventory.sqlite> is B<not> recognised -- it
-must be renamed to C<inventory.sql>.  Excel C<.xlsx> files are supported
-directly via C<DBD::Excel>; each worksheet becomes a separate table.
+The application recognises C<.csv>, C<.db>, C<.sql>, C<.sqlite>, C<.sqlite3>,
+C<.xml>, C<.psv>, C<.tsv>, and C<.xlsx> files.  All three SQLite extensions
+(C<.sql>, C<.sqlite>, C<.sqlite3>) are treated identically -- C<inventory.sqlite>
+and C<inventory.sqlite3> are both opened as SQLite databases without renaming.
+Excel C<.xlsx> files are read directly via C<Spreadsheet::ParseXLSX>.
 
 URLs will work.
 For example enter
