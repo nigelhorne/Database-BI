@@ -64,6 +64,8 @@
     [%- END -%]
   </span>
   <a class="btn-clear-filters" id="btn-clear-filters" href="#">&#x2715; Clear filters</a>
+  <button class="btn-copy-link" id="btn-copy-link" type="button"
+          title="Copy the current URL to the clipboard so you can bookmark or share this filtered view">&#x1F517; Copy link</button>
   [%- END -%]
   [%- IF left_spec -%]
   <button class="btn-export-open" id="btn-export-open" type="button">&#x2193; Export&hellip;</button>
@@ -1121,6 +1123,43 @@ function parseAccounting(v) {
   var btn = document.getElementById('btn-refresh');
   if (!btn) return;
   btn.addEventListener('click', function () { location.reload(); });
+}());
+
+// Copy-link button — copies the current URL (including all ?f= params) to the clipboard
+// ---------------------------------------------------------------------------
+(function () {
+  var btn = document.getElementById('btn-copy-link');
+  if (!btn) return;
+  btn.addEventListener('click', function () {
+    var url = location.href;
+    // navigator.clipboard is available only in secure contexts (HTTPS or localhost).
+    // Fall back to the legacy execCommand path for plain HTTP deployments.
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(url).then(function () { showCopied(); }, function () { fallbackCopy(url); });
+    } else {
+      fallbackCopy(url);
+    }
+    function fallbackCopy(text) {
+      var ta = document.createElement('textarea');
+      ta.value = text;
+      ta.style.cssText = 'position:fixed;top:-9999px;left:-9999px;opacity:0';
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try { document.execCommand('copy'); } catch (e) { /* ignore */ }
+      document.body.removeChild(ta);
+      showCopied();
+    }
+    function showCopied() {
+      var orig = btn.innerHTML;
+      btn.innerHTML = '&#x2714; Copied!';
+      btn.classList.add('btn-copy-link--copied');
+      setTimeout(function () {
+        btn.innerHTML = orig;
+        btn.classList.remove('btn-copy-link--copied');
+      }, 2000);
+    }
+  });
 }());
 
 // Filter bar - per-chip remove and apply-new-filter

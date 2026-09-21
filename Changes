@@ -16,12 +16,23 @@ Revision history for Database-BI
       file so peak RAM is bounded by the result set rather than the sum
       of all source tables.
 
+    - Added a "Copy link" button to the filter toolbar.  The button
+      appears only when at least one filter is active and copies the
+      current URL (including all ?f= parameters) to the clipboard, so
+      users can bookmark or share a custom-filtered view.  Uses the
+      modern Clipboard API with an execCommand fallback for plain-HTTP
+      deployments.  Clicking briefly shows "Copied!" feedback before
+      reverting to the original label.
+
     [ Tests ]
     - Transaction 33: full TSV lifecycle (view, open, filter, export,
       upload).
     - Transaction 34: full .sqlite3 lifecycle (open, filter, export,
       browse, idempotency, table-name mismatch auto-correction).
     - Transaction 35: full .sqlite lifecycle (same phases as T34).
+    - Transaction 36: copy-link button lifecycle (absent without filters,
+      present with one or more filters, JS clipboard paths present, CSS
+      classes defined).
     - basic.t: added "SQLite3 format (.sqlite3 extension)" subtest and
       "SQLite format (.sqlite extension)" subtest.
 

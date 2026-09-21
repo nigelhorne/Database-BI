@@ -2311,4 +2311,34 @@ subtest 'Transaction 35 -- SQLite (.sqlite extension) file lifecycle' => sub {
 	}
 };
 
+subtest 'Transaction 36 -- Copy-link button lifecycle (filter bookmark feature)' => sub {
+	# Phase 1: button element is absent when no filters are active (clean view).
+	# The CSS class *name* still appears in the stylesheet, but the button element itself
+	# should not be present — guard against the stylesheet match with a tighter regex.
+	$t->get_ok('/view/sales')
+	  ->status_is(200, 'Phase 1: /view/sales returns 200');
+	$t->content_unlike(qr/id="btn-copy-link"/, 'Phase 1: no copy-link button without filters');
+
+	# Phase 2: button appears when at least one filter is active.
+	$t->get_ok('/view/sales?f=' . url_escape('region:eq:North'))
+	  ->status_is(200, 'Phase 2: filtered view returns 200');
+	$t->content_like(qr/id="btn-copy-link"/, 'Phase 2: copy-link button present with active filter');
+	$t->content_like(qr/Copy link/, 'Phase 2: button label is "Copy link"');
+
+	# Phase 3: button still appears when multiple filters are applied.
+	$t->get_ok('/view/sales?f=' . url_escape('region:eq:North') . '&f=' . url_escape('product:contains:Widget'))
+	  ->status_is(200, 'Phase 3: multi-filter view returns 200');
+	$t->content_like(qr/id="btn-copy-link"/, 'Phase 3: copy-link button present with multiple filters');
+
+	# Phase 4: the JS IIFE that drives the copy behaviour is present in the page.
+	$t->content_like(qr/btn-copy-link/, 'Phase 4: copy-link JS block is in the page');
+	$t->content_like(qr/navigator\.clipboard/, 'Phase 4: modern Clipboard API path present');
+	$t->content_like(qr/execCommand.*copy/s, 'Phase 4: legacy execCommand fallback present');
+	$t->content_like(qr/btn-copy-link--copied/, 'Phase 4: CSS feedback class referenced in JS');
+
+	# Phase 5: CSS class is defined in the stylesheet (default.html.tt inlined styles).
+	$t->content_like(qr/\.btn-copy-link\b/, 'Phase 5: .btn-copy-link CSS rule present');
+	$t->content_like(qr/btn-copy-link--copied/, 'Phase 5: copied-state CSS class present');
+};
+
 done_testing();
