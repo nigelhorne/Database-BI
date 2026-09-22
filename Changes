@@ -16,6 +16,13 @@ Revision history for Database-BI
       file so peak RAM is bounded by the result set rather than the sum
       of all source tables.
 
+    - Added a heatmap chart (GET /heatmap).  Choose two categorical columns
+      for the X and Y axes; optionally pick a numeric column to sum per cell
+      (omit to count rows).  Colour scheme is configurable (YlOrRd, Blues,
+      Greens, Purples, RdPu, YlGnBu).  A "Heatmap..." toolbar button in the
+      dashboard opens a panel to configure and launch the chart.  Uses the
+      new render_heatmap_snippet method from HTML::D3 >= 0.16.
+    - Bumped HTML::D3 minimum dependency from 0.14 to 0.16.
     - Added a "Copy link" button to the filter toolbar.  The button
       appears only when at least one filter is active and copies the
       current URL (including all ?f= parameters) to the clipboard, so
@@ -30,11 +37,15 @@ Revision history for Database-BI
     - Transaction 34: full .sqlite3 lifecycle (open, filter, export,
       browse, idempotency, table-name mismatch auto-correction).
     - Transaction 35: full .sqlite lifecycle (same phases as T34).
+    - Transaction 37: heatmap chart lifecycle (val mode, count mode, 400
+      for missing/invalid params, idempotency, toolbar button and panel
+      presence).
     - Transaction 36: copy-link button lifecycle (absent without filters,
       present with one or more filters, JS clipboard paths present, CSS
       classes defined).
-    - basic.t: added "SQLite3 format (.sqlite3 extension)" subtest and
-      "SQLite format (.sqlite extension)" subtest.
+    - basic.t: added "GET /heatmap" smoke subtest, "SQLite3 format
+      (.sqlite3 extension)" subtest, and "SQLite format (.sqlite
+      extension)" subtest.
 
 0.007.0	Wed Sep 16 07:33:53 PM EDT 2026
     [ Enhancements ]

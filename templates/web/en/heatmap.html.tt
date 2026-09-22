@@ -1,0 +1,65 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt' -%]
+
+<style>
+  /* Allow Y-axis labels (rotated, left of the chart) to escape the container. */
+  #heatmap { overflow: visible; }
+  .heatmap-container { padding-left: 3rem; }
+</style>
+
+<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a></p>
+
+<h2 class="graph-title">[% title | html %]</h2>
+
+<div class="graph-export-bar">
+  <button class="btn-graph-export" onclick="biHeatmapExportSVG()">Export SVG</button>
+  <button class="btn-graph-export" onclick="biHeatmapExportPNG()">Export PNG</button>
+  <span class="graph-point-count">[% cell_count %] cell[% IF cell_count != 1 %]s[% END %]</span>
+</div>
+
+<div class="heatmap-container">
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  [% heatmap_html %]
+</div>
+
+<script>
+(function () {
+  function biHeatmapExportSVG() {
+    var svg = document.getElementById('heatmap');
+    if (!svg) return;
+    var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
+            + new XMLSerializer().serializeToString(svg);
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+    a.download = 'heatmap.svg';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  }
+  function biHeatmapExportPNG() {
+    var svg = document.getElementById('heatmap');
+    if (!svg) return;
+    var w = parseInt(svg.getAttribute('width'), 10)  || 900;
+    var h = parseInt(svg.getAttribute('height'), 10) || 500;
+    var canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    var ctx = canvas.getContext('2d');
+    var src = new XMLSerializer().serializeToString(svg);
+    var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+    var img = new Image();
+    img.onload = function () {
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0);
+      URL.revokeObjectURL(url);
+      var a = document.createElement('a');
+      a.href = canvas.toDataURL('image/png');
+      a.download = 'heatmap.png';
+      a.click();
+    };
+    img.src = url;
+  }
+  window.biHeatmapExportSVG = biHeatmapExportSVG;
+  window.biHeatmapExportPNG = biHeatmapExportPNG;
+}());
+</script>
+
+[%- END -%]

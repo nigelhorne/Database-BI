@@ -44,8 +44,10 @@ second (or further) file beneath the current rows, using a unified column
 set and leaving blanks where a source file lacks a column.
 - **Charts** -- the toolbar offers a line chart ([HTML::D3](https://metacpan.org/pod/HTML%3A%3AD3)
 `render_zoomable_line_chart_snippet`; brush-to-zoom, reference lines for
-min/avg/max) and a pie chart (`render_pie_chart_snippet`; animated,
-sorted by value, capped at 12 slices, click-a-slice to filter the table).
+min/avg/max), a pie chart (`render_pie_chart_snippet`; animated,
+sorted by value, capped at 12 slices, click-a-slice to filter the table),
+and a heatmap (`render_heatmap_snippet`; two categorical axes, optional
+value column or row count, configurable sequential colour scheme).
 - **Drag-and-drop upload** -- any supported data file can be dropped directly
 onto the application.  The file is opened immediately; when the "Combine
 data" panel is open the dropped file populates the right-table path field.
@@ -217,6 +219,21 @@ application.
         donut=1     show a hole in the centre (optional)
         back=<url>  URL for the "Back to table" link (optional; default "/")
         f=          result filters applied before aggregating (repeatable)
+
+- `GET /heatmap`
+
+    Renders a D3.js v7 grid heatmap with two categorical axes.  Each cell
+    colour encodes a summed or counted numeric value.  Parameters:
+
+        l=<spec>      left table (required)
+        x=<col>       X-axis column name (required; categorical)
+        y=<col>       Y-axis column name (required; categorical)
+        val=<col>     numeric column to sum per cell (optional; omit to count rows)
+        scheme=<name> colour scheme: YlOrRd Blues Greens Purples RdPu YlGnBu
+                      (optional; default YlOrRd)
+        show_val=1    print the value inside each cell (optional)
+        back=<url>    URL for the "Back to table" link (optional; default "/")
+        j=, f=, d=    pipeline params (same as /join)
 
 - `POST /uploads/clear`
 

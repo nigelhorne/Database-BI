@@ -31,7 +31,7 @@ WriteMakefile(
 		'File::Temp'	=> '0.22',
 		'List::Util'	=> '1.40',
 		'Socket'	=> '2.010',
-		'HTML::D3'	=> 0.14,
+		'HTML::D3'	=> 0.16,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'		=> 0,
 		'LWP::UserAgent::Cached'	=> 0,

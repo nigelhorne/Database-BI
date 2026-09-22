@@ -573,4 +573,14 @@ subtest 'GET /api/stat -- security: non-data-extension file' => sub {
 	  ->json_is('/exists', 0);
 };
 
+# ---------------------------------------------------------------------------
+subtest 'GET /heatmap' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'heatsmoke.csv');
+	Mojo::File->new($csv)->spurt("team,week,tickets\nAlpha,W1,5\nBeta,W1,3\nAlpha,W2,7\nBeta,W2,4\n");
+	$t->get_ok('/heatmap?l=' . url_escape("path:$csv") . '&x=week&y=team&val=tickets')
+	  ->status_is(200)
+	  ->content_like(qr/id="heatmap"/, 'heatmap SVG present');
+};
+
 done_testing();

@@ -2189,6 +2189,84 @@ sub pie_view ($self) {
 	);
 }
 
+sub heatmap_view ($self) {
+	my $x_col   = $self->param('x')        // '';
+	my $y_col   = $self->param('y')        // '';
+	my $val_col = $self->param('val')      // '';
+	my $scheme  = $self->param('scheme')   // 'YlOrRd';
+	my $show_v  = $self->param('show_val') ? 1 : 0;
+	my $back    = _safe_back_url($self->param('back')) // '/';
+
+	return $self->render(text => 'Missing x or y column parameter', status => 400)
+		unless length($x_col) && length($y_col);
+
+	my ($records, $columns) = $self->_run_export_pipeline;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless $records;
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $x_col", status => 400)
+		unless $col_set{$x_col};
+	return $self->render(text => "Column not found: $y_col", status => 400)
+		unless $col_set{$y_col};
+	return $self->render(text => "Column not found: $val_col", status => 400)
+		if length($val_col) && !$col_set{$val_col};
+
+	# Aggregate flat rows into [$x, $y, $value] triples.
+	# Preserve first-seen order for both axes so natural sort order in the
+	# source data (e.g. dates) is reflected on the chart axes.
+	my (%grid, @x_order, @y_order, %seen_y);
+	for my $row (@{$records}) {
+		my $x = $row->{$x_col} // next;
+		my $y = $row->{$y_col} // next;
+		next unless length($x) && length($y);
+		push @x_order, $x unless exists $grid{$x};
+		push @y_order, $y unless $seen_y{$y}++;
+		if (length($val_col)) {
+			my $v = $row->{$val_col} // 0;
+			my $is_acct_neg = ($v =~ /\A\s*\(/);
+			(my $v_num = $v) =~ s/[^\d.\-]//g;
+			$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
+			$v_num = 0 unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
+			$grid{$x}{$y} += $v_num + 0;
+		} else {
+			$grid{$x}{$y}++;
+		}
+	}
+
+	my @triples = map { my $xv = $_; map { [$xv, $_, $grid{$xv}{$_}] } @y_order } @x_order;
+
+	return $self->render(
+		text   => 'No plottable data: check that x and y columns contain values.',
+		status => 200,
+	) unless @triples;
+
+	require HTML::D3;
+	my $title   = length($val_col) ? "$val_col by $x_col and $y_col"
+	                                : "Count by $x_col and $y_col";
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
+		->render_heatmap_snippet(\@triples, {
+			x_label      => $x_col,
+			y_label      => $y_col,
+			val_label    => (length($val_col) ? $val_col : 'Count'),
+			color_scheme => $scheme,
+			show_values  => $show_v,
+			animated     => 1,
+		});
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler      => 'tt',
+		template     => "$platform/$language/heatmap",
+		format       => 'html',
+		title        => $title,
+		heatmap_html => $snippet->{html},
+		cell_count   => scalar @triples,
+		back_url     => $back,
+		back_label   => 'Back to table',
+	);
+}
+
 1;
 
 __END__

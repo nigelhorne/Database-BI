@@ -11,7 +11,7 @@ requires 'Database::Abstraction', '0.44';
 requires 'Database::Join', '0.004.0';
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
-requires 'HTML::D3', '0.14';
+requires 'HTML::D3', '0.16';
 requires 'HTML::TableExtract';
 requires 'LWP::UserAgent';
 requires 'LWP::UserAgent::Cached';

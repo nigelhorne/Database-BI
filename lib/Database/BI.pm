@@ -92,8 +92,10 @@ set and leaving blanks where a source file lacks a column.
 
 B<Charts> -- the toolbar offers a line chart (L<HTML::D3>
 C<render_zoomable_line_chart_snippet>; brush-to-zoom, reference lines for
-min/avg/max) and a pie chart (C<render_pie_chart_snippet>; animated,
-sorted by value, capped at 12 slices, click-a-slice to filter the table).
+min/avg/max), a pie chart (C<render_pie_chart_snippet>; animated,
+sorted by value, capped at 12 slices, click-a-slice to filter the table),
+and a heatmap (C<render_heatmap_snippet>; two categorical axes, optional
+value column or row count, configurable sequential colour scheme).
 
 =item *
 
@@ -278,6 +280,21 @@ that category.  Parameters:
   donut=1     show a hole in the centre (optional)
   back=<url>  URL for the "Back to table" link (optional; default "/")
   f=          result filters applied before aggregating (repeatable)
+
+=item C<GET /heatmap>
+
+Renders a D3.js v7 grid heatmap with two categorical axes.  Each cell
+colour encodes a summed or counted numeric value.  Parameters:
+
+  l=<spec>      left table (required)
+  x=<col>       X-axis column name (required; categorical)
+  y=<col>       Y-axis column name (required; categorical)
+  val=<col>     numeric column to sum per cell (optional; omit to count rows)
+  scheme=<name> colour scheme: YlOrRd Blues Greens Purples RdPu YlGnBu
+                (optional; default YlOrRd)
+  show_val=1    print the value inside each cell (optional)
+  back=<url>    URL for the "Back to table" link (optional; default "/")
+  j=, f=, d=    pipeline params (same as /join)
 
 =item C<POST /uploads/clear>
 
@@ -496,6 +513,7 @@ sub startup ($self) {
 	$r->post('/uploads/clear')->to('Dashboard#clear_uploads');
 	$r->get('/graph')->to('Dashboard#graph_view');
 	$r->get('/pie')->to('Dashboard#pie_view');
+	$r->get('/heatmap')->to('Dashboard#heatmap_view');
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is

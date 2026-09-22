@@ -2311,6 +2311,57 @@ subtest 'Transaction 35 -- SQLite (.sqlite extension) file lifecycle' => sub {
 	}
 };
 
+subtest 'Transaction 37 -- Heatmap chart lifecycle' => sub {
+	plan tests => 23;
+
+	my $dir = tempdir(CLEANUP => 1);
+	my $csv = Mojo::File->new($dir)->child('heatdata.csv')->to_string;
+	Mojo::File->new($csv)->spurt(
+		"region,month,sales\n"
+		. "North,Jan,1200\n"
+		. "South,Jan,800\n"
+		. "North,Feb,1500\n"
+		. "South,Feb,950\n"
+	);
+
+	my $base = '/heatmap?l=' . url_escape("path:$csv");
+
+	# Phase 1: basic heatmap with val column.
+	$t->get_ok($base . '&x=month&y=region&val=sales')
+	  ->status_is(200, 'Phase 1: /heatmap returns 200');
+	$t->content_like(qr/id="heatmap"/,  'Phase 1: heatmap SVG element present');
+	$t->content_like(qr/Jan/,           'Phase 1: X-axis label Jan visible');
+	$t->content_like(qr/North/,         'Phase 1: Y-axis label North visible');
+
+	# Phase 2: count mode (no val param).
+	$t->get_ok($base . '&x=month&y=region')
+	  ->status_is(200, 'Phase 2: count-mode heatmap returns 200');
+	$t->content_like(qr/id="heatmap"/, 'Phase 2: heatmap SVG present in count mode');
+	$t->content_like(qr/Count by/,     'Phase 2: title reflects count mode');
+
+	# Phase 3: missing required params return 400.
+	$t->get_ok('/heatmap?l=' . url_escape("path:$csv") . '&y=region')
+	  ->status_is(400, 'Phase 3a: missing x param returns 400');
+	$t->get_ok('/heatmap?l=' . url_escape("path:$csv") . '&x=month')
+	  ->status_is(400, 'Phase 3b: missing y param returns 400');
+
+	# Phase 4: non-existent column returns 400.
+	$t->get_ok($base . '&x=month&y=no_such_col')
+	  ->status_is(400, 'Phase 4: non-existent y column returns 400');
+	$t->get_ok($base . '&x=no_such_col&y=region')
+	  ->status_is(400, 'Phase 4b: non-existent x column returns 400');
+
+	# Phase 5: idempotency -- second request serves from cache.
+	$t->get_ok($base . '&x=month&y=region&val=sales')
+	  ->status_is(200, 'Phase 5: idempotent second request returns 200');
+
+	# Phase 6: heatmap toolbar button and panel are present in the dashboard.
+	$t->get_ok('/view/sales')
+	  ->status_is(200, 'Phase 6: dashboard returns 200');
+	$t->content_like(qr/id="btn-heatmap"/,  'Phase 6: heatmap toolbar button present');
+	$t->content_like(qr/id="heatmap-panel"/, 'Phase 6: heatmap panel present');
+};
+
 subtest 'Transaction 36 -- Copy-link button lifecycle (filter bookmark feature)' => sub {
 	# Phase 1: button element is absent when no filters are active (clean view).
 	# The CSS class *name* still appears in the stylesheet, but the button element itself
