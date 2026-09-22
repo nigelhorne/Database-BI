@@ -9,6 +9,7 @@ requires 'Carp';
 requires 'DBI';
 requires 'Database::Abstraction', '0.44';
 requires 'Database::Join', '0.004.0';
+requires 'Net::SFTP::Foreign';
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
 requires 'HTML::D3', '0.16';

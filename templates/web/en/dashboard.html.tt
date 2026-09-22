@@ -152,7 +152,7 @@
      data-current-label="[% title | html %]"
      hidden>
   <script>window.__biFilters = [% filters_json %];</script>
-  <form id="join-form" method="get" action="/join">
+  <form id="join-form" method="get" action="/join" novalidate>
     <input type="hidden" name="l" value="[% left_spec | html %]">
     [%- FOREACH jspec IN current_joins -%]
     <input type="hidden" name="j" value="[% jspec | html %]">
@@ -178,8 +178,18 @@
 
       <div class="join-field">
         <label for="right-path-inp">File path <span style="font-weight:400;color:#999;font-size:.78rem;">(browser or drag &amp; drop)</span></label>
-        <input type="text" id="right-path-inp" placeholder="/path/to/file.csv"
-               autocomplete="off" spellcheck="false">
+        <div class="with-tooltip">
+          <input type="text" id="right-path-inp" placeholder="/path/to/file.csv"
+                 autocomplete="off" spellcheck="false">
+          <div class="tip-box" role="tooltip">
+            Enter an absolute path to a local file, or use the remote
+            syntax to open a file via SSH:<br><br>
+            <code>/../hostname/dir/file.csv</code><br>
+            <code>/../user@hostname/dir/file.csv</code><br><br>
+            Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
+            .sqlite3), Berkeley DB (.db), XML.
+          </div>
+        </div>
       </div>
 
       <div class="join-field">
@@ -218,7 +228,7 @@
 </div>
 
 <div class="combine-panel" id="combine-panel" hidden>
-  <form id="combine-form" method="get" action="/combine">
+  <form id="combine-form" method="get" action="/combine" novalidate>
     <input type="hidden" name="l" value="[% left_spec | html %]">
     [%- FOREACH cspec IN combine_specs -%]
     <input type="hidden" name="c" value="[% cspec | html %]">
@@ -249,8 +259,18 @@
 
       <div class="join-field">
         <label for="combine-path-inp">File path <span style="font-weight:400;color:#999;font-size:.78rem;">(browse or drag &amp; drop)</span></label>
-        <input type="text" id="combine-path-inp" placeholder="/path/to/file.csv"
-               autocomplete="off" spellcheck="false">
+        <div class="with-tooltip">
+          <input type="text" id="combine-path-inp" placeholder="/path/to/file.csv"
+                 autocomplete="off" spellcheck="false">
+          <div class="tip-box" role="tooltip">
+            Enter an absolute path to a local file, or use the remote
+            syntax to open a file via SSH:<br><br>
+            <code>/../hostname/dir/file.csv</code><br>
+            <code>/../user@hostname/dir/file.csv</code><br><br>
+            Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
+            .sqlite3), Berkeley DB (.db), XML.
+          </div>
+        </div>
       </div>
     </div>
 

@@ -27,6 +27,7 @@ WriteMakefile(
 		'Database::Abstraction'	=> '0.44',
 		'Database::Join'	=> '0.004.0',
 		'DBI'		=> 0,
+		'Net::SFTP::Foreign' => 0,
 		'File::Spec'	=> '3.40',
 		'File::Temp'	=> '0.22',
 		'List::Util'	=> '1.40',

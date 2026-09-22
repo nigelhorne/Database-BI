@@ -390,6 +390,58 @@
     }
     .btn-secondary:hover { background: #eee; }
 
+    /* Path-field tooltip
+       Usage: wrap <input> in <div class="with-tooltip"> and add a sibling
+       <div class="tip-box" role="tooltip"> with the help text inside it.
+       Pure CSS -- no JavaScript required. */
+    .with-tooltip { position: relative; }
+    .tip-box {
+      position: absolute;
+      top: calc(100% + 7px);
+      left: 0;
+      right: 0;
+      z-index: 200;
+      background: #1a2040;
+      color: #e8ecf8;
+      border: 1px solid #3a50a0;
+      border-radius: 6px;
+      padding: 0.65rem 0.85rem;
+      font-size: 0.78rem;
+      line-height: 1.55;
+      box-shadow: 0 4px 14px rgba(0,0,0,.28);
+      pointer-events: none;
+      opacity: 0;
+      transform: translateY(-3px);
+      transition: opacity 0.13s, transform 0.13s;
+      white-space: normal;
+    }
+    /* Arrow pointing up to the input */
+    .tip-box::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 1rem;
+      width: 10px;
+      height: 10px;
+      background: #1a2040;
+      border-left: 1px solid #3a50a0;
+      border-top: 1px solid #3a50a0;
+      transform: rotate(45deg);
+    }
+    .tip-box code {
+      font-family: ui-monospace, 'Cascadia Code', monospace;
+      color: #7dd3fc;
+      background: rgba(255,255,255,.08);
+      padding: .05em .3em;
+      border-radius: 3px;
+      font-size: .9em;
+    }
+    .with-tooltip:hover .tip-box,
+    .with-tooltip:focus-within .tip-box {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
     /* Database picker */
     .db-list {
       list-style: none;

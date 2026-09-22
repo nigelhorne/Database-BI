@@ -493,6 +493,8 @@ sub startup ($self) {
 			table         => $table,
 			cache         => $chi,
 			cache_ttl_url => $cache_ttl_url,
+			exists $opts{host}     ? (host     => $opts{host})     : (),
+			exists $opts{file_ext} ? (file_ext => $opts{file_ext}) : (),
 		);
 	});
 

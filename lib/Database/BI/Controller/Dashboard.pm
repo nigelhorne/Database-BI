@@ -40,6 +40,12 @@ Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 # silently truncate the captured URL before the \z end-of-string anchor.
 Readonly my $URL_SPEC_RE   => qr{\Aurl:(https?://.+)\z}si;
 
+# Hostname pattern accepted in /../hostname/... remote paths.
+# Mirrors Database::Abstraction's own host validation regex.
+# Accepts 'hostname', 'user@hostname', and IPv4 addresses (IPv6 is excluded
+# because the [...] notation would be ambiguous in the path syntax).
+Readonly my $REMOTE_HOST_RE => qr/\A(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\@)?[a-zA-Z0-9][a-zA-Z0-9._-]*\z/;
+
 # ---------------------------------------------------------------------------
 # I18N message dictionary for all user-visible strings in this controller.
 # To plug in a Locale::Maketext backend, extend _i18n() below.
@@ -290,7 +296,21 @@ sub _open_spec :Protected ($self, $spec) {
 		my $src = eval { $self->open_table($table, directory => $data_dir->to_string) };
 		return ($src, $table) if $src && !$@;
 	} elsif ($spec =~ /\Apath:(.+)\z/) {
-		my $file = eval { Mojo::File->new($1)->realpath };
+		my $path_arg = $1;
+		# Remote path: /../hostname/dir/file — delegate to DataSource with host param.
+		# No EXT_RE check: security comes from REMOTE_HOST_RE.  The original
+		# extension (if any) is passed as file_ext so _init_backend tries it first.
+		if ($path_arg =~ m{\A/\.\./([^/]+)((?:/.+)?)/([^/]+)\z}) {
+			my ($host, $dir_part, $file) = ($1, $2 // '', $3);
+			$dir_part = '/' unless length $dir_part;
+			return () unless $host =~ $REMOTE_HOST_RE;
+			my ($table, $ext) = $file =~ /\A(.+)\.([^.]+)\z/ ? ($1, $2) : ($file, undef);
+			my $src = eval { $self->open_table($table, directory => $dir_part, host => $host,
+				defined $ext ? (file_ext => $ext) : ()) };
+			return ($src, $file) if $src && !$@;
+			return ();
+		}
+		my $file = eval { Mojo::File->new($path_arg)->realpath };
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
 			(my $table = $file->basename) =~ s/\.[^.]+\z//;
@@ -1094,6 +1114,57 @@ sub open_file ($self) {
 
 	return $self->reply->not_found unless defined $file_path;
 
+	# Remote path /../hostname/dir/file.ext: delegate opening to _open_spec
+	# and render the dashboard directly, bypassing the realpath/local-file path.
+	if ($file_path =~ m{\A/\.\./}) {
+		my $lspec = 'path:' . $file_path;
+		my ($source, $label) = $self->_open_spec($lspec);
+		return $self->reply->not_found unless $source;
+		my $filename = $label;
+		(my $table = $filename) =~ s/\.[^.]+\z//;
+		my $records;
+		eval { $records = $source->fetch_all };
+		if ($@) {
+			return $self->render(
+				template   => "$platform/$language/home",
+				handler    => 'tt',
+				format     => 'html',
+				tables     => [],
+				title      => 'Error',
+				error      => $self->_i18n('error_file_open', $filename, $@),
+				back_url   => '/',
+				back_label => 'Home',
+			);
+		}
+		my @columns  = _get_columns($source, $records);
+		my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+		my $dedup = $self->param('d') ? 1 : 0;
+		$filtered = _dedup_records($filtered, \@columns) if $dedup;
+		return $self->render(
+			template         => "$platform/$language/dashboard",
+			handler          => 'tt',
+			format           => 'html',
+			records          => $filtered,
+			columns          => \@columns,
+			table            => $table,
+			title            => $filename,
+			back_url         => '/',
+			back_label       => 'Home',
+			back2_url        => _safe_back_url($self->param('back2')),
+			back2_label      => $self->param('back2_label') // 'Back',
+			file_path        => $file_path,
+			left_spec        => $lspec,
+			combine_specs    => [],
+			current_joins    => [],
+			available_tables => $self->_scan_data_dir,
+			join_summaries   => [],
+			filter_specs     => $filter_specs,
+			filters_json     => $filters_json,
+			dedup            => $dedup,
+			export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
+		);
+	}
+
 	my $file = eval { Mojo::File->new($file_path)->realpath };
 	return $self->reply->not_found
 		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
@@ -1323,11 +1394,21 @@ sub columns_api ($self) {
 		$source = eval { $self->open_table(lc $table_name, directory => $data_dir->to_string) };
 	}
 	elsif (defined $path) {
-		my $file = eval { Mojo::File->new($path)->realpath };
-		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
-			my $dir = $file->dirname->to_string;
-			(my $tbl = $file->basename) =~ s/\.[^.]+\z//;
-			$source = eval { $self->open_table($tbl, directory => $dir) };
+		if ($path =~ m{\A/\.\./([^/]+)((?:/.+)?)/([^/]+)\z}) {
+			my ($host, $dir_part, $file) = ($1, $2 // '', $3);
+			$dir_part = '/' unless length $dir_part;
+			if ($host =~ $REMOTE_HOST_RE) {
+				my ($tbl, $ext) = $file =~ /\A(.+)\.([^.]+)\z/ ? ($1, $2) : ($file, undef);
+				$source = eval { $self->open_table($tbl, directory => $dir_part, host => $host,
+					defined $ext ? (file_ext => $ext) : ()) };
+			}
+		} else {
+			my $file = eval { Mojo::File->new($path)->realpath };
+			if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
+				my $dir = $file->dirname->to_string;
+				(my $tbl = $file->basename) =~ s/\.[^.]+\z//;
+				$source = eval { $self->open_table($tbl, directory => $dir) };
+			}
 		}
 	}
 

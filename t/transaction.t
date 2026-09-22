@@ -2392,4 +2392,75 @@ subtest 'Transaction 36 -- Copy-link button lifecycle (filter bookmark feature)'
 	$t->content_like(qr/btn-copy-link--copied/, 'Phase 5: copied-state CSS class present');
 };
 
+# ---------------------------------------------------------------------------
+# Transaction 39 -- Remote file path (/../hostname/dir/file.ext) lifecycle
+#
+# Tests that Database::BI can open files via the /../hostname/... path syntax
+# that mirrors Database::Abstraction's remote-file convention.
+# File::Slurp::Remote is mocked so no real SSH connection is made; the test
+# exercises the parsing, validation, and rendering pipeline end-to-end.
+# ---------------------------------------------------------------------------
+subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
+	# Override Net::SFTP::Foreign with an in-process stub so no real SSH
+	# connection is made.  The stub serves remote_sales.csv content and
+	# reports ENOENT for everything else.  Original methods are restored
+	# in the teardown block at the bottom.
+	require Net::SFTP::Foreign;
+	my $orig_new   = Net::SFTP::Foreign->can('new');
+	my $orig_error = Net::SFTP::Foreign->can('error');
+	my $orig_get   = Net::SFTP::Foreign->can('get');
+	{
+		no strict 'refs';
+		no warnings 'redefine';
+		*{'Net::SFTP::Foreign::new'} = sub {
+			my ($class, $host, %opts) = @_;
+			return undef unless defined $host && $host eq 'mockhost';
+			return bless { _stub_host => $host }, $class;
+		};
+		*{'Net::SFTP::Foreign::error'} = sub { '' };
+		*{'Net::SFTP::Foreign::get'}   = sub {
+			my ($self, $remote, $local) = @_;
+			return unless $remote =~ m{remote_sales\.csv$};
+			open(my $fh, '>', $local) or return;
+			print {$fh} "product,region,amount\nWidget,North,100\nGadget,South,200\n";
+			close $fh;
+		};
+	}
+
+	# Phase 1: path-traversal attempt outside the /../ prefix is rejected.
+	$t->get_ok('/open?path=/' . url_escape('.') . '/../../etc/passwd')
+	  ->status_is(404, 'Phase 1: path-traversal outside /../ notation rejected');
+
+	# Phase 2: remote path whose file is not found on the mock host gives 404.
+	$t->get_ok('/open?path=' . url_escape('/../mockhost/tmp/file.php'))
+	  ->status_is(404, 'Phase 2: file not found on remote host gives 404');
+
+	# Phase 3: well-formed remote path /../mockhost/tmp/remote_sales.csv opens.
+	my $remote_path = '/../mockhost/tmp/remote_sales.csv';
+	$t->get_ok('/open?path=' . url_escape($remote_path))
+	  ->status_is(200, 'Phase 3: /../hostname/dir/file.csv returns 200')
+	  ->content_like(qr/Widget/, 'Phase 3: first data row visible')
+	  ->content_like(qr/Gadget/, 'Phase 3: second data row visible')
+	  ->content_like(qr/product/i, 'Phase 3: column header "product" present');
+
+	# Phase 4: spec-based access via _open_spec (used by join, combine, graph).
+	$t->get_ok('/api/columns?spec=' . url_escape('path:' . $remote_path))
+	  ->status_is(200, 'Phase 4: columns API resolves remote path spec')
+	  ->json_has('/columns', 'Phase 4: columns key present in JSON response');
+
+	# Phase 5: idempotency -- second request returns same columns.
+	$t->get_ok('/api/columns?spec=' . url_escape('path:' . $remote_path))
+	  ->status_is(200, 'Phase 5: second columns request is idempotent')
+	  ->json_has('/columns', 'Phase 5: columns key still present');
+
+	# Tear down: restore original Net::SFTP::Foreign methods.
+	{
+		no strict 'refs';
+		no warnings 'redefine';
+		*{'Net::SFTP::Foreign::new'}   = $orig_new   if $orig_new;
+		*{'Net::SFTP::Foreign::error'} = $orig_error if $orig_error;
+		*{'Net::SFTP::Foreign::get'}   = $orig_get   if $orig_get;
+	}
+};
+
 done_testing();

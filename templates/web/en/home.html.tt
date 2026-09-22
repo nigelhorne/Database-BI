@@ -43,11 +43,21 @@
     <span class="action-card-icon" aria-hidden="true">&#128269;</span>
     <h2 class="action-card-title">Browse your files</h2>
     <p class="action-card-desc">Type a path directly, or navigate your folders to find a data file.</p>
-    <form action="/open" method="GET" class="action-url-form">
-      <input type="text" name="path" id="bi-path-input"
-             placeholder="/path/to/file.csv"
-             required autocomplete="off" class="action-url-input"
-             aria-label="File path">
+    <form action="/open" method="GET" class="action-url-form" novalidate>
+      <div class="with-tooltip">
+        <input type="text" name="path" id="bi-path-input"
+               placeholder="/path/to/file.csv"
+               autocomplete="off" class="action-url-input"
+               aria-label="File path">
+        <div class="tip-box" role="tooltip">
+          Enter an absolute path to a local file, or use the remote
+          syntax to open a file via SSH:<br><br>
+          <code>/../hostname/dir/file.csv</code><br>
+          <code>/../user@hostname/dir/file.csv</code><br><br>
+          Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
+          .sqlite3), Berkeley DB (.db), XML.
+        </div>
+      </div>
       <div class="action-url-row">
         <button type="submit" class="btn-action">Open</button>
         <a href="/browse" class="btn-action">Browse filesystem&hellip;</a>
@@ -59,7 +69,7 @@
     <span class="action-card-icon" aria-hidden="true">&#127760;</span>
     <h2 class="action-card-title">Import from a web page</h2>
     <p class="action-card-desc">Paste the address of any web page that contains a data table and we&rsquo;ll pull it in.</p>
-    <form action="/import" method="GET" class="action-url-form">
+    <form action="/import" method="GET" class="action-url-form" novalidate>
       <input type="url" name="url" id="bi-url-input"
              placeholder="https://&hellip;"
              required autocomplete="off" class="action-url-input"

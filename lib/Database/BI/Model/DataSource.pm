@@ -327,6 +327,8 @@ sub new {
 		schema => {
 			directory     => { type => 'string' },
 			table         => { type => 'string' },
+			host          => { type => 'string', optional => 1, default => undef },
+			file_ext      => { type => 'string', optional => 1, default => undef },
 			i18n          => { type => 'object', optional => 1, default => undef, can => 'maketext' },
 			cache         => { type => 'object', optional => 1, default => undef },
 			cache_ttl_url => { type => 'string', optional => 1, default => '15 min' },
@@ -334,8 +336,10 @@ sub new {
 		input => $raw,
 	);
 
+	# For remote files (host is set), the directory is on the remote host and
+	# cannot be stat()d locally.  Only check local existence when no host is given.
 	croak _fmt('error_directory_missing', $args->{directory})
-		unless -d $args->{directory};
+		unless defined $args->{host} || -d $args->{directory};
 
 	# Reject path-traversal characters first: '/', '\', and NUL are the only
 	# characters that could let _raw_table escape the intended directory when
@@ -361,6 +365,8 @@ sub new {
 		_directory    => $args->{directory},
 		_table        => $safe_table,
 		_raw_table    => $raw_table,
+		_host         => $args->{host},
+		_file_ext     => $args->{file_ext},
 		_i18n         => $args->{i18n},
 		_cache        => $args->{cache},
 		_cache_ttl_url => $args->{cache_ttl_url},
@@ -789,6 +795,49 @@ sub _init_backend :Protected {
 	my $table     = $self->{_table};     # sanitized: used for pkg name and D::A table param
 	my $raw_table = $self->{_raw_table} // $table;  # original: used for file lookup and dbname
 	my $dir       = $self->{_directory};
+
+	# Remote file path (host is set): download via SFTP to a local temp directory,
+	# then proceed with normal local processing on the downloaded copy.
+	# Net::SFTP::Foreign is loaded lazily so non-remote usage has no extra deps.
+	if (defined $self->{_host}) {
+		eval { require Net::SFTP::Foreign }
+			or croak $self->_msg('error_backend_init', $table,
+				'Net::SFTP::Foreign is not installed (required for remote file access)');
+		require File::Temp;
+		# Split optional user@host into ($user, $host).
+		my ($user, $host) = $self->{_host} =~ /\A([^@]+)\@(.+)\z/
+			? ($1, $2) : (undef, $self->{_host});
+		my $tmpdir = File::Temp->newdir(CLEANUP => 1);
+		my @remote_exts = qw(csv tsv psv xlsx xls sql sqlite sqlite3 db xml);
+		# Try the caller-supplied extension first (e.g. .log), then fall back.
+		if (defined $self->{_file_ext}) {
+			my $hint = lc $self->{_file_ext};
+			@remote_exts = ($hint, grep { $_ ne $hint } @remote_exts);
+		}
+		# One SFTP connection shared across all extension attempts.
+		my $sftp = eval { Net::SFTP::Foreign->new($host,
+			defined $user ? (user => $user) : (),
+			timeout => 10,
+		) };
+		croak $self->_msg('error_backend_init', $table,
+			"could not connect to $host via SFTP: " . ($@ || ($sftp ? $sftp->error : 'unknown')))
+			unless defined $sftp && !$sftp->error;
+		my $fetched_ext;
+		for my $ext (@remote_exts) {
+			my $remote_path = "$dir/$raw_table.$ext";
+			my $local_file  = File::Spec->catfile("$tmpdir", "$raw_table.$ext");
+			$sftp->get($remote_path, $local_file);
+			# Verify the file landed on disk; sftp->error may be set on ENOENT.
+			next if $sftp->error || !-f $local_file || !-s $local_file;
+			$fetched_ext = $ext;
+			last;
+		}
+		croak $self->_msg('error_backend_init', $table,
+			"could not fetch any supported file from $self->{_host}:$dir/$raw_table.*")
+			unless defined $fetched_ext;
+		$self->{_remote_tmpdir} = $tmpdir;	# prevents cleanup until $self is destroyed
+		$dir = "$tmpdir";	# switch to local temp dir for all subsequent processing
+	}
 
 	require Database::Abstraction;
 
