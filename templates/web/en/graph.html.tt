@@ -138,10 +138,27 @@
     max: [% ref_max_y %]
   };
   var LINE_DEFS = [
-    { id: 'rl-min', key: 'min', color: '#3b82f6', label: 'Min' },
+    { id: 'rl-min', key: 'min', color: '#f59e0b', label: 'Min' },
     { id: 'rl-avg', key: 'avg', color: '#10b981', label: 'Avg' },
     { id: 'rl-max', key: 'max', color: '#ef4444', label: 'Max' }
   ];
+
+  function colorDots() {
+    // Recolor circle.pt dots whose Y value matches an active reference line.
+    // Dots at REF.min get the Min color, dots at REF.max get the Max color,
+    // all others revert to steelblue.  Only recolors when the corresponding
+    // checkbox is checked so unchecking a line also resets the dot colors.
+    if (typeof chart === 'undefined') return;
+    var minCb = document.getElementById('rl-min');
+    var maxCb = document.getElementById('rl-max');
+    var showMin = minCb && minCb.checked;
+    var showMax = maxCb && maxCb.checked;
+    chart.selectAll('circle.pt').attr('fill', function (d) {
+      if (showMin && d.value === REF.min) return '#f59e0b';
+      if (showMax && d.value === REF.max) return '#ef4444';
+      return 'steelblue';
+    });
+  }
 
   function drawRefLines() {
     // `chart` and `y` and `width` are declared by HTML::D3's snippet at the
@@ -171,6 +188,7 @@
         .attr('pointer-events', 'none')
         .text(def.label);
     });
+    colorDots();
   }
 
   // Patch `redraw` (a function declaration — globally patchable) so that

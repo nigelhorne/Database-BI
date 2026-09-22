@@ -23,6 +23,13 @@ Revision history for Database-BI
       dashboard opens a panel to configure and launch the chart.  Uses the
       new render_heatmap_snippet method from HTML::D3 >= 0.16.
     - Bumped HTML::D3 minimum dependency from 0.14 to 0.16.
+    - Line graph reference lines: the Min line is now amber (#f59e0b)
+      instead of blue, so it no longer clashes with the steelblue main
+      line.  Data-point dots whose Y value equals the current REF.min are
+      recoloured amber when the Min checkbox is checked; dots at REF.max
+      are recoloured red when the Max checkbox is checked.  Unchecking a
+      reference-line checkbox immediately reverts the affected dots to
+      steelblue.  Dot colours are also updated after zoom and reset.
     - Added a "Copy link" button to the filter toolbar.  The button
       appears only when at least one filter is active and copies the
       current URL (including all ?f= parameters) to the clipboard, so
