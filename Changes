@@ -51,6 +51,15 @@ Revision history for Database-BI
       kept alive for the DataSource object's lifetime and cleaned up
       automatically on destruction.  Net::SFTP::Foreign is now a
       declared runtime dependency.
+    - Remote files with non-standard extensions (e.g. .log, .dat) are
+      now handled correctly.  After download, DataSource sniffs the
+      file content (SQLite magic bytes, XML preamble, or first-line
+      separator) and renames the temp copy to the appropriate standard
+      extension (.db, .xml, .tsv, .psv, or .csv) so that
+      _detect_file_info and Database::Abstraction can discover it
+      automatically.  Previously, a remote file whose extension was not
+      in the recognised list caused a "Can't find a file" error even
+      when the download succeeded.
     - Added a "Copy link" button to the filter toolbar.  The button
       appears only when at least one filter is active and copies the
       current URL (including all ?f= parameters) to the clipboard, so

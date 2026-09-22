@@ -707,6 +707,40 @@ sub _detect_file_info :Protected {
 # _values_are_data_like( \@vals ) -> bool
 #
 # Return true when the values look like actual data (dates, numbers, free text)
+# _sniff_data_ext( $path ) -> $ext
+#
+# Peek at the content of $path and return the standard file extension that best
+# describes its format.  Used when a remote file has a non-standard extension
+# (e.g. ".log") and we need to rename it so that _detect_file_info and
+# Database::Abstraction can discover it automatically.
+#
+# Detection order:
+#   1. SQLite magic bytes ("SQLite format 3") -> 'db'
+#   2. XML preamble ("<?xml" or "<" as first non-space character) -> 'xml'
+#   3. First data line contains tabs -> 'tsv'
+#   4. First data line contains pipes -> 'psv'
+#   5. Fallback -> 'csv'
+sub _sniff_data_ext {
+	my $path = $_[0];
+	open(my $fh, '<:raw', $path) or return 'csv';
+	my $header = '';
+	read $fh, $header, 20;
+	close $fh;
+	return 'db'  if $header =~ /\ASQLite format/;
+	return 'xml' if $header =~ /\A\s*<\?xml/i;
+	return 'xml' if $header =~ /\A\s*</;
+	open(my $lh, '<', $path) or return 'csv';
+	my $line = <$lh>;
+	close $lh;
+	return 'csv' unless defined $line;
+	return 'tsv' if $line =~ /\t/;
+	return 'psv' if $line =~ /\|/;
+	return 'csv';
+}
+
+# _values_are_data_like( \@vals ) -> bool
+#
+# Returns true when the values look like a row of real data (dates / numbers)
 # rather than column headers.  Used to detect header-less CSV files where the
 # first line is a data row.  At least one value must match a date or numeric
 # pattern — a row of plain hyphenated identifiers (e.g. "First-Name") is NOT
@@ -836,6 +870,22 @@ sub _init_backend :Protected {
 			"could not fetch any supported file from $self->{_host}:$dir/$raw_table.*")
 			unless defined $fetched_ext;
 		$self->{_remote_tmpdir} = $tmpdir;	# prevents cleanup until $self is destroyed
+
+		# If the downloaded file has a non-standard extension (e.g. .log), rename
+		# it to one that _detect_file_info and D::A can discover automatically.
+		# We do this by sniffing the first bytes/line for format signatures.
+		my %KNOWN_EXT = map { $_ => 1 }
+			qw(csv tsv psv xlsx xls sql sqlite sqlite3 db xml);
+		unless ($KNOWN_EXT{lc $fetched_ext}) {
+			my $orig_file = File::Spec->catfile("$tmpdir", "$raw_table.$fetched_ext");
+			my $std_ext   = _sniff_data_ext($orig_file);
+			if ($std_ext ne lc $fetched_ext) {
+				my $new_file = File::Spec->catfile("$tmpdir", "$raw_table.$std_ext");
+				{ no autodie; rename $orig_file, $new_file }
+				$fetched_ext = $std_ext;
+			}
+		}
+
 		$dir = "$tmpdir";	# switch to local temp dir for all subsequent processing
 	}
 
