@@ -1,5 +1,8 @@
 package Database::BI;
 
+use strict;
+use warnings;
+
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
 use Carp qw(croak);
@@ -9,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.007.0';
+our $VERSION = '0.008.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.

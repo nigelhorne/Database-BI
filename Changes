@@ -60,6 +60,20 @@ Revision history for Database-BI
       automatically.  Previously, a remote file whose extension was not
       in the recognised list caused a "Can't find a file" error even
       when the download succeeded.
+    - Added CSS-only tooltips to all path input fields (join panel,
+      combine panel, and the home-page "Browse your files" input).
+      Hovering or focusing any of these fields shows a dark popover
+      explaining the local and remote (/../hostname/) path syntax with
+      examples.  The tooltip uses position:absolute + opacity transition
+      and is shown via :hover/:focus-within with no JavaScript.
+    - Added novalidate to the join, combine, open, and import forms so
+      that the browser's built-in "Please fill out this field" validation
+      popup no longer appears on hover; DataSource validates inputs
+      server-side instead.
+    - Added support for user@hostname syntax in the remote file path:
+      paths of the form /../user@hostname/dir/file.ext are now accepted
+      and the user portion is passed to Net::SFTP::Foreign as the login
+      name.
     - Added a "Copy link" button to the filter toolbar.  The button
       appears only when at least one filter is active and copies the
       current URL (including all ?f= parameters) to the clipboard, so
@@ -82,7 +96,9 @@ Revision history for Database-BI
       classes defined).
     - Transaction 39: remote file path (/../hostname/dir/file.ext)
       lifecycle (path parsing, hostname validation, extension guard,
-      /open rendering, /api/columns spec resolution, idempotency).
+      /open rendering, /api/columns spec resolution, idempotency,
+      non-standard extension via _sniff_data_ext content detection,
+      user@hostname credential passing).
       Net::SFTP::Foreign is stubbed in tests so no real SSH connection
       is required.
     - basic.t: added "GET /heatmap" smoke subtest, "SQLite3 format

@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.007.0';
+our $VERSION = '0.008.0';
 
 =head1 NAME
 
@@ -262,13 +262,32 @@ Creates and returns a new C<Database::BI::Model::DataSource> instance.
 =head4 INPUT
 
 	{
-	    directory => 'string',           # required; path to the data directory
-	    table     => 'string',           # required; bare table/file name (no extension)
-	    i18n      => { type => 'object', optional => 1, can => 'maketext' } # must implement maketext($key, @args)
+	    directory     => 'string',   # required; local dir, or remote dir when host is set
+	    table         => 'string',   # required; bare file stem (no extension)
+	    host          => 'string',   # optional; "hostname" or "user@hostname" for SFTP access
+	    file_ext      => 'string',   # optional; extension hint when remote file has non-standard suffix (e.g. "log")
+	    cache         => 'object',   # optional; CHI cache object for result caching
+	    cache_ttl_url => 'string',   # optional; CHI TTL string for URL-backed tables (default "15 min")
+	    i18n          => 'object',   # optional; must implement maketext($key, @args) for i18n
 	}
 
 Accepts a flat key/value list, a hashref, or positional arguments via
 C<Params::Get>.
+
+When C<host> is provided, C<directory> is treated as a path on the remote
+host and is not checked with C<-d> locally.  C<DataSource> downloads the
+file via SFTP (L<Net::SFTP::Foreign>) to a process-local temporary directory
+and then processes the local copy.  The temporary directory persists for the
+lifetime of the C<DataSource> object and is cleaned up automatically on
+destruction.
+
+When C<file_ext> is provided together with C<host>, it is used as the first
+candidate extension when probing the remote host for the file.  If the
+downloaded file does not have a standard extension (one of C<csv>, C<tsv>,
+C<psv>, C<xlsx>, C<xls>, C<sql>, C<sqlite>, C<sqlite3>, C<db>, C<xml>),
+the file content is sniffed (SQLite magic bytes, XML preamble, or first-line
+field separator) and the file is renamed to the correct standard extension
+before further processing.
 
 =head4 DOMAIN CONSTRAINTS
 
@@ -286,7 +305,7 @@ C<error_directory_missing>.
 =item C<table>
 
 The bare file stem (no extension).  Characters that are illegal in SQL
-identifiers — hyphens, dots, spaces, etc. — are silently replaced with
+identifiers - hyphens, dots, spaces, etc. - are silently replaced with
 underscores before the name is used internally.  A stem that starts with a
 digit is prefixed with C<_>.  Only a completely empty string croaks.
 
@@ -308,9 +327,19 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
   error_directory_required    -- "directory" argument was not supplied
   error_table_required        -- "table" argument was not supplied
   error_directory_missing     -- supplied directory does not exist / is unreadable
-  error_table_name_invalid    -- table name fails the safe-identifier check
-  error_backend_init          -- Database::Abstraction subclass could not be instantiated
+  error_table_name_invalid    -- table name contains illegal characters or is empty
+  error_no_safe_id            -- no column in the file has a safe SQL identifier name;
+                                 rename at least one column header to an alphanumeric name
+  error_backend_init          -- backend initialisation failed; sub-cases:
+                                   * Net::SFTP::Foreign is not installed
+                                   * could not connect to <host> via SFTP
+                                   * could not fetch any supported file from <host>:<dir>/<stem>.*
+                                   * Database::Abstraction subclass could not be instantiated
   error_no_tables             -- SQLite file opened successfully but contains no user-defined tables
+  error_fetch_failed          -- fetch_all raised an exception (wraps the underlying DBI/D::A error)
+  error_url_invalid           -- URL passed to the url=> constructor path does not begin
+                                 with http:// or https://
+  error_url_fetch             -- fetching or parsing the HTML table at a URL failed
 
 =cut
 
@@ -1087,7 +1116,7 @@ sub table_name {
 Returns an arrayref of column names in file order, or C<undef> when no order
 is available.  For CSV, TSV and PSV files the order comes from the file header.
 For SQLite and XML, falls back to the underlying C<Database::Abstraction>
-object's C<columns()> — useful when a C<DataSource> is passed directly to
+object's C<columns()> - useful when a C<DataSource> is passed directly to
 C<Database::Join> as a component database.
 
 =cut
@@ -1341,8 +1370,35 @@ returns C<undef> (the file is 0 bytes), it returns a C<{ _file_is_empty =E<gt>
 hashref.  C<_init_backend> detects this sentinel and skips
 C<Database::Abstraction> construction; C<fetch_all> returns C<[]> immediately.
 B<No DBI connection is created for 0-byte files.>  If you mock or spy on DBI
-handles and open a 0-byte CSV, the mock will never fire — this is expected
+handles and open a 0-byte CSV, the mock will never fire - this is expected
 behaviour, not a mock misconfiguration.
+
+=item B<Remote files require Net::SFTP::Foreign; one connection per open>
+
+When C<host> is set, C<DataSource> makes one SFTP connection per C<new()>
+call.  It tries the extension list in order (the C<file_ext> hint first,
+if provided, then the full standard-extension list) and downloads the first
+file it finds.  If no file is found under any tried extension, C<new()>
+croaks C<error_backend_init>.  B<Connections are not pooled or reused>
+between C<DataSource> instances.
+
+If the remote file has a non-standard extension (e.g. C<.log>, C<.dat>),
+the content is sniffed: SQLite magic bytes map to C<.db>, an XML preamble
+to C<.xml>, a tab-delimited first line to C<.tsv>, a pipe-delimited line to
+C<.psv>, and everything else to C<.csv>.  The temp file is then renamed to
+the detected extension before further processing.
+
+=item B<DBD::CSV silently lowercases column names for files larger than 16 KB>
+
+C<Database::Abstraction> uses C<Text::xSV::Slurp> for files up to 16 KB and
+DBD::CSV for larger ones.  The DBD::CSV path lowercases column names and
+replaces spaces with underscores (C<Account Number> becomes
+C<account_number>), which causes a C<"disallowed key"> error at render time
+when the template iterates the original column names.  C<DataSource> avoids
+this by always passing C<max_slurp_size =E<gt> -s $path> to
+C<Database::Abstraction>, forcing the slurp path regardless of file size.
+If you call C<Database::Abstraction> directly, you B<must> pass this option
+yourself for any file whose column names contain spaces or mixed case.
 
 =back
 
@@ -1385,6 +1441,11 @@ the constructor.
 L<Carp>, L<Readonly>, L<Scalar::Util>, L<Params::Validate::Strict>, L<Params::Get>,
 L<Database::Abstraction>.
 
+Optional (loaded lazily):
+
+L<Net::SFTP::Foreign> -- required for remote file access (C<host =E<gt> ...>).
+L<Spreadsheet::ParseXLSX> -- required for opening C<.xlsx> files.
+
 =head1 INCOMPATIBILITIES
 
 None known.
@@ -1401,11 +1462,16 @@ Nigel Horne C<< <njh@nigelhorne.com> >>
 
 =head2 new
 
-  new == [directory : PATH; table : NAME; i18n? : I18N_OBJECT]
-         pre  (directory in dom FILE_SYSTEM /\ is_dir directory)
-              /\ table =~ TABLE_NAME_RE
+  new == [directory : PATH; table : NAME;
+          host? : HOST_STRING; file_ext? : EXT_STRING;
+          cache? : CHI_OBJECT; cache_ttl_url? : TTL_STRING;
+          i18n? : I18N_OBJECT]
+         pre  (host = undef => is_dir directory)
+              /\ (host /= undef => host =~ REMOTE_HOST_RE)
+              /\ table /= ""
          post result.class = DataSource
-              /\ result._db.class = Database::Abstraction
+              /\ (host = undef => result._db.class = Database::Abstraction)
+              /\ (host /= undef => result._remote_tmpdir /= undef)
 
 =head2 table_name
 

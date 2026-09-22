@@ -2395,20 +2395,24 @@ subtest 'Transaction 36 -- Copy-link button lifecycle (filter bookmark feature)'
 # ---------------------------------------------------------------------------
 # Transaction 39 -- Remote file path (/../hostname/dir/file.ext) lifecycle
 #
-# Tests that Database::BI can open files via the /../hostname/... path syntax
-# that mirrors Database::Abstraction's remote-file convention.
-# File::Slurp::Remote is mocked so no real SSH connection is made; the test
-# exercises the parsing, validation, and rendering pipeline end-to-end.
+# Tests that Database::BI can open files via the /../hostname/... path syntax.
+# Net::SFTP::Foreign is mocked so no real SSH connection is made; the test
+# exercises the parsing, validation, rendering pipeline, and the content-
+# sniffing rename path (_sniff_data_ext) for non-standard remote extensions.
 # ---------------------------------------------------------------------------
 subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 	# Override Net::SFTP::Foreign with an in-process stub so no real SSH
-	# connection is made.  The stub serves remote_sales.csv content and
-	# reports ENOENT for everything else.  Original methods are restored
-	# in the teardown block at the bottom.
+	# connection is made.  The stub serves two remote files:
+	#   remote_sales.csv  -- standard CSV extension (tests normal path)
+	#   remote_sales.log  -- non-standard extension (tests _sniff_data_ext)
+	# Original methods are restored in the teardown block at the bottom.
 	require Net::SFTP::Foreign;
 	my $orig_new   = Net::SFTP::Foreign->can('new');
 	my $orig_error = Net::SFTP::Foreign->can('error');
 	my $orig_get   = Net::SFTP::Foreign->can('get');
+
+	Readonly my $CSV_BODY => "product,region,amount\nWidget,North,100\nGadget,South,200\n";
+
 	{
 		no strict 'refs';
 		no warnings 'redefine';
@@ -2420,9 +2424,11 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 		*{'Net::SFTP::Foreign::error'} = sub { '' };
 		*{'Net::SFTP::Foreign::get'}   = sub {
 			my ($self, $remote, $local) = @_;
-			return unless $remote =~ m{remote_sales\.csv$};
+			# Serve the CSV body for both the .csv and .log filenames so we
+			# can test that _sniff_data_ext renames the .log to .csv correctly.
+			return unless $remote =~ m{remote_sales\.(?:csv|log)$};
 			open(my $fh, '>', $local) or return;
-			print {$fh} "product,region,amount\nWidget,North,100\nGadget,South,200\n";
+			print {$fh} $CSV_BODY;
 			close $fh;
 		};
 	}
@@ -2435,7 +2441,7 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 	$t->get_ok('/open?path=' . url_escape('/../mockhost/tmp/file.php'))
 	  ->status_is(404, 'Phase 2: file not found on remote host gives 404');
 
-	# Phase 3: well-formed remote path /../mockhost/tmp/remote_sales.csv opens.
+	# Phase 3: well-formed remote path with standard .csv extension opens correctly.
 	my $remote_path = '/../mockhost/tmp/remote_sales.csv';
 	$t->get_ok('/open?path=' . url_escape($remote_path))
 	  ->status_is(200, 'Phase 3: /../hostname/dir/file.csv returns 200')
@@ -2452,6 +2458,22 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 	$t->get_ok('/api/columns?spec=' . url_escape('path:' . $remote_path))
 	  ->status_is(200, 'Phase 5: second columns request is idempotent')
 	  ->json_has('/columns', 'Phase 5: columns key still present');
+
+	# Phase 6: non-standard extension (.log) -- _sniff_data_ext renames to .csv.
+	# The stub serves the same CSV body for .log; DataSource must detect the
+	# comma-separated content and open it correctly without a "Can't find a
+	# file" error.
+	my $log_path = '/../mockhost/tmp/remote_sales.log';
+	$t->get_ok('/open?path=' . url_escape($log_path))
+	  ->status_is(200, 'Phase 6: non-standard .log extension opens via content sniffing')
+	  ->content_like(qr/Widget/, 'Phase 6: first data row visible after sniff rename')
+	  ->content_like(qr/product/i, 'Phase 6: column header present after sniff rename');
+
+	# Phase 7: user@hostname syntax passes credentials to Net::SFTP::Foreign.
+	my $user_path = '/../testuser@mockhost/tmp/remote_sales.csv';
+	$t->get_ok('/open?path=' . url_escape($user_path))
+	  ->status_is(200, 'Phase 7: user@hostname syntax opens correctly')
+	  ->content_like(qr/Widget/, 'Phase 7: data visible with user@hostname path');
 
 	# Tear down: restore original Net::SFTP::Foreign methods.
 	{

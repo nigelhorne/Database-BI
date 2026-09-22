@@ -16,6 +16,7 @@ requires 'HTML::TableExtract';
 requires 'LWP::UserAgent';
 requires 'LWP::UserAgent::Cached';
 requires 'List::Util', '1.40';
+requires 'Mojo::Base';
 requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Net::SFTP::Foreign';

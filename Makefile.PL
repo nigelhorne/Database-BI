@@ -31,7 +31,7 @@ WriteMakefile(
 		'File::Spec'	=> '3.40',
 		'File::Temp'	=> '0.22',
 		'List::Util'	=> '1.40',
-		'Socket'	=> '2.010',
+		'Mojo::Base' => 0,
 		'HTML::D3'	=> 0.16,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'		=> 0,
@@ -41,6 +41,7 @@ WriteMakefile(
 		'Params::Get'	=> 0,
 		'Params::Validate::Strict'	=> '0.39',
 		'Readonly'		=> 0,
+		'Socket'	=> '2.010',
 		'Spreadsheet::ParseXLSX'	=> 0,
 		'Sub::Protected'	=> 0,
 	}, TEST_REQUIRES => {
