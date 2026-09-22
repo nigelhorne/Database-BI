@@ -30,6 +30,16 @@ Revision history for Database-BI
       are recoloured red when the Max checkbox is checked.  Unchecking a
       reference-line checkbox immediately reverts the affected dots to
       steelblue.  Dot colours are also updated after zoom and reset.
+    - Charts generated from URL-imported data (/graph, /pie, /heatmap) now
+      show two attribution lines below the chart: "Source: <url>" and
+      "Accessed on <date>", where the date is the time of the current
+      request (when the data was fetched/served), not necessarily today.
+      Both lines are also embedded in SVG and PNG exports: the SVG gains
+      two <text> elements appended below the chart area (height and viewBox
+      extended by 38 px); the PNG canvas is extended by the same amount and
+      the text is drawn with canvas 2D fillText.  URLs longer than 90
+      characters are truncated with "..." in exports to avoid overflow.
+      Charts from local files are unaffected.
     - Added a "Copy link" button to the filter toolbar.  The button
       appears only when at least one filter is active and copies the
       current URL (including all ?f= parameters) to the clipboard, so

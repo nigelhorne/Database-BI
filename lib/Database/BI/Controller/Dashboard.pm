@@ -319,6 +319,25 @@ sub _spec_to_url :Protected ($self, $spec) {
 	return '/';
 }
 
+# _url_attribution($self) -> ($url_string, $date_string) or (undef, undef)
+#
+# Purpose: Return source URL and access date for chart attribution when the
+#          left table was imported from a web URL.  The date is the time of
+#          the current request (which is when the data is being accessed),
+#          formatted as "D Month YYYY".
+# Entry:   Reads the 'l' query param.
+# Exit:    ($url, $date) when the spec matches $URL_SPEC_RE; (undef, undef)
+#          for table: and path: specs.
+sub _url_attribution :Protected ($self) {
+	my $spec = $self->param('l') // '';
+	return (undef, undef) unless $spec =~ $URL_SPEC_RE;
+	my $url  = $1;
+	my @MON  = qw(January February March April May June July August
+	              September October November December);
+	my (undef, undef, undef, $mday, $mon, $year) = localtime;
+	return ($url, sprintf('%d %s %d', $mday, $MON[$mon], $year + 1900));
+}
+
 # _get_columns($source, $records) -> @column_names
 #
 # Purpose: Return an ordered column list from a DataSource object.
@@ -2082,6 +2101,8 @@ sub graph_view ($self) {
 	my $max_y   = max(@y_vals);
 	my $avg_y   = sum(@y_vals) / scalar(@y_vals);
 
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
 	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
@@ -2089,17 +2110,19 @@ sub graph_view ($self) {
 
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
-		handler      => 'tt',
-		template     => "$platform/$language/graph",
-		format       => 'html',
-		title        => $title,
-		graph_html   => $snippet->{html},
-		back_url     => $back,
-		back_label   => 'Back to table',
-		point_count  => scalar @pairs,
-		ref_min_y    => $min_y,
-		ref_max_y    => $max_y,
-		ref_avg_y    => sprintf('%.4g', $avg_y),
+		handler          => 'tt',
+		template         => "$platform/$language/graph",
+		format           => 'html',
+		title            => $title,
+		graph_html       => $snippet->{html},
+		back_url         => $back,
+		back_label       => 'Back to table',
+		point_count      => scalar @pairs,
+		ref_min_y        => $min_y,
+		ref_max_y        => $max_y,
+		ref_avg_y        => sprintf('%.4g', $avg_y),
+		source_url       => $source_url,
+		source_accessed  => $source_accessed,
 	);
 }
 
@@ -2162,6 +2185,8 @@ sub pie_view ($self) {
 
 	my @slices = map { [$_, $totals{$_}] } sort keys %totals;
 
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
 	require HTML::D3;
 	my $title   = $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
 	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
@@ -2175,17 +2200,19 @@ sub pie_view ($self) {
 
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
-		handler      => 'tt',
-		template     => "$platform/$language/pie",
-		format       => 'html',
-		title        => $title,
-		pie_html        => $snippet->{html},
-		back_url        => $back,
-		back_label      => 'Back to table',
-		slice_count     => scalar @slices,
-		cat_col         => $cat_col,
-		val_col         => $val_col,
-		currency_symbol => $currency_symbol,
+		handler          => 'tt',
+		template         => "$platform/$language/pie",
+		format           => 'html',
+		title            => $title,
+		pie_html         => $snippet->{html},
+		back_url         => $back,
+		back_label       => 'Back to table',
+		slice_count      => scalar @slices,
+		cat_col          => $cat_col,
+		val_col          => $val_col,
+		currency_symbol  => $currency_symbol,
+		source_url       => $source_url,
+		source_accessed  => $source_accessed,
 	);
 }
 
@@ -2241,6 +2268,8 @@ sub heatmap_view ($self) {
 		status => 200,
 	) unless @triples;
 
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
 	require HTML::D3;
 	my $title   = length($val_col) ? "$val_col by $x_col and $y_col"
 	                                : "Count by $x_col and $y_col";
@@ -2256,14 +2285,16 @@ sub heatmap_view ($self) {
 
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
-		handler      => 'tt',
-		template     => "$platform/$language/heatmap",
-		format       => 'html',
-		title        => $title,
-		heatmap_html => $snippet->{html},
-		cell_count   => scalar @triples,
-		back_url     => $back,
-		back_label   => 'Back to table',
+		handler          => 'tt',
+		template         => "$platform/$language/heatmap",
+		format           => 'html',
+		title            => $title,
+		heatmap_html     => $snippet->{html},
+		cell_count       => scalar @triples,
+		back_url         => $back,
+		back_label       => 'Back to table',
+		source_url       => $source_url,
+		source_accessed  => $source_accessed,
 	);
 }
 
