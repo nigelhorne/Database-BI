@@ -163,6 +163,22 @@
     return entries;
   }
 
+  // Measure the pixel width needed for the legend column by rendering each
+  // label into an off-screen canvas.  Returns 0 when there are no entries.
+  var SWATCH = 14, GAP = 20, ROW_H = 22, LEG_PAD = 10;
+  function _measureLegendWidth(entries) {
+    if (!entries.length) return 0;
+    var tmp = document.createElement('canvas');
+    var tc  = tmp.getContext('2d');
+    tc.font = '12px sans-serif';
+    var maxW = 0;
+    entries.forEach(function (e) {
+      var w = tc.measureText(e.text).width;
+      if (w > maxW) maxW = w;
+    });
+    return Math.ceil(SWATCH + 5 + maxW + LEG_PAD);
+  }
+
   // Build a composite SVG that contains the pie chart plus SVG-rendered legend
   // items (coloured rect + text per entry) placed to the right of the chart.
   function biPieExportSVG() {
@@ -171,8 +187,7 @@
     var entries = getLegendEntries();
     var svgW   = parseFloat(svg.getAttribute('width'))  || 600;
     var svgH   = parseFloat(svg.getAttribute('height')) || 500;
-    var SWATCH = 14, GAP = 20, ROW_H = 22;
-    var legW   = entries.length ? 240 : 0;
+    var legW   = _measureLegendWidth(entries);
     var totalW = svgW + (entries.length ? GAP + legW : 0);
     // Vertically centre the legend relative to the pie SVG.
     var legTotalH = entries.length * ROW_H;
@@ -222,8 +237,8 @@
     var entries = getLegendEntries();
     var svgW   = parseInt(svg.getAttribute('width'),  10) || 600;
     var svgH   = parseInt(svg.getAttribute('height'), 10) || 500;
-    var SWATCH = 14, GAP = 20, ROW_H = 22;
-    var totalW  = svgW + (entries.length ? GAP + 240 : 0);
+    var legW   = _measureLegendWidth(entries);
+    var totalW  = svgW + (entries.length ? GAP + legW : 0);
     var extraH  = attr ? ATTR_H : 0;
     // Vertically centre the legend relative to the pie SVG.
     var legTotalH = entries.length * ROW_H;
