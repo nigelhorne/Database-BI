@@ -2486,7 +2486,7 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 };
 
 subtest 'Transaction 40 -- Bar chart lifecycle' => sub {
-	plan tests => 30;
+	plan tests => 37;
 
 	my $dir = tempdir(CLEANUP => 1);
 	my $csv = Mojo::File->new($dir)->child('bardata.csv')->to_string;
@@ -2548,6 +2548,19 @@ subtest 'Transaction 40 -- Bar chart lifecycle' => sub {
 	$t->content_like(qr/data-cat-col="tester"/, 'Phase 9: cat column encoded in bar-meta');
 	$t->content_like(qr/drillDown/, 'Phase 9: drillDown JS function present');
 	$t->content_like(qr/encodeURIComponent/, 'Phase 9: URL encoding used in drill-down');
+	$t->content_like(qr/back2/, 'Phase 9: back2 param present in drillDown');
+	$t->content_like(qr/back2_label/, 'Phase 9: back2_label param present in drillDown');
+	$t->content_like(qr/Back to bar chart/, 'Phase 9: back2_label text is correct');
+
+	# Phase 10: full breadcrumb round-trip -- simulate a drill-down navigation
+	# by passing back2 and back2_label to /view/sales (as drillDown() would).
+	# The view action must promote back2 -> back_url and back2_label -> back_label
+	# so the dashboard renders "Back to bar chart" rather than "Choose another database".
+	my $bar_back = '/bar?l=table%3Asales&cat=region';
+	$t->get_ok('/view/sales?back2=' . url_escape($bar_back) . '&back2_label=' . url_escape('Back to bar chart'))
+	  ->status_is(200, 'Phase 10: drilled-down table returns 200');
+	$t->content_like(qr/Back to bar chart/, 'Phase 10: breadcrumb shows Back to bar chart');
+	$t->content_unlike(qr/Choose another database/, 'Phase 10: default breadcrumb replaced by chart back-link');
 };
 
 done_testing();
