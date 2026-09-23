@@ -4,7 +4,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 
 ## Version
 
-0.007.0
+0.008.1
 
 ## Description
 
