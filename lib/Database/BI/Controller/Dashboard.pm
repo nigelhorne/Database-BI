@@ -2412,6 +2412,89 @@ sub heatmap_view ($self) {
 	);
 }
 
+sub bar_view ($self) {
+	my $cat_col  = $self->param('cat')    // '';
+	my $val_col  = $self->param('val')    // '';
+	my $orient   = $self->param('orient') // 'vertical';
+	my $sort     = $self->param('sort')   // 'none';
+	my $back     = _safe_back_url($self->param('back')) // '/';
+
+	return $self->render(text => 'Missing cat column parameter', status => 400)
+		unless length($cat_col);
+
+	my ($records, $columns) = $self->_run_export_pipeline;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless $records;
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $cat_col", status => 400)
+		unless $col_set{$cat_col};
+
+	# '__count__' sentinel: count rows per category instead of summing a column.
+	my $count_mode = ($val_col eq '__count__' || !length($val_col));
+	return $self->render(text => "Column not found: $val_col", status => 400)
+		unless $count_mode || $col_set{$val_col};
+
+	my %totals;
+	for my $row (@{$records}) {
+		my $cat = $row->{$cat_col} // '';
+		next unless length($cat);
+		if ($count_mode) {
+			$totals{$cat}++;
+		} else {
+			my $v = $row->{$val_col} // '';
+			next unless length($v);
+			my $is_acct_neg = ($v =~ /\A\s*\(/);
+			(my $v_num = $v) =~ s/[^\d.\-]//g;
+			$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
+			next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
+			$totals{$cat} += $v_num + 0;
+		}
+	}
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid data in the selected columns.',
+		status => 200,
+	) unless %totals;
+
+	my @bars = map { [_decode_cell($_), $totals{$_}] } sort keys %totals;
+
+	my $orientation = ($orient eq 'h') ? 'horizontal' : 'vertical';
+	my $sort_bars   = ($sort eq 'value' || $sort eq 'label') ? $sort : 'none';
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
+	require HTML::D3;
+	my $title   = $count_mode ? "Count by $cat_col"
+	                          : "$val_col by $cat_col";
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
+		->render_bar_chart_snippet(\@bars, {
+			animated     => 1,
+			orientation  => $orientation,
+			sort_bars    => $sort_bars,
+			color        => 'categorical',
+			show_values  => 0,
+			value_label  => ($count_mode ? 'Count' : $val_col),
+		});
+
+	my $bar_html = $snippet->{html};
+	utf8::decode($bar_html) unless utf8::is_utf8($bar_html);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/bar",
+		format          => 'html',
+		title           => $title,
+		bar_html        => $bar_html,
+		bar_count       => scalar @bars,
+		back_url        => $back,
+		back_label      => 'Back to table',
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+	);
+}
+
 1;
 
 __END__

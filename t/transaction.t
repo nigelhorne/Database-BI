@@ -2485,4 +2485,61 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 	}
 };
 
+subtest 'Transaction 40 -- Bar chart lifecycle' => sub {
+	plan tests => 24;
+
+	my $dir = tempdir(CLEANUP => 1);
+	my $csv = Mojo::File->new($dir)->child('bardata.csv')->to_string;
+	Mojo::File->new($csv)->spurt(
+		"tester,result,score\n"
+		. "Alice,pass,95\n"
+		. "Bob,fail,42\n"
+		. "Alice,pass,88\n"
+		. "Carol,pass,76\n"
+		. "Bob,pass,61\n"
+	);
+
+	my $base = '/bar?l=' . url_escape("path:$csv");
+
+	# Phase 1: count mode (no val param) -- count rows per category.
+	$t->get_ok($base . '&cat=tester')
+	  ->status_is(200, 'Phase 1: /bar count mode returns 200');
+	$t->content_like(qr/id="bar_chart"/,  'Phase 1: bar_chart SVG element present');
+	$t->content_like(qr/Count by tester/, 'Phase 1: title reflects count mode');
+
+	# Phase 2: value mode -- sum score per tester.
+	$t->get_ok($base . '&cat=tester&val=score')
+	  ->status_is(200, 'Phase 2: /bar value mode returns 200');
+	$t->content_like(qr/id="bar_chart"/,  'Phase 2: bar_chart SVG element present');
+	$t->content_like(qr/score by tester/, 'Phase 2: title reflects value mode');
+
+	# Phase 3: missing required cat param returns 400.
+	$t->get_ok('/bar?l=' . url_escape("path:$csv"))
+	  ->status_is(400, 'Phase 3: missing cat param returns 400');
+
+	# Phase 4: non-existent column returns 400.
+	$t->get_ok($base . '&cat=no_such_col')
+	  ->status_is(400, 'Phase 4: non-existent cat column returns 400');
+
+	# Phase 5: horizontal orientation.
+	$t->get_ok($base . '&cat=tester&orient=h')
+	  ->status_is(200, 'Phase 5: horizontal orientation returns 200');
+	$t->content_like(qr/id="bar_chart"/, 'Phase 5: bar chart SVG present in horizontal mode');
+
+	# Phase 6: sort by value.
+	$t->get_ok($base . '&cat=tester&sort=value')
+	  ->status_is(200, 'Phase 6: sort=value returns 200');
+
+	# Phase 7: idempotency -- second count-mode request serves same result.
+	$t->get_ok($base . '&cat=tester')
+	  ->status_is(200, 'Phase 7: idempotent second request returns 200');
+	$t->content_like(qr/id="bar_chart"/, 'Phase 7: bar chart still present on repeat');
+
+	# Phase 8: bar chart toolbar button and panel present in dashboard.
+	$t->get_ok('/view/sales')
+	  ->status_is(200, 'Phase 8: dashboard returns 200');
+	$t->content_like(qr/id="btn-bar"/,  'Phase 8: bar chart toolbar button present');
+	$t->content_like(qr/id="bar-panel"/, 'Phase 8: bar chart panel present');
+};
+
 done_testing();
