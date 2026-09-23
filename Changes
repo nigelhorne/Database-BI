@@ -1,5 +1,18 @@
 Revision history for Database-BI
 
+0.008.1
+    [ Bug Fixes ]
+    - Fixed mojibake in pie/heatmap/line-graph chart labels when the data
+      comes from a URL-imported HTML table (/import).  LWP fetches the page
+      as UTF-8 bytes but the Perl scalars lacked the UTF-8 flag, causing
+      encode_json to treat each byte as a Latin-1 code point and re-encode
+      it (e.g. "Koenig" appeared as "KÃ¶nig").  A new internal helper
+      _decode_cell() upgrades byte strings to character strings before they
+      are passed to HTML::D3.  Affects graph_view (x-axis labels and
+      tooltip extra values), pie_view (slice and legend labels), and
+      heatmap_view (x and y axis category labels).
+
+
 0.008.0	Tue Sep 22 02:33:40 PM EDT 2026
     [ Enhancements ]
     - Added support for TSV (tab separated) files.

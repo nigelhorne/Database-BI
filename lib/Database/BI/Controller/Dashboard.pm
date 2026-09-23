@@ -721,6 +721,24 @@ sub _run_export_pipeline :Protected ($self) {
 	return ($records, \@columns, $left_label);
 }
 
+# _decode_cell($s) -> $character_string
+#
+# Purpose: Ensure $s is a Perl character string, not raw UTF-8 bytes.
+#          URL-fetched data (via LWP::UserAgent::Cached + D::A HTML parsing)
+#          arrives as byte strings without the UTF-8 flag set.  encode_json
+#          then treats each byte as a Latin-1 code point and re-encodes it,
+#          producing mojibake like "KÃ¶nig" for "Koenig".  This helper
+#          upgrades the flag in-place on a copy so the original hash key is
+#          unchanged but the value passed to HTML::D3 is a proper character.
+# Entry:   $s -- any defined scalar (undef returned as-is).
+# Exit:    The same string value, but with the UTF-8 flag set if it was absent.
+sub _decode_cell {
+	my $s = shift;
+	return $s unless defined $s;
+	utf8::decode($s) unless utf8::is_utf8($s);
+	$s;
+}
+
 # _serialize_csv($records, \@columns) -> $utf8_string
 #
 # Purpose: Build a complete RFC 4180 CSV document (header + data rows) from
@@ -2171,8 +2189,8 @@ sub graph_view ($self) {
 		(my $y_num = $y) =~ s/[^\d.\-]//g;
 		$y_num = "-$y_num" if $is_acct_neg && $y_num =~ /\A\d/;
 		next unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/;
-		my %extra = map { $_ => $row->{$_} } grep { $_ ne $x_col && $_ ne $y_col } @{$columns};
-		push @pairs, [$x, $y_num + 0, \%extra];
+		my %extra = map { $_ => _decode_cell($row->{$_}) } grep { $_ ne $x_col && $_ ne $y_col } @{$columns};
+		push @pairs, [_decode_cell($x), $y_num + 0, \%extra];
 	}
 
 	return $self->render(
@@ -2267,7 +2285,7 @@ sub pie_view ($self) {
 		status => 200,
 	) unless %totals;
 
-	my @slices = map { [$_, $totals{$_}] } sort keys %totals;
+	my @slices = map { [_decode_cell($_), $totals{$_}] } sort keys %totals;
 
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
@@ -2345,7 +2363,10 @@ sub heatmap_view ($self) {
 		}
 	}
 
-	my @triples = map { my $xv = $_; map { [$xv, $_, $grid{$xv}{$_}] } @y_order } @x_order;
+	my @triples = map {
+		my ($raw_x, $xv) = ($_, _decode_cell($_));
+		map { [$xv, _decode_cell($_), $grid{$raw_x}{$_}] } @y_order
+	} @x_order;
 
 	return $self->render(
 		text   => 'No plottable data: check that x and y columns contain values.',
