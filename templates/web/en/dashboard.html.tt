@@ -523,6 +523,7 @@
 [%- END -%]
 
 [% IF records.size %]
+<div class="table-scroll">
 <table id="bi-table" data-table="[% table | html %]">
   <thead>
     <tr>
@@ -541,6 +542,7 @@
     [%- END %]
   </tbody>
 </table>
+</div>
 [% ELSE %]
 <p class="empty-state">No records found in <strong>[% table | html %]</strong>.</p>
 [% END %]
