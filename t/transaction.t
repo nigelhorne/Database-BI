@@ -2599,4 +2599,44 @@ subtest 'Transaction 41 -- Pie chart drill-down breadcrumb lifecycle' => sub {
 	$t->content_like(qr/Back to pie chart/, 'Phase 3: breadcrumb shows Back to pie chart for root-relative back2');
 };
 
+subtest 'Transaction 42 -- import_url drill-down breadcrumb lifecycle' => sub {
+	# Regression: import_url rendered back_url=>'/' with no back2 handling,
+	# so pie/bar drill-downs from URL-backed tables never showed the chart link.
+	eval { require LWP::UserAgent } or plan skip_all => 'LWP::UserAgent not available';
+	eval { require HTML::TableExtract } or plan skip_all => 'HTML::TableExtract not available';
+	eval { require HTTP::Response } or plan skip_all => 'HTTP::Response not available';
+	plan tests => 7;
+
+	my $html = '<table>'
+	         . '<tr><th>tester</th><th>result</th></tr>'
+	         . '<tr><td>Alice</td><td>PASS</td></tr>'
+	         . '<tr><td>Bob</td><td>FAIL</td></tr>'
+	         . '</table>';
+
+	no warnings 'redefine';
+	local *LWP::UserAgent::get = sub {
+		my ($self, $url) = @_;
+		return HTTP::Response->new(200, 'OK', [], $html);
+	};
+
+	my $import_url = 'http://example.com/test-results';
+	my $pie_back   = '/pie?l=' . url_escape("url:$import_url") . '&cat=tester&val=result';
+
+	# Phase 1: import without back2 still shows home breadcrumb.
+	$t->get_ok('/import?url=' . url_escape($import_url))
+	  ->status_is(200, 'Phase 1: import renders 200');
+	$t->content_like(qr/Choose another database/, 'Phase 1: default breadcrumb present without back2');
+
+	# Phase 2: import with back2 (pie drill-down) shows chart breadcrumb.
+	# Breadcrumb: Home > Choose another database > Back to pie chart (3 levels).
+	$t->get_ok('/import?url='       . url_escape($import_url)
+	         . '&f='                . url_escape('result:eq:PASS')
+	         . '&back2='            . url_escape($pie_back)
+	         . '&back2_label='      . url_escape('Back to pie chart'))
+	  ->status_is(200, 'Phase 2: drill-down import renders 200');
+	$t->content_like(qr/Back to pie chart/, 'Phase 2: breadcrumb shows Back to pie chart');
+	$t->content_like(qr/<a [^>]*>Back to pie chart<\/a>/,
+	                    'Phase 2: Back to pie chart is a rendered anchor link');
+};
+
 done_testing();

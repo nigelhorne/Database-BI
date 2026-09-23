@@ -1337,6 +1337,8 @@ sub import_url ($self) {
 		source_url       => $url,
 		back_url         => '/',
 		back_label       => 'Choose another database',
+		back2_url        => _safe_back_url($self->param('back2')),
+		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $lspec,
 		combine_specs    => [],
 		current_joins    => [],
