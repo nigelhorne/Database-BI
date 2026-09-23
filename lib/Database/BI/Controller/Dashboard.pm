@@ -2210,13 +2210,16 @@ sub graph_view ($self) {
 	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
 		->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 });
 
+	my $graph_html = $snippet->{html};
+	utf8::decode($graph_html) unless utf8::is_utf8($graph_html);
+
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/graph",
 		format           => 'html',
 		title            => $title,
-		graph_html       => $snippet->{html},
+		graph_html       => $graph_html,
 		back_url         => $back,
 		back_label       => 'Back to table',
 		point_count      => scalar @pairs,
@@ -2300,13 +2303,16 @@ sub pie_view ($self) {
 			legend      => 1,
 		});
 
+	my $pie_html = $snippet->{html};
+	utf8::decode($pie_html) unless utf8::is_utf8($pie_html);
+
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/pie",
 		format           => 'html',
 		title            => $title,
-		pie_html         => $snippet->{html},
+		pie_html         => $pie_html,
 		back_url         => $back,
 		back_label       => 'Back to table',
 		slice_count      => scalar @slices,
@@ -2388,13 +2394,16 @@ sub heatmap_view ($self) {
 			animated     => 1,
 		});
 
+	my $heatmap_html = $snippet->{html};
+	utf8::decode($heatmap_html) unless utf8::is_utf8($heatmap_html);
+
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/heatmap",
 		format           => 'html',
 		title            => $title,
-		heatmap_html     => $snippet->{html},
+		heatmap_html     => $heatmap_html,
 		cell_count       => scalar @triples,
 		back_url         => $back,
 		back_label       => 'Back to table',
