@@ -2563,4 +2563,40 @@ subtest 'Transaction 40 -- Bar chart lifecycle' => sub {
 	$t->content_unlike(qr/Choose another database/, 'Phase 10: default breadcrumb replaced by chart back-link');
 };
 
+# Transaction 41: Pie chart drill-down breadcrumb lifecycle
+# Regression test: after clicking a pie slice, the drilled-down table must show
+# "Back to pie chart" breadcrumb, not "Choose another database".
+subtest 'Transaction 41 -- Pie chart drill-down breadcrumb lifecycle' => sub {
+	plan tests => 13;
+
+	# Phase 1: pie chart page renders with data-back-url and drillDown JS.
+	my $back_url  = '/view/sales';
+	my $pie_url   = '/pie?l=table%3Asales&cat=region&val=amount&back=' . url_escape($back_url);
+	$t->get_ok($pie_url)
+	  ->status_is(200, 'Phase 1: pie chart page returns 200');
+	$t->content_like(qr/data-back-url/, 'Phase 1: data-back-url attribute present in pie-meta');
+	$t->content_like(qr/drillDown/,     'Phase 1: drillDown JS function present in pie page');
+	$t->content_like(qr/back2/,         'Phase 1: back2 param referenced in drillDown');
+	$t->content_like(qr/Back to pie chart/, 'Phase 1: back2_label text is Back to pie chart');
+
+	# Phase 2: simulate the drill-down navigation produced by drillDown().
+	# drillDown() appends back2=<pieUrl>&back2_label=Back+to+pie+chart to backUrl.
+	# The view action must promote back2 -> back_url so the dashboard renders the
+	# "Back to pie chart" breadcrumb instead of "Choose another database".
+	my $pie_abs = 'http://localhost:3000' . $pie_url;
+	$t->get_ok('/view/sales?f=' . url_escape('region:eq:West')
+		. '&back2='       . url_escape($pie_abs)
+		. '&back2_label=' . url_escape('Back to pie chart'))
+	  ->status_is(200, 'Phase 2: drilled-down filtered table returns 200');
+	$t->content_like(qr/Back to pie chart/,    'Phase 2: breadcrumb shows Back to pie chart');
+	$t->content_unlike(qr/Choose another database/, 'Phase 2: default breadcrumb replaced by chart back-link');
+
+	# Phase 3: root-relative pie URL also works (browser may serve relative links).
+	$t->get_ok('/view/sales?f=' . url_escape('region:eq:West')
+		. '&back2='       . url_escape($pie_url)
+		. '&back2_label=' . url_escape('Back to pie chart'))
+	  ->status_is(200, 'Phase 3: root-relative back2 also returns 200');
+	$t->content_like(qr/Back to pie chart/, 'Phase 3: breadcrumb shows Back to pie chart for root-relative back2');
+};
+
 done_testing();
