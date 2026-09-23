@@ -1326,6 +1326,9 @@ sub import_url ($self) {
 	my $dedup = $self->param('d') ? 1 : 0;
 	$filtered = _dedup_records($filtered, \@columns) if $dedup;
 
+	my $self_url = '/import?url=' . url_escape($url);
+	$self_url   .= '&table_index=' . $idx if $idx;
+
 	$self->render(
 		template         => "$platform/$language/dashboard",
 		handler          => 'tt',
@@ -1335,8 +1338,8 @@ sub import_url ($self) {
 		table            => $label,
 		title            => $label,
 		source_url       => $url,
-		back_url         => '/',
-		back_label       => 'Choose another database',
+		back_url         => $self_url,
+		back_label       => $label,
 		back2_url        => _safe_back_url($self->param('back2')),
 		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $lspec,

@@ -2622,13 +2622,14 @@ subtest 'Transaction 42 -- import_url drill-down breadcrumb lifecycle' => sub {
 	my $import_url = 'http://example.com/test-results';
 	my $pie_back   = '/pie?l=' . url_escape("url:$import_url") . '&cat=tester&val=result';
 
-	# Phase 1: import without back2 still shows home breadcrumb.
+	# Phase 1: unfiltered import shows table name as the back label (not "Choose another database").
+	# Clicking that link returns to the same table without filters.
 	$t->get_ok('/import?url=' . url_escape($import_url))
 	  ->status_is(200, 'Phase 1: import renders 200');
-	$t->content_like(qr/Choose another database/, 'Phase 1: default breadcrumb present without back2');
+	$t->content_like(qr{href="/import\?url=}, 'Phase 1: back_url is self-link to unfiltered import');
 
-	# Phase 2: import with back2 (pie drill-down) shows chart breadcrumb.
-	# Breadcrumb: Home > Choose another database > Back to pie chart (3 levels).
+	# Phase 2: import with back2 (pie drill-down) shows 3-level breadcrumb:
+	# Home > <table name> > Back to pie chart.
 	$t->get_ok('/import?url='       . url_escape($import_url)
 	         . '&f='                . url_escape('result:eq:PASS')
 	         . '&back2='            . url_escape($pie_back)
