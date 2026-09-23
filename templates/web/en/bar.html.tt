@@ -28,6 +28,40 @@
   [% bar_html %]
 </div>
 
+<!-- Metadata read by the drill-down click handler below. -->
+<div id="bar-meta" data-back-url="[% back_url | html %]" data-cat-col="[% cat_col | html %]" hidden></div>
+
+<script>
+// Clicking a bar filters the source table to that category (drill-down).
+(function () {
+  var meta    = document.getElementById('bar-meta');
+  var backUrl = meta ? meta.getAttribute('data-back-url') : '';
+  var catCol  = meta ? meta.getAttribute('data-cat-col')  : '';
+  if (!backUrl || !catCol) return;
+
+  function drillDown(label) {
+    var barUrl = window.location.href;
+    var sep    = backUrl.indexOf('?') >= 0 ? '&' : '?';
+    var target = backUrl + sep + 'f=' + encodeURIComponent(catCol + ':eq:' + label);
+    target    += '&back2='       + encodeURIComponent(barUrl);
+    target    += '&back2_label=' + encodeURIComponent('Back to bar chart');
+    window.location.href = target;
+  }
+
+  // D3 renders bars synchronously; a short delay ensures the DOM is settled
+  // before we query it (mirrors the same pattern used in pie.html.tt).
+  setTimeout(function () {
+    document.querySelectorAll('#bar_chart .bc-bar').forEach(function (rect) {
+      var d = rect.__data__;
+      if (!d || !d.label) return;
+      rect.style.cursor = 'pointer';
+      rect.setAttribute('title', 'Filter table to: ' + d.label);
+      rect.addEventListener('click', function () { drillDown(d.label); });
+    });
+  }, 50);
+}());
+</script>
+
 <script>
 // Truncate long axis category labels so they do not overflow their slot.
 // A SVG <title> child element provides the full text on hover (native browser tooltip).

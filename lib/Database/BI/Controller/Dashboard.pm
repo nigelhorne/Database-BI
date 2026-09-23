@@ -2488,6 +2488,7 @@ sub bar_view ($self) {
 		title           => $title,
 		bar_html        => $bar_html,
 		bar_count       => scalar @bars,
+		cat_col         => $cat_col,
 		back_url        => $back,
 		back_label      => 'Back to table',
 		source_url      => $source_url,

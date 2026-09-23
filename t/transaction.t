@@ -2486,7 +2486,7 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 };
 
 subtest 'Transaction 40 -- Bar chart lifecycle' => sub {
-	plan tests => 24;
+	plan tests => 30;
 
 	my $dir = tempdir(CLEANUP => 1);
 	my $csv = Mojo::File->new($dir)->child('bardata.csv')->to_string;
@@ -2540,6 +2540,14 @@ subtest 'Transaction 40 -- Bar chart lifecycle' => sub {
 	  ->status_is(200, 'Phase 8: dashboard returns 200');
 	$t->content_like(qr/id="btn-bar"/,  'Phase 8: bar chart toolbar button present');
 	$t->content_like(qr/id="bar-panel"/, 'Phase 8: bar chart panel present');
+
+	# Phase 9: drill-down metadata present in bar chart page.
+	$t->get_ok($base . '&cat=tester')
+	  ->status_is(200, 'Phase 9: bar chart page returns 200');
+	$t->content_like(qr/id="bar-meta"/, 'Phase 9: bar-meta div present');
+	$t->content_like(qr/data-cat-col="tester"/, 'Phase 9: cat column encoded in bar-meta');
+	$t->content_like(qr/drillDown/, 'Phase 9: drillDown JS function present');
+	$t->content_like(qr/encodeURIComponent/, 'Phase 9: URL encoding used in drill-down');
 };
 
 done_testing();
