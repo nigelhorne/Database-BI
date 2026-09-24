@@ -31,7 +31,9 @@ WriteMakefile(
 		'File::Spec'	=> '3.40',
 		'File::Temp'	=> '0.22',
 		'List::Util'	=> '1.40',
+		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
 		'Mojo::Base' => 0,
+		'Mojo::JSON' => 0,
 		'HTML::D3' => 0.18,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'		=> 0,
@@ -48,7 +50,6 @@ WriteMakefile(
 		'DBD::CSV' => 0,
 		'Excel::Writer::XLSX' => 0,
 		'Encode' => 0,
-		'IPC::System::Simple' => 0,	# For autodie (:all)
 		'Test::Memory::Cycle' => 0,
 		'Test::Mockingbird' => 0,
 		'Test::Most' => 0,

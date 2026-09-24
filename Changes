@@ -21,17 +21,16 @@ Revision history for Database-BI
       container (overflow-x: auto) so the toolbar and breadcrumbs stay at
       full width while only the table body scrolls.
 
-    [ Tests ]
-    - Transaction 40: bar chart full lifecycle (toolbar button, panel,
-      GET /bar renders chart HTML, back link, drill-down URL structure,
-      back2/back2_label present, idempotency).
-    - Transaction 41: pie chart drill-down breadcrumb lifecycle (pie page
-      renders data-back-url and drillDown JS; filtered table with back2
-      param shows "Back to pie chart" breadcrumb for both absolute and
-      root-relative back2 URLs).
-    - Transaction 42: import_url drill-down breadcrumb regression test
-      (GET /import with back2/back2_label renders the chart back-link;
-      unfiltered import shows the table-name self-link in the breadcrumb).
+    [ Bug Fixes ]
+    - Fixed a test failure on CPAN testers running CGI::Lingua < 0.67 where
+      language negotiation for non-English Accept-Language headers returned
+      the wrong result.  Minimum CGI::Lingua version is now 0.85.
+    - Fixed non-ASCII EM-dash and currency characters in source comments and
+      one runtime error message in Dashboard.pm, which could produce mojibake
+      on systems that interpret .pm files as Latin-1.
+    - IPC::System::Simple is now declared as a runtime dependency (PREREQ_PM)
+      in addition to a test dependency, because DataSource.pm uses
+      "use autodie qw(:all)" at compile time on every server startup.
 
 0.008.1	Tue Sep 22 09:13:04 PM EDT 2026
     [ Bug Fixes ]

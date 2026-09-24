@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.008.1';
+our $VERSION = '0.009.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -33,7 +33,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 
 =head1 VERSION
 
-0.008.1
+0.009.0
 
 =head1 DESCRIPTION
 
@@ -584,7 +584,7 @@ sub _evict_old_uploads {
 	$uploads_dir->list({ dir => 1 })->each(sub {
 		my ($entry) = @_;
 		my $mtime = (stat $entry)[9] // 0;
-		return if $mtime >= $cutoff;	# still fresh — keep it
+		return if $mtime >= $cutoff;	# still fresh -- keep it
 		if (-d $entry) {
 			$entry->remove_tree;
 		} elsif (-f $entry) {

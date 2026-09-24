@@ -13,10 +13,12 @@ requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
 requires 'HTML::D3', '0.18';
 requires 'HTML::TableExtract';
+requires 'IPC::System::Simple';   # For autodie (:all) in DataSource.pm at runtime
 requires 'LWP::UserAgent';
 requires 'LWP::UserAgent::Cached';
 requires 'List::Util', '1.40';
 requires 'Mojo::Base';
+requires 'Mojo::JSON';
 requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Net::SFTP::Foreign';
@@ -31,7 +33,6 @@ on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'Encode';
 	requires 'Excel::Writer::XLSX';
-	requires 'IPC::System::Simple';   # For autodie (:all)
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';
 	requires 'Test::Mojo';

@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.008.1';
+our $VERSION = '0.009.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -300,7 +300,7 @@ sub _open_spec :Protected ($self, $spec) {
 		return ($src, $table) if $src && !$@;
 	} elsif ($spec =~ /\Apath:(.+)\z/) {
 		my $path_arg = $1;
-		# Remote path: /../hostname/dir/file — delegate to DataSource with host param.
+		# Remote path: /../hostname/dir/file -- delegate to DataSource with host param.
 		# No EXT_RE check: security comes from REMOTE_HOST_RE.  The original
 		# extension (if any) is passed as file_ext so _init_backend tries it first.
 		if ($path_arg =~ m{\A/\.\./([^/]+)((?:/.+)?)/([^/]+)\z}) {
@@ -727,7 +727,7 @@ sub _run_export_pipeline :Protected ($self) {
 #          URL-fetched data (via LWP::UserAgent::Cached + D::A HTML parsing)
 #          arrives as byte strings without the UTF-8 flag set.  encode_json
 #          then treats each byte as a Latin-1 code point and re-encodes it,
-#          producing mojibake like "KÃ¶nig" for "Koenig".  This helper
+#          producing mojibake (e.g. an o-umlaut character displayed as two garbage bytes).  This helper
 #          upgrades the flag in-place on a copy so the original hash key is
 #          unchanged but the value passed to HTML::D3 is a proper character.
 # Entry:   $s -- any defined scalar (undef returned as-is).
@@ -1205,7 +1205,7 @@ sub open_file ($self) {
 		if ($filename =~ /\.(?:sql|db)\z/i) {
 			$hint = 'SQLite files must contain at least one user-defined table. '
 				. 'The table name inside the database does not need to match the '
-				. 'filename — the application auto-detects and uses the first table found.';
+				. 'filename -- the application auto-detects and uses the first table found.';
 		}
 		return $self->render(
 			template   => "$platform/$language/home",
@@ -1402,7 +1402,7 @@ sub columns_api ($self) {
 	my $path       = $self->param('path');
 
 	# Accept the unified spec format used by /join and /graph:
-	# "table:name" or "path:/abs/path" — mirrors _open_spec's parsing.
+	# "table:name" or "path:/abs/path" -- mirrors _open_spec's parsing.
 	if (!defined($table_name) && !defined($path)) {
 		my $spec = $self->param('spec') // '';
 		if ($spec =~ /\Atable:([A-Za-z_][A-Za-z0-9_]*)\z/) {
@@ -2260,7 +2260,7 @@ sub pie_view ($self) {
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
 
-	# Detect the currency symbol (e.g. $ £ EUR) from the first non-empty raw
+	# Detect the currency symbol (e.g. $ GBP EUR) from the first non-empty raw
 	# value.  The regex captures the first character that is not a digit,
 	# whitespace, comma, period, hyphen, or open-paren -- that character is
 	# the currency prefix.  Accounting-notation values like ($1,234.56) are
