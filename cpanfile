@@ -3,7 +3,7 @@
 requires 'perl', '5.020000';
 
 requires 'CGI::Info';
-requires 'CGI::Lingua';
+requires 'CGI::Lingua', '0.85';
 requires 'CHI';
 requires 'Carp';
 requires 'DBI';

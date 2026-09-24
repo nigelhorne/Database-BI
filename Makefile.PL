@@ -23,7 +23,7 @@ WriteMakefile(
 		'Carp'		=> 0,
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
-		'CGI::Lingua'		=> 0,
+		'CGI::Lingua'		=> '0.85',
 		'Database::Abstraction'	=> '0.44',
 		'Database::Join'	=> '0.004.0',
 		'DBI'		=> 0,

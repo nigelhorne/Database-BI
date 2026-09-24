@@ -420,6 +420,46 @@ works correctly in production without any special workarounds.
 
 =back
 
+=head1 ROADMAP
+
+Features planned for future releases (post-0.009.0).  Items are ordered by
+priority.
+
+=over 4
+
+=item * B<Pagination / virtual scrolling> (High) -- Tables are rendered as a
+single HTML blob.  Files with 100 k+ rows will time out or exhaust memory.
+Add a C<?page=N&limit=M> server-side slice or a JS C<IntersectionObserver>
+infinite-scroll to cap peak HTML size.
+
+=item * B<XLSX export> (High) -- C</export> supports CSV, SQLite, and JSON
+but not XLSX output.  C<Excel::Writer::XLSX> would close the round-trip for
+users whose source data is XLSX.
+
+=item * B<Copy-link button on chart pages> (Medium) -- The dashboard data
+view has a copy-link button when filters are active, but C</graph>, C</pie>,
+C</heatmap>, and C</bar> do not, even though their URLs are fully
+parameterised and users share them.
+
+=item * B<Column statistics panel> (Medium) -- A per-column popover showing
+min, max, mean, median, and null-count.  C<List::Util> is already in
+C<PREREQ_PM>; only C<Statistics::Descriptive> (or manual computation) is
+needed.
+
+=item * B<Multi-sheet XLSX> (Medium) -- C<_detect_file_info> reads only the
+first worksheet.  A C<?sheet=> URL param with a sheet-name picker would
+expose the full workbook.
+
+=item * B<C<between> and C<in (a,b,c)> filter operators> (Low) -- Would
+reduce multi-filter chains for common range and set queries.
+
+=item * B<SSE streaming for large join results> (Low) -- The join pipeline
+blocks the HTTP response until all rows are assembled.  Mojolicious supports
+server-sent events, which could progressively stream rows to a JS table
+renderer, giving visible progress on slow joins.
+
+=back
+
 =cut
 
 sub startup ($self) {
