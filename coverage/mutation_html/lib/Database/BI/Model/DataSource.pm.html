@@ -353,7 +353,7 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">   12: use Params::Validate::Strict qw(validate_strict);
 </span><span class="">   13: use Params::Get		();
 </span><span class="">   14: 
-</span><span class="">   15: our $VERSION = &#39;0.008.1&#39;;
+</span><span class="">   15: our $VERSION = &#39;0.009.0&#39;;
 </span><span class="">   16: 
 </span><span class="">   17: =head1 NAME
 </span><span class="">   18: 
@@ -834,9 +834,9 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  493: #   columns  =&gt; arrayref of all column names in file order
 </span><span class="">  494: #
 </span><span class="">  495: # Two non-obvious defaults in Database::Abstraction make this necessary:
-</span><span class="">  496: #   1. sep_char defaults to &#39;!&#39; &acirc;&#128;&#148; so a plain CSV is read as one giant field
+</span><span class="">  496: #   1. sep_char defaults to &#39;!&#39; -- so a plain CSV is read as one giant field
 </span><span class="">  497: #      per row, producing a single comma-joined string instead of columns.
-</span><span class="">  498: #   2. id defaults to &#39;entry&#39; &acirc;&#128;&#148; the slurp filter greps on that column; if it
+</span><span class="">  498: #   2. id defaults to &#39;entry&#39; -- the slurp filter greps on that column; if it
 </span><span class="">  499: #      doesn&#39;t exist every row is silently discarded.
 </span><span class="">  500: # Returns an empty hashref for non-CSV/TSV/PSV/XLSX/SQLite formats (XML, etc.).
 </span><span class="">  501: # For SQLite/.db files that can be opened, returns { sqlite_tables =&gt; [...] }.
@@ -957,7 +957,7 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  610: 		# empty column list.  Treat that the same as a 0-byte file: return the
 </span><span class="">  611: 		# _file_is_empty sentinel so _init_backend skips D::A entirely.
 </span><span class="">  612: 		# Attempting to construct D::A with id =&gt; undef and an empty columns
-</span><span class="">  613: 		# list would croak error_no_safe_id &acirc;&#128;&#148; misleading for what is effectively
+</span><span class="">  613: 		# list would croak error_no_safe_id -- misleading for what is effectively
 </span><span class="">  614: 		# an empty file.
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  615: 		if (!@cols) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  616: 			close $fh;
@@ -974,7 +974,7 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  627: 		# column whose value in that row is non-empty.  A simple split (same
 </span><span class="">  628: 		# separator) is used rather than a full CSV parse; it may mis-index
 </span><span class="">  629: 		# fields that contain the separator inside quotes, but correctly detects
-</span><span class="">  630: 		# whether a given index position is blank &acirc;&#128;&#148; sufficient for id selection.
+</span><span class="">  630: 		# whether a given index position is blank -- sufficient for id selection.
 </span><span class="">  631: 		# Fall back to the first safe column in the header if the data row
 </span><span class="">  632: 		# check is inconclusive (e.g. file has only a header line).
 </span><span class="">  633: 		my $safe_re = qr/\A[a-zA-Z_][a-zA-Z0-9_]*\z/;
@@ -1001,7 +1001,7 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  654: 		}
 </span><span class="">  655: 		# If no safe identifier was found in the header, check whether the first
 </span><span class="">  656: 		# row looks like data values rather than column names.  A CSV exported
-</span><span class="">  657: 		# from a bank or accounting system often has no header row at all &acirc;&#128;&#148; the
+</span><span class="">  657: 		# from a bank or accounting system often has no header row at all -- the
 </span><span class="">  658: 		# first line is already a transaction record.  When that is the case,
 </span><span class="">  659: 		# synthesize safe column names by inferring the type of each value
 </span><span class="">  660: 		# (date, amount, description) and pre-read the entire file so
@@ -1052,11 +1052,11 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  705: 
 </span><span class="">  706: 	# SQLite / Berkeley DB: peek at sqlite_master to discover the internal table
 </span><span class="">  707: 	# names.  _init_backend uses this list to auto-select the correct table when
-</span><span class="">  708: 	# the filename stem (dbname) differs from the table name inside the file &acirc;&#128;&#148;
+</span><span class="">  708: 	# the filename stem (dbname) differs from the table name inside the file --
 </span><span class="">  709: 	# e.g. obituaries.sql whose internal table is called &quot;deceased&quot;.  If the
 </span><span class="">  710: 	# file is not a valid SQLite database (e.g. a Berkeley DB file) the eval
 </span><span class="">  711: 	# fails and we return {} so _init_backend/D::A handles it natively.
-</span><span class="">  712: 	# .sqlite and .sqlite3 are common alternative SQLite extensions &acirc;&#128;&#148; treated identically to .sql.
+</span><span class="">  712: 	# .sqlite and .sqlite3 are common alternative SQLite extensions -- treated identically to .sql.
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">713 → 713 → 733</span></span>  713: 	for my $ext (qw(sql sqlite sqlite3 db)) {
 </span><span class="">  714: 		my $path = File::Spec-&gt;catfile($dir, &quot;$table.$ext&quot;);
 </span><span class="">  715: 		next unless -r $path;
@@ -1075,7 +1075,7 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  728: 		# defined $tables means the eval succeeded (even an empty list is valid)
 </span><span class="">  729: 		return { sqlite_tables =&gt; ($tables // []), file_size =&gt; -s $path }
 </span><span class="">  730: 			if defined $tables;
-</span><span class="">  731: 		last;	# file found but not SQLite &acirc;&#128;&#148; do not try the other ext
+</span><span class="">  731: 		last;	# file found but not SQLite -- do not try the other ext
 </span><span class="">  732: 	}
 </span><span class="">  733: 	return {};
 </span><span class="">  734: }
@@ -1102,7 +1102,7 @@ Approximate LCSAJ segments: 209<br>
 </span><span class="">  755: 	my $header = &#39;&#39;;
 </span><span class="">  756: 	read $fh, $header, 20;
 </span><span class="">  757: 	close $fh;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  758: 	return &#39;db&#39;  if $header =~ /\ASQLite format/;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  758: 	return &#39;db&#39;  if $header =~ /\ASQLite format/;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1146,7 +1146,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  760: 	return &#39;xml&#39; if $header =~ /\A\s*&lt;/;
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  760: 	return &#39;xml&#39; if $header =~ /\A\s*&lt;/;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1171,7 +1171,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 <span class="">  761: 	open(my $lh, &#39;&lt;&#39;, $path) or return &#39;csv&#39;;
 </span><span class="">  762: 	my $line = &lt;$lh&gt;;
 </span><span class="">  763: 	close $lh;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  764: 	return &#39;csv&#39; unless defined $line;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  764: 	return &#39;csv&#39; unless defined $line;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1245,7 +1245,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  772: # Returns true when the values look like a row of real data (dates / numbers)
 </span><span class="">  773: # rather than column headers.  Used to detect header-less CSV files where the
 </span><span class="">  774: # first line is a data row.  At least one value must match a date or numeric
-</span><span class="">  775: # pattern &acirc;&#128;&#148; a row of plain hyphenated identifiers (e.g. &quot;First-Name&quot;) is NOT
+</span><span class="">  775: # pattern -- a row of plain hyphenated identifiers (e.g. &quot;First-Name&quot;) is NOT
 </span><span class="">  776: # considered data-like.
 </span><span class="">  777: sub _values_are_data_like {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">778 → 779 → 785</span></span>  778: 	my $vals = $_[0];
@@ -1288,7 +1288,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  815: # Purpose: Derive a stable cache key for this DataSource&#39;s full result set.
 </span><span class="">  816: #          URL tables use a fixed key (TTL handles invalidation).
 </span><span class="">  817: #          File tables encode the file&#39;s mtime in the key so a changed file
-</span><span class="">  818: #          naturally produces a miss &acirc;&#128;&#148; the stale entry is orphaned and evicts
+</span><span class="">  818: #          naturally produces a miss -- the stale entry is orphaned and evicts
 </span><span class="">  819: #          passively when the CHI driver reclaims memory.
 </span><span class="">  820: # Entry:   $self-&gt;{_cache} must be defined (caller checks this before calling).
 </span><span class="">  821: # Exit:    Returns a non-empty string key, or undef when no key is derivable
@@ -1462,8 +1462,8 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  977: 	# D::A validates dbname as a SQL identifier and rejects names that contain
 </span><span class="">  978: 	# spaces or other characters that are illegal in SQL (e.g. &quot;transactions for
 </span><span class="">  979: 	# Nigel&quot;).  This check fires at query time (inside selectall_arrayref) for
-</span><span class="">  980: 	# the DBI path used by XLSX, SQLite, and XML files &acirc;&#128;&#148; after construction
-</span><span class="">  981: 	# succeeds &acirc;&#128;&#148; so the error surfaces as error_fetch_failed, not error_backend_init.
+</span><span class="">  980: 	# the DBI path used by XLSX, SQLite, and XML files -- after construction
+</span><span class="">  981: 	# succeeds -- so the error surfaces as error_fetch_failed, not error_backend_init.
 </span><span class="">  982: 	#
 </span><span class="">  983: 	# Fix: when the original filename stem was sanitized (raw_table != table),
 </span><span class="">  984: 	# create a temporary directory with a symlink that uses the safe name.
@@ -1516,7 +1516,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1019: 	# against the real table name without needing the filename to match.
 </span><span class=""> 1020: 	# D::A uses &#39;dbname&#39; to find the file and &#39;table&#39; for the SELECT statement,
 </span><span class=""> 1021: 	# so both must be set to the actual table name when a mismatch is corrected.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1022 → 1023 → 1050</span></span> 1022: 	my $da_table = $table;	# D::A &#39;table&#39; param &acirc;&#128;&#148; controls the SQL table name
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1022 → 1023 → 1050</span></span> 1022: 	my $da_table = $table;	# D::A &#39;table&#39; param -- controls the SQL table name
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1023: 	if (exists $info-&gt;{sqlite_tables}) {
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1024: 		my @tbls = @{ $info-&gt;{sqlite_tables} };
 </span><span class=""> 1025: 		croak $self-&gt;_msg(&#39;error_no_tables&#39;, $raw_table) unless @tbls;
@@ -1701,7 +1701,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1204: 	return [] if $self-&gt;{_file_is_empty};
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1205: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1206: 
-</span><span class=""> 1207: 	# Cache only plain unfiltered calls &acirc;&#128;&#148; Database::Join passes no args for the
+</span><span class=""> 1207: 	# Cache only plain unfiltered calls -- Database::Join passes no args for the
 </span><span class=""> 1208: 	# full table scan; a non-empty @args means a narrowed query whose result must
 </span><span class=""> 1209: 	# not be mistaken for the full-table cache entry.
 </span><span class=""> 1210: 	my $cache = $self-&gt;{_cache};
