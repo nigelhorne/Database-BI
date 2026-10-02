@@ -39,12 +39,43 @@
     vertical-align: middle;
   }
   .chip-remove:hover { color: #c00; }
+  /* Schema-type-mismatch warnings from Database::Join */
+  .schema-warnings {
+    list-style: none;
+    margin: 0.4rem 0 0.6rem;
+    padding: 0.5rem 0.8rem;
+    background: #fffbe6;
+    border-left: 3px solid #f0a000;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #5a4000;
+  }
+  .schema-warnings li + li { margin-top: 0.25rem; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .schema-warnings {
+      background: #3a2e00;
+      border-left-color: #f0c040;
+      color: #f0d890;
+    }
+  }
+  :root[data-theme="dark"] .schema-warnings {
+    background: #3a2e00;
+    border-left-color: #f0c040;
+    color: #f0d890;
+  }
 </style>
 
 [%- IF back_url -%]
 <p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a>[%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
 [%- ELSE -%]
 <p class="back-link"><a href="/">&larr; Choose another database</a></p>
+[%- END -%]
+[%- IF schema_warnings.size -%]
+<ul class="schema-warnings" role="alert">
+  [%- FOREACH w IN schema_warnings -%]
+  <li>&#9888; [% w | html %]</li>
+  [%- END -%]
+</ul>
 [%- END -%]
 
 [%- IF left_spec -%]
@@ -208,6 +239,15 @@
         <label for="right-key-sel">Matching column in the new database</label>
         <select id="right-key-sel" disabled>
           <option value="">&mdash; select a database first &mdash;</option>
+        </select>
+      </div>
+
+      <div class="join-field">
+        <label for="join-type-sel">Join type</label>
+        <select id="join-type-sel" name="jtype">
+          <option value="left" selected>Left (keep all rows from the left table)</option>
+          <option value="inner">Inner (only rows that match in both tables)</option>
+          <option value="outer">Outer (all rows from either table)</option>
         </select>
       </div>
     </div>

@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.009.0';
+our $VERSION = '0.010.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -660,8 +660,11 @@ sub _run_export_pipeline :Protected ($self) {
 
 	# Build the join chain lazily: each Database::Join wraps the previous source
 	# and a new right DataSource.  No data is fetched until after the loop.
-	my $max_rows = $self->app->config('join_max_rows') // $DEFAULT_JOIN_MAX_ROWS;
+	my $max_rows  = $self->app->config('join_max_rows') // $DEFAULT_JOIN_MAX_ROWS;
+	my $join_type = $self->param('jtype') // 'left';
+	$join_type    = 'left' unless $join_type =~ /\A(?:left|inner|outer)\z/;
 	my $src = $left_src;
+	my @schema_warnings;
 	for my $jspec (@{ $self->every_param('j') }) {
 		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
 		next unless defined $right_spec && defined $left_key && defined $right_key;
@@ -678,15 +681,22 @@ sub _run_export_pipeline :Protected ($self) {
 		next unless +{ map { $_ => 1 } @$right_cols }->{$right_key};
 
 		require Database::Join;
+		local $SIG{__WARN__} = sub { push @schema_warnings, $_[0] };
 		$src = Database::Join->new(
 			databases        => [$src, $right_src],
 			join_column      => $left_key,
 			backend          => 'auto',
 			max_array_rows   => $max_rows,
+			join_type        => $join_type,
 			($left_key ne $right_key ? (join_map         => {1 => $right_key})   : ()),
 			($right_label             ? (collision_prefix => {1 => $right_label}) : ()),
 		);
 	}
+
+	# Surface any schema-type-mismatch warnings from Database::Join to the UI
+	# so the user sees "column X has conflicting types" rather than losing it
+	# silently to the error log.
+	$self->stash(schema_warnings => \@schema_warnings) if @schema_warnings;
 
 	my $records = eval { $src->selectall_arrayref };
 	return () if $@;
@@ -1510,8 +1520,11 @@ sub join_tables ($self) {
 
 	# Build the join chain: each step wraps the previous source in a
 	# Database::Join.  Data is not fetched until after the loop.
-	my $max_rows = $self->app->config('join_max_rows') // $DEFAULT_JOIN_MAX_ROWS;
+	my $max_rows  = $self->app->config('join_max_rows') // $DEFAULT_JOIN_MAX_ROWS;
+	my $join_type = $self->param('jtype') // 'left';
+	$join_type    = 'left' unless $join_type =~ /\A(?:left|inner|outer)\z/;
 	my $src = $left_src;
+	my @schema_warnings;
 	for my $jspec (@join_specs) {
 		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
 		next unless defined $right_spec && defined $left_key && defined $right_key;
@@ -1528,11 +1541,13 @@ sub join_tables ($self) {
 		next unless +{ map { $_ => 1 } @$right_cols }->{$right_key};
 
 		require Database::Join;
+		local $SIG{__WARN__} = sub { push @schema_warnings, $_[0] };
 		$src = Database::Join->new(
 			databases        => [$src, $right_src],
 			join_column      => $left_key,
 			backend          => 'auto',
 			max_array_rows   => $max_rows,
+			join_type        => $join_type,
 			($left_key ne $right_key ? (join_map         => {1 => $right_key})   : ()),
 			($right_label             ? (collision_prefix => {1 => $right_label}) : ()),
 		);
@@ -1583,6 +1598,7 @@ sub join_tables ($self) {
 		filters_json     => $filters_json,
 		dedup            => $dedup,
 		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs, undef, $dedup),
+		schema_warnings  => \@schema_warnings,
 	);
 }
 
@@ -2212,7 +2228,7 @@ sub graph_view ($self) {
 
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
+	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580, responsive => 1)
 		->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 });
 
 	my $graph_html = $snippet->{html};
@@ -2298,14 +2314,16 @@ sub pie_view ($self) {
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
 	require HTML::D3;
+	my $scheme  = $self->param('scheme') // 'tableau10';
 	my $title   = $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
-	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
+	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500, responsive => 1)
 		->render_pie_chart_snippet(\@slices, {
-			animated    => 1,
-			donut       => $donut,
-			sort_slices => 'value',
-			max_slices  => 12,
-			legend      => 1,
+			animated     => 1,
+			donut        => $donut,
+			sort_slices  => 'value',
+			max_slices   => 12,
+			legend       => 1,
+			color_scheme => $scheme,
 		});
 
 	my $pie_html = $snippet->{html};
@@ -2389,7 +2407,7 @@ sub heatmap_view ($self) {
 	require HTML::D3;
 	my $title   = length($val_col) ? "$val_col by $x_col and $y_col"
 	                                : "Count by $x_col and $y_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500, responsive => 1)
 		->render_heatmap_snippet(\@triples, {
 			x_label      => $x_col,
 			y_label      => $y_col,
@@ -2422,6 +2440,7 @@ sub bar_view ($self) {
 	my $val_col  = $self->param('val')    // '';
 	my $orient   = $self->param('orient') // 'vertical';
 	my $sort     = $self->param('sort')   // 'none';
+	my $max_bars = int($self->param('max') // 0);
 	my $back     = _safe_back_url($self->param('back')) // '/';
 
 	return $self->render(text => 'Missing cat column parameter', status => 400)
@@ -2472,7 +2491,7 @@ sub bar_view ($self) {
 	require HTML::D3;
 	my $title   = $count_mode ? "Count by $cat_col"
 	                          : "$val_col by $cat_col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
 		->render_bar_chart_snippet(\@bars, {
 			animated     => 1,
 			orientation  => $orientation,
@@ -2480,6 +2499,8 @@ sub bar_view ($self) {
 			color        => 'categorical',
 			show_values  => 0,
 			value_label  => ($count_mode ? 'Count' : $val_col),
+			x_label      => $cat_col,
+			($max_bars > 0 ? (max_bars => $max_bars) : ()),
 		});
 
 	my $bar_html = $snippet->{html};
