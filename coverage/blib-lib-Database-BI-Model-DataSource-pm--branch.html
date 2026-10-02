@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Model/DataSource.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">83.7%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">82.5%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -113,26 +113,28 @@ https://pjcj.net
 <tr><td class="h"><a id="L1126">1126</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_columns&#39;}</td></tr>
 <tr><td class="h"><a id="L1131">1131</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_url&#39;}</td></tr>
 <tr><td class="h"><a id="L1132">1132</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;{&#39;_db&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1204">1204</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L1205">1205</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
-<tr><td class="h"><a id="L1211">1211</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args)</td></tr>
-<tr><td class="h"><a id="L1213">1213</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1215">1215</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
-<tr><td class="h"><a id="L1221">1221</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args and defined $data)</td></tr>
-<tr><td class="h"><a id="L1223">1223</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1226">1226</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1238">1238</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L1241">1241</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
-<tr><td class="h"><a id="L1246">1246</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
-<tr><td class="h"><a id="L1248">1248</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1250">1250</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
-<tr><td class="h"><a id="L1255">1255</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L1259">1259</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $data</td></tr>
-<tr><td class="h"><a id="L1265">1265</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (ref $data eq &quot;HASH&quot;)</td></tr>
-<tr><td class="h"><a id="L1270">1270</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@{$data;})</td></tr>
-<tr><td class="h"><a id="L1277">1277</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
-<tr><td class="h"><a id="L1279">1279</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1282">1282</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1170">1170</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;updated&quot;)</td></tr>
+<tr><td class="h"><a id="L1172">1172</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $self-&gt;{&#39;_file_path&#39;} and -f $self-&gt;{&#39;_file_path&#39;}</td></tr>
+<tr><td class="h"><a id="L1221">1221</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
+<tr><td class="h"><a id="L1222">1222</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
+<tr><td class="h"><a id="L1228">1228</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args)</td></tr>
+<tr><td class="h"><a id="L1230">1230</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L1232">1232</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
+<tr><td class="h"><a id="L1238">1238</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args and defined $data)</td></tr>
+<tr><td class="h"><a id="L1240">1240</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L1243">1243</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1255">1255</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
+<tr><td class="h"><a id="L1258">1258</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
+<tr><td class="h"><a id="L1263">1263</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
+<tr><td class="h"><a id="L1265">1265</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L1267">1267</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
+<tr><td class="h"><a id="L1272">1272</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L1276">1276</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $data</td></tr>
+<tr><td class="h"><a id="L1282">1282</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (ref $data eq &quot;HASH&quot;)</td></tr>
+<tr><td class="h"><a id="L1287">1287</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@{$data;})</td></tr>
+<tr><td class="h"><a id="L1294">1294</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
+<tr><td class="h"><a id="L1296">1296</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L1299">1299</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
 </table>
 </body>
 </html>
