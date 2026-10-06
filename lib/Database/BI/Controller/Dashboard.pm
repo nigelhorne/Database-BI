@@ -14,6 +14,7 @@ use CGI::Lingua;
 use Mojo::File;
 use Mojo::JSON		qw(encode_json);
 use Mojo::Util		qw(url_escape encode);
+use File::Path		qw(remove_tree);
 use File::Temp		qw(tempfile tempdir);
 use Readonly;
 use Socket		qw(inet_aton);
@@ -66,6 +67,7 @@ Readonly my %MESSAGES => (
 	error_upload_none      => 'No file received',
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, SQLite (.sql, .sqlite, .sqlite3), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
+	error_upload_save      => 'Could not save uploaded file',
 	error_path_required    => '"path" parameter is required',
 	error_url_required     => 'Please enter a URL',
 	error_url_invalid      => '"%s" is not a valid http:// or https:// URL',
@@ -2130,7 +2132,18 @@ sub upload_file ($self) {
 	$uploads_base->make_path unless -d $uploads_base;
 	my $sub_dir = tempdir(DIR => $uploads_base->to_string, CLEANUP => 0);
 	my $dest    = Mojo::File->new($sub_dir)->child($filename)->to_string;
-	$upload->move_to($dest);
+
+	# move_to returns the destination Mojo::File on success; croaks on I/O
+	# failure.  Wrap in eval so a disk error becomes a 500 JSON response
+	# rather than a bare Mojolicious exception page.
+	eval { $upload->move_to($dest) };
+	if ($@ || !-f $dest) {
+		remove_tree($sub_dir);
+		return $self->render(
+			json   => { error => $self->_i18n('error_upload_save') },
+			status => 500,
+		);
+	}
 
 	$self->render(json => {
 		url  => '/open?path=' . url_escape($dest),
