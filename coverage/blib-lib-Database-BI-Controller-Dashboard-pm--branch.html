@@ -141,67 +141,67 @@ https://pjcj.net
 <tr><td class="h"><a id="L2110">2110</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($self-&gt;req-&gt;is_limit_exceeded or $upload-&gt;size &gt; $MAX_UPLOAD_BYTES)</td></tr>
 <tr><td class="h"><a id="L2120">2120</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($filename and $filename =~ /$EXT_RE/u)</td></tr>
 <tr><td class="h"><a id="L2132">2132</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_base</td></tr>
-<tr><td class="h"><a id="L2140">2140</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not -f $dest)</td></tr>
-<tr><td class="h"><a id="L2157">2157</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
-<tr><td class="h"><a id="L2166">2166</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (-d $entry) { }</td></tr>
+<tr><td class="h"><a id="L2143">2143</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($ok and -f $dest)</td></tr>
+<tr><td class="h"><a id="L2160">2160</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
+<tr><td class="h"><a id="L2169">2169</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (-d $entry) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif (-f $entry) { }</td></tr>
-<tr><td class="h"><a id="L2169">2169</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -f $file</td></tr>
-<tr><td class="h"><a id="L2203">2203</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x_col and length $y_col</td></tr>
-<tr><td class="h"><a id="L2207">2207</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L2212">2212</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$x_col}</td></tr>
-<tr><td class="h"><a id="L2214">2214</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$y_col}</td></tr>
-<tr><td class="h"><a id="L2221">2221</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x and length $y</td></tr>
-<tr><td class="h"><a id="L2224">2224</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $y_num =~ /\A\d/u</td></tr>
-<tr><td class="h"><a id="L2225">2225</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
-<tr><td class="h"><a id="L2226">2226</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $_ ne $x_col</td></tr>
-<tr><td class="h"><a id="L2230">2230</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @pairs</td></tr>
-<tr><td class="h"><a id="L2248">2248</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($graph_html)</td></tr>
-<tr><td class="h"><a id="L2271">2271</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;donut&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L2275">2275</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $cat_col and length $val_col</td></tr>
-<tr><td class="h"><a id="L2279">2279</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L2284">2284</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$cat_col}</td></tr>
-<tr><td class="h"><a id="L2290">2290</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $count_mode or $col_set{$val_col}</td></tr>
-<tr><td class="h"><a id="L2302">2302</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $cat</td></tr>
-<tr><td class="h"><a id="L2303">2303</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($count_mode) { }</td></tr>
-<tr><td class="h"><a id="L2307">2307</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $v</td></tr>
-<tr><td class="h"><a id="L2308">2308</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (not length $currency_symbol and $v =~ /\A\s*\(?\s*([^\d\s.,\-\(])/u)</td></tr>
-<tr><td class="h"><a id="L2314">2314</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $v_num =~ /\A\d/u</td></tr>
-<tr><td class="h"><a id="L2315">2315</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
-<tr><td class="h"><a id="L2320">2320</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless %totals</td></tr>
-<tr><td class="h"><a id="L2331">2331</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$count_mode ? :</td></tr>
-<tr><td class="h"><a id="L2343">2343</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($pie_html)</td></tr>
-<tr><td class="h"><a id="L2368">2368</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;show_val&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L2371">2371</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x_col and length $y_col</td></tr>
-<tr><td class="h"><a id="L2375">2375</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L2380">2380</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$x_col}</td></tr>
-<tr><td class="h"><a id="L2382">2382</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$y_col}</td></tr>
-<tr><td class="h"><a id="L2384">2384</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if length $val_col and not $col_set{$val_col}</td></tr>
-<tr><td class="h"><a id="L2393">2393</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $x and length $y</td></tr>
-<tr><td class="h"><a id="L2394">2394</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless exists $grid{$x}</td></tr>
-<tr><td class="h"><a id="L2395">2395</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $seen_y{$y}++</td></tr>
-<tr><td class="h"><a id="L2396">2396</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (length $val_col) { }</td></tr>
-<tr><td class="h"><a id="L2400">2400</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $v_num =~ /\A\d/u</td></tr>
-<tr><td class="h"><a id="L2401">2401</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
-<tr><td class="h"><a id="L2413">2413</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @triples</td></tr>
-<tr><td class="h"><a id="L2421">2421</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $val_col ? :</td></tr>
-<tr><td class="h"><a id="L2423">2423</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $val_col ? :</td></tr>
-<tr><td class="h"><a id="L2434">2434</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($heatmap_html)</td></tr>
-<tr><td class="h"><a id="L2459">2459</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $cat_col</td></tr>
-<tr><td class="h"><a id="L2463">2463</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
-<tr><td class="h"><a id="L2468">2468</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$cat_col}</td></tr>
-<tr><td class="h"><a id="L2473">2473</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $count_mode or $col_set{$val_col}</td></tr>
-<tr><td class="h"><a id="L2478">2478</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $cat</td></tr>
-<tr><td class="h"><a id="L2479">2479</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($count_mode) { }</td></tr>
-<tr><td class="h"><a id="L2483">2483</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $v</td></tr>
-<tr><td class="h"><a id="L2486">2486</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $v_num =~ /\A\d/u</td></tr>
-<tr><td class="h"><a id="L2487">2487</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
-<tr><td class="h"><a id="L2492">2492</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless %totals</td></tr>
-<tr><td class="h"><a id="L2499">2499</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$orient eq &#39;h&#39; ? :</td></tr>
-<tr><td class="h"><a id="L2500">2500</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$sort eq &#39;value&#39; || $sort eq &#39;label&#39; ? :</td></tr>
-<tr><td class="h"><a id="L2505">2505</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$count_mode ? :</td></tr>
-<tr><td class="h"><a id="L2507">2507</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$count_mode ? :</td></tr>
+<tr><td class="h"><a id="L2172">2172</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless -f $file</td></tr>
+<tr><td class="h"><a id="L2206">2206</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x_col and length $y_col</td></tr>
+<tr><td class="h"><a id="L2210">2210</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L2215">2215</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$x_col}</td></tr>
+<tr><td class="h"><a id="L2217">2217</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$y_col}</td></tr>
+<tr><td class="h"><a id="L2224">2224</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x and length $y</td></tr>
+<tr><td class="h"><a id="L2227">2227</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $y_num =~ /\A\d/u</td></tr>
+<tr><td class="h"><a id="L2228">2228</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
+<tr><td class="h"><a id="L2229">2229</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $_ ne $x_col</td></tr>
+<tr><td class="h"><a id="L2233">2233</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @pairs</td></tr>
+<tr><td class="h"><a id="L2251">2251</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($graph_html)</td></tr>
+<tr><td class="h"><a id="L2274">2274</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;donut&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L2278">2278</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $cat_col and length $val_col</td></tr>
+<tr><td class="h"><a id="L2282">2282</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L2287">2287</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$cat_col}</td></tr>
+<tr><td class="h"><a id="L2293">2293</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $count_mode or $col_set{$val_col}</td></tr>
+<tr><td class="h"><a id="L2305">2305</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $cat</td></tr>
+<tr><td class="h"><a id="L2306">2306</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($count_mode) { }</td></tr>
+<tr><td class="h"><a id="L2310">2310</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $v</td></tr>
+<tr><td class="h"><a id="L2311">2311</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (not length $currency_symbol and $v =~ /\A\s*\(?\s*([^\d\s.,\-\(])/u)</td></tr>
+<tr><td class="h"><a id="L2317">2317</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $v_num =~ /\A\d/u</td></tr>
+<tr><td class="h"><a id="L2318">2318</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
+<tr><td class="h"><a id="L2323">2323</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless %totals</td></tr>
+<tr><td class="h"><a id="L2334">2334</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$count_mode ? :</td></tr>
+<tr><td class="h"><a id="L2346">2346</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($pie_html)</td></tr>
+<tr><td class="h"><a id="L2371">2371</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;show_val&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L2374">2374</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $x_col and length $y_col</td></tr>
+<tr><td class="h"><a id="L2378">2378</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L2383">2383</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$x_col}</td></tr>
+<tr><td class="h"><a id="L2385">2385</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$y_col}</td></tr>
+<tr><td class="h"><a id="L2387">2387</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if length $val_col and not $col_set{$val_col}</td></tr>
+<tr><td class="h"><a id="L2396">2396</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $x and length $y</td></tr>
+<tr><td class="h"><a id="L2397">2397</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless exists $grid{$x}</td></tr>
+<tr><td class="h"><a id="L2398">2398</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $seen_y{$y}++</td></tr>
+<tr><td class="h"><a id="L2399">2399</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (length $val_col) { }</td></tr>
+<tr><td class="h"><a id="L2403">2403</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $v_num =~ /\A\d/u</td></tr>
+<tr><td class="h"><a id="L2404">2404</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
+<tr><td class="h"><a id="L2416">2416</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @triples</td></tr>
+<tr><td class="h"><a id="L2424">2424</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $val_col ? :</td></tr>
+<tr><td class="h"><a id="L2426">2426</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $val_col ? :</td></tr>
+<tr><td class="h"><a id="L2437">2437</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($heatmap_html)</td></tr>
+<tr><td class="h"><a id="L2462">2462</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $cat_col</td></tr>
+<tr><td class="h"><a id="L2466">2466</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $records</td></tr>
+<tr><td class="h"><a id="L2471">2471</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $col_set{$cat_col}</td></tr>
+<tr><td class="h"><a id="L2476">2476</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $count_mode or $col_set{$val_col}</td></tr>
+<tr><td class="h"><a id="L2481">2481</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $cat</td></tr>
+<tr><td class="h"><a id="L2482">2482</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($count_mode) { }</td></tr>
+<tr><td class="h"><a id="L2486">2486</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $v</td></tr>
+<tr><td class="h"><a id="L2489">2489</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $is_acct_neg and $v_num =~ /\A\d/u</td></tr>
+<tr><td class="h"><a id="L2490">2490</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/u</td></tr>
+<tr><td class="h"><a id="L2495">2495</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless %totals</td></tr>
+<tr><td class="h"><a id="L2502">2502</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$orient eq &#39;h&#39; ? :</td></tr>
+<tr><td class="h"><a id="L2503">2503</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$sort eq &#39;value&#39; || $sort eq &#39;label&#39; ? :</td></tr>
+<tr><td class="h"><a id="L2508">2508</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$count_mode ? :</td></tr>
+<tr><td class="h"><a id="L2510">2510</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$count_mode ? :</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$max_bars &gt; 0 ? :</td></tr>
-<tr><td class="h"><a id="L2520">2520</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($bar_html)</td></tr>
+<tr><td class="h"><a id="L2523">2523</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless utf8::is_utf8($bar_html)</td></tr>
 </table>
 </body>
 </html>
