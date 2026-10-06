@@ -659,6 +659,7 @@ sub startup ($self) {
 	$r->get('/pie')->to('Dashboard#pie_view');
 	$r->get('/heatmap')->to('Dashboard#heatmap_view');
 	$r->get('/bar')->to('Dashboard#bar_view');
+	$r->get('/folder')->to('Dashboard#folder_view');
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is

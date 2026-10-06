@@ -2538,6 +2538,150 @@ sub bar_view ($self) {
 	);
 }
 
+sub folder_view ($self) {
+	my $key_col   = $self->param('col')    // '';
+	my $prefix    = $self->param('prefix') // '';
+	my $left_spec = $self->param('l')      // '';
+
+	return $self->render(text => 'Missing l= parameter', status => 400)
+		unless length($left_spec);
+
+	# Fall back to the table's own URL when no explicit back= is supplied,
+	# so the breadcrumb always has a "Back to table" link.
+	my $back = _safe_back_url($self->param('back'))
+		|| $self->_spec_to_url($left_spec);
+
+	my ($records, $columns) = $self->_run_export_pipeline;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless $records;
+
+	# Auto-detect key column: find the first column whose sampled values look
+	# like order-number codes (1-4 uppercase letters followed by digits).
+	if (!length($key_col)) {
+		my $sample_end = $#{$records} < 9 ? $#{$records} : 9;
+		OUTER: for my $col (@{$columns}) {
+			for my $row (@{$records}[0 .. $sample_end]) {
+				if (($row->{$col} // '') =~ /\A[A-Z]{1,4}\d+[A-Z]?\z/) {
+					$key_col = $col;
+					last OUTER;
+				}
+			}
+		}
+		$key_col ||= ($columns->[0] // '');
+	}
+
+	# Build prefix -> [rows] map.  Prefix is the leading letter-run of each
+	# key value: "A10" -> "A", "CT4" -> "CT", "CC30A" -> "CC".
+	my %prefix_to_rows;
+	for my $row (@{$records}) {
+		my $val = $row->{$key_col} // '';
+		my ($p) = $val =~ /\A([A-Z]+)/;
+		next unless defined $p;
+		push @{ $prefix_to_rows{$p} }, $row;
+	}
+
+	# Return the sorted list of "one-step" child prefixes of $par: all known
+	# prefixes that share the parent as a strict prefix and extend it by
+	# exactly one letter.
+	my $sub_prefixes = sub {
+		my ($par) = @_;
+		my $len = length($par);
+		my %seen;
+		for my $p (keys %prefix_to_rows) {
+			next if length($p) <= $len;
+			next if substr($p, 0, $len) ne $par;
+			$seen{ substr($p, 0, $len + 1) } = 1;
+		}
+		return sort keys %seen;
+	};
+
+	# Count total items underneath a prefix (including all deeper sub-prefixes).
+	my $deep_count = sub {
+		my ($par) = @_;
+		my $n = 0;
+		for my $p (keys %prefix_to_rows) {
+			$n += scalar @{ $prefix_to_rows{$p} }
+				if substr($p, 0, length($par)) eq $par;
+		}
+		return $n;
+	};
+
+	my ($platform, $language) = $self->_resolve_template;
+
+	# Base URL carries the table spec (and optional col=) so every sub-link
+	# re-uses the same data source without repeating params.
+	my $base_url = '/folder?l=' . url_escape($left_spec);
+	$base_url .= '&col=' . url_escape($key_col) if length($key_col);
+
+	my (@folders, @items, @breadcrumb);
+
+	if (!length($prefix)) {
+		# Top level: group all prefixes by their first letter.
+		my %first_letter;
+		for my $p (keys %prefix_to_rows) {
+			$first_letter{ substr($p, 0, 1) } = 1;
+		}
+		for my $fl (sort keys %first_letter) {
+			push @folders, {
+				name  => $fl,
+				count => $deep_count->($fl),
+				href  => $base_url . '&prefix=' . url_escape($fl),
+			};
+		}
+	} else {
+		# Build breadcrumb: one entry per letter-prefix layer up to current.
+		# e.g. prefix="CD" -> [ {name="C", href=...}, {name="CD", href=undef} ]
+		for my $i (1 .. length($prefix)) {
+			my $p = substr($prefix, 0, $i);
+			push @breadcrumb, {
+				name => $p,
+				href => ($i < length($prefix))
+					? ($base_url . '&prefix=' . url_escape($p))
+					: undef,
+			};
+		}
+
+		# One-step child prefixes of the current prefix (sub-folders).
+		for my $sp ($sub_prefixes->($prefix)) {
+			push @folders, {
+				name  => $sp,
+				count => $deep_count->($sp),
+				href  => $base_url . '&prefix=' . url_escape($sp),
+			};
+		}
+
+		# Items whose prefix matches exactly (e.g. prefix="C" shows C1, C3, ...).
+		@items = @{ $prefix_to_rows{$prefix} // [] };
+
+		# Sort by the numeric part of the key value so A9 < A10.
+		@items = sort {
+			my ($an) = ($a->{$key_col} // '') =~ /(\d+)/;
+			my ($bn) = ($b->{$key_col} // '') =~ /(\d+)/;
+			($an // 0) <=> ($bn // 0)
+				|| ($a->{$key_col} // '') cmp ($b->{$key_col} // '');
+		} @items;
+	}
+
+	my $title = length($prefix) ? "Folder: $prefix" : 'Folder view';
+
+	$self->render(
+		handler    => 'tt',
+		template   => "$platform/$language/folder",
+		format     => 'html',
+		title      => $title,
+		folders    => \@folders,
+		items      => \@items,
+		columns    => $columns,
+		key_col    => $key_col,
+		prefix     => $prefix,
+		breadcrumb => \@breadcrumb,
+		base_url   => $base_url,
+		back_url   => $back,
+		back_label => 'Back to table',
+		left_spec  => $left_spec,
+	);
+}
+
 1;
 
 __END__

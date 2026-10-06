@@ -112,6 +112,9 @@
           title="Plot the current data as a heatmap - choose two categorical columns and an optional value column">&#x229F; Heatmap&hellip;</button>
   <button class="btn-bar" id="btn-bar" type="button"
           title="Plot the current data as a bar chart - choose a category column and an optional value column">&#x1F4CA; Bar chart&hellip;</button>
+  <a class="btn btn-folder" id="btn-folder"
+     href="/folder?l=[% left_spec | url %]"
+     title="Browse records by the letter prefix of an order-number column (e.g. Order # A10, B3, CT4)">&#x1F4C1; Folder view</a>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
