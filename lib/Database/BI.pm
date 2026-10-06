@@ -33,7 +33,7 @@ Database::BI - Web-based Business Intelligence viewer for flat data files
 
 =head1 VERSION
 
-0.009.0
+0.010.0
 
 =head1 DESCRIPTION
 
@@ -422,7 +422,7 @@ works correctly in production without any special workarounds.
 
 =head1 ROADMAP
 
-Features planned for future releases (post-0.009.0).  Items are ordered by
+Features planned for future releases (post-0.010.0).  Items are ordered by
 priority.
 
 =over 4
@@ -435,6 +435,11 @@ infinite-scroll to cap peak HTML size.
 =item * B<XLSX export> (High) -- C</export> supports CSV, SQLite, and JSON
 but not XLSX output.  C<Excel::Writer::XLSX> would close the round-trip for
 users whose source data is XLSX.
+
+=item * B<Folder view filter/join propagation> (Medium) -- The folder view
+panel in the dashboard does not carry forward active C<j=> and C<f=> params
+when building the C</folder> URL.  Users who have filtered or joined a table
+and then click "Folder view" silently lose their filter context.
 
 =item * B<Copy-link button on chart pages> (Medium) -- The dashboard data
 view has a copy-link button when filters are active, but C</graph>, C</pie>,
@@ -462,6 +467,58 @@ renderer, giving visible progress on slow joins.
 
 =cut
 
+# =============================================================================
+# KNOWN GAPS & ROADMAP
+# =============================================================================
+#
+# Items marked [NEW 0.010.0] were identified during the 0.010.0 gap analysis.
+# Items marked [DJ 0.007.0] relate specifically to Database::Join 0.007.0.
+#
+# ---- POST-RELEASE FEATURE ROADMAP ----
+#
+# A. [NEW 0.010.0] Pagination / virtual scrolling (High priority)
+#    Tables are rendered as a single HTML blob.  Files with 100k+ rows will
+#    time out or exhaust memory.  Add a ?page=N&limit=M server-side slice, or
+#    a JS IntersectionObserver infinite-scroll to cap peak HTML size.  See
+#    also item 2 below (limit/offset plumbing via Database::Join).
+#
+# B. [NEW 0.010.0] XLSX export (High priority)
+#    /export supports CSV, SQLite, and JSON but not XLSX output.
+#    Excel::Writer::XLSX would close the round-trip for users whose source
+#    data is XLSX.  The read side already uses Spreadsheet::ParseXLSX.
+#
+# C. [NEW 0.010.0] Copy-link button on chart pages (Medium priority)
+#    /graph, /pie, /heatmap, and /bar have fully parameterised URLs but no
+#    copy-link button.  The mechanism already exists in dashboard.html.tt;
+#    it is a template refactor to share the component.
+#
+# D. [NEW 0.010.0] Column statistics panel (Medium priority)
+#    Per-column popover showing min, max, mean, median, and null-count.
+#    List::Util is already in PREREQ_PM; only Statistics::Descriptive (or
+#    inline computation) is needed.
+#
+# E. [NEW 0.010.0] Multi-sheet XLSX (Medium priority)
+#    _detect_file_info reads only worksheet index 0.  A ?sheet= URL param
+#    with a sheet-name picker would expose the full workbook.
+#
+# F. [NEW 0.010.0] Folder view: propagate active filters and joins (Medium)
+#    _run_export_pipeline already handles j= and f= params so /folder works
+#    on joined/filtered data when the URL is crafted manually.  The folder
+#    panel JS in dashboard.html.tt must carry forward the current j= and f=
+#    params when building the base_url so users do not lose their filter
+#    context on click.
+#
+# G. [NEW 0.010.0] between / in(a,b,c) filter operators (Low priority)
+#    Would reduce multi-f= chains for common range and set queries.  The
+#    operator allowlist in _apply_filter_spec is the only required change.
+#
+# H. [NEW 0.010.0] SSE streaming for large join results (Low priority)
+#    The join pipeline blocks the HTTP response until all rows are assembled.
+#    Mojolicious write_chunk / finish can progressively stream rows, giving
+#    visible progress on slow multi-table joins.
+#
+# ---- INTEGRATION GAPS (Database::Join 0.007.0) ----
+#
 # =============================================================================
 # KNOWN GAPS & ROADMAP (integration with Database::Join 0.007.0)
 # =============================================================================

@@ -2071,21 +2071,38 @@ Multipart form upload, field name: C<file>.
 
   200 application/json   { "url": "/open?path=/abs/path/file.csv", "path": "/abs/path/file.csv" }
   400 application/json   { "error": "No file received" }
+  413 application/json   { "error": "File too large to upload (limit: 50 MB)" }
   415 application/json   { "error": "Unsupported file type. Accepted: ..." }
+  500 application/json   { "error": "Could not save uploaded file" }
 
 =head3 MESSAGES
 
-  error_upload_none   -- no file was received in the multipart upload.
-  error_upload_ext    -- the file's extension is not in the supported list.
+  error_upload_none       -- no file was received in the multipart upload.
+  error_upload_ext        -- the file's extension is not in the supported list.
+  error_upload_too_large  -- the upload body exceeded MAX_UPLOAD_MIB (50 MiB).
+  error_upload_save       -- move_to failed or the destination file was not
+                             created (I/O error, full disk, permission error).
+
+=head3 IMPLEMENTATION NOTES
+
+The C<move_to> call is wrapped with the C<eval { ...; 1 }> idiom (not
+C<eval {}> + C<if ($@)>).  Mojolicious dispatch and DESTROY-phase evals can
+leave C<$@> set before the action runs; checking C<if ($@)> after a new eval
+may fire falsely on that stale value.  C<eval { move_to(); 1 }> returns 1 on
+success and C<undef> on exception, so the result is independent of any prior
+C<$@> value.
 
 =head3 FORMAL SPECIFICATION
 
   upload_file == lambda self .
     let upload = req.upload('file') in
     pre  upload /= undef /\ basename(upload.filename) =~ EXT_RE
+         /\ NOT req->is_limit_exceeded
+         /\ upload.size <= MAX_UPLOAD_BYTES
     let dest = home/.uploads/<random>/<filename> in
-    post upload.move_to(dest)
-         /\ render_json({ url: '/open?path=' ++ url_escape(dest), path: dest })
+    let ok = eval { upload.move_to(dest); 1 } in
+    pre  ok /\ -f dest
+    post render_json({ url: '/open?path=' ++ url_escape(dest), path: dest })
 
 =head3 EXAMPLE
 
@@ -2364,6 +2381,59 @@ sub pie_view ($self) {
 	);
 }
 
+=head2 heatmap_view
+
+C<GET /heatmap> -- Render a D3.js grid heatmap for two categorical axes.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  x=<col>      X-axis (horizontal) categorical column (required)
+  y=<col>      Y-axis (vertical) categorical column (required)
+  val=<col>    Cell value column (optional; when absent, cells show row count)
+  scheme=<name> D3 sequential colour scheme name (default: YlOrRd)
+  show_val=1   Overlay the numeric value inside each cell
+  back=<url>   URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l       spec     Required.  Left table spec (table:name or path:/abs/path).
+  x       string   Required.  Name of the X-axis categorical column.
+  y       string   Required.  Name of the Y-axis categorical column.
+  val     string   Optional.  Name of the value column; omit for count mode.
+  scheme  string   Optional.  D3 sequential colour scheme name.
+  show_val flag    Optional.  Set to 1 to render values inside cells.
+  back    url      Optional.  Safe back-link URL (sanitised by _safe_back_url).
+
+=head4 OUTPUT
+
+  200 text/html           Rendered heatmap page.
+  200 text/plain          "No plottable data: ..." when grid is empty.
+  400 text/plain          Missing x= or y= parameter.
+  400 text/plain          Column not found: <col>.
+  404 text/plain          "Could not open data source" when l= is absent/invalid.
+
+=head3 MESSAGES
+
+  error_heatmap_no_data -- no (x,y) pair has a non-empty value.
+
+=head3 FORMAL SPECIFICATION
+
+  heatmap_view == lambda self .
+    pre length(x_col) > 0 /\ length(y_col) > 0
+        /\ x_col in columns /\ y_col in columns
+    let triples = { (row[x_col], row[y_col], row[val_col]) | row in records,
+                    all three fields non-empty } in
+    post render(heatmap, triples)
+
+=head3 EXAMPLE
+
+  GET /heatmap?l=table:sales&x=region&y=product&val=amount
+    -> 200 HTML page containing D3 heatmap SVG
+
+=cut
+
 sub heatmap_view ($self) {
 	my $x_col   = $self->param('x')        // '';
 	my $y_col   = $self->param('y')        // '';
@@ -2452,6 +2522,60 @@ sub heatmap_view ($self) {
 	);
 }
 
+=head2 bar_view
+
+C<GET /bar> -- Render a D3.js bar chart grouped by a categorical column.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  cat=<col>    Category (X-axis) column (required)
+  val=<col>    Value column to sum per category; omit or use C<__count__>
+               to count rows instead of summing (optional)
+  orient=h     Horizontal bars (default: vertical)
+  sort=value|label  Sort bars by descending value or ascending label
+  max=N        Collapse bars beyond the top-N into an "Other" bar
+  back=<url>   URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l       spec     Required.  Left table spec (table:name or path:/abs/path).
+  cat     string   Required.  Name of the category column.
+  val     string   Optional.  Name of the value column; use __count__ or
+                   omit entirely to count rows per category.
+  orient  string   Optional.  "h" for horizontal bars; default vertical.
+  sort    string   Optional.  "value" or "label"; default file order.
+  max     integer  Optional.  Collapse beyond top-N categories into "Other".
+  back    url      Optional.  Safe back-link URL (sanitised by _safe_back_url).
+
+=head4 OUTPUT
+
+  200 text/html           Rendered bar chart page (SVG element id="bar_chart").
+  200 text/plain          "No plottable data: ..." when no categories exist.
+  400 text/plain          Missing cat= parameter.
+  400 text/plain          Column not found: <col>.
+  404 text/plain          "Could not open data source" when l= is absent/invalid.
+
+=head3 MESSAGES
+
+  error_bar_no_data -- no row has a non-empty category value.
+
+=head3 FORMAL SPECIFICATION
+
+  bar_view == lambda self .
+    pre length(cat_col) > 0 /\ cat_col in columns
+    let bars = { (cat, sum(val)) | row in records, row[cat_col] = cat,
+                 val /= undef } in
+    post render(bar, bars, orientation, sort, max_bars)
+
+=head3 EXAMPLE
+
+  GET /bar?l=table:sales&cat=region&val=amount&sort=value
+    -> 200 HTML page with id="bar_chart" SVG element
+
+=cut
+
 sub bar_view ($self) {
 	my $cat_col  = $self->param('cat')    // '';
 	my $val_col  = $self->param('val')    // '';
@@ -2538,6 +2662,68 @@ sub bar_view ($self) {
 		source_accessed => $source_accessed,
 	);
 }
+
+=head2 folder_view
+
+C<GET /folder> -- Browse a data table grouped by the letter-prefix hierarchy
+of an order-number column (e.g. A10, CT4, B3).
+
+The top level displays one folder icon per initial letter group (A, B, C ...).
+Clicking a folder with sub-prefixes (e.g. C contains CA and CB items) shows
+the sub-folders; clicking a leaf prefix shows the actual data rows sorted
+numerically by the embedded digit sequence.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  col=<col>      Column whose values contain order codes (optional; auto-
+                 detected when absent by scanning the first 10 rows for
+                 values matching C<[A-Z]{1,4}\d+[A-Z]?>)
+  prefix=<str>   Current drill-down prefix, e.g. "CA" (optional; top-level
+                 when absent)
+  back=<url>     URL for the "Back to table" breadcrumb link (optional;
+                 derived from C<l=> when absent)
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l       spec     Required.  Left table spec (table:name or path:/abs/path).
+  col     string   Optional.  Order-code column name.
+  prefix  string   Optional.  Current letter prefix; max length MAX_PREFIX_LEN.
+  back    url      Optional.  Safe back-link URL (sanitised by _safe_back_url).
+
+=head4 OUTPUT
+
+  200 text/html    Rendered folder page with folder grid and/or item table.
+  400 text/plain   "Missing l= parameter" when l= is absent.
+  400 text/plain   "Prefix too long" when prefix exceeds MAX_PREFIX_LEN (20).
+  404 text/plain   "Could not open data source" when the data source is unavailable.
+
+=head3 MESSAGES
+
+None -- all failure paths render plain text with an HTTP status code.
+
+=head3 FORMAL SPECIFICATION
+
+  folder_view == lambda self .
+    pre length(left_spec) > 0 /\ length(prefix) <= MAX_PREFIX_LEN
+    let records = pipeline(left_spec, joins, filters)
+        prefix_map = { p -> [row] | row in records, row[col] =~ /[A-Z]+/ -> p } in
+    IF prefix = "" THEN
+      post render(folder, folders = first_letters(prefix_map))
+    ELSE
+      post render(folder, folders = sub_prefixes(prefix, prefix_map),
+                          items   = sort_numeric(prefix_map[prefix]))
+
+=head3 EXAMPLE
+
+  GET /folder?l=table:orders&col=order_no
+    -> 200 HTML folder grid showing A (12 items), B (7 items), C (4 items)
+
+  GET /folder?l=table:orders&col=order_no&prefix=A
+    -> 200 HTML folder grid for sub-prefixes and items directly under "A"
+
+=cut
 
 sub folder_view ($self) {
 	my $key_col   = $self->param('col')    // '';
