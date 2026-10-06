@@ -2136,8 +2136,11 @@ sub upload_file ($self) {
 	# move_to returns the destination Mojo::File on success; croaks on I/O
 	# failure.  Wrap in eval so a disk error becomes a 500 JSON response
 	# rather than a bare Mojolicious exception page.
-	eval { $upload->move_to($dest) };
-	if ($@ || !-f $dest) {
+	# Use the "eval { ...; 1 }" idiom: $ok is undef only when THIS eval
+	# threw, avoiding false positives from a stale $@ left by Mojo's
+	# internal dispatch code that runs before the controller action.
+	my $ok = eval { $upload->move_to($dest); 1 };
+	if (!$ok || !-f $dest) {
 		remove_tree($sub_dir);
 		return $self->render(
 			json   => { error => $self->_i18n('error_upload_save') },
