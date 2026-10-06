@@ -81,6 +81,7 @@ Readonly my %MESSAGES => (
 Readonly my $MAX_UPLOAD_MIB      => 50;
 Readonly my $MAX_UPLOAD_BYTES    => $MAX_UPLOAD_MIB * 1_048_576;
 Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
+Readonly my $MAX_PREFIX_LEN        => 20;
 
 # ---------------------------------------------------------------------------
 # Protected helpers
@@ -2545,6 +2546,11 @@ sub folder_view ($self) {
 
 	return $self->render(text => 'Missing l= parameter', status => 400)
 		unless length($left_spec);
+
+	# Guard against DoS: a crafted prefix longer than any real order-code would
+	# generate O(N) breadcrumb entries and a proportionally large HTML response.
+	return $self->render(text => 'Prefix too long', status => 400)
+		if length($prefix) > $MAX_PREFIX_LEN;
 
 	# Fall back to the table's own URL when no explicit back= is supplied,
 	# so the breadcrumb always has a "Back to table" link.
