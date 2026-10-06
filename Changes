@@ -1,16 +1,16 @@
 Revision history for Database-BI
 
-0.011.0
+0.011.0	Tue Oct  6 12:30:00 PM EDT 2026
     [ Enhancements ]
     - Server-side pagination for /view/:table and /open.  Both routes now accept
-      ?page=N (1-based) and ?per_page=M (default 200, max 2000) and issue a
-      LIMIT/OFFSET query via DataSource::selectall_arrayref so only the current
-      page is loaded into memory.  A new DataSource::count() method returns the
-      total row count via SELECT COUNT(*) for DBI-backed sources (SQLite, CSV via
-      DBD::CSV) and via scalar(@_file_data) for pre-parsed headerless/XLSX
-      sources.  A pagination bar (Prev / page numbers / Next, total-rows count)
-      is rendered below the table whenever total_pages > 1.  Pages preserve all
-      current URL parameters (filters, dedup, per_page, etc.).
+      ?page=N (1-based, default 1) and ?per_page=M (default 200, max 2000).
+      The controller uses the N+1 trick: it requests per_page+1 rows via
+      LIMIT/OFFSET and treats the extra row as a "has next page" sentinel rather
+      than issuing a COUNT(*) query.  This is critical for multi-GB SQLite files
+      (e.g. openaddresses.db) where COUNT(*) would block the server for minutes.
+      A pagination bar (Prev / current page / Next) is shown when at least two
+      pages exist.  All URL parameters (filters, dedup, per_page, etc.) are
+      preserved across page navigations.
 
 0.010.0	Tue Oct  6 11:29:33 AM EDT 2026
     [ Enhancements ]

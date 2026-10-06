@@ -659,32 +659,25 @@
 </table>
 </div>
 
-[% IF total_pages AND total_pages > 1 %]
+[% SET pnum = page ? page : 0 %]
+[% IF pnum > 1 OR has_next %]
 [% SET sep = (page_base_url.search('\?') >= 0) ? '&amp;' : '?' %]
 <nav class="pagination" aria-label="Page navigation">
-  [% IF page > 1 %]
-  <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% page - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>
+  [% IF pnum > 1 %]
+  <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>
   [% ELSE %]
   <span class="page-btn page-btn-dis">&laquo; Prev</span>
   [% END %]
 
-  [% FOREACH p IN [ 1 .. total_pages ] %]
-    [% IF p == page %]
-    <span class="page-btn page-btn-cur">[% p %]</span>
-    [% ELSIF p <= 3 OR p >= total_pages - 2 OR (p >= page - 2 AND p <= page + 2) %]
-    <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% p %]&amp;per_page=[% per_page %]">[% p %]</a>
-    [% ELSIF p == 4 OR p == total_pages - 3 %]
-    <span class="page-btn page-btn-dis">&hellip;</span>
-    [% END %]
-  [% END %]
+  <span class="page-btn page-btn-cur">[% page %]</span>
 
-  [% IF page < total_pages %]
-  <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% page + 1 %]&amp;per_page=[% per_page %]">Next &raquo;</a>
+  [% IF has_next %]
+  <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum + 1 %]&amp;per_page=[% per_page %]">Next &raquo;</a>
   [% ELSE %]
   <span class="page-btn page-btn-dis">Next &raquo;</span>
   [% END %]
 
-  <span class="page-info">Page [% page %] of [% total_pages %] &mdash; [% total_rows %] total rows</span>
+  <span class="page-info">Page [% page %][% IF per_page %] &mdash; [% per_page %] rows/page[% END %]</span>
 </nav>
 [% END %]
 

@@ -960,11 +960,12 @@ sub view ($self) {
 
 	my ($page, $per_page, $offset) = $self->_pagination;
 
-	my ($source, $records, $total_rows);
+	my ($source, $records);
 	eval {
-		$source     = $self->open_table($table);
-		$total_rows = $source->count;
-		$records    = $source->selectall_arrayref(limit => $per_page, offset => $offset);
+		$source  = $self->open_table($table);
+		# Fetch one extra row to detect whether a next page exists without
+		# issuing a COUNT(*) query (which blocks on multi-GB SQLite files).
+		$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
 	};
 	if ($@) {
 		return $self->render(
@@ -977,13 +978,13 @@ sub view ($self) {
 		);
 	}
 	$records //= [];
+	my $has_next = (@$records > $per_page) ? 1 : 0;
+	pop @$records if $has_next;
 
 	my @columns = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 	my $dedup = $self->param('d') ? 1 : 0;
 	$filtered = _dedup_records($filtered, \@columns) if $dedup;
-	my $total_pages = $per_page > 0 ? int(($total_rows + $per_page - 1) / $per_page) : 1;
-	$total_pages = 1 if $total_pages < 1;
 
 	my $page_url = $self->req->url->clone;
 	$page_url->query->remove('page')->remove('per_page');
@@ -1010,8 +1011,7 @@ sub view ($self) {
 		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup),
 		page             => $page,
 		per_page         => $per_page,
-		total_rows       => $total_rows,
-		total_pages      => $total_pages,
+		has_next         => $has_next,
 		page_base_url    => $page_base_url,
 	);
 }
@@ -1195,10 +1195,9 @@ sub open_file ($self) {
 		return $self->reply->not_found unless $source;
 		my $filename = $label;
 		(my $table = $filename) =~ s/\.[^.]+\z//;
-		my ($records, $total_rows);
+		my $records;
 		eval {
-			$total_rows = $source->count;
-			$records    = $source->selectall_arrayref(limit => $per_page, offset => $offset);
+			$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
 		};
 		if ($@) {
 			return $self->render(
@@ -1213,12 +1212,12 @@ sub open_file ($self) {
 			);
 		}
 		$records //= [];
+		my $has_next = (@$records > $per_page) ? 1 : 0;
+		pop @$records if $has_next;
 		my @columns  = _get_columns($source, $records);
 		my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 		my $dedup = $self->param('d') ? 1 : 0;
 		$filtered = _dedup_records($filtered, \@columns) if $dedup;
-		my $total_pages = $per_page > 0 ? int(($total_rows + $per_page - 1) / $per_page) : 1;
-		$total_pages = 1 if $total_pages < 1;
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
@@ -1245,8 +1244,7 @@ sub open_file ($self) {
 			export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
 			page             => $page,
 			per_page         => $per_page,
-			total_rows       => $total_rows,
-			total_pages      => $total_pages,
+			has_next         => $has_next,
 			page_base_url    => $rpage_url->to_string,
 		);
 	}
@@ -1261,11 +1259,10 @@ sub open_file ($self) {
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
 
-	my ($source, $records, $total_rows);
+	my ($source, $records);
 	eval {
-		$source     = $self->open_table($table, directory => $dir->to_string);
-		$total_rows = $source->count;
-		$records    = $source->selectall_arrayref(limit => $per_page, offset => $offset);
+		$source  = $self->open_table($table, directory => $dir->to_string);
+		$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
 	};
 	if ($@) {
 		# Provide a SQLite-specific hint when the error looks like a table-name
@@ -1291,13 +1288,13 @@ sub open_file ($self) {
 		);
 	}
 	$records //= [];
+	my $has_next = (@$records > $per_page) ? 1 : 0;
+	pop @$records if $has_next;
 
 	my @columns  = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 	my $dedup = $self->param('d') ? 1 : 0;
 	$filtered = _dedup_records($filtered, \@columns) if $dedup;
-	my $total_pages = $per_page > 0 ? int(($total_rows + $per_page - 1) / $per_page) : 1;
-	$total_pages = 1 if $total_pages < 1;
 
 	my $lpage_url = $self->req->url->clone;
 	$lpage_url->query->remove('page')->remove('per_page');
@@ -1326,8 +1323,7 @@ sub open_file ($self) {
 		export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
 		page             => $page,
 		per_page         => $per_page,
-		total_rows       => $total_rows,
-		total_pages      => $total_pages,
+		has_next         => $has_next,
 		page_base_url    => $lpage_url->to_string,
 	);
 }
