@@ -82,10 +82,29 @@ Readonly my $MAX_UPLOAD_MIB      => 50;
 Readonly my $MAX_UPLOAD_BYTES    => $MAX_UPLOAD_MIB * 1_048_576;
 Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
 Readonly my $MAX_PREFIX_LEN        => 20;
+Readonly my $DEFAULT_PER_PAGE      => 200;
+Readonly my $MAX_PER_PAGE          => 2_000;
 
 # ---------------------------------------------------------------------------
 # Protected helpers
 # ---------------------------------------------------------------------------
+
+# _pagination($self) -> ($page, $per_page, $offset)
+#
+# Reads ?page= and ?per_page= from the current request, clamps them to sane
+# ranges, and returns the 1-based page number, the page size, and the
+# 0-based row offset.  Pagination is optional: when neither param is present
+# per_page defaults to DEFAULT_PER_PAGE.
+sub _pagination {
+	my ($self) = @_;
+	my $per_page = int($self->param('per_page') // $DEFAULT_PER_PAGE);
+	$per_page = 1         if $per_page < 1;
+	$per_page = $MAX_PER_PAGE if $per_page > $MAX_PER_PAGE;
+	my $page = int($self->param('page') // 1);
+	$page = 1 if $page < 1;
+	my $offset = ($page - 1) * $per_page;
+	return ($page, $per_page, $offset);
+}
 
 # _i18n($self, $key, @sprintf_args) -> $string
 #
@@ -939,8 +958,14 @@ sub view ($self) {
 		return $self->reply->not_found;
 	}
 
-	my ($source, $records);
-	eval { $source = $self->open_table($table); $records = $source->fetch_all };
+	my ($page, $per_page, $offset) = $self->_pagination;
+
+	my ($source, $records, $total_rows);
+	eval {
+		$source     = $self->open_table($table);
+		$total_rows = $source->count;
+		$records    = $source->selectall_arrayref(limit => $per_page, offset => $offset);
+	};
 	if ($@) {
 		return $self->render(
 			template => "$platform/$language/home",
@@ -951,11 +976,18 @@ sub view ($self) {
 			error    => $self->_i18n('error_table_open', $table, $@),
 		);
 	}
+	$records //= [];
 
 	my @columns = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 	my $dedup = $self->param('d') ? 1 : 0;
 	$filtered = _dedup_records($filtered, \@columns) if $dedup;
+	my $total_pages = $per_page > 0 ? int(($total_rows + $per_page - 1) / $per_page) : 1;
+	$total_pages = 1 if $total_pages < 1;
+
+	my $page_url = $self->req->url->clone;
+	$page_url->query->remove('page')->remove('per_page');
+	my $page_base_url = $page_url->to_string;
 
 	$self->render(
 		template         => "$platform/$language/dashboard",
@@ -976,6 +1008,11 @@ sub view ($self) {
 		back_url         => _safe_back_url($self->param('back2')),
 		back_label       => $self->param('back2_label') // 'Back',
 		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup),
+		page             => $page,
+		per_page         => $per_page,
+		total_rows       => $total_rows,
+		total_pages      => $total_pages,
+		page_base_url    => $page_base_url,
 	);
 }
 
@@ -1148,6 +1185,8 @@ sub open_file ($self) {
 
 	return $self->reply->not_found unless defined $file_path;
 
+	my ($page, $per_page, $offset) = $self->_pagination;
+
 	# Remote path /../hostname/dir/file.ext: delegate opening to _open_spec
 	# and render the dashboard directly, bypassing the realpath/local-file path.
 	if ($file_path =~ m{\A/\.\./}) {
@@ -1156,8 +1195,11 @@ sub open_file ($self) {
 		return $self->reply->not_found unless $source;
 		my $filename = $label;
 		(my $table = $filename) =~ s/\.[^.]+\z//;
-		my $records;
-		eval { $records = $source->fetch_all };
+		my ($records, $total_rows);
+		eval {
+			$total_rows = $source->count;
+			$records    = $source->selectall_arrayref(limit => $per_page, offset => $offset);
+		};
 		if ($@) {
 			return $self->render(
 				template   => "$platform/$language/home",
@@ -1170,10 +1212,15 @@ sub open_file ($self) {
 				back_label => 'Home',
 			);
 		}
+		$records //= [];
 		my @columns  = _get_columns($source, $records);
 		my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 		my $dedup = $self->param('d') ? 1 : 0;
 		$filtered = _dedup_records($filtered, \@columns) if $dedup;
+		my $total_pages = $per_page > 0 ? int(($total_rows + $per_page - 1) / $per_page) : 1;
+		$total_pages = 1 if $total_pages < 1;
+		my $rpage_url = $self->req->url->clone;
+		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
 			template         => "$platform/$language/dashboard",
 			handler          => 'tt',
@@ -1196,6 +1243,11 @@ sub open_file ($self) {
 			filters_json     => $filters_json,
 			dedup            => $dedup,
 			export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
+			page             => $page,
+			per_page         => $per_page,
+			total_rows       => $total_rows,
+			total_pages      => $total_pages,
+			page_base_url    => $rpage_url->to_string,
 		);
 	}
 
@@ -1209,8 +1261,12 @@ sub open_file ($self) {
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
 
-	my ($source, $records);
-	eval { $source = $self->open_table($table, directory => $dir->to_string); $records = $source->fetch_all };
+	my ($source, $records, $total_rows);
+	eval {
+		$source     = $self->open_table($table, directory => $dir->to_string);
+		$total_rows = $source->count;
+		$records    = $source->selectall_arrayref(limit => $per_page, offset => $offset);
+	};
 	if ($@) {
 		# Provide a SQLite-specific hint when the error looks like a table-name
 		# mismatch or a missing-tables failure so the user knows what to do.
@@ -1234,11 +1290,17 @@ sub open_file ($self) {
 			back2_label => $self->param('back2_label') // 'Back',
 		);
 	}
+	$records //= [];
 
 	my @columns  = _get_columns($source, $records);
 	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
 	my $dedup = $self->param('d') ? 1 : 0;
 	$filtered = _dedup_records($filtered, \@columns) if $dedup;
+	my $total_pages = $per_page > 0 ? int(($total_rows + $per_page - 1) / $per_page) : 1;
+	$total_pages = 1 if $total_pages < 1;
+
+	my $lpage_url = $self->req->url->clone;
+	$lpage_url->query->remove('page')->remove('per_page');
 
 	$self->render(
 		template         => "$platform/$language/dashboard",
@@ -1262,6 +1324,11 @@ sub open_file ($self) {
 		filters_json     => $filters_json,
 		dedup            => $dedup,
 		export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
+		page             => $page,
+		per_page         => $per_page,
+		total_rows       => $total_rows,
+		total_pages      => $total_pages,
+		page_base_url    => $lpage_url->to_string,
 	);
 }
 

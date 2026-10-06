@@ -63,6 +63,49 @@
     border-left-color: #f0c040;
     color: #f0d890;
   }
+  /* Pagination bar */
+  .pagination {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.3rem;
+    margin: 0.8rem 0;
+  }
+  .page-btn {
+    display: inline-block;
+    padding: 0.3rem 0.65rem;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: #333;
+    background: #fff;
+    text-decoration: none;
+    cursor: pointer;
+  }
+  a.page-btn:hover { background: #f0f0f0; border-color: #888; }
+  .page-btn-cur {
+    background: #0066cc;
+    color: #fff;
+    border-color: #0055aa;
+    font-weight: 600;
+    cursor: default;
+  }
+  .page-btn-dis { color: #aaa; background: #f8f8f8; cursor: default; }
+  .page-info { font-size: 0.82rem; color: #555; margin-left: 0.5rem; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .page-btn {
+      background: #1e1e1e; color: #ccc; border-color: #555;
+    }
+    :root:not([data-theme="light"]) a.page-btn:hover { background: #2a2a2a; }
+    :root:not([data-theme="light"]) .page-btn-cur { background: #1a6bbf; color: #fff; }
+    :root:not([data-theme="light"]) .page-btn-dis { background: #1a1a1a; color: #666; }
+    :root:not([data-theme="light"]) .page-info { color: #999; }
+  }
+  :root[data-theme="dark"] .page-btn { background: #1e1e1e; color: #ccc; border-color: #555; }
+  :root[data-theme="dark"] a.page-btn:hover { background: #2a2a2a; }
+  :root[data-theme="dark"] .page-btn-cur { background: #1a6bbf; color: #fff; }
+  :root[data-theme="dark"] .page-btn-dis { background: #1a1a1a; color: #666; }
+  :root[data-theme="dark"] .page-info { color: #999; }
 </style>
 
 [%- IF back_url -%]
@@ -615,6 +658,36 @@
   </tbody>
 </table>
 </div>
+
+[% IF total_pages AND total_pages > 1 %]
+[% SET sep = (page_base_url.search('\?') >= 0) ? '&amp;' : '?' %]
+<nav class="pagination" aria-label="Page navigation">
+  [% IF page > 1 %]
+  <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% page - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>
+  [% ELSE %]
+  <span class="page-btn page-btn-dis">&laquo; Prev</span>
+  [% END %]
+
+  [% FOREACH p IN [ 1 .. total_pages ] %]
+    [% IF p == page %]
+    <span class="page-btn page-btn-cur">[% p %]</span>
+    [% ELSIF p <= 3 OR p >= total_pages - 2 OR (p >= page - 2 AND p <= page + 2) %]
+    <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% p %]&amp;per_page=[% per_page %]">[% p %]</a>
+    [% ELSIF p == 4 OR p == total_pages - 3 %]
+    <span class="page-btn page-btn-dis">&hellip;</span>
+    [% END %]
+  [% END %]
+
+  [% IF page < total_pages %]
+  <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% page + 1 %]&amp;per_page=[% per_page %]">Next &raquo;</a>
+  [% ELSE %]
+  <span class="page-btn page-btn-dis">Next &raquo;</span>
+  [% END %]
+
+  <span class="page-info">Page [% page %] of [% total_pages %] &mdash; [% total_rows %] total rows</span>
+</nav>
+[% END %]
+
 [% ELSE %]
 <p class="empty-state">No records found in <strong>[% table | html %]</strong>.</p>
 [% END %]

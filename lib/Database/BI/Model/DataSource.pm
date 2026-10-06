@@ -1303,6 +1303,32 @@ sub fetch_all {
 	return $data;
 }
 
+=head2 count
+
+Returns the total number of rows in the table without loading the full data
+into memory.  Used by the controller's pagination logic.
+
+For pre-parsed headerless and XLSX sources the count is derived from the
+already-loaded in-memory slice.  For all DBI-backed sources (SQLite, CSV via
+DBD::CSV) it delegates to C<Database::Abstraction::count()>, which issues a
+C<SELECT COUNT(*) ...> query.
+
+=head3 FORMAL SPECIFICATION
+
+  count : DataSource -> N
+  count(self) == |self._file_data|        when self._file_data is set
+  count(self) == 0                        when self._file_is_empty
+  count(self) == self._db.count()         otherwise
+
+=cut
+
+sub count {
+	my ($self) = @_;
+	return 0 if $self->{_file_is_empty};
+	return scalar @{ $self->{_file_data} } if $self->{_file_data};
+	return $self->{_db}->count();
+}
+
 1;
 
 __END__

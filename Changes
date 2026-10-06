@@ -1,5 +1,17 @@
 Revision history for Database-BI
 
+0.011.0
+    [ Enhancements ]
+    - Server-side pagination for /view/:table and /open.  Both routes now accept
+      ?page=N (1-based) and ?per_page=M (default 200, max 2000) and issue a
+      LIMIT/OFFSET query via DataSource::selectall_arrayref so only the current
+      page is loaded into memory.  A new DataSource::count() method returns the
+      total row count via SELECT COUNT(*) for DBI-backed sources (SQLite, CSV via
+      DBD::CSV) and via scalar(@_file_data) for pre-parsed headerless/XLSX
+      sources.  A pagination bar (Prev / page numbers / Next, total-rows count)
+      is rendered below the table whenever total_pages > 1.  Pages preserve all
+      current URL parameters (filters, dedup, per_page, etc.).
+
 0.010.0	Tue Oct  6 11:29:33 AM EDT 2026
     [ Enhancements ]
     - Added Folder view (GET /folder): browse any data file grouped by the

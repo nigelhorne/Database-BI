@@ -1,12 +1,12 @@
-## Name
+# NAME
 
 Database::BI - Web-based Business Intelligence viewer for flat data files
 
-## Version
+# VERSION
 
 0.010.0
 
-## Description
+# DESCRIPTION
 
 `Database::BI` is a self-contained [Mojolicious](https://metacpan.org/pod/Mojolicious) web application that reads
 arbitrary flat data files (CSV, PSV, TSV, SQLite, XML, XLSX, etc.) via
@@ -57,7 +57,7 @@ data" panel is open the dropped file populates the right-table path field.
 - **URL import** -- `/import` fetches an HTML table from any public URL and
 renders it in the browser without saving to disk.
 
-### UTF-8 and Encoding
+## UTF-8 and Encoding
 
 All file data is returned as Perl character strings.  CSV/PSV/TSV files are
 read by [Text::xSV::Slurp](https://metacpan.org/pod/Text%3A%3AxSV%3A%3ASlurp) or [DBD::CSV](https://metacpan.org/pod/DBD%3A%3ACSV), both of which pass bytes
@@ -76,48 +76,36 @@ the body.  If the remote page declares an incorrect charset, cell values
 may contain mojibake -- this is a limitation of the source data, not the
 application.
 
-## Synopsis
+# SYNOPSIS
 
 **Start the development server (restarts automatically when you edit a file):**
 
-```
-morbo script/database-bi
-```
+    morbo script/database-bi
 
 **Start the production server:**
 
-```
-hypnotoad script/database-bi
-```
+    hypnotoad script/database-bi
 
 **Use a different data directory:**
 
-```perl
-# In database_bi.conf (create this file in the same folder as script/):
-{ data_dir => '/home/user/data' }
-```
+    # In database_bi.conf (create this file in the same folder as script/):
+    { data_dir => '/home/user/data' }
 
 **Change the language used for templates:**
 
-```perl
-# In database_bi.conf:
-{ data_dir => 'data', language => 'fr', platform => 'web' }
-# Then create templates/web/fr/ and put your French .html.tt files there.
-```
+    # In database_bi.conf:
+    { data_dir => 'data', language => 'fr', platform => 'web' }
+    # Then create templates/web/fr/ and put your French .html.tt files there.
 
 **Run the test suite to verify everything is working:**
 
-```
-make test
-```
+    make test
 
 **Generate the Makefile for the first time or after editing Makefile.PL:**
 
-```
-perl Makefile.PL
-```
+    perl Makefile.PL
 
-## Routes
+# ROUTES
 
 - `GET /`
 
@@ -142,11 +130,9 @@ perl Makefile.PL
 
     Performs one or more left joins and renders the merged table.  Parameters:
 
-    ```
-    l=<spec>               left table: "table:name" or "path:/abs/path"
-    j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
-    f=<col>:<op>:<val>     result filter (repeatable)
-    ```
+        l=<spec>               left table: "table:name" or "path:/abs/path"
+        j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
+        f=<col>:<op>:<val>     result filter (repeatable)
 
 - `GET /api/columns`
 
@@ -159,10 +145,8 @@ perl Makefile.PL
     Exports the current logical view (same `l=`, `j=`, `f=` parameters as
     `/join`) as a file download.  Additional parameter:
 
-    ```
-    format=csv      (default) - RFC 4180 CSV; UTF-8; CRLF line endings
-    format=sqlite   - SQLite 3 database with a single table named "data"
-    ```
+        format=csv      (default) - RFC 4180 CSV; UTF-8; CRLF line endings
+        format=sqlite   - SQLite 3 database with a single table named "data"
 
     The download filename is derived from the left table label with
     non-alphanumeric characters replaced by underscores.
@@ -207,25 +191,21 @@ perl Makefile.PL
     view.  All columns from all sources appear as headers; cells are blank
     where a source file lacks a column.  Parameters:
 
-    ```
-    l=<spec>               left table: "table:name" or "path:/abs/path"
-    c=<spec>               additional table to stack (repeatable)
-    f=<col>:<op>:<val>     result filter applied after combining (repeatable)
-    ```
+        l=<spec>               left table: "table:name" or "path:/abs/path"
+        c=<spec>               additional table to stack (repeatable)
+        f=<col>:<op>:<val>     result filter applied after combining (repeatable)
 
 - `GET /graph`
 
     Renders a D3.js v7 zoomable line chart of any two columns.  Parameters:
 
-    ```
-    l=<spec>    left table (required)
-    x=<col>     X-axis column name (required; any type, shown as labels)
-    y=<col>     Y-axis column name (required; must be numeric after stripping
-                currency symbols and commas; accounting-notation negatives like
-                (1,234.56) are handled automatically)
-    back=<url>  URL for the "Back to table" link (optional; default "/")
-    j=, f=, d=  pipeline params (same as /join)
-    ```
+        l=<spec>    left table (required)
+        x=<col>     X-axis column name (required; any type, shown as labels)
+        y=<col>     Y-axis column name (required; must be numeric after stripping
+                    currency symbols and commas; accounting-notation negatives like
+                    (1,234.56) are handled automatically)
+        back=<url>  URL for the "Back to table" link (optional; default "/")
+        j=, f=, d=  pipeline params (same as /join)
 
 - `GET /pie`
 
@@ -233,51 +213,45 @@ perl Makefile.PL
     Clicking a slice or legend entry navigates to the table view filtered to
     that category.  Parameters:
 
-    ```
-    l=<spec>    left table (required)
-    cat=<col>   category column to group by (required)
-    val=<col>   numeric column to sum per category (required)
-    donut=1     show a hole in the centre (optional)
-    back=<url>  URL for the "Back to table" link (optional; default "/")
-    f=          result filters applied before aggregating (repeatable)
-    ```
+        l=<spec>    left table (required)
+        cat=<col>   category column to group by (required)
+        val=<col>   numeric column to sum per category (required)
+        donut=1     show a hole in the centre (optional)
+        back=<url>  URL for the "Back to table" link (optional; default "/")
+        f=          result filters applied before aggregating (repeatable)
 
 - `GET /heatmap`
 
     Renders a D3.js v7 grid heatmap with two categorical axes.  Each cell
     colour encodes a summed or counted numeric value.  Parameters:
 
-    ```
-    l=<spec>      left table (required)
-    x=<col>       X-axis column name (required; categorical)
-    y=<col>       Y-axis column name (required; categorical)
-    val=<col>     numeric column to sum per cell (optional; omit to count rows)
-    scheme=<name> colour scheme: YlOrRd Blues Greens Purples RdPu YlGnBu
-                  (optional; default YlOrRd)
-    show_val=1    print the value inside each cell (optional)
-    back=<url>    URL for the "Back to table" link (optional; default "/")
-    j=, f=, d=    pipeline params (same as /join)
-    ```
+        l=<spec>      left table (required)
+        x=<col>       X-axis column name (required; categorical)
+        y=<col>       Y-axis column name (required; categorical)
+        val=<col>     numeric column to sum per cell (optional; omit to count rows)
+        scheme=<name> colour scheme: YlOrRd Blues Greens Purples RdPu YlGnBu
+                      (optional; default YlOrRd)
+        show_val=1    print the value inside each cell (optional)
+        back=<url>    URL for the "Back to table" link (optional; default "/")
+        j=, f=, d=    pipeline params (same as /join)
 
 - `POST /uploads/clear`
 
     Deletes every file from the `.uploads/` staging directory.  Returns JSON
     `{ "freed": <bytes`, "count": &lt;n> }>.  No request body is needed.
 
-## Configuration
+# CONFIGURATION
 
 Place a `database_bi.conf` file in the application root to override
 defaults:
 
-```perl
-{
-    data_dir => 'data',   # directory scanned for data files on the home page
-    platform => 'web',    # VWF template dimension
-    language => 'en',     # VWF template dimension
-}
-```
+    {
+        data_dir => 'data',   # directory scanned for data files on the home page
+        platform => 'web',    # VWF template dimension
+        language => 'en',     # VWF template dimension
+    }
 
-## Common Pitfalls
+# COMMON PITFALLS
 
 - **The configuration file is optional but must be valid Perl if present**
 
@@ -287,13 +261,11 @@ defaults:
     exist, built-in defaults are used and no error occurs.  The file must return
     a hashref:
 
-    ```perl
-    # database_bi.conf -- correct
-    { data_dir => 'data', platform => 'web', language => 'en' }
+        # database_bi.conf -- correct
+        { data_dir => 'data', platform => 'web', language => 'en' }
 
-    # WRONG -- missing braces
-    data_dir => 'data'
-    ```
+        # WRONG -- missing braces
+        data_dir => 'data'
 
 - **data\_dir is relative to the application home directory, not the process cwd**
 
@@ -301,9 +273,7 @@ defaults:
     same directory as the `script/database-bi` launcher, regardless of where you
     run the server from.  An absolute path works on any system:
 
-    ```perl
-    { data_dir => '/var/db/mydata' }
-    ```
+        { data_dir => '/var/db/mydata' }
 
 - **The download\_dir default is computed once at startup**
 
@@ -313,9 +283,7 @@ defaults:
     `~/Downloads` after the server starts has no effect.  To force a different
     default, set it before starting:
 
-    ```perl
-    { data_dir => 'data' }   # and create ~/Downloads before starting the server
-    ```
+        { data_dir => 'data' }   # and create ~/Downloads before starting the server
 
 - **Adding a new language requires a template directory, not just a config change**
 
@@ -345,7 +313,7 @@ defaults:
     file on disk must therefore also be lowercase (`sales.csv`, not
     `Sales.csv`).
 
-## Limitations
+# LIMITATIONS
 
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
@@ -367,7 +335,7 @@ startup.  Unlike the former `Sub::Private` approach, `Sub::Protected`
 does not delete stash entries, so OO dispatch `$self->_method()`
 works correctly in production without any special workarounds.
 
-## Roadmap
+# ROADMAP
 
 Features planned for future releases (post-0.010.0).  Items are ordered by
 priority.
@@ -401,23 +369,23 @@ blocks the HTTP response until all rows are assembled.  Mojolicious supports
 server-sent events, which could progressively stream rows to a JS table
 renderer, giving visible progress on slow joins.
 
-## See Also
+# SEE ALSO
 
 - [Test Dashboard](https://nigelhorne.github.io/Database-BI/coverage/)
 
-## Repository
+# REPOSITORY
 
 [https://github.com/nigelhorne/Database-BI](https://github.com/nigelhorne/Database-BI)
 
-## Support
+# SUPPORT
 
 This module is provided as-is without any warranty.
 
-## Author
+# AUTHOR
 
 Nigel Horne `<njh@nigelhorne.com>`
 
-## Licence and Copyright
+# LICENCE AND COPYRIGHT
 
 Copyright 2026 Nigel Horne.
 
