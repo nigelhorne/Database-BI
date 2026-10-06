@@ -112,9 +112,8 @@
           title="Plot the current data as a heatmap - choose two categorical columns and an optional value column">&#x229F; Heatmap&hellip;</button>
   <button class="btn-bar" id="btn-bar" type="button"
           title="Plot the current data as a bar chart - choose a category column and an optional value column">&#x1F4CA; Bar chart&hellip;</button>
-  <a class="btn btn-folder" id="btn-folder"
-     href="/folder?l=[% left_spec | url %]"
-     title="Browse records by the letter prefix of an order-number column (e.g. Order # A10, B3, CT4)">&#x1F4C1; Folder view</a>
+  <button class="btn-folder" id="btn-folder" type="button"
+          title="Browse records grouped by the letter prefix of a code column (e.g. Order # A10, B3, CT4)">&#x1F4C1; Folder view&hellip;</button>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
@@ -558,6 +557,36 @@
         <div class="graph-btn-row">
           <button type="submit" id="btn-do-bar" class="btn-primary" disabled>Plot</button>
           <button type="button" id="btn-cancel-bar" class="btn-secondary">Cancel</button>
+        </div>
+      </div>
+    </div>
+  </form>
+</div>
+
+<div class="graph-panel" id="folder-panel" hidden>
+  <form id="folder-form" method="get" action="/folder">
+    <input type="hidden" name="l" value="[% left_spec | html %]">
+    <input type="hidden" name="back" id="folder-back-inp" value="">
+
+    <h3 class="graph-panel-title">&#x1F4C1; Folder view</h3>
+
+    <p class="graph-panel-desc">Choose the column whose values contain order codes (e.g. A10, CT4, B3). Records will be grouped by the letter prefix of that column.</p>
+
+    <div class="graph-fields-row">
+      <div class="join-field">
+        <label for="folder-col-sel">Code column</label>
+        <select id="folder-col-sel" name="col" required>
+          <option value="">&#x2014; select column &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="graph-btn-col">
+        <span class="graph-btn-spacer"></span>
+        <div class="graph-btn-row">
+          <button type="submit" id="btn-do-folder" class="btn-primary" disabled>Open</button>
+          <button type="button" id="btn-cancel-folder" class="btn-secondary">Cancel</button>
         </div>
       </div>
     </div>
@@ -1526,7 +1555,7 @@ function parseAccounting(v) {
   var ySel      = document.getElementById('graph-y-sel');
   var backInp   = document.getElementById('graph-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'folder-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1634,7 +1663,7 @@ function parseAccounting(v) {
   var valSel    = document.getElementById('pie-val-sel');
   var backInp   = document.getElementById('pie-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'folder-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1711,7 +1740,7 @@ function parseAccounting(v) {
   var ySel      = document.getElementById('heatmap-y-sel');
   var backInp   = document.getElementById('heatmap-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'folder-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1774,7 +1803,7 @@ function parseAccounting(v) {
   var catSel    = document.getElementById('bar-cat-sel');
   var backInp   = document.getElementById('bar-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'folder-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1822,6 +1851,44 @@ function parseAccounting(v) {
   });
 
   catSel.addEventListener('change', checkBar);
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Folder view panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-folder');
+  var panel     = document.getElementById('folder-panel');
+  if (!btnOpen || !panel) return;
+
+  var btnCancel = document.getElementById('btn-cancel-folder');
+  var btnDo     = document.getElementById('btn-do-folder');
+  var colSel    = document.getElementById('folder-col-sel');
+  var backInp   = document.getElementById('folder-back-inp');
+
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel'].map(function (id) {
+    return document.getElementById(id);
+  }).filter(Boolean);
+
+  function checkFolder() {
+    btnDo.disabled = !colSel.value;
+  }
+
+  btnOpen.addEventListener('click', function () {
+    otherPanels.forEach(function (p) { p.hidden = true; });
+    backInp.value = window.location.href;
+    panel.hidden = !panel.hidden;
+    checkFolder();
+    if (!panel.hidden) { colSel.focus(); }
+  });
+
+  btnCancel && btnCancel.addEventListener('click', function () {
+    panel.hidden = true;
+  });
+
+  colSel.addEventListener('change', checkFolder);
 }());
 </script>
 
