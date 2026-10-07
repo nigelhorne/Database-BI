@@ -11,6 +11,13 @@ Revision history for Database-BI
       A pagination bar (Prev / current page / Next) is shown when at least two
       pages exist.  All URL parameters (filters, dedup, per_page, etc.) are
       preserved across page navigations.
+    - BerkeleyDB files larger than 100 MB now return an informative error page
+      instead of causing disk thrashing.  Files whose magic bytes identify them as
+      BerkeleyDB but whose DB_File tie() fails (e.g. Berkeley DB version 9 files
+      opened with libdb-5.3) would previously fall through to D::A's CSV path,
+      causing a full read of the binary file.  DataSource now detects the magic
+      bytes in _detect_file_info, refuses files above 100 MB immediately, and
+      returns error_unsupported_db for smaller files where tie() fails.
 
 0.010.0	Tue Oct  6 11:29:33 AM EDT 2026
     [ Enhancements ]

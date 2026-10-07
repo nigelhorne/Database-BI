@@ -185,6 +185,7 @@ Readonly our %MESSAGES => (
 	error_url_fetch			=> 'DataSource: failed to open HTML table at "%s": %s',
 	error_no_safe_id		=> 'DataSource: table "%s" has no column with a safe identifier name (letters, digits, underscore); rename at least one column header',
 	error_no_tables			=> 'DataSource: SQLite file "%s" contains no user-defined tables',
+	error_unsupported_db		=> 'DataSource: "%s" is a Berkeley DB file but the installed DB_File library cannot open it (file may use a newer Berkeley DB format)',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -336,6 +337,8 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
                                    * could not fetch any supported file from <host>:<dir>/<stem>.*
                                    * Database::Abstraction subclass could not be instantiated
   error_no_tables             -- SQLite file opened successfully but contains no user-defined tables
+  error_unsupported_db        -- .db file has BerkeleyDB magic bytes but DB_File could not open it
+                                 (file likely uses a newer BDB format than the installed libdb supports)
   error_fetch_failed          -- fetch_all raised an exception (wraps the underlying DBI/D::A error)
   error_url_invalid           -- URL passed to the url=> constructor path does not begin
                                  with http:// or https://
@@ -708,8 +711,11 @@ sub _detect_file_info :Protected {
 	# the filename stem (dbname) differs from the table name inside the file --
 	# e.g. obituaries.sql whose internal table is called "deceased".  If the
 	# file is not a valid SQLite database (e.g. a Berkeley DB file) the eval
-	# fails and we return {} so _init_backend/D::A handles it natively.
+	# fails; for .db files we then check for BerkeleyDB magic so we can read
+	# the data directly (or return an error sentinel) instead of letting D::A
+	# fall through to its CSV path, which would read a large binary file as text.
 	# .sqlite and .sqlite3 are common alternative SQLite extensions -- treated identically to .sql.
+	my $non_sqlite_db;	# set to path when a .db file fails the SQLite probe
 	for my $ext (qw(sql sqlite sqlite3 db)) {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
 		next unless -r $path;
@@ -728,7 +734,73 @@ sub _detect_file_info :Protected {
 		# defined $tables means the eval succeeded (even an empty list is valid)
 		return { sqlite_tables => ($tables // []), file_size => -s $path }
 			if defined $tables;
+		$non_sqlite_db = $path if $ext eq 'db';
 		last;	# file found but not SQLite -- do not try the other ext
+	}
+
+	# A .db file that is not SQLite: check for BerkeleyDB magic bytes.
+	# BerkeleyDB Hash/Btree/Queue files begin with a 32-bit magic number either
+	# at offset 0 (big-endian files) or at offset 12 (little-endian files).
+	# If found, try to open via DB_File under a 10-second alarm so a version-
+	# incompatible file does not block the server for minutes.
+	if (defined $non_sqlite_db) {
+		my $magic_ok = 0;
+		if (open(my $fh, '<:raw', $non_sqlite_db)) {
+			my $buf = '';
+			if (read($fh, $buf, 4) == 4) {
+				my %MAGIC = map { $_ => 1 }
+					(0x00061561, 0x00053162, 0x00042253, 0x00052444);
+				$magic_ok = 1 if $MAGIC{unpack('N', $buf)} || $MAGIC{unpack('V', $buf)};
+			}
+			unless ($magic_ok) {
+				if (seek $fh, 12, 0) {
+					my $b12 = '';
+					if (read($fh, $b12, 4) == 4) {
+						my $hex = substr(unpack('H*', $b12), 0, 4);
+						$magic_ok = 1 if $hex eq '6115' || $hex eq '1561';
+					}
+				}
+			}
+			close $fh;
+		}
+		if ($magic_ok) {
+			my $fsize = -s $non_sqlite_db;
+			# BerkeleyDB magic confirmed.  Attempt to read via DB_File,
+			# but only for reasonably-sized files (<= 100 MB).  Opening a
+			# multi-GB BerkeleyDB file with an incompatible library version
+			# causes multi-minute disk I/O that cannot be interrupted with
+			# alarm() (XS I/O in libdb-5.x ignores SIGALRM via SA_RESTART).
+			# For large files, return the unsupported sentinel immediately.
+			Readonly my $BDB_MAX_BYTES => 100 * 1024 * 1024;	# 100 MB
+			if (defined $fsize && $fsize > $BDB_MAX_BYTES) {
+				return { _unknown_binary_db => 1, file_size => $fsize };
+			}
+			my $data = eval {
+				require DB_File;
+				my %bdb;
+				# Capture the tie object so we can undef it before untie --
+				# DB_File warns "untie while N inner references" if the object
+				# reference count is > 0 when untie fires.
+				my $db_obj = tie %bdb, 'DB_File', $non_sqlite_db,
+					Fcntl::O_RDONLY(), 0644, $DB_File::DB_HASH;
+				return undef unless $db_obj;
+				my @rows = map { { entry => $_, value => $bdb{$_} } } sort keys %bdb;
+				undef $db_obj;
+				untie %bdb;
+				\@rows;
+			};
+			if (defined $data) {
+				return {
+					_headerless_data => $data,
+					columns          => ['entry', 'value'],
+					id               => 'entry',
+					file_size        => $fsize,
+				};
+			}
+			# tie failed: return a sentinel so _init_backend can show a proper
+			# error instead of letting D::A read the binary file as CSV text.
+			return { _unknown_binary_db => 1, file_size => $fsize };
+		}
 	}
 	return {};
 }
@@ -937,6 +1009,14 @@ sub _init_backend :Protected {
 			$self->{_file_path} = File::Spec->rel2abs($p);
 			last;
 		}
+	}
+
+	# BerkeleyDB file detected by magic bytes, but tie() failed (version
+	# incompatibility -- e.g. the file uses BDB format 9 but the installed
+	# libdb only supports an older format).  Croak now so D::A never falls
+	# through to its CSV path and reads the entire binary file as text.
+	if ($info->{_unknown_binary_db}) {
+		croak $self->_msg('error_unsupported_db', $raw_table);
 	}
 
 	# 0-byte file: skip D::A/DBI entirely.  D::A on an empty file falls through
