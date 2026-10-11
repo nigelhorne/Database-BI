@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Controller/Dashboard.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">79.6%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">84.0%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -63,7 +63,7 @@ https://pjcj.net
 <tr><td class="h"><a id="L770">770</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless utf8::is_utf8($s)</td></tr>
 <tr><td class="h"><a id="L957">957</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $table and $table =~ /$TABLE_NAME_RE/u)</td></tr>
 <tr><td class="h"><a id="L970">970</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L983">983</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($source and $source-&gt;sqlite_tables and @{$source-&gt;sqlite_tables;} &gt; 1)</td></tr>
+<tr><td class="h"><a id="L983">983</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($source and $source-&gt;sqlite_tables and @{$source-&gt;sqlite_tables;} &gt; 1)</td></tr>
 <tr><td class="h"><a id="L988">988</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">@$records &gt; $per_page ? :</td></tr>
 <tr><td class="h"><a id="L989">989</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $has_next</td></tr>
 <tr><td class="h"><a id="L993">993</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
@@ -81,18 +81,18 @@ https://pjcj.net
 <tr><td class="h"><a id="L1226">1226</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
 <tr><td class="h"><a id="L1227">1227</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
 <tr><td class="h"><a id="L1260">1260</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
-<tr><td class="h"><a id="L1273">1273</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($back_override)</td></tr>
-<tr><td class="h"><a id="L1276">1276</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$back_override ? :</td></tr>
-<tr><td class="h"><a id="L1280">1280</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $it ? :</td></tr>
+<tr><td class="h"><a id="L1273">1273</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($back_override)</td></tr>
+<tr><td class="h"><a id="L1276">1276</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$back_override ? :</td></tr>
+<tr><td class="h"><a id="L1280">1280</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $it ? :</td></tr>
 <tr><td class="h"><a id="L1284">1284</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
 <tr><td class="h"><a id="L1288">1288</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($filename =~ /\.(?:sql|db)\z/iu)</td></tr>
-<tr><td class="h"><a id="L1310">1310</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (not defined $it and $source and $source-&gt;sqlite_tables and @{$source-&gt;sqlite_tables;} &gt; 1)</td></tr>
+<tr><td class="h"><a id="L1310">1310</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (not defined $it and $source and $source-&gt;sqlite_tables and @{$source-&gt;sqlite_tables;} &gt; 1)</td></tr>
 <tr><td class="h"><a id="L1316">1316</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">@$records &gt; $per_page ? :</td></tr>
 <tr><td class="h"><a id="L1317">1317</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $has_next</td></tr>
 <tr><td class="h"><a id="L1321">1321</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;param(&#39;d&#39;) ? :</td></tr>
 <tr><td class="h"><a id="L1322">1322</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $dedup</td></tr>
-<tr><td class="h"><a id="L1327">1327</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $it ? :</td></tr>
-<tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $it ? :</td></tr>
+<tr><td class="h"><a id="L1327">1327</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $it ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $it ? :</td></tr>
 <tr><td class="h"><a id="L1398">1398</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $idx =~ /\A[0-9]+\z/u</td></tr>
 <tr><td class="h"><a id="L1411">1411</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $url</td></tr>
 <tr><td class="h"><a id="L1412">1412</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $url =~ m[\Ahttps?://]iu</td></tr>
@@ -233,14 +233,14 @@ https://pjcj.net
 <tr><td class="h"><a id="L2916">2916</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$i &lt; length $prefix ? :</td></tr>
 <tr><td class="h"><a id="L2941">2941</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($an // 0) &lt;=&gt; ($bn // 0)</td></tr>
 <tr><td class="h"><a id="L2945">2945</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $prefix ? :</td></tr>
-<tr><td class="h"><a id="L2993">2993</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless defined $spec and length $spec</td></tr>
-<tr><td class="h"><a id="L2997">2997</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/u) { }</td></tr>
-<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($spec =~ /\Apath:(.+)\z/u) { }</td></tr>
-<tr><td class="h"><a id="L3003">3003</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (-f $p)</td></tr>
-<tr><td class="h"><a id="L3008">3008</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless defined $file_path</td></tr>
-<tr><td class="h"><a id="L3015">3015</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/iu</td></tr>
-<tr><td class="h"><a id="L3038">3038</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($sth)</td></tr>
-<tr><td class="h"><a id="L3052">3052</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L2993">2993</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $spec and length $spec</td></tr>
+<tr><td class="h"><a id="L2997">2997</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/u) { }</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($spec =~ /\Apath:(.+)\z/u) { }</td></tr>
+<tr><td class="h"><a id="L3003">3003</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-f $p)</td></tr>
+<tr><td class="h"><a id="L3008">3008</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $file_path</td></tr>
+<tr><td class="h"><a id="L3015">3015</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/iu</td></tr>
+<tr><td class="h"><a id="L3038">3038</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($sth)</td></tr>
+<tr><td class="h"><a id="L3052">3052</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
 </table>
 </body>
 </html>
