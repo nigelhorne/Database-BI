@@ -977,6 +977,13 @@ sub view ($self) {
 			error    => $self->_i18n('error_table_open', $table, $@),
 		);
 	}
+
+	# Multi-table SQLite: show the schema browser first so the user can choose
+	# which internal table to open.
+	if ($source && $source->sqlite_tables && @{ $source->sqlite_tables } > 1) {
+		return $self->redirect_to('/tables?l=' . url_escape("table:$table"));
+	}
+
 	$records //= [];
 	my $has_next = (@$records > $per_page) ? 1 : 0;
 	pop @$records if $has_next;
@@ -1259,9 +1266,19 @@ sub open_file ($self) {
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
 
+	my $it = $self->param('it');	# optional: select a specific internal table
+
+	# Allow the tables view to override the default "Back to browser" link.
+	my $back_override = _safe_back_url($self->param('back'));
+	if ($back_override) {
+		$back = $back_override;
+	}
+	my $back_label_default = $back_override ? ($self->param('back_label') // 'Back') : 'Back to browser';
+
 	my ($source, $records);
 	eval {
-		$source  = $self->open_table($table, directory => $dir->to_string);
+		$source  = $self->open_table($table, directory => $dir->to_string,
+			defined $it ? (internal_table => $it) : ());
 		$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
 	};
 	if ($@) {
@@ -1274,19 +1291,27 @@ sub open_file ($self) {
 				. 'filename -- the application auto-detects and uses the first table found.';
 		}
 		return $self->render(
-			template   => "$platform/$language/home",
-			handler    => 'tt',
-			format     => 'html',
-			tables     => [],
-			title      => 'Error',
-			error      => $self->_i18n('error_file_open', $filename, $@),
-			hint       => $hint,
-			back_url   => $back,
-			back_label => 'Back to browser',
-			back2_url  => _safe_back_url($self->param('back2')),
+			template    => "$platform/$language/home",
+			handler     => 'tt',
+			format      => 'html',
+			tables      => [],
+			title       => 'Error',
+			error       => $self->_i18n('error_file_open', $filename, $@),
+			hint        => $hint,
+			back_url    => $back,
+			back_label  => $back_label_default,
+			back2_url   => _safe_back_url($self->param('back2')),
 			back2_label => $self->param('back2_label') // 'Back',
 		);
 	}
+
+	# Multi-table SQLite without a specific table selected: redirect to schema
+	# browser so the user can pick which internal table to open.
+	if (!defined $it && $source && $source->sqlite_tables
+			&& @{ $source->sqlite_tables } > 1) {
+		return $self->redirect_to('/tables?l=' . url_escape("path:${\$file->to_string}"));
+	}
+
 	$records //= [];
 	my $has_next = (@$records > $per_page) ? 1 : 0;
 	pop @$records if $has_next;
@@ -1305,10 +1330,10 @@ sub open_file ($self) {
 		format           => 'html',
 		records          => $filtered,
 		columns          => \@columns,
-		table            => $table,
-		title            => $filename,
+		table            => defined $it ? $it : $table,
+		title            => defined $it ? "$filename ($it)" : $filename,
 		back_url         => $back,
-		back_label       => 'Back to browser',
+		back_label       => $back_label_default,
 		back2_url        => _safe_back_url($self->param('back2')),
 		back2_label      => $self->param('back2_label') // 'Back',
 		file_path        => $file->to_string,
@@ -2934,6 +2959,108 @@ sub folder_view ($self) {
 		back_url   => $back,
 		back_label => 'Back to table',
 		left_spec  => $left_spec,
+	);
+}
+
+=head2 tables_view
+
+C<GET /tables> -- Schema browser for multi-table databases (SQLite, etc.).
+Lists all internal tables with their columns; clicking a table opens it.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?l=   string   Required.  Table spec: "table:name" (data_dir) or
+                 "path:/abs/path" (filesystem path).  The file must be a
+                 SQLite database.
+
+=head4 OUTPUT
+
+Renders C<tables.html.tt> with:
+
+  db_label   string   Short name / stem of the database file
+  tables     ARRAYREF of { name, columns => [...], href }
+  spec       string   The raw l= spec (for building back links)
+  back_url   string   URL to navigate back one level
+  back_label string   Label for the back link
+
+=cut
+
+sub tables_view ($self) {
+	my ($platform, $language) = $self->_resolve_template;
+	my $spec = $self->param('l');
+	return $self->reply->not_found unless defined $spec && length $spec;
+
+	my ($file_path, $db_label, $back_url, $back_label);
+
+	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
+		my $table_name = lc $1;
+		my $data_dir   = $self->app->home->child(
+			$self->app->config->{data_dir} // 'data');
+		for my $ext (qw(sql sqlite sqlite3 db)) {
+			my $p = $data_dir->child("$table_name.$ext");
+			if (-f $p) {
+				$file_path = $p->to_string;
+				last;
+			}
+		}
+		return $self->reply->not_found unless defined $file_path;
+		$db_label  = $table_name;
+		$back_url  = '/';
+		$back_label = 'Home';
+	} elsif ($spec =~ /\Apath:(.+)\z/) {
+		my $path_arg = $1;
+		my $file = eval { Mojo::File->new($path_arg)->realpath };
+		return $self->reply->not_found
+			unless defined $file && -f $file && $file->basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/i;
+		$file_path  = $file->to_string;
+		($db_label  = $file->basename) =~ s/\.[^.]+\z//;
+		$back_url   = '/browse?path=' . url_escape($file->dirname->to_string);
+		$back_label = 'Back to browser';
+	} else {
+		return $self->reply->not_found;
+	}
+
+	my @tables;
+	eval {
+		require DBI;
+		my $dbh = DBI->connect(
+			"dbi:SQLite:dbname=$file_path", q{}, q{},
+			{ RaiseError => 1, PrintError => 0, AutoCommit => 1 });
+		my $tnames = $dbh->selectcol_arrayref(
+			q{SELECT name FROM sqlite_master }
+			. q{WHERE type='table' AND name NOT LIKE 'sqlite_%' }
+			. q{ORDER BY name});
+		for my $tname (@{ $tnames // [] }) {
+			my @cols;
+			my $sth = eval { $dbh->prepare("PRAGMA table_info(\"$tname\")") };
+			if ($sth) {
+				$sth->execute;
+				while (my $row = $sth->fetchrow_hashref) {
+					push @cols, $row->{name};
+				}
+			}
+			my $open_url = '/open?path=' . url_escape($file_path)
+				. '&it=' . url_escape($tname)
+				. '&back=' . url_escape('/tables?l=' . $spec)
+				. '&back_label=' . url_escape(ucfirst($db_label) . ' schema');
+			push @tables, { name => $tname, columns => \@cols, href => $open_url };
+		}
+		$dbh->disconnect;
+	};
+	return $self->reply->not_found if $@;
+
+	$self->render(
+		template   => "$platform/$language/tables",
+		handler    => 'tt',
+		format     => 'html',
+		title      => ucfirst($db_label) . ' -- Tables',
+		db_label   => $db_label,
+		tables     => \@tables,
+		spec       => $spec,
+		back_url   => $back_url,
+		back_label => $back_label,
 	);
 }
 

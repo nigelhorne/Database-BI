@@ -185,6 +185,7 @@ Readonly our %MESSAGES => (
 	error_url_fetch			=> 'DataSource: failed to open HTML table at "%s": %s',
 	error_no_safe_id		=> 'DataSource: table "%s" has no column with a safe identifier name (letters, digits, underscore); rename at least one column header',
 	error_no_tables			=> 'DataSource: SQLite file "%s" contains no user-defined tables',
+	error_table_not_found		=> 'DataSource: SQLite file "%s" does not contain a table named "%s"',
 	error_unsupported_db		=> 'DataSource: "%s" is a Berkeley DB file but the installed DB_File library cannot open it (file may use a newer Berkeley DB format)',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
@@ -357,13 +358,14 @@ sub new {
 
 	my $args = validate_strict(
 		schema => {
-			directory     => { type => 'string' },
-			table         => { type => 'string' },
-			host          => { type => 'string', optional => 1, default => undef },
-			file_ext      => { type => 'string', optional => 1, default => undef },
-			i18n          => { type => 'object', optional => 1, default => undef, can => 'maketext' },
-			cache         => { type => 'object', optional => 1, default => undef },
-			cache_ttl_url => { type => 'string', optional => 1, default => '15 min' },
+			directory      => { type => 'string' },
+			table          => { type => 'string' },
+			host           => { type => 'string', optional => 1, default => undef },
+			file_ext       => { type => 'string', optional => 1, default => undef },
+			internal_table => { type => 'string', optional => 1, default => undef },
+			i18n           => { type => 'object', optional => 1, default => undef, can => 'maketext' },
+			cache          => { type => 'object', optional => 1, default => undef },
+			cache_ttl_url  => { type => 'string', optional => 1, default => '15 min' },
 		},
 		input => $raw,
 	);
@@ -394,15 +396,16 @@ sub new {
 		unless $safe_table =~ $TABLE_NAME_RE;
 
 	my $self = bless {
-		_directory    => $args->{directory},
-		_table        => $safe_table,
-		_raw_table    => $raw_table,
-		_host         => $args->{host},
-		_file_ext     => $args->{file_ext},
-		_i18n         => $args->{i18n},
-		_cache        => $args->{cache},
-		_cache_ttl_url => $args->{cache_ttl_url},
-		_db           => undef,
+		_directory      => $args->{directory},
+		_table          => $safe_table,
+		_raw_table      => $raw_table,
+		_host           => $args->{host},
+		_file_ext       => $args->{file_ext},
+		_internal_table => $args->{internal_table},
+		_i18n           => $args->{i18n},
+		_cache          => $args->{cache},
+		_cache_ttl_url  => $args->{cache_ttl_url},
+		_db             => undef,
 	}, $class;
 
 	$self->_init_backend();
@@ -1094,26 +1097,48 @@ sub _init_backend :Protected {
 
 	# SQLite: _detect_file_info probed sqlite_master and returned the internal
 	# table names.  When $dbname (the filename stem or its safe alias) is not
-	# among those names, auto-select the first user table and create a symlink
-	# from <actual_table>.<ext> to the original file so D::A can issue SQL
-	# against the real table name without needing the filename to match.
+	# among those names, auto-select the first user table (or use the caller-
+	# supplied internal_table) and create a symlink from <target>.<ext> to the
+	# original file so D::A can issue SQL against the real table name.
 	# D::A uses 'dbname' to find the file and 'table' for the SELECT statement,
 	# so both must be set to the actual table name when a mismatch is corrected.
 	my $da_table = $table;	# D::A 'table' param -- controls the SQL table name
 	if (exists $info->{sqlite_tables}) {
 		my @tbls = @{ $info->{sqlite_tables} };
 		croak $self->_msg('error_no_tables', $raw_table) unless @tbls;
-		my ($match) = grep { $_ eq $dbname } @tbls;
-		unless (defined $match) {
-			my $actual   = $tbls[0];
+
+		# Store the full table list so callers (e.g. the tables_view action)
+		# can detect multi-table databases after construction.
+		$self->{_sqlite_tables} = \@tbls;
+
+		# Determine target table: caller-specified or auto-detected.
+		my $desired = $self->{_internal_table};
+		my $target;
+		if (defined $desired) {
+			my ($found) = grep { $_ eq $desired } @tbls;
+			croak $self->_msg('error_table_not_found', $raw_table, $desired)
+				unless defined $found;
+			$target = $desired;
+		} else {
+			my ($match) = grep { $_ eq $dbname } @tbls;
+			$target = defined $match ? $match : $tbls[0];
+		}
+
+		# When the target differs from dbname, create a symlink so D::A can
+		# find the file by target name and issue SELECT * FROM <target>.
+		# Always use a D::A-recognised SQLite extension (.sql, .sqlite, .sqlite3)
+		# for the symlink name -- D::A does not use the DBI/SQLite backend for
+		# .db files, so a customer.db symlink would be read as CSV.
+		if ($target ne $dbname) {
 			my ($src_ext) = grep { -f File::Spec->catfile($dir, "$raw_table.$_") }
 				qw(sql sqlite sqlite3 db);
 			$src_ext //= 'sql';
+			my $link_ext = ($src_ext eq 'db') ? 'sql' : $src_ext;
 			require File::Temp;
 			my $tmp     = File::Temp->newdir(CLEANUP => 1);
 			my $abs_src = File::Spec->rel2abs(
 				File::Spec->catfile($dir, "$raw_table.$src_ext"));
-			my $link = File::Spec->catfile("$tmp", "$actual.$src_ext");
+			my $link = File::Spec->catfile("$tmp", "$target.$link_ext");
 			{
 				no autodie;
 				symlink($abs_src, $link)
@@ -1121,8 +1146,8 @@ sub _init_backend :Protected {
 						"cannot create table-name symlink for '$raw_table.$src_ext': $!");
 			}
 			$self->{_tmpdir} = $tmp;
-			$dbname   = $actual;	# D::A uses this for the filename stem
-			$da_table = $actual;	# D::A uses this for SELECT * FROM <table>
+			$dbname   = $target;		# D::A uses this for the filename stem
+			$da_table = $target;		# D::A uses this for SELECT * FROM <table>
 			$da_dir   = "$tmp";
 		}
 	}
@@ -1189,6 +1214,19 @@ None.
 sub table_name {
 	my $self = shift;
 	return $self->{_table};
+}
+
+=head2 sqlite_tables
+
+Returns an arrayref of internal table names when the backing file is a
+multi-table SQLite database, or C<undef> for single-table and non-SQLite
+sources.  Set during C<_init_backend> after probing C<sqlite_master>.
+
+=cut
+
+sub sqlite_tables {
+	my $self = shift;
+	return $self->{_sqlite_tables};
 }
 
 =head2 columns

@@ -688,12 +688,13 @@ sub startup ($self) {
 		}
 		my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;
 		Database::BI::Model::DataSource->new(
-			directory     => $dir,
-			table         => $table,
-			cache         => $chi,
-			cache_ttl_url => $cache_ttl_url,
-			exists $opts{host}     ? (host     => $opts{host})     : (),
-			exists $opts{file_ext} ? (file_ext => $opts{file_ext}) : (),
+			directory      => $dir,
+			table          => $table,
+			cache          => $chi,
+			cache_ttl_url  => $cache_ttl_url,
+			exists $opts{host}           ? (host           => $opts{host})           : (),
+			exists $opts{file_ext}       ? (file_ext       => $opts{file_ext})       : (),
+			exists $opts{internal_table} ? (internal_table => $opts{internal_table}) : (),
 		);
 	});
 
@@ -717,6 +718,7 @@ sub startup ($self) {
 	$r->get('/heatmap')->to('Dashboard#heatmap_view');
 	$r->get('/bar')->to('Dashboard#bar_view');
 	$r->get('/folder')->to('Dashboard#folder_view');
+	$r->get('/tables')->to('Dashboard#tables_view');
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is
