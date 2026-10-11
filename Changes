@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.012.0	Sun Oct 11 12:00:00 PM EDT 2026
+0.011.0	Tue Oct  6 12:30:00 PM EDT 2026
     [ Enhancements ]
     - Added schema browser (GET /tables) for multi-table SQLite databases.
       Opening a SQLite file with more than one internal table now shows a
@@ -23,9 +23,6 @@ Revision history for Database-BI
     NOTE: /tables tests currently cover SQLite only.  MySQL, PostgreSQL,
     and other multi-table driver tests will be added in a future release
     once the corresponding Database::Abstraction drivers are available.
-
-0.011.0	Tue Oct  6 12:30:00 PM EDT 2026
-    [ Enhancements ]
     - Server-side pagination for /view/:table and /open.  Both routes now accept
       ?page=N (1-based, default 1) and ?per_page=M (default 200, max 2000).
       The controller uses the N+1 trick: it requests per_page+1 rows via
