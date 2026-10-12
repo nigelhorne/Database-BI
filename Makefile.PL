@@ -24,7 +24,7 @@ WriteMakefile(
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',
-		'Database::Abstraction'	=> '0.44',
+		'Database::Abstraction'	=> '0.48',	# 0.48 added limit/offset support in selectall_arrayref
 		'Database::Join'	=> '0.004.0',
 		'DBI'		=> 0,
 		'Net::SFTP::Foreign' => 0,
