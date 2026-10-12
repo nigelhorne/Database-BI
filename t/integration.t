@@ -869,14 +869,16 @@ subtest '/combine + filter narrows the stacked result' => sub {
 	my $a_spec = url_escape("path:" . File::Spec->catfile($dir, 'items_a.csv'));
 	my $b_spec = url_escape("path:" . File::Spec->catfile($dir, 'items_b.csv'));
 
-	# Filter to hardware only — A1 and B1 must be present; A2 and B2 must not.
+	# Filter to hardware only -- A1 and B1 must be present; A2 and B2 must not.
+	# Use table-cell anchors (<td>...</td>) to avoid matching CSS escape sequences
+	# like \25B2 (the UP TRIANGLE sort indicator) that also contain these substrings.
 	$t->get_ok(
 		"/combine?l=$a_spec&c=$b_spec&f=" . url_escape('category:eq:hardware')
 	)->status_is(200)
-	 ->content_like(qr/A1/,        'A1 (hardware) present in filtered combined view')
-	 ->content_like(qr/B1/,        'B1 (hardware) present in filtered combined view')
-	 ->content_unlike(qr/A2/,      'A2 (software) absent from filtered combined view')
-	 ->content_unlike(qr/B2/,      'B2 (services) absent from filtered combined view');
+	 ->content_like(qr/<td[^>]*>A1<\/td>/,  'A1 (hardware) present in filtered combined view')
+	 ->content_like(qr/<td[^>]*>B1<\/td>/,  'B1 (hardware) present in filtered combined view')
+	 ->content_unlike(qr/<td[^>]*>A2<\/td>/, 'A2 (software) absent from filtered combined view')
+	 ->content_unlike(qr/<td[^>]*>B2<\/td>/, 'B2 (services) absent from filtered combined view');
 };
 
 done_testing();

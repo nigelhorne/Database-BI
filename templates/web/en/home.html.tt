@@ -270,7 +270,7 @@
                 card.classList.add('db-card--missing');
                 card.title = 'File no longer exists on disc';
                 card.addEventListener('click', function (e) { e.preventDefault(); });
-                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disc</span>';
+                mtimeEl.innerHTML = '<span class="tip-muted">\u26A0 File not found on disc</span>';
                 sizeEl.textContent = '';
               }
             })
@@ -285,7 +285,7 @@
           // For opened entries: lazy stat fetch on first hover (saved entries pre-fetch on load).
           if (statDone || !path || eagerStat) return;
           statDone = true;
-          mtimeEl.innerHTML = '<span class="tip-muted">Loading…</span>';
+          mtimeEl.innerHTML = '<span class="tip-muted">Loading...</span>';
 
           fetch('/api/stat?path=' + encodeURIComponent(path))
             .then(function (res) { return res.json(); })
@@ -295,7 +295,7 @@
                   + txt(fmtDate(new Date(d.mtime * 1000).toISOString()));
                 sizeEl.textContent = fmtSize(d.size);
               } else {
-                mtimeEl.innerHTML = '<span class="tip-muted">⚠ File not found on disc</span>';
+                mtimeEl.innerHTML = '<span class="tip-muted">\u26A0 File not found on disc</span>';
                 sizeEl.textContent = '';
               }
             })
@@ -304,7 +304,7 @@
 
         card.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
 
-        // Trash-can remove button — hidden until the card is hovered (CSS).
+        // Trash-can remove button -- hidden until the card is hovered (CSS).
         var removeBtn = document.createElement('button');
         removeBtn.type      = 'button';
         removeBtn.className = 'recent-remove';
@@ -356,7 +356,7 @@
 
   btn.addEventListener('click', function () {
     btn.disabled    = true;
-    btn.textContent = 'Clearing…';
+    btn.textContent = 'Clearing...';
     fetch('/uploads/clear', { method: 'POST' })
       .then(function (r) { return r.json(); })
       .then(function (d) {
@@ -372,7 +372,7 @@
       .catch(function () {
         btn.disabled    = false;
         btn.textContent = 'Clear upload cache';
-        alert('Failed to clear upload cache — check the server log.');
+        alert('Failed to clear upload cache - check the server log.');
       });
   });
 }());

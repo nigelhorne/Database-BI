@@ -15,8 +15,10 @@ requires 'File::Temp', '0.22';
 requires 'HTML::D3', '0.18';
 requires 'HTML::TableExtract';
 requires 'IPC::System::Simple';   # For autodie (:all) in DataSource.pm at runtime
-requires 'LWP::UserAgent';
-requires 'LWP::UserAgent::Cached';
+requires 'LWP::UserAgent';          # Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path
+requires 'LWP::UserAgent::Cached'; # Used by Database::Abstraction for URL-backed tables (import_url)
+requires 'DB_File';                 # Used in DataSource.pm for Berkeley DB magic-byte detection
+requires 'Scalar::Util';            # Used in DataSource.pm (blessed, looks_like_number)
 requires 'List::Util', '1.40';
 requires 'Mojo::Base';
 requires 'Mojo::JSON';

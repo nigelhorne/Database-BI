@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.010.0';
+our $VERSION = '0.011.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 

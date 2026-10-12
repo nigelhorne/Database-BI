@@ -39,6 +39,22 @@ Revision history for Database-BI
       causing a full read of the binary file.  DataSource now detects the magic
       bytes in _detect_file_info, refuses files above 100 MB immediately, and
       returns error_unsupported_db for smaller files where tie() fails.
+    - Three-level breadcrumb for chart pages.  When a bar, line-graph, pie,
+      or heatmap chart is launched from a table view that was itself reached
+      from the schema browser (/tables), the chart page now shows the full
+      navigation chain (e.g. Home > Store schema > Table view > Chart) rather
+      than the previous two-level "Home > Back to table".  The dashboard
+      panel forms forward the current page's back_url as back2=/back2_label=
+      parameters; the chart controllers promote them to the outer breadcrumb
+      level so all four levels are rendered correctly.
+    - SQLite hover tooltip on the home-page file picker.  Hovering over a
+      database card in the "Choose a database" list now shows a dark popover
+      with the file type (e.g. "SQLite database - 3 tables"), last-modified
+      date, and file size.  GET /api/stat now returns a table_count integer
+      for SQLite-extension files (.sql, .sqlite, .sqlite3, .db); the count
+      is omitted for Berkeley DB .db files or other non-SQLite payloads.
+      The home-page db-cards now carry data-path attributes so the JS fetch
+      can call /api/stat on first mouseenter (lazy, not on page load).
 
 0.010.0	Tue Oct  6 11:29:33 AM EDT 2026
     [ Enhancements ]
