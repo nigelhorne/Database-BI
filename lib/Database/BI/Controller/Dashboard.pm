@@ -299,7 +299,7 @@ sub _scan_data_dir :Protected ($self) {
 		my $base = $_->basename;
 		return unless $base =~ $EXT_RE;
 		(my $name = $base) =~ s/\.[^.]+\z//;
-		{ name => $name, file => $base }
+		{ name => $name, file => $base, path => $_->to_string }
 	})->to_array;
 }
 
@@ -2131,11 +2131,33 @@ sub stat_api ($self) {
 		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
 
 	my @s = stat $file->to_string;
+
+	# For SQLite files, count user tables so the home-page tooltip can show
+	# "SQLite database - N tables". Silently omit the count if the file is
+	# not actually a SQLite file (e.g. a Berkeley DB .db file).
+	my $table_count;
+	if ($file->basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/i) {
+		eval {
+			require DBI;
+			my $dbh = DBI->connect(
+				'dbi:SQLite:dbname=' . $file->to_string,
+				'', '',
+				{ RaiseError => 1, PrintError => 0, AutoCommit => 1 },
+			);
+			my $tbls = $dbh->selectcol_arrayref(
+				q{SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'}
+			);
+			$table_count = scalar @{ $tbls // [] };
+			$dbh->disconnect;
+		};
+	}
+
 	$self->render(json => {
 		exists => \1,
 		path   => $file->to_string,
 		mtime  => $s[9],
 		size   => $s[7],
+		(defined $table_count ? (table_count => $table_count) : ()),
 	});
 }
 
@@ -2305,9 +2327,11 @@ sub clear_uploads ($self) {
 #          data source cannot be opened, 200 with an error message when
 #          no plottable rows exist.
 sub graph_view ($self) {
-	my $x_col = $self->param('x') // '';
-	my $y_col = $self->param('y') // '';
-	my $back  = _safe_back_url($self->param('back')) // '/';
+	my $x_col     = $self->param('x') // '';
+	my $y_col     = $self->param('y') // '';
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
 
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
@@ -2363,8 +2387,9 @@ sub graph_view ($self) {
 		format           => 'html',
 		title            => $title,
 		graph_html       => $graph_html,
-		back_url         => $back,
-		back_label       => 'Back to table',
+		back_url         => ($back2 // $back),
+		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		point_count      => scalar @pairs,
 		ref_min_y        => $min_y,
 		ref_max_y        => $max_y,
@@ -2375,10 +2400,12 @@ sub graph_view ($self) {
 }
 
 sub pie_view ($self) {
-	my $cat_col     = $self->param('cat') // '';
-	my $val_col     = $self->param('val') // '';
-	my $donut       = $self->param('donut') ? 1 : 0;
-	my $back        = _safe_back_url($self->param('back')) // '/';
+	my $cat_col      = $self->param('cat') // '';
+	my $val_col      = $self->param('val') // '';
+	my $donut        = $self->param('donut') ? 1 : 0;
+	my $back         = _safe_back_url($self->param('back')) // '/';
+	my $back2        = _safe_back_url($self->param('back2'));
+	my $back2_lbl    = $self->param('back2_label') // '';
 	my @filter_specs = $self->every_param('f');
 
 	return $self->render(text => 'Missing cat or val column parameter', status => 400)
@@ -2458,8 +2485,9 @@ sub pie_view ($self) {
 		format           => 'html',
 		title            => $title,
 		pie_html         => $pie_html,
-		back_url         => $back,
-		back_label       => 'Back to table',
+		back_url         => ($back2 // $back),
+		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		slice_count      => scalar @slices,
 		cat_col          => $cat_col,
 		val_col          => $val_col,
@@ -2523,12 +2551,14 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 =cut
 
 sub heatmap_view ($self) {
-	my $x_col   = $self->param('x')        // '';
-	my $y_col   = $self->param('y')        // '';
-	my $val_col = $self->param('val')      // '';
-	my $scheme  = $self->param('scheme')   // 'YlOrRd';
-	my $show_v  = $self->param('show_val') ? 1 : 0;
-	my $back    = _safe_back_url($self->param('back')) // '/';
+	my $x_col     = $self->param('x')        // '';
+	my $y_col     = $self->param('y')        // '';
+	my $val_col   = $self->param('val')      // '';
+	my $scheme    = $self->param('scheme')   // 'YlOrRd';
+	my $show_v    = $self->param('show_val') ? 1 : 0;
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
 
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
@@ -2603,8 +2633,9 @@ sub heatmap_view ($self) {
 		title            => $title,
 		heatmap_html     => $heatmap_html,
 		cell_count       => scalar @triples,
-		back_url         => $back,
-		back_label       => 'Back to table',
+		back_url         => ($back2 // $back),
+		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url       => $source_url,
 		source_accessed  => $source_accessed,
 	);
@@ -2665,12 +2696,14 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 =cut
 
 sub bar_view ($self) {
-	my $cat_col  = $self->param('cat')    // '';
-	my $val_col  = $self->param('val')    // '';
-	my $orient   = $self->param('orient') // 'vertical';
-	my $sort     = $self->param('sort')   // 'none';
-	my $max_bars = int($self->param('max') // 0);
-	my $back     = _safe_back_url($self->param('back')) // '/';
+	my $cat_col   = $self->param('cat')    // '';
+	my $val_col   = $self->param('val')    // '';
+	my $orient    = $self->param('orient') // 'vertical';
+	my $sort      = $self->param('sort')   // 'none';
+	my $max_bars  = int($self->param('max') // 0);
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
 
 	return $self->render(text => 'Missing cat column parameter', status => 400)
 		unless length($cat_col);
@@ -2744,8 +2777,9 @@ sub bar_view ($self) {
 		bar_html        => $bar_html,
 		bar_count       => scalar @bars,
 		cat_col         => $cat_col,
-		back_url        => $back,
-		back_label      => 'Back to table',
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
 	);

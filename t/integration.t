@@ -783,12 +783,14 @@ subtest 'combine_tables: back2=/back2_label= add third breadcrumb segment' => su
 };
 
 subtest 'back2 absent: no third breadcrumb segment rendered' => sub {
-	# Without back2, the template must never emit a spurious third segment.
+	# Without back2, the back-link paragraph must contain exactly two links:
+	# Home and the second segment.  A third rsaquo means a spurious segment.
 	my $enc = url_escape($SALES_CSV);
 	$t->get_ok("/open?path=$enc")
 	  ->status_is(200)
 	  ->content_like(qr/Back to browser/, 'second breadcrumb present as usual')
-	  ->content_unlike(qr/back2/,          'back2 stash key not leaked to HTML');
+	  ->content_unlike(qr/class="back-link"[^<]*<a[^>]*>[^<]*<\/a>[^<]*&rsaquo;[^<]*<a[^>]*>[^<]*<\/a>[^<]*&rsaquo;/,
+	                   'no third breadcrumb segment when back2 absent');
 };
 
 # ===========================================================================
