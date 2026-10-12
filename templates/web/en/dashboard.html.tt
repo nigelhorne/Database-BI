@@ -264,8 +264,10 @@
             syntax to open a file via SSH:<br><br>
             <code>/../hostname/dir/file.csv</code><br>
             <code>/../user@hostname/dir/file.csv</code><br><br>
+            To join a Redis table (optional Redis module required):<br>
+            <code>redis:tablename|redis://host:port</code><br><br>
             Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
-            .sqlite3), Berkeley DB (.db), XML.
+            .sqlite3), Berkeley DB (.db), XML, Redis.
           </div>
         </div>
       </div>
@@ -354,8 +356,10 @@
             syntax to open a file via SSH:<br><br>
             <code>/../hostname/dir/file.csv</code><br>
             <code>/../user@hostname/dir/file.csv</code><br><br>
+            To combine with a Redis table (optional Redis module required):<br>
+            <code>redis:tablename|redis://host:port</code><br><br>
             Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
-            .sqlite3), Berkeley DB (.db), XML.
+            .sqlite3), Berkeley DB (.db), XML, Redis.
           </div>
         </div>
       </div>
@@ -1256,6 +1260,8 @@ function parseAccounting(v) {
       url = '/api/columns?table=' + encodeURIComponent(spec.slice(6));
     } else if (spec.indexOf('path:') === 0) {
       url = '/api/columns?path=' + encodeURIComponent(spec.slice(5));
+    } else if (spec.indexOf('redis:') === 0) {
+      url = '/api/columns?spec=' + encodeURIComponent(spec);
     } else { return; }
 
     rightSpec  = spec;
@@ -1295,8 +1301,12 @@ function parseAccounting(v) {
     clearTimeout(pathTimer);
     if (!val) { rightSpec = ''; rightLabel = ''; updateJoinDesc(); return; }
     pathTimer = setTimeout(function () {
-      var fname = val.replace(/.*[/\\]/, '').replace(/\.[^.]+$/, '') || val;
-      loadRightColumns('path:' + val, fname);
+      var isRedis = val.indexOf('redis:') === 0;
+      var spec  = isRedis ? val : 'path:' + val;
+      var fname = isRedis
+        ? val.replace(/\|.*/, '').replace(/^redis:/, '')
+        : (val.replace(/.*[/\\]/, '').replace(/\.[^.]+$/, '') || val);
+      loadRightColumns(spec, fname);
     }, 500);
   });
 

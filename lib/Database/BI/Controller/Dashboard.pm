@@ -1205,6 +1205,66 @@ sub open_file ($self) {
 
 	my ($page, $per_page, $offset) = $self->_pagination;
 
+	# Redis spec: redis:tablename|redis://host:port -- delegate to _open_spec.
+	if ($file_path =~ $REDIS_SPEC_RE) {
+		my $lspec = $file_path;
+		my ($source, $label) = $self->_open_spec($lspec);
+		return $self->reply->not_found unless $source;
+		my $table = $label;
+		my $records;
+		eval {
+			$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
+		};
+		if ($@) {
+			return $self->render(
+				template   => "$platform/$language/home",
+				handler    => 'tt',
+				format     => 'html',
+				tables     => [],
+				title      => 'Error',
+				error      => $self->_i18n('error_file_open', $label, $@),
+				back_url   => '/',
+				back_label => 'Home',
+			);
+		}
+		$records //= [];
+		my $has_next = (@$records > $per_page) ? 1 : 0;
+		pop @$records if $has_next;
+		my @columns  = _get_columns($source, $records);
+		my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+		my $dedup = $self->param('d') ? 1 : 0;
+		$filtered = _dedup_records($filtered, \@columns) if $dedup;
+		my $rpage_url = $self->req->url->clone;
+		$rpage_url->query->remove('page')->remove('per_page');
+		return $self->render(
+			template         => "$platform/$language/dashboard",
+			handler          => 'tt',
+			format           => 'html',
+			records          => $filtered,
+			columns          => \@columns,
+			table            => $table,
+			title            => $label,
+			back_url         => '/',
+			back_label       => 'Home',
+			back2_url        => _safe_back_url($self->param('back2')),
+			back2_label      => $self->param('back2_label') // 'Back',
+			file_path        => $file_path,
+			left_spec        => $lspec,
+			combine_specs    => [],
+			current_joins    => [],
+			available_tables => $self->_scan_data_dir,
+			join_summaries   => [],
+			filter_specs     => $filter_specs,
+			filters_json     => $filters_json,
+			dedup            => $dedup,
+			export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
+			page             => $page,
+			per_page         => $per_page,
+			has_next         => $has_next,
+			page_base_url    => $rpage_url->to_string,
+		);
+	}
+
 	# Remote path /../hostname/dir/file.ext: delegate opening to _open_spec
 	# and render the dashboard directly, bypassing the realpath/local-file path.
 	if ($file_path =~ m{\A/\.\./}) {

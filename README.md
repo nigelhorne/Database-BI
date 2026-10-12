@@ -56,6 +56,13 @@ data" panel is open the dropped file populates the right-table path field.
 (`.csv`), SQLite (`.sql`), or JSON (`.json`).
 - **URL import** -- `/import` fetches an HTML table from any public URL and
 renders it in the browser without saving to disk.
+- **Redis data source** (optional) -- when the `Redis` or `Redis::Fast` module
+is installed, any Redis hash store can be opened as a read-only data table by
+entering a `redis:tablename|redis://host:port` spec in the path field or in a
+join/combine panel.  Redis keys must follow the `tablename:entry` convention
+used by [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction).  Because `Redis` is an optional dependency,
+the application works fully without it; Redis support activates automatically
+when the module is available.
 
 ### UTF-8 and Encoding
 
@@ -145,9 +152,18 @@ perl Makefile.PL
     Performs one or more left joins and renders the merged table.  Parameters:
 
     ```
-    l=<spec>               left table: "table:name" or "path:/abs/path"
+    l=<spec>               left table spec (see below)
     j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
     f=<col>:<op>:<val>     result filter (repeatable)
+    ```
+
+    Spec formats:
+
+    ```
+    table:name                         named table from data_dir
+    path:/abs/path/to/file.csv         absolute local path
+    /../hostname/dir/file.csv          remote file via SFTP
+    redis:tablename|redis://host:port  Redis hash store (requires Redis module)
     ```
 
 - `GET /api/columns`
@@ -397,6 +413,29 @@ defaults:
     name is lowercased to `sales` before being passed to the helper.  The data
     file on disk must therefore also be lowercase (`sales.csv`, not
     `Sales.csv`).
+
+- **Redis support requires the Redis or Redis::Fast module**
+
+    Redis data source access is an optional feature.  If neither `Redis` nor
+    `Redis::Fast` is installed, entering a `redis:...` spec returns a 404.
+    To enable Redis support, install either module:
+
+    ```
+    cpanm Redis::Fast   # recommended -- C bindings, faster
+    cpanm Redis         # pure-Perl fallback
+    ```
+
+    Redis keys must follow the `tablename:entry` convention: each key is the
+    table name, a colon, and an entry identifier; the value is a Redis hash
+    whose fields become the row columns.  For example:
+
+    ```
+    HSET players:row1 name Alice score 10
+    HSET players:row2 name Bob   score 20
+    ```
+
+    Opening `redis:players|redis://localhost:6379` then displays a two-row table
+    with columns `entry`, `name`, and `score`.
 
 ## Limitations
 
