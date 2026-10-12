@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.011.0';
+our $VERSION = '0.012.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -733,6 +733,16 @@ sub startup ($self) {
 				exists $opts{html_table_index}
 					? (html_table_index => $opts{html_table_index})
 					: (),
+			);
+		}
+		# Redis mode: connect to a Redis server via Database::Abstraction's
+		# Redis backend (Redis::Fast or Redis).
+		if (exists $opts{redis}) {
+			return Database::BI::Model::DataSource->new(
+				table         => $table,
+				redis         => $opts{redis},
+				cache         => $chi,
+				cache_ttl_url => $cache_ttl_url,
 			);
 		}
 		my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;

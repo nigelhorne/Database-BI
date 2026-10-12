@@ -71,10 +71,15 @@ WriteMakefile(
 				type => 'git',
 				url  => 'https://github.com/nigelhorne/Database-BI.git',
 				web  => 'https://github.com/nigelhorne/Database-BI',
-			},
-			bugtracker => {
+			}, bugtracker => {
 				web => 'https://github.com/nigelhorne/Database-BI/issues',
-			},
+			}
+		}, prereqs => {
+			test => {
+				recommends => {
+					'Redis' => 0
+				}
+			}
 		},
 	},
 );

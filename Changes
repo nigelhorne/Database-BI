@@ -1,5 +1,22 @@
 Revision history for Database-BI
 
+0.012.0	Mon Oct 12 12:00:00 PM EDT 2026
+    [ Enhancements ]
+    - Added Redis backend support.  DataSource now accepts a redis => 'redis://...'
+      constructor option; the named table is read from the Redis server via
+      Database::Abstraction's Redis backend (Redis::Fast preferred, Redis fallback).
+    - Added redis:tablename|redis://... spec format to _open_spec so Redis tables
+      can be used as the left source in joins (/join?l=redis:...).
+    - Added open_table helper support for the redis => option in BI.pm so the
+      full controller pipeline (join, export, graph, etc.) works with Redis sources.
+    - Added t/redis.t: 13 subtests covering DataSource construction, fetch_all,
+      selectall_arrayref, columns() laziness, _open_spec parsing, and Database::Join
+      integration, all using a mocked Redis so no real server is required.
+    - Added t/redis_live.t: 14 subtests against a real Redis server; skipped unless
+      REDIS_SERVER=redis://host:port is set in the environment.
+    [ Dependencies ]
+    - Added Redis to TEST_REQUIRES (optional; tests skip gracefully when absent).
+
 0.011.0	Sun Oct 11 09:20:48 PM EDT 2026
     [ Enhancements ]
     - Added schema browser (GET /tables) for multi-table SQLite databases.

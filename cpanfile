@@ -45,6 +45,7 @@ on 'test' => sub {
 	requires 'Test::Without::Module';
 	requires 'Text::xSV::Slurp';
 	requires 'XML::Simple';
+	recommends 'Redis';
 };
 
 on 'develop' => sub {

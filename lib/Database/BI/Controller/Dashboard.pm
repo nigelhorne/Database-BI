@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.011.0';
+our $VERSION = '0.012.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -43,6 +43,11 @@ Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 # /s: makes . match \n so a percent-decoded newline inside a URL does not
 # silently truncate the captured URL before the \z end-of-string anchor.
 Readonly my $URL_SPEC_RE   => qr{\Aurl:(https?://.+)\z}si;
+
+# Redis spec pattern: redis:tablename|redis://[password@]host[:port][/db_index]
+# The pipe separates the table name from the connection URL so the URL's own
+# colons and slashes do not require extra quoting.
+Readonly my $REDIS_SPEC_RE => qr{\Aredis:([A-Za-z_][A-Za-z0-9_]*)\|(redis://.+)\z}si;
 
 # Hostname pattern accepted in /../hostname/... remote paths.
 # Mirrors Database::Abstraction's own host validation regex.
@@ -96,7 +101,8 @@ Readonly my $MAX_PER_PAGE          => 2_000;
 # 0-based row offset.  Pagination is optional: when neither param is present
 # per_page defaults to DEFAULT_PER_PAGE.
 sub _pagination {
-	my ($self) = @_;
+	my $self = $_[0];
+
 	my $per_page = int($self->param('per_page') // $DEFAULT_PER_PAGE);
 	$per_page = 1         if $per_page < 1;
 	$per_page = $MAX_PER_PAGE if $per_page > $MAX_PER_PAGE;
@@ -347,6 +353,10 @@ sub _open_spec :Protected ($self, $spec) {
 		return () unless _is_safe_url($url);
 		my $src = eval { $self->open_table('', url => $url) };
 		return ($src, $src->table_name) if $src && !$@;
+	} elsif($spec =~ $REDIS_SPEC_RE) {
+		my ($table, $redis_url) = ($1, $2);
+		my $src = eval { $self->open_table($table, redis => $redis_url) };
+		return ($src, $table) if $src && !$@;
 	}
 	return ();
 }
@@ -361,6 +371,7 @@ sub _spec_to_url :Protected ($self, $spec) {
 	return "/view/$1" if $spec =~ /\Atable:([A-Za-z0-9_]+)\z/;
 	return '/open?path=' . url_escape($1) if $spec =~ /\Apath:(.+)\z/;
 	return '/import?url=' . url_escape($1) if $spec =~ $URL_SPEC_RE;
+	return '/' if $spec =~ $REDIS_SPEC_RE;
 	return '/';
 }
 
