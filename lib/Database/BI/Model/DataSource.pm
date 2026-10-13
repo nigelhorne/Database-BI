@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.013.0';
+our $VERSION = '0.012.0';
 
 =head1 NAME
 
@@ -1541,6 +1541,49 @@ sub dbi_source {
 	return undef unless $self->{_db};
 	return undef unless $self->{_db}->can('dbi_source');
 	return $self->{_db}->dbi_source();
+}
+
+=head2 aggregate
+
+Delegates to the inner C<Database::Abstraction> backend's C<aggregate()> method
+(requires C<Database::Abstraction> E<gt>= 0.49).
+
+Returns C<[]> for in-memory backends (headerless CSV, XLSX, empty files) and for
+URL-backed sources where aggregation is not available.
+
+Accepts the same C<by>, C<measures>, C<having>, C<sort_by>, C<limit>, C<offset>,
+and WHERE-criteria parameters as C<Database::Abstraction::aggregate()>.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  by        arrayref    Column names to GROUP BY.
+  measures  arrayref    Measure descriptors (see Database::Abstraction::aggregate).
+  having    hashref     Optional HAVING criteria.
+  sort_by   string      Optional ORDER BY column.
+  limit     integer     Optional result limit.
+  offset    integer     Optional result offset.
+  (any other key)       WHERE column criteria passed through to D::A.
+
+=head4 OUTPUT
+
+  arrayref of hashrefs   -- one row per group.
+  []                     -- in-memory / empty / URL-backed sources.
+
+=head3 MESSAGES
+
+None.
+
+=cut
+
+sub aggregate {
+	my ($self, @args) = @_;
+	return [] if $self->{_file_is_empty};
+	return [] if $self->{_file_data};
+	return [] unless $self->{_db};
+	return [] unless $self->{_db}->can('aggregate');
+	return $self->{_db}->aggregate(@args);
 }
 
 =head2 id_column

@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.013.0	Mon Oct 13 12:00:00 PM EDT 2026
+0.012.0	Tue Oct 13 12:00:00 PM EDT 2026
     [ API Changes ]
     - GET /join now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc for
       server-side pagination and in-memory ordering of the joined view.
@@ -11,7 +11,43 @@ Revision history for Database-BI
     - GET /view/:table and GET /open now apply f= filters and d=1 dedup BEFORE
       paginating (reduce-before-paginate): ?page=2 now returns the second page of
       the filtered set, not the second raw page filtered to fewer rows.
-    [ Enhancements ]
+    [ Enhancements -- semantic layer (Phase 1) ]
+    - Added _grouped_totals() as the single aggregation entry point for all four
+      chart routes (/bar, /pie, /heatmap, /graph).  It tries to push GROUP BY to
+      the backend via Database::Abstraction::aggregate() / Database::Join::aggregate()
+      when safe to do so, and falls back to an in-Perl fold otherwise.
+    - Added _measure(), _numeric_cell(), _measure_pushable(), and
+      _parse_measure_param() private helpers supporting the aggregation layer.
+    - Push path is used only when: the source object supports aggregate(), no f=
+      filters are active (post-filter GROUP BY cannot be pushed safely), and every
+      sampled value in the measure column is a plain number (no currency symbols,
+      accounting notation, or blank cells -- all cases that diverge between SQL
+      and the Perl fold).  $ENV{BI_FORCE_PERL_AGG} overrides to Perl fold for
+      test equivalence assertions.
+    - Refactored _run_export_pipeline into a thin wrapper over the new
+      _run_pipeline_source, which returns the raw (source, records, columns)
+      triple without applying filters, dedup, or pagination.  Chart routes call
+      _run_pipeline_source directly so they can pass the live source object to
+      the push path.
+    - Added DataSource::aggregate() delegating method; returns [] immediately for
+      in-memory (headerless CSV/XLSX), empty-file, and URL-backed sources;
+      delegates to Database::Abstraction::aggregate() for file-backed sources.
+    - Eliminated four copies of the category-aggregation loop (one per chart
+      route) in favour of the single _grouped_totals() call.
+    [ Enhancements -- Redis backend ]
+    - Added Redis backend support.  DataSource now accepts a redis => 'redis://...'
+      constructor option; the named table is read from the Redis server via
+      Database::Abstraction's Redis backend (Redis::Fast preferred, Redis fallback).
+    - Added redis:tablename|redis://... spec format to _open_spec so Redis tables
+      can be used as the left source in joins (/join?l=redis:...).
+    - Added open_table helper support for the redis => option in BI.pm so the
+      full controller pipeline (join, export, graph, etc.) works with Redis sources.
+    - Added t/redis.t: 13 subtests covering DataSource construction, fetch_all,
+      selectall_arrayref, columns() laziness, _open_spec parsing, and Database::Join
+      integration, all using a mocked Redis so no real server is required.
+    - Added t/redis_live.t: 14 subtests against a real Redis server; skipped unless
+      REDIS_SERVER=redis://host:port is set in the environment.
+    [ Enhancements -- pagination and pipeline ]
     - Added DataSource::dbi_source() delegating method.  Database::Join 0.009.0
       uses this to take the zero-copy ATTACH path for SQLite-backed sources,
       avoiding a row-by-row spill into a temporary SQLite file.
@@ -26,25 +62,10 @@ Revision history for Database-BI
     - has_next is now recomputed after any in-memory reduction so Next/Prev buttons
       are accurate even when filters remove rows from the last page.
     [ Dependencies ]
-    - No new dependencies; requires Database::Join >= 0.009.0 and
-      Database::Abstraction >= 0.49 (already declared).
-
-0.012.0	Mon Oct 12 12:00:00 PM EDT 2026
-    [ Enhancements ]
-    - Added Redis backend support.  DataSource now accepts a redis => 'redis://...'
-      constructor option; the named table is read from the Redis server via
-      Database::Abstraction's Redis backend (Redis::Fast preferred, Redis fallback).
-    - Added redis:tablename|redis://... spec format to _open_spec so Redis tables
-      can be used as the left source in joins (/join?l=redis:...).
-    - Added open_table helper support for the redis => option in BI.pm so the
-      full controller pipeline (join, export, graph, etc.) works with Redis sources.
-    - Added t/redis.t: 13 subtests covering DataSource construction, fetch_all,
-      selectall_arrayref, columns() laziness, _open_spec parsing, and Database::Join
-      integration, all using a mocked Redis so no real server is required.
-    - Added t/redis_live.t: 14 subtests against a real Redis server; skipped unless
-      REDIS_SERVER=redis://host:port is set in the environment.
-    [ Dependencies ]
     - Added Redis to TEST_REQUIRES (optional; tests skip gracefully when absent).
+    - Database::Abstraction >= 0.49 required (0.49 added aggregate()).
+    - Database::Join >= 0.009.0 required (0.009.0 added aggregate() and the
+      zero-copy ATTACH path via dbi_source()).
 
 0.011.0	Sun Oct 11 09:20:48 PM EDT 2026
     [ Enhancements ]

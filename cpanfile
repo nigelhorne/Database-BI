@@ -8,8 +8,8 @@ requires 'CHI';
 requires 'Carp';
 requires 'DBI';
 requires 'DB_File';   # Used in DataSource.pm for Berkeley DB magic-byte detection
-requires 'Database::Abstraction', '0.48';   # 0.48 added limit/offset support in selectall_arrayref
-requires 'Database::Join', '0.004.0';
+requires 'Database::Abstraction', '0.49';   # 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+requires 'Database::Join', '0.009.0';    # 0.009.0 added aggregate(); 0.004.0 added backend=>'auto' SQLite spill
 requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';

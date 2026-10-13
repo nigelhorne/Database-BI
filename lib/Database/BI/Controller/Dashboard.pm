@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.013.0';
+our $VERSION = '0.012.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -80,6 +80,9 @@ Readonly my %MESSAGES => (
 	error_url_ssrf         => '"%s" resolves to a private or reserved address and cannot be fetched',
 	warn_combine_sort      => 'Sorting is applied in memory for /combine; result order may differ from a backend sort',
 	error_sort_column      => 'Unknown sort column "%s"',
+	warn_measure_fallback  => 'Measure "%s" on column "%s" is not uniformly numeric; totalled in Perl',
+	error_measure_fn       => 'Unknown measure function "%s"',
+	error_measure_column   => 'Measure column "%s" is not in the view',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -91,6 +94,13 @@ Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
 Readonly my $MAX_PER_PAGE          => 2_000;
+
+# Valid aggregate function vocabulary shared by _measure, _grouped_totals,
+# and the /pivot measure-spec parser (Phase 2).  Do not add functions here
+# without a corresponding implementation in _grouped_totals's Perl fold AND
+# a corresponding entry in the lower-layer aggregate() implementations.
+Readonly my @MEASURE_FNS  => qw(sum avg min max count count_distinct);
+Readonly my %MEASURE_FN_OK => map { $_ => 1 } @MEASURE_FNS;
 
 # ---------------------------------------------------------------------------
 # Protected helpers
@@ -538,6 +548,231 @@ sub _filter_specs_to_criteria {
 	return ({}, [@$specs]);
 }
 
+# ---------------------------------------------------------------------------
+# Phase 1 semantic-layer helpers
+# ---------------------------------------------------------------------------
+
+# _measure($fn, $col, $as) -> \%measure
+#
+# Build one measure descriptor in the vocabulary shared by Database::Abstraction
+# and Database::Join (sum|avg|min|max|count|count_distinct).  $col is the
+# source column name, or undef for COUNT(*).  $as is the result-row key.
+# The returned hashref is consumed directly by aggregate(measures => [...]).
+sub _measure {
+	my ($fn, $col, $as) = @_;
+	return { fn => $fn, (defined $col ? (col => $col) : ()), as => $as };
+}
+
+# _numeric_cell($v) -> $number | undef
+#
+# Extract a numeric value from a raw cell, handling currency prefixes
+# (e.g. $1,234.56) and accounting-notation negatives ((1,234.56) -> -1234.56).
+# Returns undef for empty, undef, or non-numeric input.
+# Used by the Perl fold path of _grouped_totals so all four chart routes
+# share one extraction function.
+sub _numeric_cell {
+	my $v = shift;
+	return undef unless defined $v && length($v);
+	my $is_acct_neg = ($v =~ /\A\s*\(/);
+	(my $n = $v) =~ s/[^\d.\-]//g;
+	$n = "-$n" if $is_acct_neg && $n =~ /\A\d/;
+	return undef unless $n =~ /\A-?\d+(?:\.\d+)?\z/;
+	return $n + 0;
+}
+
+# _measure_pushable($source, $fn, $col, \@records) -> bool
+#
+# Returns true when the measure can be computed by aggregate() on $source and
+# the result will be identical to the Perl fold.  False means use the Perl fold.
+#
+# Decision table:
+#   count / count_distinct -- always pushable (no numeric coercion).
+#   sum / avg / min / max  -- only when every sampled value in $col is either
+#                             a plain number (looks_like_number) or empty/undef.
+#                             Currency symbols or accounting parentheses in any
+#                             value force the Perl fold, which strips them
+#                             correctly; SQLite CAST would coerce them to 0.
+#   Missing $source        -- never pushable.
+#   Missing $col           -- sum/avg/min/max are not pushable without a column.
+sub _measure_pushable {
+	my ($source, $fn, $col, $records) = @_;
+	return 0 unless $source && $source->can('aggregate');
+	return 1 if $fn eq 'count' || $fn eq 'count_distinct';
+	return 0 unless defined $col;
+	# For sum/avg/min/max, only push when at least one value is a plain number
+	# and every non-null/non-blank value passes looks_like_number.
+	#
+	# Two cases where both paths must agree:
+	#   - All values undef/blank: Perl fold produces no rows; SQL SUM(NULL)
+	#     produces NULL, normalised to 0 by D::A → discrepancy.  Return 0 so
+	#     the Perl fold runs and yields the expected "No plottable data" result.
+	#   - Currency/accounting notation (e.g. ($1,234)): _numeric_cell strips
+	#     these correctly; SQL sees non-numeric text → SUM = NULL → 0.  Return 0
+	#     so _numeric_cell is used on every value.
+	require Scalar::Util;
+	my $found = 0;
+	for my $row (@{ $records // [] }) {
+		my $v = $row->{$col};
+		next unless defined $v && length($v);   # undef/blank: same effect as NULL
+		return 0 unless Scalar::Util::looks_like_number($v);
+		$found = 1;
+	}
+	return $found;    # 0 (false) when every sampled value was undef or blank
+}
+
+# _parse_measure_param($spec_str) -> \%measure | undef
+#
+# Parse 'col:fn:as' into { col => ..., fn => ..., as => ... }.
+# Shared dialect for /pivot (Phase 2) so it does not invent a second format.
+# Returns undef for an invalid or unrecognised spec.
+sub _parse_measure_param {
+	my $str = shift;
+	return undef unless defined $str && length($str);
+	my ($col, $fn, $as) = split /:/, $str, 3;
+	return undef unless defined $fn && defined $as && length($fn) && length($as);
+	$fn = lc $fn;
+	return undef unless $MEASURE_FN_OK{$fn};
+	return { col => $col, fn => $fn, as => $as };
+}
+
+# _grouped_totals($self, \%pipeline, \%spec) -> \@rows
+#
+# Single GROUP BY entry point for all four chart routes.  Returns an arrayref
+# of hashrefs, each containing the 'by' column values and the aggregate result
+# under $spec->{as}.
+#
+# $pipeline = { source => $src_or_undef, records => \@rows }
+#   source  -- a DataSource or Database::Join for the push path; undef when
+#              the pipeline is a /combine union (must fold in Perl).
+#   records -- the already-fetched rows (pre-filtered by the caller).
+#
+# $spec = { by => [...], fn => ..., val => ..., as => ..., [sort_by, having, limit, offset] }
+#
+# Dispatch:
+#   Push path  -- $source is defined, no active f= filters, measure is pushable
+#                 (checked by _measure_pushable). Calls $source->aggregate().
+#                 Phase 1 does not push filter criteria (that is Phase 0.3);
+#                 when f= filters are active the Perl fold is always used.
+#   Perl fold  -- Iterates $pipeline->{records} (pre-filtered) directly.
+#
+# $ENV{BI_FORCE_PERL_AGG}: set to a true value in tests to force the Perl fold
+# regardless of source type, enabling cross-backend equivalence assertions.
+sub _grouped_totals :Protected ($self, $pipeline, $spec) {
+	my $source  = $pipeline->{source};
+	my $records = $pipeline->{records} // [];
+	my $by      = $spec->{by}  // [];
+	my $fn      = lc($spec->{fn}  // 'count');
+	my $val_col = $spec->{val};
+	my $as      = $spec->{as}  // 'value';
+
+	# Push path: use backend aggregate() when safe.
+	# Active f= filters block the push path in Phase 1 because
+	# _filter_specs_to_criteria is a stub that cannot push criteria to SQL yet.
+	my @f_specs    = grep { /\S/ } @{ $self->every_param('f') // [] };
+	my $has_filter = !!@f_specs;
+
+	# SQL::Statement 1.414 (the SQL engine under DBD::CSV) uses
+	# "use warnings FATAL => 'all'" and calls join("\0", @row[@keycols])
+	# inside getAffectedResult without guarding against undef.  When a GROUP BY
+	# column contains blank CSV cells (empty_is_undef => 1 converts them to
+	# undef), the join triggers a fatal "uninitialized value" exception and the
+	# execute() call dies.  The correct fix is to use
+	#   map { $_ // '' } @row[@keycols]
+	# in SQL::Statement::getAffectedResult, but the module has been unmaintained
+	# since 2020 (21 open RT tickets as of 2026-10).
+	# See: https://rt.cpan.org/Ticket/Display.html?id=181946
+	# Skip the push path whenever any 'by' column has a blank or undef value so
+	# DBD::CSV/SQL::Statement is never asked to GROUP BY a null key.
+	# TODO: remove this guard once SQL-Statement RT#181946 is fixed (last checked: 1.414).
+	my $has_null_by_key = @$by && do {
+		my $found;
+		KEY_SCAN: for my $row (@$records) {
+			for my $col (@$by) {
+				my $v = $row->{$col};
+				if (!defined($v) || !length($v)) { $found = 1; last KEY_SCAN; }
+			}
+		}
+		$found;
+	};
+
+	unless ($ENV{BI_FORCE_PERL_AGG} || $has_filter || $has_null_by_key || !$source
+		|| !_measure_pushable($source, $fn, $val_col, $records)) {
+		my $m = _measure($fn, $val_col, $as);
+		my $agg_rows = eval {
+			$source->aggregate(
+				by       => $by,
+				measures => [$m],
+				($spec->{sort_by} ? (sort_by => $spec->{sort_by}) : ()),
+				($spec->{having}  ? (having  => $spec->{having})  : ()),
+				($spec->{limit}   ? (limit   => $spec->{limit})   : ()),
+				($spec->{offset}  ? (offset  => $spec->{offset})  : ()),
+			)
+		};
+		unless ($@) {
+			return $agg_rows // [];
+		}
+		carp "aggregate() push failed: $@; falling back to Perl fold";
+	}
+
+	# Perl fold over pre-filtered records.
+	my (%seen_warned, %seen_key, @key_order);
+	my (%totals, %count_map, %distinct_vals);
+
+	for my $row (@$records) {
+		# Skip rows where any 'by' column is empty/undef (mirrors SQL GROUP BY NULL exclusion).
+		my @key_parts = map { $row->{$_} // '' } @$by;
+		next if @$by && grep { !length($_) } @key_parts;
+		my $key = join("\x00", @key_parts);
+
+		if ($fn eq 'count') {
+			push @key_order, $key unless $seen_key{$key}++;
+			$totals{$key}++;
+		} elsif ($fn eq 'count_distinct') {
+			push @key_order, $key unless $seen_key{$key}++;
+			my $dv = defined $val_col ? ($row->{$val_col} // '') : '';
+			$distinct_vals{$key}{$dv}++;
+		} else {
+			my $v = defined $val_col ? ($row->{$val_col} // '') : '';
+			my $n = _numeric_cell($v);
+			unless (defined $n) {
+				unless ($seen_warned{"$fn\x01" . ($val_col // '')}++) {
+					carp $self->_i18n('warn_measure_fallback', $fn, $val_col // '(none)');
+				}
+				next;	# skip: do NOT add key to order for non-numeric rows
+			}
+			push @key_order, $key unless $seen_key{$key}++;
+			if    ($fn eq 'sum') { $totals{$key}  += $n                                                             }
+			elsif ($fn eq 'avg') { $totals{$key}  += $n; $count_map{$key}++                                        }
+			elsif ($fn eq 'min') { $totals{$key}   = (!exists $totals{$key} || $n < $totals{$key}) ? $n : $totals{$key} }
+			elsif ($fn eq 'max') { $totals{$key}   = (!exists $totals{$key} || $n > $totals{$key}) ? $n : $totals{$key} }
+		}
+	}
+
+	if ($fn eq 'avg') {
+		for my $k (keys %totals) {
+			$totals{$k} = $count_map{$k} ? $totals{$k} / $count_map{$k} : undef;
+		}
+	} elsif ($fn eq 'count_distinct') {
+		for my $k (@key_order) {
+			$totals{$k} = scalar keys %{ $distinct_vals{$k} // {} };
+		}
+	}
+
+	# Assemble result rows in first-seen (insertion) order.
+	my @result;
+	for my $key (@key_order) {
+		my @parts = @$by ? (split /\x00/, $key, scalar @$by) : ();
+		my %row;
+		for my $i (0 .. $#$by) {
+			$row{$by->[$i]} = $parts[$i];
+		}
+		$row{$as} = $totals{$key} // ($fn =~ /\A(?:sum|count|count_distinct)\z/ ? 0 : undef);
+		push @result, \%row;
+	}
+
+	return \@result;
+}
+
 # _fetch_page( $self, $source, \%params ) -> ( $records, $has_next )
 #   params: per_page  -- page size (required)
 #           offset    -- 0-based row offset (required)
@@ -760,22 +995,23 @@ sub _write_sqlite_db :Protected ($self, $records, $columns) {
 	return $data;
 }
 
-# _run_export_pipeline($self) -> ($records, \@columns, $left_label) or ()
+# _run_pipeline_source($self) -> ($src, $records, \@columns, $left_label) or ()
 #
-# Purpose: Shared join+filter pipeline executed by both export_data (GET, download)
-#          and export_write (POST, filesystem write).  Opens the left table, chains
-#          any Database::Join steps, fetches the merged result, then applies filters.
-# Entry:   Reads "l=", "j=" (repeatable), and "f=" (repeatable) query/body params.
-# Exit:    On success: ($filtered_arrayref, \@column_names, $left_label_string).
+# Purpose: Inner pipeline: opens the left spec, builds the join chain, fetches
+#          all rows, and runs any c= combine step.  Does NOT apply f= filters,
+#          dedup, or pagination -- that is the caller's responsibility.
+#          Chart routes call this directly so they can access $src for the
+#          Phase 1 aggregate() push path.  Row-viewing routes and export routes
+#          call the thin _run_export_pipeline wrapper instead.
+# Exit:    On success: ($src_or_undef, $records_aref, $columns_aref, $label).
+#          $src is undef when a c= combine makes the result non-aggregatable.
 #          On failure: empty list (left table not found / fetch error).
-# Side Effects: Opens data files; may emit carp warnings for empty result sets.
-sub _run_export_pipeline :Protected ($self) {
+sub _run_pipeline_source :Protected ($self) {
 	my $left_spec = $self->param('l') // '';
 	my ($left_src, $left_label) = $self->_open_spec($left_spec);
 	return () unless $left_src;
 
-	# Build the join chain lazily: each Database::Join wraps the previous source
-	# and a new right DataSource.  No data is fetched until after the loop.
+	# Build the join chain lazily.
 	my $max_rows  = $self->app->config('join_max_rows') // $DEFAULT_JOIN_MAX_ROWS;
 	my $join_type = $self->param('jtype') // 'left';
 	$join_type    = 'left' unless $join_type =~ /\A(?:left|inner|outer)\z/;
@@ -809,9 +1045,6 @@ sub _run_export_pipeline :Protected ($self) {
 		);
 	}
 
-	# Surface any schema-type-mismatch warnings from Database::Join to the UI
-	# so the user sees "column X has conflicting types" rather than losing it
-	# silently to the error log.
 	$self->stash(schema_warnings => \@schema_warnings) if @schema_warnings;
 
 	my $records = eval { $src->selectall_arrayref };
@@ -819,8 +1052,8 @@ sub _run_export_pipeline :Protected ($self) {
 	$records //= [];
 	my @columns = _get_columns($src, $records);
 
-	# Combine (vertical stack) with any c= sources.  Runs after joins so a join
-	# result can itself be stacked with another table in a single pipeline.
+	# Combine (vertical stack): sets $src = undef since the result is a union
+	# with no single aggregatable object.
 	my @cspecs = @{ $self->every_param('c') // [] };
 	if (@cspecs) {
 		my @sources = ([$records, \@columns]);
@@ -835,8 +1068,28 @@ sub _run_export_pipeline :Protected ($self) {
 		if (@sources > 1) {
 			($records, my $new_cols) = _combine_tables(\@sources);
 			@columns = @$new_cols;
+			$src = undef;	# union: no single aggregatable source
 		}
 	}
+
+	return ($src, $records, \@columns, $left_label);
+}
+
+# _run_export_pipeline($self) -> ($records, \@columns, $left_label) or ()
+#
+# Purpose: Thin wrapper over _run_pipeline_source that additionally applies
+#          f= filters, d=1 dedup, and page/per_page pagination.  Used by
+#          export_data, export_write, folder_view, and import_url (row-viewing
+#          routes that do not need the source object for aggregation).
+# Entry:   Reads "l=", "j=" (repeatable), "c=" (repeatable), "f=" (repeatable),
+#          "d=", "page=", "per_page=" query/body params.
+# Exit:    On success: ($filtered_arrayref, \@column_names, $left_label_string).
+#          On failure: empty list (left table not found / fetch error).
+sub _run_export_pipeline :Protected ($self) {
+	my (undef, $records, $columns, $left_label) = $self->_run_pipeline_source;
+	return () unless defined $records;
+
+	my @columns = @{ $columns // [] };
 
 	for my $s (@{ $self->every_param('f') }) {
 		$records = _apply_filter_spec($records, $s);
@@ -844,9 +1097,7 @@ sub _run_export_pipeline :Protected ($self) {
 
 	$records = _dedup_records($records, \@columns) if $self->param('d');
 
-	# Server-side pagination for /export: honour ?page= and ?per_page= so a
-	# caller can download a specific slice of the result set.  When neither
-	# param is present per_page defaults to all rows (no slicing).
+	# Server-side pagination for /export.
 	if (defined $self->param('page') || defined $self->param('per_page')) {
 		my ($page, $per_page, $offset) = $self->_pagination;
 		my $total    = scalar @$records;
@@ -2562,9 +2813,14 @@ sub graph_view ($self) {
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
 
-	my ($records, $columns) = $self->_run_export_pipeline;
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
-		unless $records;
+		unless defined $records;
+
+	# Apply f= filters (pre-filter before building pairs, same as _run_export_pipeline).
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col", status => 400)
@@ -2575,15 +2831,13 @@ sub graph_view ($self) {
 	# Extract [label, value] pairs; skip rows where Y is missing or non-numeric.
 	my @pairs;
 	for my $row (@{$records}) {
-		my $x = $row->{$x_col} // '';
-		my $y = $row->{$y_col} // '';
+		my $x  = $row->{$x_col} // '';
+		my $y  = $row->{$y_col} // '';
 		next unless length($x) && length($y);
-		my $is_acct_neg = ($y =~ /\A\s*\(/);   # (value) = accounting negative
-		(my $y_num = $y) =~ s/[^\d.\-]//g;
-		$y_num = "-$y_num" if $is_acct_neg && $y_num =~ /\A\d/;
-		next unless $y_num =~ /\A-?\d+(?:\.\d+)?\z/;
+		my $yn = _numeric_cell($y);
+		next unless defined $yn;
 		my %extra = map { $_ => _decode_cell($row->{$_}) } grep { $_ ne $x_col && $_ ne $y_col } @{$columns};
-		push @pairs, [_decode_cell($x), $y_num + 0, \%extra];
+		push @pairs, [_decode_cell($x), $yn, \%extra];
 	}
 
 	return $self->render(
@@ -2591,10 +2845,38 @@ sub graph_view ($self) {
 		status => 200,
 	) unless @pairs;
 
-	my @y_vals  = map { $_->[1] } @pairs;
-	my $min_y   = min(@y_vals);
-	my $max_y   = max(@y_vals);
-	my $avg_y   = sum(@y_vals) / scalar(@y_vals);
+	my @y_vals = map { $_->[1] } @pairs;
+	my ($min_y, $max_y, $avg_y);
+
+	# Try aggregate() push path for the global min/max/avg reference lines.
+	# Falls back to List::Util on the already-extracted @y_vals when push is
+	# not available (no source, filters active, or non-pushable column).
+	my @f_specs    = grep { /\S/ } @{ $self->every_param('f') // [] };
+	my $has_filter = !!@f_specs;
+	if (!$ENV{BI_FORCE_PERL_AGG} && $src && !$has_filter
+		&& _measure_pushable($src, 'avg', $y_col, $records)) {
+		my $ref = eval {
+			$src->aggregate(
+				by       => [],
+				measures => [
+					_measure('min', $y_col, 'lo'),
+					_measure('max', $y_col, 'hi'),
+					_measure('avg', $y_col, 'mean'),
+				],
+			)
+		};
+		if (!$@ && $ref && @$ref) {
+			$min_y = $ref->[0]{lo};
+			$max_y = $ref->[0]{hi};
+			$avg_y = $ref->[0]{mean};
+		}
+	}
+	# Perl fallback: compute from the already-stripped @y_vals.
+	unless (defined $min_y) {
+		$min_y = min(@y_vals);
+		$max_y = max(@y_vals);
+		$avg_y = sum(@y_vals) / scalar(@y_vals);
+	}
 
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
@@ -2632,59 +2914,60 @@ sub pie_view ($self) {
 	my $back         = _safe_back_url($self->param('back')) // '/';
 	my $back2        = _safe_back_url($self->param('back2'));
 	my $back2_lbl    = $self->param('back2_label') // '';
-	my @filter_specs = $self->every_param('f');
 
 	return $self->render(text => 'Missing cat or val column parameter', status => 400)
 		unless length($cat_col) && length($val_col);
 
-	my ($records, $columns) = $self->_run_export_pipeline;
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
-		unless $records;
+		unless defined $records;
+
+	# Apply f= filters.
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
 		unless $col_set{$cat_col};
 
 	# '__count__' is the sentinel value sent when the user picks "Count (rows)".
-	# In that mode we count rows per category instead of summing a numeric column.
 	my $count_mode = ($val_col eq '__count__');
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
 
-	# Detect the currency symbol (e.g. $ GBP EUR) from the first non-empty raw
-	# value.  The regex captures the first character that is not a digit,
-	# whitespace, comma, period, hyphen, or open-paren -- that character is
-	# the currency prefix.  Accounting-notation values like ($1,234.56) are
-	# handled by the optional open-paren before the currency character.
-	# Not used in count mode because counts are always plain integers.
+	# Detect the currency symbol from the first non-empty source value.
+	# This is a display concern; derive from the pre-filtered source rows so the
+	# $/$GBP/EUR prefix on the legend is unchanged regardless of the push path.
 	my $currency_symbol = '';
-	my %totals;
-	for my $row (@{$records}) {
-		my $cat = $row->{$cat_col} // '';
-		next unless length($cat);
-		if ($count_mode) {
-			$totals{$cat}++;
-		} else {
+	if (!$count_mode) {
+		for my $row (@$records) {
 			my $v = $row->{$val_col} // '';
 			next unless length($v);
-			if (!length($currency_symbol) && $v =~ /\A\s*\(?\s*([^\d\s.,\-\(])/) {
+			if ($v =~ /\A\s*\(?\s*([^\d\s.,\-\(])/) {
 				$currency_symbol = $1;
+				last;
 			}
-			# Capture accounting-notation sign before stripping non-numeric chars.
-			my $is_acct_neg = ($v =~ /\A\s*\(/);
-			(my $v_num = $v) =~ s/[^\d.\-]//g;
-			$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
-			next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
-			$totals{$cat} += $v_num + 0;
 		}
 	}
+
+	# Aggregate via _grouped_totals (push path or Perl fold).
+	my $agg_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{
+			by  => [$cat_col],
+			fn  => $count_mode ? 'count' : 'sum',
+			val => $count_mode ? undef   : $val_col,
+			as  => 'value',
+		},
+	);
 
 	return $self->render(
 		text   => 'No plottable data: no rows have valid data in the selected columns.',
 		status => 200,
-	) unless %totals;
+	) unless @$agg_rows;
 
-	my @slices = map { [_decode_cell($_), $totals{$_}] } sort keys %totals;
+	my @slices = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg_rows;
 
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
@@ -2789,9 +3072,14 @@ sub heatmap_view ($self) {
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
 
-	my ($records, $columns) = $self->_run_export_pipeline;
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
-		unless $records;
+		unless defined $records;
+
+	# Apply f= filters.
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col", status => 400)
@@ -2801,31 +3089,39 @@ sub heatmap_view ($self) {
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		if length($val_col) && !$col_set{$val_col};
 
-	# Aggregate flat rows into [$x, $y, $value] triples.
-	# Preserve first-seen order for both axes so natural sort order in the
-	# source data (e.g. dates) is reflected on the chart axes.
-	my (%grid, @x_order, @y_order, %seen_y);
-	for my $row (@{$records}) {
+	# Collect first-seen axis order from the filtered source rows.
+	# The aggregate path returns groups ordered by (x,y) ascending, which
+	# differs from first-seen.  We re-derive the layout order from the source
+	# so the grid renders in natural data order regardless of backend.
+	my (@x_order, @y_order, %seen_x, %seen_y);
+	for my $row (@$records) {
 		my $x = $row->{$x_col} // next;
 		my $y = $row->{$y_col} // next;
 		next unless length($x) && length($y);
-		push @x_order, $x unless exists $grid{$x};
+		push @x_order, $x unless $seen_x{$x}++;
 		push @y_order, $y unless $seen_y{$y}++;
-		if (length($val_col)) {
-			my $v = $row->{$val_col} // 0;
-			my $is_acct_neg = ($v =~ /\A\s*\(/);
-			(my $v_num = $v) =~ s/[^\d.\-]//g;
-			$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
-			$v_num = 0 unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
-			$grid{$x}{$y} += $v_num + 0;
-		} else {
-			$grid{$x}{$y}++;
-		}
+	}
+
+	# Aggregate with _grouped_totals (push or Perl fold).
+	my $agg_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{
+			by  => [$x_col, $y_col],
+			fn  => length($val_col) ? 'sum' : 'count',
+			val => length($val_col) ? $val_col : undef,
+			as  => 'value',
+		},
+	);
+
+	# Index aggregate rows by [x][y] for O(1) lookup.
+	my %grid;
+	for my $row (@$agg_rows) {
+		$grid{$row->{$x_col}}{$row->{$y_col}} = $row->{value};
 	}
 
 	my @triples = map {
 		my ($raw_x, $xv) = ($_, _decode_cell($_));
-		map { [$xv, _decode_cell($_), $grid{$raw_x}{$_}] } @y_order
+		map { [$xv, _decode_cell($_), $grid{$raw_x}{$_} // 0] } @y_order
 	} @x_order;
 
 	return $self->render(
@@ -2934,9 +3230,14 @@ sub bar_view ($self) {
 	return $self->render(text => 'Missing cat column parameter', status => 400)
 		unless length($cat_col);
 
-	my ($records, $columns) = $self->_run_export_pipeline;
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
-		unless $records;
+		unless defined $records;
+
+	# Apply f= filters.
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
@@ -2947,29 +3248,23 @@ sub bar_view ($self) {
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
 
-	my %totals;
-	for my $row (@{$records}) {
-		my $cat = $row->{$cat_col} // '';
-		next unless length($cat);
-		if ($count_mode) {
-			$totals{$cat}++;
-		} else {
-			my $v = $row->{$val_col} // '';
-			next unless length($v);
-			my $is_acct_neg = ($v =~ /\A\s*\(/);
-			(my $v_num = $v) =~ s/[^\d.\-]//g;
-			$v_num = "-$v_num" if $is_acct_neg && $v_num =~ /\A\d/;
-			next unless $v_num =~ /\A-?\d+(?:\.\d+)?\z/;
-			$totals{$cat} += $v_num + 0;
-		}
-	}
+	# Aggregate via _grouped_totals (push path or Perl fold).
+	my $agg_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{
+			by  => [$cat_col],
+			fn  => $count_mode ? 'count' : 'sum',
+			val => $count_mode ? undef   : $val_col,
+			as  => 'value',
+		},
+	);
 
 	return $self->render(
 		text   => 'No plottable data: no rows have valid data in the selected columns.',
 		status => 200,
-	) unless %totals;
+	) unless @$agg_rows;
 
-	my @bars = map { [_decode_cell($_), $totals{$_}] } sort keys %totals;
+	my @bars = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg_rows;
 
 	my $orientation = ($orient eq 'h') ? 'horizontal' : 'vertical';
 	my $sort_bars   = ($sort eq 'value' || $sort eq 'label') ? $sort : 'none';
