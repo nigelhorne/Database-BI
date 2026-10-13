@@ -15,7 +15,7 @@ WriteMakefile(
 	NAME			 => 'Database::BI',
 	VERSION_FROM	 => 'lib/Database/BI.pm',
 	ABSTRACT_FROM => 'lib/Database/BI.pm',
-	AUTHOR		   => 'Nigel Horne <njh@nigelhorne.com>',
+	AUTHOR		=> 'Nigel Horne <njh@nigelhorne.com>',
 	LICENSE		  => 'gpl_2',
 	MIN_PERL_VERSION => '5.020000',
 	EXE_FILES	=> ['script/database-bi'],
@@ -70,7 +70,7 @@ WriteMakefile(
 			repository => {
 				type => 'git',
 				url  => 'https://github.com/nigelhorne/Database-BI.git',
-				web  => 'https://github.com/nigelhorne/Database-BI',
+				web => 'https://github.com/nigelhorne/Database-BI',
 			}, bugtracker => {
 				web => 'https://github.com/nigelhorne/Database-BI/issues',
 			}

@@ -47,7 +47,11 @@ Readonly my $URL_SPEC_RE   => qr{\Aurl:(https?://.+)\z}si;
 # Redis spec pattern: redis:tablename|redis://[password@]host[:port][/db_index]
 # The pipe separates the table name from the connection URL so the URL's own
 # colons and slashes do not require extra quoting.
-Readonly my $REDIS_SPEC_RE => qr{\Aredis:([A-Za-z_][A-Za-z0-9_]*)\|(redis://.+)\z}si;
+Readonly my $REDIS_SPEC_RE => qr{\Aredis:([^|]+)\|(redis://.+)\z}si;
+
+# Bare Redis URL -- no table name -- used to list available keys.
+# Excludes '|' so it cannot match the redis:table|redis://... full spec.
+Readonly my $REDIS_URL_RE  => qr{\Aredis://[^\s|]+\z}si;
 
 # Hostname pattern accepted in /../hostname/... remote paths.
 # Mirrors Database::Abstraction's own host validation regex.
@@ -1553,6 +1557,11 @@ sub open_file ($self) {
 
 	my ($page, $per_page, $offset) = $self->_pagination;
 
+	# Bare redis:// URL (no table name) -- redirect to key-listing page.
+	if ($file_path =~ $REDIS_URL_RE) {
+		return $self->redirect_to('/tables?l=' . url_escape($file_path));
+	}
+
 	# Redis spec: redis:tablename|redis://host:port -- delegate to _open_spec.
 	if ($file_path =~ $REDIS_SPEC_RE) {
 		my $lspec = $file_path;
@@ -1590,8 +1599,8 @@ sub open_file ($self) {
 			columns          => \@columns,
 			table            => $table,
 			title            => $label,
-			back_url         => '/',
-			back_label       => 'Home',
+			back_url         => _safe_back_url($self->param('back')) // '/',
+			back_label       => $self->param('back_label') // 'Home',
 			back2_url        => _safe_back_url($self->param('back2')),
 			back2_label      => $self->param('back2_label') // 'Back',
 			file_path        => $file_path,
@@ -3548,6 +3557,7 @@ sub tables_view ($self) {
 	return $self->reply->not_found unless defined $spec && length $spec;
 
 	my ($file_path, $db_label, $back_url, $back_label);
+	my @tables;
 
 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
 		my $table_name = lc $1;
@@ -3573,12 +3583,61 @@ sub tables_view ($self) {
 		($db_label  = $file->basename) =~ s/\.[^.]+\z//;
 		$back_url   = '/browse?path=' . url_escape($file->dirname->to_string);
 		$back_label = 'Back to browser';
+	} elsif ($spec =~ $REDIS_URL_RE) {
+		# Bare redis:// URL -- scan keys and present a picker.
+		# Parse redis://[:password@]host[:port][/db]
+		my ($password, $hostport, $db_idx);
+		if ($spec =~ m{\Aredis://(?::([^@]*)@)?([^/]+)(?:/(\d+))?\z}i) {
+			($password, $hostport, $db_idx) = ($1, $2, $3);
+		}
+		$hostport //= 'localhost:6379';
+		$db_label   = "redis://$hostport";
+		$back_url   = '/';
+		$back_label = 'Home';
+
+		eval {
+			# Load Redis::Fast if available, fall back to Redis.
+			# Use the file-path form ("Redis/Fast.pm") because require with a
+			# plain string treats it as a filename, not a module name.
+			my $pkg;
+			for my $mod ('Redis::Fast', 'Redis') {
+				(my $file = $mod) =~ s{::}{/}g;
+				if (eval { require "$file.pm"; 1 }) { $pkg = $mod; last }
+			}
+			croak 'Redis or Redis::Fast must be installed to browse a Redis server'
+				unless $pkg;
+
+			my $redis = $pkg->new(
+				server      => $hostport,
+				cnx_timeout => 5,
+				read_timeout => 10,
+			);
+			$redis->auth($password) if defined $password && length $password;
+			$redis->select(int($db_idx)) if defined $db_idx && int($db_idx) > 0;
+
+			# SCAN in a loop; stop at 200 keys -- enough for a picker.
+			my $cursor = 0;
+			my @all_keys;
+			do {
+				my ($new_cursor, $batch) = $redis->scan($cursor, 'COUNT', 100);
+				$cursor = $new_cursor;
+				push @all_keys, @{ $batch // [] };
+			} while ($cursor ne '0' && @all_keys < 200);
+
+			my $tables_url = '/tables?l=' . url_escape($spec);
+			for my $key (sort @all_keys) {
+				my $open_url = '/open?path='    . url_escape("redis:$key|$spec")
+					. '&back='       . url_escape($tables_url)
+					. '&back_label=Redis+keys';
+				push @tables, { name => $key, columns => [], href => $open_url };
+			}
+		};
+		return $self->reply->not_found if $@;
 	} else {
 		return $self->reply->not_found;
 	}
 
-	my @tables;
-	eval {
+	if (defined $file_path) { eval {
 		require DBI;
 		my $dbh = DBI->connect(
 			"dbi:SQLite:dbname=$file_path", q{}, q{},
@@ -3603,8 +3662,7 @@ sub tables_view ($self) {
 			push @tables, { name => $tname, columns => \@cols, href => $open_url };
 		}
 		$dbh->disconnect;
-	};
-	return $self->reply->not_found if $@;
+	}; return $self->reply->not_found if $@; }
 
 	$self->render(
 		template   => "$platform/$language/tables",

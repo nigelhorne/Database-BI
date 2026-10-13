@@ -403,7 +403,7 @@
     .with-tooltip { position: relative; }
     .tip-box {
       position: absolute;
-      top: calc(100% + 7px);
+      bottom: calc(100% + 7px);
       left: 0;
       right: 0;
       z-index: 200;
@@ -417,21 +417,21 @@
       box-shadow: 0 4px 14px rgba(0,0,0,.28);
       pointer-events: none;
       opacity: 0;
-      transform: translateY(-3px);
+      transform: translateY(3px);
       transition: opacity 0.13s, transform 0.13s;
       white-space: normal;
     }
-    /* Arrow pointing up to the input */
+    /* Arrow pointing down to the input */
     .tip-box::before {
       content: '';
       position: absolute;
-      top: -6px;
+      bottom: -6px;
       left: 1rem;
       width: 10px;
       height: 10px;
       background: #1a2040;
-      border-left: 1px solid #3a50a0;
-      border-top: 1px solid #3a50a0;
+      border-right: 1px solid #3a50a0;
+      border-bottom: 1px solid #3a50a0;
       transform: rotate(45deg);
     }
     .tip-box code {
