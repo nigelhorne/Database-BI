@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.012.0';
+our $VERSION = '0.013.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -78,6 +78,8 @@ Readonly my %MESSAGES => (
 	error_url_invalid      => '"%s" is not a valid http:// or https:// URL',
 	error_url_fetch        => 'Could not load HTML table from "%s": %s',
 	error_url_ssrf         => '"%s" resolves to a private or reserved address and cannot be fetched',
+	warn_combine_sort      => 'Sorting is applied in memory for /combine; result order may differ from a backend sort',
+	error_sort_column      => 'Unknown sort column "%s"',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -519,6 +521,87 @@ sub _dedup_records {
 	return \@out;
 }
 
+# _filter_specs_to_criteria( \@specs ) -> ( \%criteria, \@residual_specs )
+#
+# Purpose: Map the f= filter vocabulary onto Database::Abstraction / Database::Join
+#          criteria hashrefs so the backend can apply pushable filters before
+#          paginating.  Specs that cannot be safely pushed are returned as
+#          @residual_specs for subsequent in-memory application.
+#
+# Phase 0 note: all specs are currently placed in @residual_specs.  Criteria
+# pushdown for numeric operators on SQLite-backed sources is deferred to Phase 0.3+
+# once dbi_source() is available to detect the backend type and guarantee that
+# case-insensitive string semantics (preserved by _apply_filter_spec) are not
+# silently changed to case-sensitive SQL comparisons.
+sub _filter_specs_to_criteria {
+	my ($specs) = @_;
+	return ({}, [@$specs]);
+}
+
+# _fetch_page( $self, $source, \%params ) -> ( $records, $has_next )
+#   params: per_page  -- page size (required)
+#           offset    -- 0-based row offset (required)
+#           dedup     -- truthy when ?d=1 dedup is requested
+#
+# Purpose: Fetch and reduce one page of records from $source, honouring the
+#          reduce-before-paginate ordering contract.  Two modes:
+#
+#   Fast path (no f= filters, no dedup): uses the N+1 trick
+#     selectall_arrayref(limit => per_page+1, offset => offset).  has_next is
+#     determined by the extra row before it is popped.
+#
+#   Reduction path (f= filters or dedup present): materialises the full result
+#     in memory, applies all f= filters with _apply_filter_spec (case-insensitive),
+#     applies dedup if requested, then paginates in Perl.  This guarantees that
+#     the Nth page contains the Nth page of the *reduced* set, not the Nth page
+#     of the raw set reduced to fewer rows.  Memory cost: the full reduced set.
+#     Criteria pushdown to the backend (avoiding the full-fetch cost) is deferred
+#     to Phase 0.3+ once dbi_source() identifies backend type.
+#
+# Returns (undef, 0) when the underlying fetch throws; the caller must handle
+# $records being undef.
+sub _fetch_page :Protected ($self, $source, $params) {
+	my $per_page = $params->{per_page};
+	my $offset   = $params->{offset};
+	my $dedup    = $params->{dedup};
+
+	# Collect and validate f= specs.
+	my @f_specs = grep {
+		my ($c, $o) = split /:/, $_, 3;
+		length($c // '') && defined $o && length $o;
+	} @{ $self->every_param('f') // [] };
+
+	unless (@f_specs || $dedup) {
+		# Fast path: let the backend paginate via N+1 trick.
+		# No eval here -- errors propagate to the caller's eval block so the
+		# controller can render a proper error page rather than a silent empty view.
+		my $records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
+		$records //= [];
+		my $has_next = (@$records > $per_page) ? 1 : 0;
+		pop @$records if $has_next;
+		return ($records, $has_next);
+	}
+
+	# Reduction path: full-set fetch then in-memory reduce + Perl paginate.
+	# Errors propagate to the caller's eval block.
+	my $all = $source->selectall_arrayref;
+	$all //= [];
+
+	$all = _apply_filter_spec($all, $_) for @f_specs;
+
+	if ($dedup) {
+		my $cols = $source->columns;
+		my @dcols = $cols ? @$cols : (keys %{ $all->[0] // {} });
+		$all = _dedup_records($all, \@dcols);
+	}
+
+	my $total    = scalar @$all;
+	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
+	my @page     = splice(@$all, $offset, $per_page);
+
+	return (\@page, $has_next);
+}
+
 # _combine_tables(\@sources) -> (\@merged_records, \@merged_columns)
 #
 # Purpose: Perform a vertical stack (UNION ALL equivalent) of two or more
@@ -761,6 +844,18 @@ sub _run_export_pipeline :Protected ($self) {
 
 	$records = _dedup_records($records, \@columns) if $self->param('d');
 
+	# Server-side pagination for /export: honour ?page= and ?per_page= so a
+	# caller can download a specific slice of the result set.  When neither
+	# param is present per_page defaults to all rows (no slicing).
+	if (defined $self->param('page') || defined $self->param('per_page')) {
+		my ($page, $per_page, $offset) = $self->_pagination;
+		my $total    = scalar @$records;
+		my $has_next = ($total > $offset + $per_page) ? 1 : 0;
+		my @page_recs = splice(@$records, $offset, $per_page);
+		$records = \@page_recs;
+		$self->stash(export_has_next => $has_next, export_page => $page, export_per_page => $per_page);
+	}
+
 	return ($records, \@columns, $left_label);
 }
 
@@ -971,12 +1066,19 @@ sub view ($self) {
 
 	my ($page, $per_page, $offset) = $self->_pagination;
 
-	my ($source, $records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	my ($source, $records, $has_next, $is_multi);
 	eval {
-		$source  = $self->open_table($table);
-		# Fetch one extra row to detect whether a next page exists without
-		# issuing a COUNT(*) query (which blocks on multi-GB SQLite files).
-		$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
+		$source = $self->open_table($table);
+		# Multi-table SQLite: flag redirect without fetching data.
+		if ($source && $source->sqlite_tables && @{ $source->sqlite_tables } > 1) {
+			$is_multi = 1;
+		} else {
+			# _fetch_page applies reduce-before-paginate: full-fetch + filter + dedup
+			# + Perl paginate when f= or d=1 are set; N+1 trick otherwise.
+			($records, $has_next) = $self->_fetch_page($source,
+				{ per_page => $per_page, offset => $offset, dedup => $dedup });
+		}
 	};
 	if ($@) {
 		return $self->render(
@@ -989,20 +1091,15 @@ sub view ($self) {
 		);
 	}
 
-	# Multi-table SQLite: show the schema browser first so the user can choose
-	# which internal table to open.
-	if ($source && $source->sqlite_tables && @{ $source->sqlite_tables } > 1) {
+	if ($is_multi) {
 		return $self->redirect_to('/tables?l=' . url_escape("table:$table"));
 	}
 
 	$records //= [];
-	my $has_next = (@$records > $per_page) ? 1 : 0;
-	pop @$records if $has_next;
-
 	my @columns = _get_columns($source, $records);
-	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-	my $dedup = $self->param('d') ? 1 : 0;
-	$filtered = _dedup_records($filtered, \@columns) if $dedup;
+	# _apply_filters on already-reduced records is a no-op for filtering but
+	# correctly builds filter_specs (for export URLs) and filters_json (for UI).
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
 	my $page_url = $self->req->url->clone;
 	$page_url->query->remove('page')->remove('per_page');
@@ -1012,7 +1109,7 @@ sub view ($self) {
 		template         => "$platform/$language/dashboard",
 		handler          => 'tt',
 		format           => 'html',
-		records          => $filtered,
+		records          => $records,
 		columns          => \@columns,
 		table            => $table,
 		title            => ucfirst($table),
@@ -1211,9 +1308,11 @@ sub open_file ($self) {
 		my ($source, $label) = $self->_open_spec($lspec);
 		return $self->reply->not_found unless $source;
 		my $table = $label;
-		my $records;
+		my $dedup = $self->param('d') ? 1 : 0;
+		my ($records, $has_next);
 		eval {
-			$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
+			($records, $has_next) = $self->_fetch_page($source,
+				{ per_page => $per_page, offset => $offset, dedup => $dedup });
 		};
 		if ($@) {
 			return $self->render(
@@ -1228,19 +1327,15 @@ sub open_file ($self) {
 			);
 		}
 		$records //= [];
-		my $has_next = (@$records > $per_page) ? 1 : 0;
-		pop @$records if $has_next;
 		my @columns  = _get_columns($source, $records);
-		my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-		my $dedup = $self->param('d') ? 1 : 0;
-		$filtered = _dedup_records($filtered, \@columns) if $dedup;
+		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
 			template         => "$platform/$language/dashboard",
 			handler          => 'tt',
 			format           => 'html',
-			records          => $filtered,
+			records          => $records,
 			columns          => \@columns,
 			table            => $table,
 			title            => $label,
@@ -1273,9 +1368,11 @@ sub open_file ($self) {
 		return $self->reply->not_found unless $source;
 		my $filename = $label;
 		(my $table = $filename) =~ s/\.[^.]+\z//;
-		my $records;
+		my $dedup = $self->param('d') ? 1 : 0;
+		my ($records, $has_next);
 		eval {
-			$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
+			($records, $has_next) = $self->_fetch_page($source,
+				{ per_page => $per_page, offset => $offset, dedup => $dedup });
 		};
 		if ($@) {
 			return $self->render(
@@ -1290,19 +1387,15 @@ sub open_file ($self) {
 			);
 		}
 		$records //= [];
-		my $has_next = (@$records > $per_page) ? 1 : 0;
-		pop @$records if $has_next;
 		my @columns  = _get_columns($source, $records);
-		my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-		my $dedup = $self->param('d') ? 1 : 0;
-		$filtered = _dedup_records($filtered, \@columns) if $dedup;
+		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
 			template         => "$platform/$language/dashboard",
 			handler          => 'tt',
 			format           => 'html',
-			records          => $filtered,
+			records          => $records,
 			columns          => \@columns,
 			table            => $table,
 			title            => $filename,
@@ -1346,11 +1439,19 @@ sub open_file ($self) {
 	}
 	my $back_label_default = $back_override ? ($self->param('back_label') // 'Back') : 'Back to browser';
 
-	my ($source, $records);
+	my $dedup = $self->param('d') ? 1 : 0;
+	my ($source, $records, $has_next, $is_multi_local);
 	eval {
-		$source  = $self->open_table($table, directory => $dir->to_string,
+		$source = $self->open_table($table, directory => $dir->to_string,
 			defined $it ? (internal_table => $it) : ());
-		$records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
+		# Multi-table SQLite without it=: flag redirect without fetching data.
+		if (!defined $it && $source && $source->sqlite_tables
+				&& @{ $source->sqlite_tables } > 1) {
+			$is_multi_local = 1;
+		} else {
+			($records, $has_next) = $self->_fetch_page($source,
+				{ per_page => $per_page, offset => $offset, dedup => $dedup });
+		}
 	};
 	if ($@) {
 		# Provide a SQLite-specific hint when the error looks like a table-name
@@ -1376,21 +1477,13 @@ sub open_file ($self) {
 		);
 	}
 
-	# Multi-table SQLite without a specific table selected: redirect to schema
-	# browser so the user can pick which internal table to open.
-	if (!defined $it && $source && $source->sqlite_tables
-			&& @{ $source->sqlite_tables } > 1) {
+	if ($is_multi_local) {
 		return $self->redirect_to('/tables?l=' . url_escape("path:${\$file->to_string}"));
 	}
 
 	$records //= [];
-	my $has_next = (@$records > $per_page) ? 1 : 0;
-	pop @$records if $has_next;
-
 	my @columns  = _get_columns($source, $records);
-	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-	my $dedup = $self->param('d') ? 1 : 0;
-	$filtered = _dedup_records($filtered, \@columns) if $dedup;
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
 	my $lpage_url = $self->req->url->clone;
 	$lpage_url->query->remove('page')->remove('per_page');
@@ -1399,7 +1492,7 @@ sub open_file ($self) {
 		template         => "$platform/$language/dashboard",
 		handler          => 'tt',
 		format           => 'html',
-		records          => $filtered,
+		records          => $records,
 		columns          => \@columns,
 		table            => defined $it ? $it : $table,
 		title            => defined $it ? "$filename ($it)" : $filename,
@@ -1716,7 +1809,16 @@ sub join_tables ($self) {
 		push @summaries, { label => $right_label, left_key => $left_key, right_key => $right_key };
 	}
 
-	my $records = eval { $src->selectall_arrayref };
+	my ($page, $per_page, $offset) = $self->_pagination;
+	my $dedup  = $self->param('d') ? 1 : 0;
+	my $sort   = $self->param('sort');
+	my $dir    = ($self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
+
+	my ($records, $has_next);
+	eval {
+		($records, $has_next) = $self->_fetch_page($src,
+			{ per_page => $per_page, offset => $offset, dedup => $dedup });
+	};
 	if ($@) {
 		return $self->render(
 			template => "$platform/$language/home",
@@ -1730,20 +1832,30 @@ sub join_tables ($self) {
 	$records //= [];
 	my @columns = _get_columns($src, $records);
 
-	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
-	my $dedup = $self->param('d') ? 1 : 0;
-	$filtered = _dedup_records($filtered, \@columns) if $dedup;
+	# Apply in-memory sort when sort= is set and the column exists.
+	if (defined $sort && grep { $_ eq $sort } @columns) {
+		my $rev = $dir eq 'desc' ? -1 : 1;
+		@$records = sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records;
+		@$records = reverse @$records if $dir eq 'desc';
+	} elsif (defined $sort) {
+		carp $self->_i18n('error_sort_column', $sort);
+	}
+
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
 	my $table_key = 'join:' . lc($left_label);
 	$table_key   .= ':' . lc($_->{label}) for @summaries;
 
+	my $page_url = $self->req->url->clone;
+	$page_url->query->remove('page')->remove('per_page');
+
 	$self->render(
 		template         => "$platform/$language/dashboard",
 		handler          => 'tt',
 		format           => 'html',
-		records          => $filtered,
+		records          => $records,
 		columns          => \@columns,
 		table            => $table_key,
 		title            => $title,
@@ -1761,6 +1873,10 @@ sub join_tables ($self) {
 		dedup            => $dedup,
 		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs, undef, $dedup),
 		schema_warnings  => \@schema_warnings,
+		page             => $page,
+		per_page         => $per_page,
+		has_next         => $has_next,
+		page_base_url    => $page_url->to_string,
 	);
 }
 
@@ -1856,20 +1972,46 @@ sub combine_tables ($self) {
 		: ($left_recs, \@left_cols);
 	my @columns = @$cols_ref;
 
-	my ($filtered, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	# Apply f= filters in memory before paginating (reduce-before-paginate).
+	for my $s (@{ $self->every_param('f') // [] }) {
+		$records = _apply_filter_spec($records, $s);
+	}
 	my $dedup = $self->param('d') ? 1 : 0;
-	$filtered = _dedup_records($filtered, \@columns) if $dedup;
+	$records = _dedup_records($records, \@columns) if $dedup;
+
+	# In-memory sort for /combine (no single backend to delegate to).
+	my $sort = $self->param('sort');
+	my $dir  = ($self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
+	if (defined $sort && grep { $_ eq $sort } @columns) {
+		carp $self->_i18n('warn_combine_sort');
+		@$records = sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records;
+		@$records = reverse @$records if $dir eq 'desc';
+	} elsif (defined $sort) {
+		carp $self->_i18n('error_sort_column', $sort);
+	}
+
+	# Server-side pagination: slice the fully-reduced combined set.
+	my ($page, $per_page, $offset) = $self->_pagination;
+	my $total    = scalar @$records;
+	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
+	my @page_recs = splice(@$records, $offset, $per_page);
+	$records = \@page_recs;
+
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
 	my $table_key = 'combine:' . lc($left_label);
 	$table_key   .= ':' . lc($_->{label}) for @summaries;
 
+	my $page_url = $self->req->url->clone;
+	$page_url->query->remove('page')->remove('per_page');
+
 	$self->render(
 		template         => "$platform/$language/dashboard",
 		handler          => 'tt',
 		format           => 'html',
-		records          => $filtered,
+		records          => $records,
 		columns          => \@columns,
 		table            => $table_key,
 		title            => $title,
@@ -1886,6 +2028,10 @@ sub combine_tables ($self) {
 		filters_json     => $filters_json,
 		dedup            => $dedup,
 		export_url       => $self->_build_export_url($left_spec, [], $filter_specs, \@combine_specs, $dedup),
+		page             => $page,
+		per_page         => $per_page,
+		has_next         => $has_next,
+		page_base_url    => $page_url->to_string,
 	);
 }
 
@@ -1950,6 +2096,15 @@ None beyond the 404 response.
 sub export_data ($self) {
 	my ($records, $columns, $left_label) = $self->_run_export_pipeline;
 	return $self->reply->not_found unless $records;
+
+	# Surface schema-type-mismatch warnings in a response header so API
+	# consumers (and the user via browser dev tools) can see them even
+	# though exports render no HTML template.
+	my $warnings = $self->stash('schema_warnings') // [];
+	if (@$warnings) {
+		my $hdr = join('; ', map { s/\s+/ /gr =~ s/^\s+|\s+$//gr } @$warnings);
+		$self->res->headers->header('X-BI-Warnings' => $hdr);
+	}
 
 	my $format = $self->param('format') // 'csv';
 	(my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;

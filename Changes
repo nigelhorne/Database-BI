@@ -1,5 +1,34 @@
 Revision history for Database-BI
 
+0.013.0	Mon Oct 13 12:00:00 PM EDT 2026
+    [ API Changes ]
+    - GET /join now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc for
+      server-side pagination and in-memory ordering of the joined view.
+    - GET /combine now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc.
+      Sorting is applied in memory (union has no single backend to delegate to).
+    - GET /export and POST /export now accept ?page=N and ?per_page=M; the output
+      contains only the requested slice of the result set.
+    - GET /view/:table and GET /open now apply f= filters and d=1 dedup BEFORE
+      paginating (reduce-before-paginate): ?page=2 now returns the second page of
+      the filtered set, not the second raw page filtered to fewer rows.
+    [ Enhancements ]
+    - Added DataSource::dbi_source() delegating method.  Database::Join 0.009.0
+      uses this to take the zero-copy ATTACH path for SQLite-backed sources,
+      avoiding a row-by-row spill into a temporary SQLite file.
+    - Added X-BI-Warnings response header to GET /export when schema-type-mismatch
+      warnings are present; API consumers can now see them without HTML parsing.
+    - Added _filter_specs_to_criteria and _fetch_page private helpers to Dashboard
+      to centralise the reduce-before-paginate logic.
+    [ Bug Fixes ]
+    - f= filters on paginated views no longer produce short pages or miss matching
+      rows on subsequent pages.
+    - d=1 dedup now deduplicates the full result before slicing, not just the page.
+    - has_next is now recomputed after any in-memory reduction so Next/Prev buttons
+      are accurate even when filters remove rows from the last page.
+    [ Dependencies ]
+    - No new dependencies; requires Database::Join >= 0.009.0 and
+      Database::Abstraction >= 0.49 (already declared).
+
 0.012.0	Mon Oct 12 12:00:00 PM EDT 2026
     [ Enhancements ]
     - Added Redis backend support.  DataSource now accepts a redis => 'redis://...'

@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.012.0';
+our $VERSION = '0.013.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -507,15 +507,10 @@ works correctly in production without any special workarounds.
 
 =head1 ROADMAP
 
-Features planned for future releases (post-0.010.0).  Items are ordered by
+Features planned for future releases (post-0.013.0).  Items are ordered by
 priority.
 
 =over 4
-
-=item * B<Pagination / virtual scrolling> (High) -- Tables are rendered as a
-single HTML blob.  Files with 100 k+ rows will time out or exhaust memory.
-Add a C<?page=N&limit=M> server-side slice or a JS C<IntersectionObserver>
-infinite-scroll to cap peak HTML size.
 
 =item * B<XLSX export> (High) -- C</export> supports CSV, SQLite, and JSON
 but not XLSX output.  C<Excel::Writer::XLSX> would close the round-trip for
@@ -557,15 +552,15 @@ renderer, giving visible progress on slow joins.
 # =============================================================================
 #
 # Items marked [NEW 0.010.0] were identified during the 0.010.0 gap analysis.
-# Items marked [DJ 0.007.0] relate specifically to Database::Join 0.007.0.
+# Items completed in 0.013.0 (Phase 0):
+#   A. Pagination -- done: /view, /open, /join, /combine, /export all paginate.
+#   1. dbi_source() proxy -- done: DataSource::dbi_source() delegating method added.
+#   2. limit/offset plumbing -- done: /join, /combine, /export thread pagination.
+#   3. order_by delegation -- done: ?sort=col&dir=asc|desc on /join and /combine.
+#   5. Schema warnings UI -- done: join_tables captures and passes schema_warnings.
+#   6. updated() in DataSource -- done: DataSource::updated() delegates to inner DA.
 #
 # ---- POST-RELEASE FEATURE ROADMAP ----
-#
-# A. [NEW 0.010.0] Pagination / virtual scrolling (High priority)
-#    Tables are rendered as a single HTML blob.  Files with 100k+ rows will
-#    time out or exhaust memory.  Add a ?page=N&limit=M server-side slice, or
-#    a JS IntersectionObserver infinite-scroll to cap peak HTML size.  See
-#    also item 2 below (limit/offset plumbing via Database::Join).
 #
 # B. [NEW 0.010.0] XLSX export (High priority)
 #    /export supports CSV, SQLite, and JSON but not XLSX output.
@@ -602,48 +597,7 @@ renderer, giving visible progress on slow joins.
 #    Mojolicious write_chunk / finish can progressively stream rows, giving
 #    visible progress on slow multi-table joins.
 #
-# ---- INTEGRATION GAPS (Database::Join 0.007.0) ----
-#
-# =============================================================================
-# KNOWN GAPS & ROADMAP (integration with Database::Join 0.007.0)
-# =============================================================================
-# The items below are enhancements that Database::BI needs to realise the full
-# potential of the new features shipped in Database::Join 0.007.0.  Each item
-# documents what the gap is, why it matters, and a sketch of the fix.
-#
-# 1. dbi_source() proxy in Database::BI::Model::DataSource
-#    ---------------------------------------------------------
-#    Database::Join 0.007.0 supports zero-copy ATTACH: when a component DA
-#    implements dbi_source() returning { dbh => $dbh, table => $name }, the
-#    SQLite backend ATTACHes the source file directly instead of spilling rows
-#    into Perl.  DataSource wraps a Database::Abstraction object but does not
-#    implement dbi_source() itself, so the optimisation is never used even when
-#    the underlying DA would support it.
-#    Fix: add a dbi_source() delegating method to DataSource that forwards to
-#    $self->{_da}->dbi_source() when the inner DA implements it, or returns
-#    undef otherwise.
-#
-# 2. limit/offset plumbing in the /join route
-#    -------------------------------------------
-#    Database::Join 0.007.0 accepts limit => N and offset => M on
-#    selectall_arrayref().  The ROADMAP already plans server-side pagination
-#    (item 1: "Pagination / virtual scrolling").  When that work begins, the
-#    /join route (Dashboard#join_tables) should pass limit/offset from URL
-#    params directly to selectall_arrayref() instead of fetching all rows and
-#    slicing in the template.  On the SQLite backend this generates
-#    LIMIT ? OFFSET ? SQL, keeping peak RAM proportional to the page size
-#    rather than the total result set.
-#
-# 3. order_by delegation in the /join and /view routes
-#    ----------------------------------------------------
-#    The join pipeline currently fetches all rows and relies on client-side JS
-#    sort (column header click) for ordering.  Database::Join 0.007.0 exposes
-#    order_by => 'col' / order_by => ['col', 'DESC'] on all query methods.
-#    Passing the sort column and direction from URL params to selectall_arrayref()
-#    lets the SQL backend sort in-database, which is dramatically faster on large
-#    cached result sets and allows the initial page render to arrive pre-sorted.
-#    Required change: add ?sort=col&dir=asc|desc URL params to the join and view
-#    routes and thread them through to the Database::Join call.
+# ---- OPEN INTEGRATION GAPS ----
 #
 # 4. parallel => 1 for multi-step join chains
 #    --------------------------------------------
@@ -659,29 +613,7 @@ renderer, giving visible progress on slow joins.
 #    route noting why it is disabled.  Longer-term: implement DataSource::clone()
 #    that creates an independent handle per thread.
 #
-# 5. Surface warn_schema_type_mismatch to the UI
-#    -----------------------------------------------
-#    Database::Join 0.007.0 emits a warn_schema_type_mismatch carp when two
-#    component databases share a column name but with different schema() types
-#    (e.g. TEXT in one, INTEGER in another).  In the BI join pipeline these
-#    warnings land in the server error log and are invisible to the user.
-#    Fix: wrap Database::Join->new() in a local $SIG{__WARN__} capture inside
-#    join_tables(); collect all warnings and pass them to the template as a
-#    non-fatal notices list so the user sees e.g. "Warning: column 'score' has
-#    type TEXT in the left table but INTEGER in the right table."
-#
-# 6. updated() implementation in Database::BI::Model::DataSource
-#    --------------------------------------------------------------
-#    Database::Join's SQLite cache invalidates itself by comparing each source
-#    DA's updated() timestamp.  DataSource does not implement updated(), so the
-#    cache stays valid indefinitely and never picks up changes to the underlying
-#    file while the server is running.  Fix: implement updated() in DataSource
-#    to return the mtime of the backing file (via -M or stat), or proxy to the
-#    inner DA's updated() when available.  This is the single highest-value
-#    change for correctness: without it, a file edited on disk is invisible to
-#    the join cache until the server restarts.
-#
-# 7. per-table filters => on the join pipeline
+# 5. per-table filters => on the join pipeline
 #    --------------------------------------------
 #    The /join route accepts f=col:op:val filters that are applied as post-join
 #    in-memory filtering in the template.  Database::Join 0.007.0's filters =>
@@ -693,7 +625,7 @@ renderer, giving visible progress on slow joins.
 #    the Database::Join constructor.  Filters on the merged view (post-join
 #    computed columns) must remain as template-side filtering.
 #
-# 8. collision_prefix exposure in the join UI
+# 6. collision_prefix exposure in the join UI
 #    --------------------------------------------
 #    When two joined tables share a column name, Database::Join's default
 #    last-table-wins behaviour silently discards one table's value.  The join

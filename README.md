@@ -461,13 +461,9 @@ works correctly in production without any special workarounds.
 
 ## Roadmap
 
-Features planned for future releases (post-0.010.0).  Items are ordered by
+Features planned for future releases (post-0.013.0).  Items are ordered by
 priority.
 
-- **Pagination / virtual scrolling** (High) -- Tables are rendered as a
-single HTML blob.  Files with 100 k+ rows will time out or exhaust memory.
-Add a `?page=N&limit=M` server-side slice or a JS `IntersectionObserver`
-infinite-scroll to cap peak HTML size.
 - **XLSX export** (High) -- `/export` supports CSV, SQLite, and JSON
 but not XLSX output.  `Excel::Writer::XLSX` would close the round-trip for
 users whose source data is XLSX.

@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.012.0';
+our $VERSION = '0.013.0';
 
 =head1 NAME
 
@@ -1487,6 +1487,60 @@ sub columns {
 	# open() on first call.  D::J requires a real column list at construction
 	# time so returning undef here would make join validation always fail.
 	return $self->{_db} ? $self->{_db}->columns() : undef;
+}
+
+=head2 dbi_source
+
+Returns a hashref C<{ dbh =E<gt> $dbh, table =E<gt> $name }> for SQLite-backed
+instances, and C<undef> for everything else.
+
+C<Database::Join> 0.009.0 probes C<dbi_source> at join-construction time to
+decide whether it can take the zero-copy C<ATTACH> path (avoiding a row-by-row
+spill into a temporary SQLite file).  Without this method, every C</join> on a
+SQLite-backed C<DataSource> uses the spill path regardless of row count.
+
+Returns C<undef> for:
+
+=over 4
+
+=item *
+
+0-byte and header-less pre-parsed files (C<_file_is_empty>, C<_file_data> set).
+
+=item *
+
+Redis-backed and URL-backed sources (no DBI handle).
+
+=item *
+
+Any backend that does not itself implement C<dbi_source>.
+
+=back
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+    { dbh => $dbh_object, table => 'table_name' }   # SQLite-backed
+    undef                                            # all other backends
+
+=head3 MESSAGES
+
+None.
+
+=cut
+
+sub dbi_source {
+	my $self = shift;
+	return undef if $self->{_file_is_empty};
+	return undef if $self->{_file_data};
+	return undef unless $self->{_db};
+	return undef unless $self->{_db}->can('dbi_source');
+	return $self->{_db}->dbi_source();
 }
 
 =head2 id_column
