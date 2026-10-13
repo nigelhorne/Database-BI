@@ -106,6 +106,80 @@
   :root[data-theme="dark"] .page-btn-cur { background: #1a6bbf; color: #fff; }
   :root[data-theme="dark"] .page-btn-dis { background: #1a1a1a; color: #666; }
   :root[data-theme="dark"] .page-info { color: #999; }
+  /* Pivot table panel */
+  .pivot-config {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.8rem 1.2rem;
+    margin-bottom: 0.75rem;
+  }
+  .pivot-config-col {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    min-width: 160px;
+  }
+  .pivot-config-wide { flex: 1 1 260px; }
+  .pivot-section-head {
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: #555;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.1rem;
+  }
+  .pivot-req { color: #c00; font-weight: 700; text-transform: none; letter-spacing: 0; }
+  .pivot-opt { color: #888; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .pivot-dim-row, .pivot-measure-row {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    flex-wrap: wrap;
+  }
+  .pivot-dim-row select,
+  .pivot-measure-row select,
+  .pivot-measure-row input[type="text"] {
+    padding: 0.28rem 0.45rem;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    font-size: 0.83rem;
+  }
+  .pivot-measure-row input[type="text"] { width: 80px; }
+  .pivot-dim-list, .pivot-measure-list { display: flex; flex-direction: column; gap: 0.3rem; }
+  .pivot-options-row {
+    margin: 0.1rem 0 0.75rem;
+    font-size: 0.88rem;
+  }
+  .btn-remove-pivot {
+    background: none;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 0.75rem;
+    padding: 0.2rem 0.45rem;
+    color: #666;
+    line-height: 1;
+  }
+  .btn-remove-pivot:hover { border-color: #c00; color: #c00; }
+  .pivot-alias-label { font-size: 0.75rem; color: #888; white-space: nowrap; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .pivot-section-head { color: #999; }
+    :root:not([data-theme="light"]) .pivot-dim-row select,
+    :root:not([data-theme="light"]) .pivot-measure-row select,
+    :root:not([data-theme="light"]) .pivot-measure-row input[type="text"] {
+      background: #222; color: #ddd; border-color: #555;
+    }
+    :root:not([data-theme="light"]) .btn-remove-pivot { border-color: #555; color: #aaa; }
+    :root:not([data-theme="light"]) .pivot-alias-label { color: #888; }
+  }
+  :root[data-theme="dark"] .pivot-section-head { color: #999; }
+  :root[data-theme="dark"] .pivot-dim-row select,
+  :root[data-theme="dark"] .pivot-measure-row select,
+  :root[data-theme="dark"] .pivot-measure-row input[type="text"] {
+    background: #222; color: #ddd; border-color: #555;
+  }
+  :root[data-theme="dark"] .btn-remove-pivot { border-color: #555; color: #aaa; }
+  :root[data-theme="dark"] .pivot-alias-label { color: #888; }
 </style>
 
 [%- IF back_url -%]
@@ -157,6 +231,10 @@
           title="Plot the current data as a bar chart - choose a category column and an optional value column">&#x1F4CA; Bar chart&hellip;</button>
   <button class="btn-folder" id="btn-folder" type="button"
           title="Browse records grouped by the letter prefix of a code column (e.g. Order # A10, B3, CT4)">&#x1F4C1; Folder view&hellip;</button>
+  <button class="btn-pivot" id="btn-pivot" type="button"
+          title="Summarise the data as a pivot table - group by row and column dimensions and compute aggregates">&#x25A6; Pivot table&hellip;</button>
+  <button class="btn-stats" id="btn-stats" type="button"
+          title="Show column statistics: row count, nulls, distinct values, numeric min, max, mean and median">&#x03A3; Column stats</button>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
@@ -655,6 +733,57 @@
     </div>
   </form>
 </div>
+
+<div class="graph-panel" id="pivot-panel" hidden>
+  <form id="pivot-form" method="get" action="/pivot">
+    <input type="hidden" name="l" value="[% left_spec | html %]">
+    [%- FOREACH jspec IN current_joins -%]
+    <input type="hidden" name="j" value="[% jspec | html %]">
+    [%- END -%]
+    [%- FOREACH fs IN filter_specs -%]
+    <input type="hidden" name="f" value="[% fs | html %]">
+    [%- END -%]
+
+    <h3 class="graph-panel-title">&#x25A6; Pivot table</h3>
+    <p class="graph-panel-desc">Group and aggregate data into a crosstab. Dimensions become the row and column headers; measures compute a value for each cell.</p>
+
+    <div class="pivot-config">
+      <div class="pivot-config-col">
+        <div class="pivot-section-head">Row dimensions <span class="pivot-req">* required</span></div>
+        <div id="pivot-row-dims" class="pivot-dim-list"></div>
+        <button type="button" id="btn-add-pivot-row" class="btn-add-filter">&#x2b; Add row</button>
+      </div>
+
+      <div class="pivot-config-col">
+        <div class="pivot-section-head">Column dimensions <span class="pivot-opt">(optional)</span></div>
+        <div id="pivot-col-dims" class="pivot-dim-list"></div>
+        <button type="button" id="btn-add-pivot-col" class="btn-add-filter">&#x2b; Add column</button>
+      </div>
+
+      <div class="pivot-config-col pivot-config-wide">
+        <div class="pivot-section-head">Measures <span class="pivot-req">* required</span></div>
+        <div id="pivot-measures" class="pivot-measure-list"></div>
+        <button type="button" id="btn-add-pivot-measure" class="btn-add-filter">&#x2b; Add measure</button>
+      </div>
+    </div>
+
+    <div class="pivot-options-row">
+      <label><input type="checkbox" id="pivot-totals"> Show subtotals and grand total</label>
+    </div>
+
+    <div class="join-actions">
+      <button type="button" id="btn-cancel-pivot" class="btn-secondary">Cancel</button>
+      <button type="submit" id="btn-do-pivot" class="btn-primary" disabled>Build pivot</button>
+    </div>
+  </form>
+</div>
+
+<form id="stats-form" method="get" action="/stats" style="display:none">
+  <input type="hidden" name="l" value="[% left_spec | html %]">
+  [%- FOREACH fs IN filter_specs -%]
+  <input type="hidden" name="f" value="[% fs | html %]">
+  [%- END -%]
+</form>
 [%- END -%]
 
 [% IF records.size %]
@@ -1650,7 +1779,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('graph-back2-label-inp');
   var graphForm     = document.getElementById('graph-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'folder-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1768,7 +1897,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('pie-back2-label-inp');
   var pieForm       = document.getElementById('pie-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'folder-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1853,7 +1982,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('heatmap-back2-label-inp');
   var heatmapForm   = document.getElementById('heatmap-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'folder-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1924,7 +2053,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('bar-back2-label-inp');
   var barForm       = document.getElementById('bar-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'folder-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -1994,7 +2123,7 @@ function parseAccounting(v) {
   var colSel    = document.getElementById('folder-col-sel');
   var backInp   = document.getElementById('folder-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'pivot-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2015,6 +2144,205 @@ function parseAccounting(v) {
   });
 
   colSel.addEventListener('change', checkFolder);
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Stats button -- navigate directly to /stats with current l= and f= params
+// ---------------------------------------------------------------------------
+(function () {
+  var btn  = document.getElementById('btn-stats');
+  var form = document.getElementById('stats-form');
+  if (!btn || !form) return;
+
+  btn.addEventListener('click', function () {
+    form.submit();
+  });
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Pivot table panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-pivot');
+  var panel     = document.getElementById('pivot-panel');
+  if (!btnOpen || !panel) return;
+
+  var btnCancel = document.getElementById('btn-cancel-pivot');
+  var btnDo     = document.getElementById('btn-do-pivot');
+  var pivotForm = document.getElementById('pivot-form');
+  var rowDimList    = document.getElementById('pivot-row-dims');
+  var colDimList    = document.getElementById('pivot-col-dims');
+  var measureList   = document.getElementById('pivot-measures');
+  var chkTotals     = document.getElementById('pivot-totals');
+
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'folder-panel'].map(function (id) {
+    return document.getElementById(id);
+  }).filter(Boolean);
+
+  // Collect column names from the rendered table header.
+  function getColumns() {
+    var tbl = document.querySelector('table[data-table]') || document.querySelector('table');
+    if (!tbl || !tbl.tHead) return [];
+    return Array.from(tbl.tHead.rows[0].cells)
+      .map(function (th) { return th.textContent.trim(); })
+      .filter(function (s) { return s.length > 0; });
+  }
+
+  function colOption(col) {
+    var opt = document.createElement('option');
+    opt.value = col; opt.textContent = col;
+    return opt;
+  }
+
+  function makeColSelect(placeholder) {
+    var sel = document.createElement('select');
+    var ph = document.createElement('option');
+    ph.value = ''; ph.textContent = placeholder;
+    sel.appendChild(ph);
+    getColumns().forEach(function (c) { sel.appendChild(colOption(c)); });
+    sel.addEventListener('change', checkPivot);
+    return sel;
+  }
+
+  function addDimRow(container) {
+    var row = document.createElement('div');
+    row.className = 'pivot-dim-row';
+    var sel = makeColSelect('— column —');
+    var rm  = document.createElement('button');
+    rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '×';
+    rm.addEventListener('click', function () { row.remove(); checkPivot(); });
+    row.appendChild(sel); row.appendChild(rm);
+    container.appendChild(row);
+    checkPivot();
+    return sel;
+  }
+
+  function autoAlias(col, fn) {
+    if (!col) return '';
+    if (fn === 'count' || fn === 'count_distinct') return fn === 'count' ? 'count' : col + '_distinct';
+    return col + '_' + fn;
+  }
+
+  function addMeasureRow() {
+    var row = document.createElement('div');
+    row.className = 'pivot-measure-row';
+
+    var colSel = document.createElement('select');
+    var ph = document.createElement('option'); ph.value = ''; ph.textContent = '— column —';
+    colSel.appendChild(ph);
+    getColumns().forEach(function (c) { colSel.appendChild(colOption(c)); });
+
+    var fnSel = document.createElement('select');
+    [['sum','Sum'], ['count','Count'], ['avg','Average'], ['min','Min'],
+     ['max','Max'], ['count_distinct','Count distinct']].forEach(function (p) {
+      var opt = document.createElement('option');
+      opt.value = p[0]; opt.textContent = p[1];
+      fnSel.appendChild(opt);
+    });
+
+    var aliasInp = document.createElement('input');
+    aliasInp.type = 'text'; aliasInp.placeholder = 'alias';
+
+    var aliasLabel = document.createElement('span');
+    aliasLabel.className = 'pivot-alias-label';
+    aliasLabel.textContent = 'as';
+
+    function refreshAlias() {
+      if (!aliasInp.dataset.userEdited) {
+        aliasInp.value = autoAlias(colSel.value, fnSel.value);
+      }
+      checkPivot();
+    }
+    colSel.addEventListener('change', refreshAlias);
+    fnSel.addEventListener('change',  refreshAlias);
+    aliasInp.addEventListener('input', function () {
+      aliasInp.dataset.userEdited = aliasInp.value ? '1' : '';
+      checkPivot();
+    });
+
+    var rm = document.createElement('button');
+    rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '×';
+    rm.addEventListener('click', function () { row.remove(); checkPivot(); });
+
+    row.appendChild(colSel); row.appendChild(fnSel);
+    row.appendChild(aliasLabel); row.appendChild(aliasInp);
+    row.appendChild(rm);
+    measureList.appendChild(row);
+    checkPivot();
+  }
+
+  function checkPivot() {
+    var rowSelects = Array.from(rowDimList.querySelectorAll('select'));
+    var hasRow = rowSelects.some(function (s) { return s.value; });
+    var measures = Array.from(measureList.querySelectorAll('.pivot-measure-row'));
+    var hasM = measures.some(function (row) {
+      var fn    = row.querySelectorAll('select')[1].value;
+      var alias = row.querySelector('input[type="text"]').value.trim();
+      return alias.length > 0 && (fn === 'count' || row.querySelectorAll('select')[0].value);
+    });
+    btnDo.disabled = !(hasRow && hasM);
+  }
+
+  pivotForm.addEventListener('submit', function () {
+    // Remove previously-generated dynamic pivot params.
+    Array.from(pivotForm.querySelectorAll('[data-pivot-dyn]')).forEach(function (i) { i.remove(); });
+
+    function addHidden(name, val) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = name; inp.value = val;
+      inp.setAttribute('data-pivot-dyn', '1');
+      pivotForm.appendChild(inp);
+    }
+
+    // rows= (comma-joined)
+    var rowVals = Array.from(rowDimList.querySelectorAll('select'))
+      .map(function (s) { return s.value; }).filter(Boolean);
+    if (rowVals.length) addHidden('rows', rowVals.join(','));
+
+    // cols= (comma-joined, optional)
+    var colVals = Array.from(colDimList.querySelectorAll('select'))
+      .map(function (s) { return s.value; }).filter(Boolean);
+    if (colVals.length) addHidden('cols', colVals.join(','));
+
+    // m=col:fn:alias (one per measure)
+    Array.from(measureList.querySelectorAll('.pivot-measure-row')).forEach(function (row) {
+      var sels  = row.querySelectorAll('select');
+      var col   = sels[0].value;
+      var fn    = sels[1].value;
+      var alias = row.querySelector('input[type="text"]').value.trim();
+      if (!alias) return;
+      if (fn !== 'count' && !col) return;
+      addHidden('m', col + ':' + fn + ':' + alias);
+    });
+
+    // totals=1
+    if (chkTotals && chkTotals.checked) addHidden('totals', '1');
+  });
+
+  document.getElementById('btn-add-pivot-row').addEventListener('click', function () {
+    addDimRow(rowDimList);
+  });
+  document.getElementById('btn-add-pivot-col').addEventListener('click', function () {
+    addDimRow(colDimList);
+  });
+  document.getElementById('btn-add-pivot-measure').addEventListener('click', addMeasureRow);
+
+  btnOpen.addEventListener('click', function () {
+    otherPanels.forEach(function (p) { p.hidden = true; });
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden && rowDimList.childElementCount === 0) {
+      addDimRow(rowDimList);
+      addMeasureRow();
+    }
+  });
+
+  btnCancel && btnCancel.addEventListener('click', function () {
+    panel.hidden = true;
+  });
 }());
 </script>
 

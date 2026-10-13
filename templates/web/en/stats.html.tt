@@ -1,0 +1,79 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt' -%]
+
+<style>
+  .stats-wrap { overflow-x: auto; }
+  .stats-table {
+    border-collapse: collapse;
+    font-size: 0.88rem;
+    min-width: 100%;
+  }
+  .stats-table th, .stats-table td {
+    border: 1px solid #d0d4de;
+    padding: 0.35rem 0.65rem;
+    white-space: nowrap;
+  }
+  .stats-table thead th {
+    background: #eef1f8;
+    font-weight: 600;
+    text-align: center;
+    color: #2c3e7a;
+  }
+  .stats-table thead th.col-name {
+    text-align: left;
+  }
+  .stats-table td.col-name { font-weight: 500; }
+  .stats-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .stats-table td.na { text-align: center; color: #bbb; }
+  .stats-meta { font-size: 0.82rem; color: #666; margin-bottom: 0.75rem; }
+</style>
+
+<p class="back-link"><a href="/">&larr; Home</a>[% IF back_url && back_url != '/' %] &rsaquo; <a href="[% back_url | html %]">[% back_label | html %]</a>[% END %]</p>
+
+<h2 style="margin-bottom:0.5rem">[% title | html %]</h2>
+<p class="stats-meta">Source: [% left_label | html %] &mdash; [% row_count %] row[% IF row_count != 1 %]s[% END %]</p>
+
+[%- IF stats.size == 0 -%]
+<p>No columns found.</p>
+[%- ELSE -%]
+<div class="stats-wrap">
+<table class="stats-table">
+<thead>
+  <tr>
+    <th class="col-name">Column</th>
+    <th>Rows</th>
+    <th>Non-null</th>
+    <th>Null</th>
+    <th>Distinct</th>
+    <th>Min</th>
+    <th>Max</th>
+    <th>Mean</th>
+    <th>Median</th>
+  </tr>
+</thead>
+<tbody>
+[%- FOREACH s IN stats -%]
+  <tr>
+    <td class="col-name">[% s.col | html %]</td>
+    <td class="num">[% s.row_count %]</td>
+    <td class="num">[% s.row_count - s.null_count %]</td>
+    <td class="num">[% s.null_count %]</td>
+    <td class="num">[% s.distinct_count %]</td>
+    [%- IF s.min.defined -%]
+      <td class="num">[% s.min | html %]</td>
+      <td class="num">[% s.max | html %]</td>
+      <td class="num">[% s.avg | html %]</td>
+      <td class="num">[% s.median | html %]</td>
+    [%- ELSE -%]
+      <td class="na">&mdash;</td>
+      <td class="na">&mdash;</td>
+      <td class="na">&mdash;</td>
+      <td class="na">&mdash;</td>
+    [%- END -%]
+  </tr>
+[%- END -%]
+</tbody>
+</table>
+</div>
+[%- END -%]
+
+[%- END -%]

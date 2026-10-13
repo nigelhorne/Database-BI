@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.012.0';
+our $VERSION = '0.013.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -746,6 +746,8 @@ sub startup ($self) {
 	$r->get('/bar')->to('Dashboard#bar_view');
 	$r->get('/folder')->to('Dashboard#folder_view');
 	$r->get('/tables')->to('Dashboard#tables_view');
+	$r->get('/pivot')->to('Dashboard#pivot_view');
+	$r->get('/stats')->to('Dashboard#stats_view');
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is

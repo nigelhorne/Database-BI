@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.012.0';
+our $VERSION = '0.013.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -84,9 +84,14 @@ Readonly my %MESSAGES => (
 	error_url_ssrf         => '"%s" resolves to a private or reserved address and cannot be fetched',
 	warn_combine_sort      => 'Sorting is applied in memory for /combine; result order may differ from a backend sort',
 	error_sort_column      => 'Unknown sort column "%s"',
-	warn_measure_fallback  => 'Measure "%s" on column "%s" is not uniformly numeric; totalled in Perl',
-	error_measure_fn       => 'Unknown measure function "%s"',
-	error_measure_column   => 'Measure column "%s" is not in the view',
+	warn_measure_fallback       => 'Measure "%s" on column "%s" is not uniformly numeric; totalled in Perl',
+	error_measure_fn            => 'Unknown measure function "%s"',
+	error_measure_column        => 'Measure column "%s" is not in the view',
+	error_pivot_rows_required   => 'At least one rows= dimension is required',
+	error_pivot_measure_req     => 'At least one m= measure (col:fn:as) is required',
+	error_pivot_measure_invalid => 'Invalid measure spec "%s"; expected col:fn:as where fn is one of: sum avg min max count count_distinct',
+	error_pivot_dim_not_found   => 'Row/column dimension "%s" is not in the view',
+	error_pivot_dim_comma       => 'Dimension name "%s" must not contain a comma',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -3674,6 +3679,396 @@ sub tables_view ($self) {
 		spec       => $spec,
 		back_url   => $back_url,
 		back_label => $back_label,
+	);
+}
+
+=head2 pivot_view
+
+C<GET /pivot> -- Crosstab / pivot table view.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  rows=<col>[,<col>...]  Row dimensions (required, comma-separated column names)
+  cols=<col>[,<col>...]  Column dimensions (optional)
+  m=<col>:<fn>:<as>      Measure spec, repeatable (required); col may be empty for count
+  h=<as>:<op>:<val>      Post-aggregation HAVING filter (repeatable, optional)
+  totals=1               Include row subtotals, column subtotals, and grand total
+  scheme=<name>          Colour scheme for cell shading (optional)
+  max_cols=<n>           Collapse column headers beyond top-N into "Other"
+  page= / per_page=      Pagination over row groups
+  format=csv|sqlite|json Export the pivot grid
+
+=cut
+
+sub pivot_view ($self) {
+	my $left_spec = $self->param('l') // '';
+	return $self->render(text => 'Missing l= parameter', status => 400)
+		unless length $left_spec;
+
+	my $rows_str = $self->param('rows') // '';
+	return $self->render(text => $self->_i18n('error_pivot_rows_required'), status => 400)
+		unless length $rows_str;
+
+	my @measure_strs = @{ $self->every_param('m') // [] };
+	return $self->render(text => $self->_i18n('error_pivot_measure_req'), status => 400)
+		unless @measure_strs;
+
+	# Split dimensions on comma.  A dimension name containing a comma
+	# would produce an ambiguous split; that must be rejected.
+	my @rows = split /,/, $rows_str, -1;
+	my @cols = split /,/, ($self->param('cols') // ''), -1;
+	@cols = grep { length $_ } @cols;
+
+	my @measures;
+	for my $ms (@measure_strs) {
+		my $m = _parse_measure_param($ms);
+		return $self->render(
+			text   => $self->_i18n('error_pivot_measure_invalid', $ms),
+			status => 400,
+		) unless $m;
+		push @measures, $m;
+	}
+
+	my $show_totals = ($self->param('totals') // '') ? 1 : 0;
+	my $scheme      = $self->param('scheme') // '';
+	my $max_cols_n  = int($self->param('max_cols') // 0);
+	my $format      = lc($self->param('format') // '');
+
+	# Build the data pipeline.
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless defined $records;
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{$columns};
+
+	for my $dim (@rows, @cols) {
+		return $self->render(
+			text   => $self->_i18n('error_pivot_dim_not_found', $dim),
+			status => 400,
+		) unless $col_set{$dim};
+	}
+
+	for my $m (@measures) {
+		next unless defined $m->{col} && length $m->{col};
+		return $self->render(
+			text   => $self->_i18n('error_measure_column', $m->{col}),
+			status => 400,
+		) unless $col_set{$m->{col}};
+	}
+
+	my $pipeline = { source => $src, records => $records };
+
+	# -----------------------------------------------------------------------
+	# Aggregate: one _grouped_totals call per measure, grouped by all
+	# row AND column dimensions together.
+	# -----------------------------------------------------------------------
+	my (%cells, %row_combos, %col_combos);
+	my (@row_key_order, @col_key_order);
+	my (%row_seen, %col_seen);
+
+	for my $m (@measures) {
+		my $cv  = (defined $m->{col} && length $m->{col}) ? $m->{col} : undef;
+		my $agg = $self->_grouped_totals($pipeline, {
+			by  => [@rows, @cols],
+			fn  => $m->{fn},
+			val => $cv,
+			as  => $m->{as},
+		});
+		for my $row (@$agg) {
+			my $rkey = join("\x00", map { $row->{$_} // '' } @rows);
+			my $ckey = join("\x00", map { $row->{$_} // '' } @cols);
+			unless ($row_seen{$rkey}++) {
+				push @row_key_order, $rkey;
+				$row_combos{$rkey} = { map { $_ => ($row->{$_} // '') } @rows };
+			}
+			unless ($col_seen{$ckey}++) {
+				push @col_key_order, $ckey;
+				$col_combos{$ckey} = { map { $_ => ($row->{$_} // '') } @cols };
+			}
+			$cells{$rkey}{$ckey}{$m->{as}} = $row->{$m->{as}};
+		}
+	}
+
+	# -----------------------------------------------------------------------
+	# Post-aggregation HAVING filters (h=<as>:<op>:<val>) applied row-by-row.
+	# Each filter operates on a virtual row whose keys are the measure aliases.
+	# -----------------------------------------------------------------------
+	my @h_specs = @{ $self->every_param('h') // [] };
+	if (@h_specs) {
+		my @keep;
+		for my $rkey (@row_key_order) {
+			# Build a virtual row containing each measure's cell value
+			# (using first col-combo as representative, or grand-total style).
+			# For HAVING, we filter on the *row subtotal* value, not a single cell.
+			# We'll compute a temp subtotal row for each row key.
+			my %vrow;
+			for my $m (@measures) {
+				# Sum across cols for this row as representative value.
+				my $v = 0;
+				for my $ck (@col_key_order) {
+					my $cv = $cells{$rkey}{$ck}{$m->{as}};
+					$v += $cv if defined $cv;
+				}
+				$vrow{$m->{as}} = $v;
+			}
+			my $ok = 1;
+			for my $hs (@h_specs) {
+				my $passed = _apply_filter_spec([\%vrow], $hs);
+				$ok = 0 unless @$passed;
+			}
+			push @keep, $rkey if $ok;
+		}
+		@row_key_order = @keep;
+	}
+
+	# -----------------------------------------------------------------------
+	# Subtotals and grand total (three additional _grouped_totals calls
+	# per measure when totals=1).
+	# -----------------------------------------------------------------------
+	my (%row_subtotals, %col_subtotals, %grand_total);
+
+	if ($show_totals) {
+		for my $m (@measures) {
+			my $cv = (defined $m->{col} && length $m->{col}) ? $m->{col} : undef;
+
+			# Row subtotals: group by @rows only.
+			my $rsub = $self->_grouped_totals($pipeline, {
+				by  => [@rows],
+				fn  => $m->{fn},
+				val => $cv,
+				as  => $m->{as},
+			});
+			for my $r (@$rsub) {
+				my $rk = join("\x00", map { $r->{$_} // '' } @rows);
+				$row_subtotals{$rk}{$m->{as}} = $r->{$m->{as}};
+			}
+
+			# Column subtotals: group by @cols only.
+			if (@cols) {
+				my $csub = $self->_grouped_totals($pipeline, {
+					by  => [@cols],
+					fn  => $m->{fn},
+					val => $cv,
+					as  => $m->{as},
+				});
+				for my $c (@$csub) {
+					my $ck = join("\x00", map { $c->{$_} // '' } @cols);
+					$col_subtotals{$ck}{$m->{as}} = $c->{$m->{as}};
+				}
+			}
+
+			# Grand total: group by nothing (all rows → one result row).
+			my $gtot = $self->_grouped_totals($pipeline, {
+				by  => [],
+				fn  => $m->{fn},
+				val => $cv,
+				as  => $m->{as},
+			});
+			$grand_total{$m->{as}} = $gtot->[0]{$m->{as}} if @$gtot;
+		}
+	}
+
+	# -----------------------------------------------------------------------
+	# max_cols: collapse the tail of column combos beyond top-N into "Other".
+	# The top-N are ranked by the first measure's column subtotal (or cell sum).
+	# -----------------------------------------------------------------------
+	if ($max_cols_n > 0 && @col_key_order > $max_cols_n) {
+		my $first_as = $measures[0]{as};
+		my @sorted_ckeys = sort {
+			(  $show_totals
+			   ? ($col_subtotals{$b}{$first_as} // 0)
+			   : (do { my $s = 0; $s += ($cells{$_}{$b}{$first_as} // 0) for @row_key_order; $s })
+			)
+			<=>
+			(  $show_totals
+			   ? ($col_subtotals{$a}{$first_as} // 0)
+			   : (do { my $s = 0; $s += ($cells{$_}{$a}{$first_as} // 0) for @row_key_order; $s })
+			)
+		} @col_key_order;
+		my @top_ckeys  = @sorted_ckeys[0 .. $max_cols_n - 1];
+		my @rest_ckeys = @sorted_ckeys[$max_cols_n .. $#sorted_ckeys];
+		if (@rest_ckeys) {
+			my $other_key = '__other__';
+			$col_combos{$other_key} = { map { $_ => 'Other' } @cols };
+			for my $rk (@row_key_order) {
+				for my $m (@measures) {
+					my ($v, $have) = (0, 0);
+					for my $ck (@rest_ckeys) {
+						my $cv = $cells{$rk}{$ck}{$m->{as}};
+						if (defined $cv) { $v += $cv; $have = 1 }
+					}
+					$cells{$rk}{$other_key}{$m->{as}} = $have ? $v : undef;
+				}
+			}
+			@col_key_order = (@top_ckeys, $other_key);
+		} else {
+			@col_key_order = @top_ckeys;
+		}
+	}
+
+	# -----------------------------------------------------------------------
+	# Export path: build flat records from the grid.
+	# -----------------------------------------------------------------------
+	if ($format && $format =~ /\A(?:csv|sqlite|sql|json)\z/) {
+		my @grid_records;
+		for my $rk (@row_key_order) {
+			for my $ck (@col_key_order) {
+				my %rec;
+				$rec{$_} = $row_combos{$rk}{$_} // '' for @rows;
+				$rec{$_} = $col_combos{$ck}{$_} // '' for @cols;
+				$rec{$_->{as}} = $cells{$rk}{$ck}{$_->{as}} // '' for @measures;
+				push @grid_records, \%rec;
+			}
+		}
+		my @export_cols = (@rows, @cols, map { $_->{as} } @measures);
+		return $self->_render_csv(\@grid_records, \@export_cols, 'pivot')
+			if $format eq 'csv';
+		return $self->_render_sqlite(\@grid_records, \@export_cols, 'pivot')
+			if $format eq 'sqlite' || $format eq 'sql';
+		return $self->_render_json(\@grid_records, \@export_cols, 'pivot')
+			if $format eq 'json';
+	}
+
+	# -----------------------------------------------------------------------
+	# Build the template-ready data structure.
+	# -----------------------------------------------------------------------
+	my @col_combo_list = map {
+		my $ck = $_;
+		{
+			key      => $ck,
+			dim_vals => $col_combos{$ck},
+			label    => join(' / ', map { $col_combos{$ck}{$_} // '' } @cols),
+		}
+	} @col_key_order;
+
+	my @grid_rows;
+	for my $rk (@row_key_order) {
+		my %row_cells;
+		for my $ck (@col_key_order) {
+			$row_cells{$ck} = $cells{$rk}{$ck} // {};
+		}
+		push @grid_rows, {
+			row_vals  => $row_combos{$rk},
+			cells     => \%row_cells,
+			subtotals => $show_totals ? ($row_subtotals{$rk} // {}) : {},
+		};
+	}
+
+	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:)//;
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler       => 'tt',
+		template      => "$platform/$language/pivot",
+		format        => 'html',
+		title         => 'Pivot: ' . join(', ', @rows),
+		rows_dims     => \@rows,
+		cols_dims     => \@cols,
+		measures      => \@measures,
+		col_combos    => \@col_combo_list,
+		grid_rows     => \@grid_rows,
+		show_totals   => $show_totals,
+		col_subtotals => \%col_subtotals,
+		grand_total   => \%grand_total,
+		scheme        => $scheme,
+		left_spec     => $left_spec,
+		left_label    => $left_label,
+		back_url      => _safe_back_url($self->param('back')) // '/',
+		back_label    => 'Back',
+	);
+}
+
+=head2 stats_view
+
+C<GET /stats> -- Column statistics panel.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join> and displays
+per-column statistics: min, max, mean, median, null_count, distinct_count,
+row_count.
+
+Statistics are computed through C<_grouped_totals> so they agree with the pivot
+view.  Median is computed in Perl by sorting the column values.
+
+=cut
+
+sub stats_view ($self) {
+	my $left_spec = $self->param('l') // '';
+	return $self->render(text => 'Missing l= parameter', status => 400)
+		unless length $left_spec;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless defined $records;
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my $row_count = scalar @$records;
+	my $pipeline  = { source => $src, records => $records };
+
+	my @stats;
+	for my $col (@{$columns}) {
+		# null_count = rows where cell is undef or '' (phase 2 definition).
+		my @nonnull    = grep { defined $_->{$col} && length($_->{$col}) } @$records;
+		my $null_count = $row_count - scalar @nonnull;
+
+		# distinct_count via _grouped_totals (count groups by the column).
+		my $dist_rows      = $self->_grouped_totals($pipeline, {
+			by => [$col],
+			fn => 'count',
+			as => 'cnt',
+		});
+		my $distinct_count = scalar @$dist_rows;
+
+		# Numeric statistics.
+		my @nums = grep { defined $_ } map { _numeric_cell($_->{$col}) } @nonnull;
+		my ($min_val, $max_val, $avg_val, $median_val);
+		if (@nums) {
+			my @sorted = sort { $a <=> $b } @nums;
+			$min_val = $sorted[0];
+			$max_val = $sorted[-1];
+			my $sum  = 0;
+			$sum += $_ for @nums;
+			$avg_val = $sum / @nums;
+			my $mid  = int(@sorted / 2);
+			$median_val = @sorted % 2
+				? $sorted[$mid]
+				: ($sorted[$mid - 1] + $sorted[$mid]) / 2;
+		}
+
+		push @stats, {
+			col            => $col,
+			row_count      => $row_count,
+			null_count     => $null_count,
+			distinct_count => $distinct_count,
+			(defined $min_val ? (
+				min    => $min_val,
+				max    => $max_val,
+				avg    => sprintf('%.4g', $avg_val),
+				median => sprintf('%.4g', $median_val),
+			) : ()),
+		};
+	}
+
+	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:)//;
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler    => 'tt',
+		template   => "$platform/$language/stats",
+		format     => 'html',
+		title      => 'Column statistics',
+		stats      => \@stats,
+		row_count  => $row_count,
+		left_spec  => $left_spec,
+		left_label => $left_label,
+		back_url   => _safe_back_url($self->param('back')) // '/',
+		back_label => 'Back',
 	);
 }
 

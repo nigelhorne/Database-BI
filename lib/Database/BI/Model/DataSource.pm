@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.012.0';
+our $VERSION = '0.013.0';
 
 =head1 NAME
 
@@ -614,11 +614,14 @@ sub _new_from_redis :Protected {
 # _init_redis_backend( $self ) -> void
 #
 # Purpose: Construct the Database::Abstraction backend for Redis mode.
-#          D::A connects to the Redis server lazily (on first data access);
-#          this method only creates the package and calls new() to configure
-#          the connection URL.  No network I/O happens during construction.
+#          D::A connects to the Redis server lazily (on first data access).
+#          We pass redis_key => $raw_table so D::A uses the original key name
+#          (which may contain colons, hyphens, etc.) for Redis lookups, while
+#          the sanitized $table is used only as the Perl package-name suffix.
+#          no_entry => 1 requests array-style rows (no id-keyed hash).
 # Entry:   $self->{_redis_url} is a valid redis:// URL.
-#          $self->{_table} is a safe SQL identifier used as the package suffix.
+#          $self->{_table}     is a safe SQL identifier (sanitized key name).
+#          $self->{_raw_table} is the original Redis key name.
 # Exit:    Sets $self->{_db}.  Croaks when D::A construction fails.
 sub _init_redis_backend :Protected {
 	my $self  = shift;
@@ -633,7 +636,12 @@ sub _init_redis_backend :Protected {
 			unless $pkg->isa('Database::Abstraction');
 	}
 
-	my $db = eval { $pkg->new(database => $self->{_redis_url}, table => $table) };
+	my $db = eval { $pkg->new(
+		database  => $self->{_redis_url},
+		table     => $table,
+		redis_key => $self->{_raw_table},
+		no_entry  => 1,
+	) };
 	croak $self->_msg('error_backend_init', $table, $@) if $@;
 
 	$self->{_db} = $db;

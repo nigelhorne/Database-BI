@@ -1,5 +1,108 @@
 Revision history for Database-BI
 
+0.013.0	Tue Oct 13 10:00:00 AM EDT 2026
+    [ Phase 2 -- analytical views (items 2.1 and 2.3 implemented) ]
+
+    Item 2.1 -- GET /pivot: crosstab view (IMPLEMENTED)
+    - Accepts ?l= (required), ?j= (repeatable joins), ?rows=col[,col]
+      (required), ?cols=col[,col] (optional column dimensions), and
+      ?m=col:fn:as (repeatable; fn is one of sum avg min max count
+      count_distinct; col empty for count).
+    - ?totals=1 adds row subtotals, column subtotals, and a grand total;
+      each is computed by a dedicated _grouped_totals call grouped by only
+      the row or column dimensions -- never by summing rendered cells.  This
+      means avg/min/max/count_distinct subtotals are arithmetically correct
+      (summing rendered cells would give wrong results for those functions).
+    - ?h=as:op:val (repeatable) applies post-aggregation HAVING filters
+      using the existing _apply_filter_spec operator vocabulary.
+    - ?max_cols=N collapses the tail of column-dimension combos beyond the
+      top-N (ranked by the first measure's column subtotal) into an "Other"
+      group computed by summing the collapsed cells -- acceptable for sum/count
+      here because the collapse is over disjoint complementary groups.
+    - ?format=csv|sqlite|json exports the laid-out grid (including totals rows
+      when ?totals=1) through the existing _render_csv/_render_sqlite/_render_json
+      helpers; no separate export path is needed.
+    - ?scheme= is accepted and forwarded to the template for future cell-shading
+      use; shading is not yet rendered (the CSS hook is present).
+    - Empty cells render as an HTML em-dash entity, visually distinct from zero.
+    - All aggregation is delegated to _grouped_totals so pivot numbers agree by
+      construction with /bar, /pie, /heatmap, and /graph on the same dataset.
+    - New template: templates/web/en/pivot.html.tt (ASCII-only; TT | html
+      throughout; responsive overflow-x: auto table).
+
+    Item 2.2 -- calculated fields (DEFERRED to a future release)
+    - A hand-written recursive-descent parser evaluating a restricted expression
+      grammar (arithmetic, IF, UPPER/LOWER/LEN/TRIM/SUBSTR/CONCAT/ROUND/ABS/
+      YEAR/MONTH/DAY/NOW) over per-row column values.
+    - Storage in <app>/.bi/models.json keyed by table spec.
+    - Security requirement: no eval, no symbolic dispatch; hostile input must
+      produce a 400 parse error, never code execution (t/cgi_security.t case
+      required).
+    - Deferred because it requires a new security-sensitive parser component
+      that deserves its own review cycle; all other Phase 2 items that reference
+      calculated fields can be implemented without it.
+
+    Item 2.3 -- GET /stats: column statistics panel (IMPLEMENTED)
+    - Accepts ?l= (required), ?j= (repeatable joins), ?f= (repeatable filters).
+    - Displays per-column: row_count, null_count, distinct_count, min, max,
+      mean, median.
+    - null_count is defined as rows where the cell value is undef or '' (the
+      Phase 2 spec definition: "count - count(col)").
+    - distinct_count is computed via _grouped_totals(by => [$col], fn => 'count')
+      so the number agrees with a pivot that groups by that column.
+    - min/max/mean use _numeric_cell() to strip currency notation, consistent
+      with how /bar and /graph handle the same values.
+    - median is computed in Perl by sorting the numeric values and selecting the
+      middle element (or averaging the two middle elements for even counts).
+      This is option (a) from the Phase 2 spec: correct, O(n) memory, no
+      Statistics::Descriptive dependency.  It is intentionally NOT routed
+      through _grouped_totals because no backend aggregate() supports median.
+    - New template: templates/web/en/stats.html.tt (ASCII-only; TT | html
+      throughout; responsive table).
+
+    Item 2.4 -- more chart marks: scatter, multi-series line, stacked bar,
+                combo bar+line, treemap, histogram (DEFERRED)
+    - Requires introducing a chart-spec object so a new mark is one template
+      plus one param block, not a new controller action copy.
+    - The four existing chart views (pie_view, bar_view, heatmap_view,
+      graph_view) must be refactored onto that object before any new mark
+      is added; otherwise the refactor will never happen.
+    - HTML::D3 >= 0.18 ships render_scatter_chart_snippet; stacked bar and
+      combo may need upstream HTML::D3 additions (tracked as upstream deps,
+      not forked into BI).
+
+    Item 2.5 -- time intelligence (DEFERRED)
+    - Date-dimension helper: parse a column to ISO-8601 or a user-supplied
+      strptime pattern, then derive year/quarter/month/week/day/month_name/
+      weekday as ordinary dimensions usable in ?rows=/?cols= without new
+      aggregation.
+    - Period-to-date (YTD/QTD/MTD) and prior-period comparison (YoY/MoM)
+      as two-aggregation presentation-layer combinations, not new measure
+      functions.
+    - Unparseable dates fall into an explicit "(unparseable)" bucket.
+
+    Item 2.6 -- bins, groups, sets (DEFERRED)
+    - bin(col, width) as a synthetic dimension producing labelled half-open
+      intervals ([0,100)) usable in ?rows=/?cols=.
+    - Named value groups ({ West, Southwest } => "West region") stored with
+      calculated fields.
+    - "Top N by measure" via _grouped_totals(limit => N) plus a second
+      aggregation over the complement for the "Other" row -- not by
+      subtracting rendered cells.
+
+    [ Bug Fixes ]
+    - stats_view: use alias 'cnt' (not '_cnt') for distinct-count aggregation
+      to avoid the DBD::CSV push-path rejection of underscore-leading aliases.
+    [ Tests ]
+    - t/basic.t: added smoke subtests for GET /pivot (15 assertions covering
+      basic render, col dimension, totals, CSV export, and four error cases)
+      and GET /stats (6 assertions covering render and missing-l= error);
+      test count 29 -> 31.
+    [ Dependencies ]
+    - Database::Abstraction >= 0.50 required (0.50 added redis_key parameter
+      and standalone-key support for non-compound Redis keys; bumped from
+      0.49 in a prior commit this release cycle).
+
 0.012.0
     [ API Changes ]
     - GET /join now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc for

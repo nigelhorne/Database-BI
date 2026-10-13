@@ -21,8 +21,8 @@ BEGIN {
 	my $have_redis = (defined $INC{'Redis/Fast.pm'} || defined $INC{'Redis.pm'})
 		|| eval { require Redis; 1 };
 	plan skip_all => 'Redis or Redis::Fast required' unless $have_redis;
-	eval { require Database::Abstraction };
-	plan skip_all => 'Database::Abstraction required' if $@;
+	eval { require Database::Abstraction; Database::Abstraction->MODULE('0.50') };
+	plan skip_all => 'Database::Abstraction 0.50 required' if $@;
 }
 
 # Load the app so all modules are available via %INC.
