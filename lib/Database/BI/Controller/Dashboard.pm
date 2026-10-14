@@ -85,7 +85,6 @@ Readonly my %MESSAGES => (
 	warn_combine_sort      => 'Sorting is applied in memory for /combine; result order may differ from a backend sort',
 	error_sort_column      => 'Unknown sort column "%s"',
 	warn_measure_fallback       => 'Measure "%s" on column "%s" is not uniformly numeric; totalled in Perl',
-	error_measure_fn            => 'Unknown measure function "%s"',
 	error_measure_column        => 'Measure column "%s" is not in the view',
 	error_pivot_rows_required   => 'At least one rows= dimension is required',
 	error_pivot_measure_req     => 'At least one m= measure (col:fn:as) is required',
@@ -748,11 +747,14 @@ sub _parse_measure_param {
 # $spec = { by => [...], fn => ..., val => ..., as => ..., [sort_by, having, limit, offset] }
 #
 # Dispatch:
-#   Push path  -- $source is defined, no active f= filters, measure is pushable
-#                 (checked by _measure_pushable). Calls $source->aggregate().
-#                 Phase 1 does not push filter criteria (that is Phase 0.3);
-#                 when f= filters are active the Perl fold is always used.
-#   Perl fold  -- Iterates $pipeline->{records} (pre-filtered) directly.
+#   Push path  -- $source is defined, measure is pushable (checked by
+#                 _measure_pushable), and either no active f= filters or all
+#                 active filters are SQL-pushable (via _filter_specs_to_criteria).
+#                 Calls $source->aggregate() with pushable criteria when present.
+#   Perl fold  -- Iterates $pipeline->{records} (pre-filtered by the caller)
+#                 when the push path is unavailable (combine union, non-SQL
+#                 source, non-pushable measure, or residual filters that cannot
+#                 be expressed as SQL criteria).
 #
 # $ENV{BI_FORCE_PERL_AGG}: set to a true value in tests to force the Perl fold
 # regardless of source type, enabling cross-backend equivalence assertions.
@@ -765,8 +767,10 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	my $as      = $spec->{as}  // 'value';
 
 	# Push path: use backend aggregate() when safe.
-	# Active f= filters block the push path in Phase 1 because
-	# _filter_specs_to_criteria is a stub that cannot push criteria to SQL yet.
+	# When f= filters are active, _filter_specs_to_criteria translates as many
+	# specs as possible to SQL criteria.  The push path is used only when ALL
+	# specs are SQL-pushable (no residual); otherwise the Perl fold handles the
+	# pre-filtered records the caller already passed in.
 	my @f_specs    = grep { /\S/ } @{ $self->every_param('f') // [] };
 	my $has_filter = !!@f_specs;
 
@@ -794,13 +798,22 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 		$found;
 	};
 
-	unless ($ENV{BI_FORCE_PERL_AGG} || $has_filter || $has_null_by_key || !$source
+	# When filters are active, translate them to SQL criteria for the push path.
+	# If any spec has no SQL equivalent (@residual is non-empty), the push path
+	# is skipped and the Perl fold uses the already-filtered $records.
+	my ($push_crit, $push_residual) = ($has_filter && $source)
+		? _filter_specs_to_criteria(\@f_specs, $source)
+		: ({}, []);
+	my $can_push_filters = !$has_filter || (!@$push_residual && %$push_crit);
+
+	unless ($ENV{BI_FORCE_PERL_AGG} || !$can_push_filters || $has_null_by_key || !$source
 		|| !_measure_pushable($source, $fn, $val_col, $records)) {
 		my $m = _measure($fn, $val_col, $as);
 		my $agg_rows = eval {
 			$source->aggregate(
 				by       => $by,
 				measures => [$m],
+				($has_filter && %$push_crit ? (%$push_crit) : ()),
 				($spec->{sort_by} ? (sort_by => $spec->{sort_by}) : ()),
 				($spec->{having}  ? (having  => $spec->{having})  : ()),
 				($spec->{limit}   ? (limit   => $spec->{limit})   : ()),
@@ -810,7 +823,7 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 		unless ($@) {
 			return $agg_rows // [];
 		}
-		carp "aggregate() push failed: $@; falling back to Perl fold";
+		$self->app->log->debug("aggregate() push failed: $@; falling back to Perl fold");
 	}
 
 	# Perl fold over pre-filtered records.
@@ -859,7 +872,11 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 		}
 	}
 
-	# Assemble result rows in first-seen (insertion) order.
+	# Assemble result rows in ascending key order (matching the SQL push path)
+	# unless the caller requested an explicit sort.
+	unless ($spec->{sort_by}) {
+		@key_order = sort @key_order;
+	}
 	my @result;
 	for my $key (@key_order) {
 		my @parts = @$by ? (split /\x00/, $key, scalar @$by) : ();
@@ -917,15 +934,30 @@ sub _fetch_page :Protected ($self, $source, $params) {
 		length($c // '') && defined $o && length $o;
 	} @{ $self->every_param('f') // [] };
 
+	# Determine whether the source has a SQL backend that supports LIMIT/OFFSET.
+	# DBD::CSV / SQL::Statement do not implement LIMIT/OFFSET; passing them emits
+	# a "Bad limit clause" error at the D::A layer before falling back to a Perl
+	# approach.  Avoid the noise by only using the N+1 fast path for SQL-backed
+	# sources.  For non-SQL sources (CSV, XLSX, in-memory) the reduction path
+	# below materialises the full set and paginates in Perl.
+	my $is_sql = $source->can('dbi_source') && $source->dbi_source;
+
 	unless (@f_specs || $dedup) {
-		# Fast path: no filters, no dedup.  Let the backend paginate via N+1 trick.
-		# Copy before pop: D::A may return a read-only ref to its internal cache.
-		my @records = @{ $source->selectall_arrayref(
-			limit => $per_page + 1, offset => $offset, @sort_args,
-		) // [] };
-		my $has_next = (@records > $per_page) ? 1 : 0;
-		pop @records if $has_next;
-		return (\@records, $has_next);
+		if ($is_sql) {
+			# Fast path (SQL-backed): delegate LIMIT/OFFSET to the backend N+1 trick.
+			# Copy before pop: D::A may return a read-only ref to its internal cache.
+			my @records = @{ $source->selectall_arrayref(
+				limit => $per_page + 1, offset => $offset, @sort_args,
+			) // [] };
+			my $has_next = (@records > $per_page) ? 1 : 0;
+			pop @records if $has_next;
+			return (\@records, $has_next);
+		}
+		# Non-SQL fast path: fetch all, sort in Perl, then paginate.
+		my $all = $source->selectall_arrayref(@sort_args) // [];
+		my $has_next = (@$all > $offset + $per_page) ? 1 : 0;
+		my @page = splice(@$all, $offset, $per_page);
+		return (\@page, $has_next);
 	}
 
 	# Criteria pushdown: translate as many f= specs as possible into SQL
@@ -934,10 +966,10 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	my ($criteria, $residual) = _filter_specs_to_criteria(\@f_specs, $source);
 	my $has_criteria = %$criteria;
 
-	# Full-pushdown fast path: all specs translated, no dedup.
+	# Full-pushdown fast path: all specs translated, no dedup, SQL-backed source.
 	# Use N+1 trick with SQL criteria + LIMIT/OFFSET -- avoids full-table fetch.
 	# Copy before pop: D::A may return a read-only ref to its internal cache.
-	if (!$dedup && !@$residual) {
+	if ($is_sql && !$dedup && !@$residual) {
 		my @records = @{ $source->selectall_arrayref(
 			%$criteria, limit => $per_page + 1, offset => $offset, @sort_args,
 		) // [] };

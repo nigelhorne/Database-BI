@@ -1557,7 +1557,9 @@ sub dbi_source {
 	return undef if $self->{_file_data};
 	return undef unless $self->{_db};
 	return undef unless $self->{_db}->can('dbi_source');
-	return $self->{_db}->dbi_source();
+	my $result = eval { $self->{_db}->dbi_source() };
+	return undef if $@;
+	return $result;
 }
 
 =head2 aggregate

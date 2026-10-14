@@ -1,6 +1,24 @@
 Revision history for Database-BI
 
 0.012.0
+    [ Phase 0/1 residual fixes ]
+    - /join and /combine: the no-params default returns the first 200 rows with
+      a Prev/Next pagination bar (consistent with /view and /open).  GET /export
+      with no page= returns all rows regardless of size.
+    - _grouped_totals Perl fold now returns groups in ascending key order (same as
+      the SQL push path), so chart category order no longer changes when a filter
+      is added or removed.
+    - _grouped_totals push path now works when all f= filters are SQL-pushable
+      (SQLite backend): criteria are passed to aggregate() directly instead of
+      forcing a full Perl fold.  Non-pushable filters still fall back to the fold.
+    - DataSource::dbi_source() now wraps the inner delegate in eval and returns
+      undef on failure rather than propagating the exception.
+    - Removed dead error_measure_fn message key (no call site existed).
+    - Downgraded noisy aggregate() push-failure carp to Mojo log debug level.
+    - README.md: documented /pivot, /stats, /calc/*, /dates/*, /groups/* routes;
+      documented pagination and sort params for /join and /combine; documented
+      join_max_rows config key.
+
     [ Phase 2 -- analytical views, calculated fields, time intelligence,
                   bins/groups/Top-N, multi-series charts, Redis backend ]
 

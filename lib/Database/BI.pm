@@ -558,7 +558,10 @@ renderer, giving visible progress on slow joins.
 #   1. dbi_source() proxy -- done: DataSource::dbi_source() delegating method added.
 #   2. limit/offset plumbing -- done: /join, /combine, /export thread pagination.
 #   3. order_by delegation -- done: ?sort=col&dir=asc|desc on /join and /combine.
-#   5. Schema warnings UI -- done: join_tables captures and passes schema_warnings.
+#   4. Filter pushdown -- done: _filter_specs_to_criteria translates f= specs to
+#      SQL criteria for SQLite sources; _grouped_totals and _fetch_page both use it.
+#   5. Schema warnings UI -- partial: join_tables captures and passes schema_warnings;
+#      BI-side type-mismatch detection (P0-6 in BI-Phases0-1-TODO.md) is still open.
 #   6. updated() in DataSource -- done: DataSource::updated() delegates to inner DA.
 #
 # ---- POST-RELEASE FEATURE ROADMAP ----
@@ -600,7 +603,7 @@ renderer, giving visible progress on slow joins.
 #
 # ---- OPEN INTEGRATION GAPS ----
 #
-# 4. parallel => 1 for multi-step join chains
+# I. parallel => 1 for multi-step join chains
 #    --------------------------------------------
 #    When the user chains three or more j= join steps, Database::BI creates a
 #    single Database::Join object with multiple secondary databases.  Enabling
@@ -614,7 +617,7 @@ renderer, giving visible progress on slow joins.
 #    route noting why it is disabled.  Longer-term: implement DataSource::clone()
 #    that creates an independent handle per thread.
 #
-# 5. per-table filters => on the join pipeline
+# J. per-table filters => on the join pipeline
 #    --------------------------------------------
 #    The /join route accepts f=col:op:val filters that are applied as post-join
 #    in-memory filtering in the template.  Database::Join 0.007.0's filters =>
@@ -626,7 +629,7 @@ renderer, giving visible progress on slow joins.
 #    the Database::Join constructor.  Filters on the merged view (post-join
 #    computed columns) must remain as template-side filtering.
 #
-# 6. collision_prefix exposure in the join UI
+# K. collision_prefix exposure in the join UI
 #    --------------------------------------------
 #    When two joined tables share a column name, Database::Join's default
 #    last-table-wins behaviour silently discards one table's value.  The join
