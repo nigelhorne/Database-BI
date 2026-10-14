@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.013.0';
+our $VERSION = '0.012.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -29,22 +29,23 @@ Readonly my $UPLOAD_MAX_AGE_S  => 24 * 3600;		# evict uploads older than 24 h
 
 =head1 NAME
 
-Database::BI - Web-based Business Intelligence viewer for flat data files
+Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.011.0
+0.012.0
 
 =head1 DESCRIPTION
 
 C<Database::BI> is a self-contained L<Mojolicious> web application that reads
-arbitrary flat data files (CSV, PSV, TSV, SQLite, XML, XLSX, etc.) via
-L<Database::Abstraction> and presents them as styled, sortable, reorderable
-HTML tables.  It has no persistent database of its own -- it reads your files
-on every request.
+and views arbitrary flat data (CSV, PSV, TSV, SQLite, XML, XLSX, etc.)
+and presents them as styled, sortable, reorderable
+HTML tables.
+It has no persistent database of its own,
+it reads your files on every request.
 
 Users navigate to pick a file, open the filesystem browser to navigate anywhere
-on disk, drag-and-drop files to upload, join multiple tables in memory, apply
+on disc, drag-and-drop files to upload, join multiple tables in memory, apply
 server-side filters, and export results as CSV, SQLite, or JSON.  D3.js
 visualisations (line chart, pie chart) are available from the toolbar.
 
@@ -115,7 +116,7 @@ B<Export> -- the toolbar export panel writes the current logical view
 =item *
 
 B<URL import> -- C</import> fetches an HTML table from any public URL and
-renders it in the browser without saving to disk.
+renders it in the browser without saving to disc.
 
 =item *
 
@@ -444,7 +445,7 @@ into the C<Import from a web page> field on the dashboard.
 
 When the router matches C<GET /view/Sales> or C<GET /view/SALES>, the table
 name is lowercased to C<sales> before being passed to the helper.  The data
-file on disk must therefore also be lowercase (C<sales.csv>, not
+file on disc must therefore also be lowercase (C<sales.csv>, not
 C<Sales.csv>).
 
 =item B<Redis support requires the Redis or Redis::Fast module>
@@ -647,7 +648,7 @@ sub startup ($self) {
 	# Cap inbound request body size.  When the limit fires, Mojolicious sets
 	# req->is_limit_exceeded and still dispatches to the controller (with partial
 	# content in the upload asset).  The controller checks is_limit_exceeded and
-	# returns 413 before writing to disk.
+	# returns 413 before writing to disc.
 	$self->max_request_size($MAX_REQUEST_SIZE);
 
 	# Default export/save directory: ~/Downloads when it exists, else HOME,

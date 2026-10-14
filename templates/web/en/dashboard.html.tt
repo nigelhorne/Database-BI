@@ -2828,10 +2828,10 @@ function parseAccounting(v) {
     return sel;
   }
 
-  function addDimRow(container) {
+  function addDimRow(container, label) {
     var row = document.createElement('div');
     row.className = 'pivot-dim-row';
-    var sel = makeColSelect('— column —');
+    var sel = makeColSelect(label || '— column —');
     var rm  = document.createElement('button');
     rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '×';
     rm.addEventListener('click', function () { row.remove(); checkPivot(); });
@@ -2956,10 +2956,10 @@ function parseAccounting(v) {
   });
 
   document.getElementById('btn-add-pivot-row').addEventListener('click', function () {
-    addDimRow(rowDimList);
+    addDimRow(rowDimList, '— row —');
   });
   document.getElementById('btn-add-pivot-col').addEventListener('click', function () {
-    addDimRow(colDimList);
+    addDimRow(colDimList, '— column —');
   });
   document.getElementById('btn-add-pivot-measure').addEventListener('click', addMeasureRow);
 
@@ -2967,7 +2967,7 @@ function parseAccounting(v) {
     otherPanels.forEach(function (p) { p.hidden = true; });
     panel.hidden = !panel.hidden;
     if (!panel.hidden && rowDimList.childElementCount === 0) {
-      addDimRow(rowDimList);
+      addDimRow(rowDimList, '— row —');
       addMeasureRow();
     }
   });

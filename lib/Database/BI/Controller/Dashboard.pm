@@ -544,21 +544,102 @@ sub _dedup_records {
 	return \@out;
 }
 
-# _filter_specs_to_criteria( \@specs ) -> ( \%criteria, \@residual_specs )
+# _filter_specs_to_criteria( \@specs, $source ) -> ( \%criteria, \@residual_specs )
 #
 # Purpose: Map the f= filter vocabulary onto Database::Abstraction / Database::Join
 #          criteria hashrefs so the backend can apply pushable filters before
 #          paginating.  Specs that cannot be safely pushed are returned as
 #          @residual_specs for subsequent in-memory application.
 #
-# Phase 0 note: all specs are currently placed in @residual_specs.  Criteria
-# pushdown for numeric operators on SQLite-backed sources is deferred to Phase 0.3+
-# once dbi_source() is available to detect the backend type and guarantee that
-# case-insensitive string semantics (preserved by _apply_filter_spec) are not
-# silently changed to case-sensitive SQL comparisons.
+# Pushdown is only performed when $source->dbi_source() confirms a SQL (SQLite)
+# backend.  For CSV (slurp path), in-memory, XLSX, BerkeleyDB and URL sources
+# everything is placed in @residual_specs so the existing _apply_filter_spec
+# Perl path handles them.
+#
+# Pushable mapping (SQLite only):
+#   eq / ne         -- LIKE / NOT LIKE without wildcards.  SQLite LIKE is
+#                      case-insensitive for ASCII, matching the existing Perl
+#                      lc() semantics.  Values containing % or _ are pushed to
+#                      residual to avoid LIKE metacharacter conflicts.
+#   contains        -- LIKE '%val%'.  Residual when value contains % or _.
+#   starts          -- LIKE 'val%'.   Residual when value contains % or _.
+#   lt / le / gt / ge -- SQL numeric comparison.  Residual when the value is
+#                      not a plain number (avoids column-affinity surprises
+#                      with currency or comma-formatted values).
+#   empty / notempty -- Always residual.  Must match both SQL NULL and the
+#                      literal empty string; cannot be expressed as a single
+#                      D::A criterion without an -or grouping.
+#
+# Column collision: if a column already has a pushable criterion, the second
+# spec for that column is placed in @residual_specs.  This keeps the AND logic
+# simple and safe; callers with multiple conditions on one column (e.g. a range)
+# still get correct results via the in-memory fallback.
 sub _filter_specs_to_criteria {
-	my ($specs) = @_;
-	return ({}, [@$specs]);
+	my ($specs, $source) = @_;
+
+	# Only push when the source has a live SQL (SQLite) backend.
+	my $is_sql = $source
+		&& $source->can('dbi_source')
+		&& $source->dbi_source();
+	return ({}, [@$specs]) unless $is_sql;
+
+	require Scalar::Util;
+	my (%criteria, @residual);
+
+	for my $spec (@$specs) {
+		my ($col, $op, $val) = split /:/, $spec, 3;
+		next unless length($col // '') && defined $op && length $op;
+		$val //= '';
+
+		# A second spec on the same column goes to residual.
+		if (exists $criteria{$col}) {
+			push @residual, $spec;
+			next;
+		}
+
+		if ($op eq 'eq' || $op eq 'ne') {
+			if ($val =~ /[%_]/) {
+				push @residual, $spec;
+			} else {
+				$criteria{$col} = ($op eq 'eq')
+					? { -like     => $val }
+					: { -not_like => $val };
+			}
+		} elsif ($op eq 'contains') {
+			if ($val =~ /[%_]/) {
+				push @residual, $spec;
+			} else {
+				$criteria{$col} = { -like => "%${val}%" };
+			}
+		} elsif ($op eq 'starts') {
+			if ($val =~ /[%_]/) {
+				push @residual, $spec;
+			} else {
+				$criteria{$col} = { -like => "${val}%" };
+			}
+		} elsif ($op eq 'lt') {
+			Scalar::Util::looks_like_number($val)
+				? ($criteria{$col} = { '<'  => $val })
+				: push @residual, $spec;
+		} elsif ($op eq 'le') {
+			Scalar::Util::looks_like_number($val)
+				? ($criteria{$col} = { '<=' => $val })
+				: push @residual, $spec;
+		} elsif ($op eq 'gt') {
+			Scalar::Util::looks_like_number($val)
+				? ($criteria{$col} = { '>'  => $val })
+				: push @residual, $spec;
+		} elsif ($op eq 'ge') {
+			Scalar::Util::looks_like_number($val)
+				? ($criteria{$col} = { '>=' => $val })
+				: push @residual, $spec;
+		} else {
+			# empty, notempty, unknown operator: always residual.
+			push @residual, $spec;
+		}
+	}
+
+	return (\%criteria, \@residual);
 }
 
 # ---------------------------------------------------------------------------
@@ -820,22 +901,39 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	} @{ $self->every_param('f') // [] };
 
 	unless (@f_specs || $dedup) {
-		# Fast path: let the backend paginate via N+1 trick.
-		# No eval here -- errors propagate to the caller's eval block so the
-		# controller can render a proper error page rather than a silent empty view.
-		my $records = $source->selectall_arrayref(limit => $per_page + 1, offset => $offset);
-		$records //= [];
-		my $has_next = (@$records > $per_page) ? 1 : 0;
-		pop @$records if $has_next;
-		return ($records, $has_next);
+		# Fast path: no filters, no dedup.  Let the backend paginate via N+1 trick.
+		# Copy before pop: D::A may return a read-only ref to its internal cache.
+		my @records = @{ $source->selectall_arrayref(limit => $per_page + 1, offset => $offset) // [] };
+		my $has_next = (@records > $per_page) ? 1 : 0;
+		pop @records if $has_next;
+		return (\@records, $has_next);
 	}
 
-	# Reduction path: full-set fetch then in-memory reduce + Perl paginate.
-	# Errors propagate to the caller's eval block.
-	my $all = $source->selectall_arrayref;
+	# Criteria pushdown: translate as many f= specs as possible into SQL
+	# criteria (_filter_specs_to_criteria returns a criteria hashref and a
+	# residual list for any spec that cannot be safely pushed to SQL).
+	my ($criteria, $residual) = _filter_specs_to_criteria(\@f_specs, $source);
+	my $has_criteria = %$criteria;
+
+	# Full-pushdown fast path: all specs translated, no dedup.
+	# Use N+1 trick with SQL criteria + LIMIT/OFFSET -- avoids full-table fetch.
+	# Copy before pop: D::A may return a read-only ref to its internal cache.
+	if (!$dedup && !@$residual) {
+		my @records = @{ $source->selectall_arrayref(%$criteria, limit => $per_page + 1, offset => $offset) // [] };
+		my $has_next = (@records > $per_page) ? 1 : 0;
+		pop @records if $has_next;
+		return (\@records, $has_next);
+	}
+
+	# Partial-pushdown / dedup path: fetch the SQL-filtered set (if any criteria
+	# were pushable) then apply residual specs and/or dedup in Perl, then
+	# paginate the reduced set.  Memory cost: the full reduced set.
+	my $all = $has_criteria
+		? $source->selectall_arrayref(%$criteria)
+		: $source->selectall_arrayref;
 	$all //= [];
 
-	$all = _apply_filter_spec($all, $_) for @f_specs;
+	$all = _apply_filter_spec($all, $_) for @$residual;
 
 	if ($dedup) {
 		my $cols = $source->columns;

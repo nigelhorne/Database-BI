@@ -1,21 +1,22 @@
 ## Name
 
-Database::BI - Web-based Business Intelligence viewer for flat data files
+Database::BI - Web-based Business Intelligence viewer for data files
 
 ## Version
 
-0.011.0
+0.012.0
 
 ## Description
 
 `Database::BI` is a self-contained [Mojolicious](https://metacpan.org/pod/Mojolicious) web application that reads
-arbitrary flat data files (CSV, PSV, TSV, SQLite, XML, XLSX, etc.) via
-[Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction) and presents them as styled, sortable, reorderable
-HTML tables.  It has no persistent database of its own -- it reads your files
-on every request.
+and views arbitrary flat data (CSV, PSV, TSV, SQLite, XML, XLSX, etc.)
+and presents them as styled, sortable, reorderable
+HTML tables.
+It has no persistent database of its own,
+it reads your files on every request.
 
 Users navigate to pick a file, open the filesystem browser to navigate anywhere
-on disk, drag-and-drop files to upload, join multiple tables in memory, apply
+on disc, drag-and-drop files to upload, join multiple tables in memory, apply
 server-side filters, and export results as CSV, SQLite, or JSON.  D3.js
 visualisations (line chart, pie chart) are available from the toolbar.
 
@@ -55,7 +56,7 @@ data" panel is open the dropped file populates the right-table path field.
 (after joins, filters, and dedup) to a chosen filesystem path as CSV
 (`.csv`), SQLite (`.sql`), or JSON (`.json`).
 - **URL import** -- `/import` fetches an HTML table from any public URL and
-renders it in the browser without saving to disk.
+renders it in the browser without saving to disc.
 - **Redis data source** (optional) -- when the `Redis` or `Redis::Fast` module
 is installed, any Redis hash store can be opened as a read-only data table by
 entering a `redis:tablename|redis://host:port` spec in the path field or in a
@@ -411,7 +412,7 @@ defaults:
 
     When the router matches `GET /view/Sales` or `GET /view/SALES`, the table
     name is lowercased to `sales` before being passed to the helper.  The data
-    file on disk must therefore also be lowercase (`sales.csv`, not
+    file on disc must therefore also be lowercase (`sales.csv`, not
     `Sales.csv`).
 
 - **Redis support requires the Redis or Redis::Fast module**
