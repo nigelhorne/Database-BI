@@ -8,7 +8,7 @@ use POSIX	qw(floor ceil);
 use Readonly;
 use Scalar::Util	qw(looks_like_number);
 
-our $VERSION = '0.001';
+our $VERSION = '0.002';
 
 Readonly my $MAX_EXPR_LEN => 512;
 Readonly my $MAX_DEPTH    => 20;
@@ -26,16 +26,25 @@ Readonly my $T_RPAREN => 'RPAREN';
 Readonly my $T_COMMA  => 'COMMA';
 Readonly my $T_EOF    => 'EOF';
 
+# Comparison operator tokens (two-char forms checked before single-char forms)
+Readonly my $T_EQ  => 'EQ';	# =
+Readonly my $T_NEQ => 'NEQ';	# !=
+Readonly my $T_LT  => 'LT';	# <
+Readonly my $T_LE  => 'LE';	# <=
+Readonly my $T_GT  => 'GT';	# >
+Readonly my $T_GE  => 'GE';	# >=
+
 our %MESSAGES = (
-    error_expr_too_long   => 'Expression too long (max %d characters)',
-    error_expr_too_deep   => 'Expression nesting too deep (max %d levels)',
-    error_unknown_fn      => "Unknown function '%s'",
-    error_unknown_col     => "Unknown column '%s'",
-    error_unexpected_tok  => "Unexpected token '%s' at position %d",
-    error_expected_tok    => "Expected '%s' at position %d, got '%s'",
-    error_unterminated    => 'Unterminated string at position %d',
-    error_bad_char        => "Unexpected character '%s' at position %d",
-    error_trailing        => "Unexpected token '%s' at position %d",
+	error_expr_too_long   => 'Expression too long (max %d characters)',
+	error_expr_too_deep   => 'Expression nesting too deep (max %d levels)',
+	error_unknown_fn      => "Unknown function '%s'",
+	error_unknown_col     => "Unknown column '%s'",
+	error_unexpected_tok  => "Unexpected token '%s' at position %d",
+	error_expected_tok    => "Expected '%s' at position %d, got '%s'",
+	error_unterminated    => 'Unterminated string at position %d',
+	error_bad_char        => "Unexpected character '%s' at position %d",
+	error_trailing        => "Unexpected token '%s' at position %d",
+	error_double_eq       => "Use = not == for equality comparison at position %d",
 );
 
 sub _fmt {
@@ -44,10 +53,13 @@ sub _fmt {
 }
 
 # --- built-in function dispatch table ---
-# Each entry is a plain coderef; 'if' is handled specially in the parser
-# for short-circuit evaluation (see _parse_call).
+# 'if' is handled as a special form in _parse_call (short-circuit branches).
+# All date functions accept ISO-8601 'YYYY-MM-DD' prefix only; non-matching
+# values return undef and appear in the empty-cell bucket rather than being
+# dropped.
 
 my %FUNCTIONS = (
+	# --- string functions ---
 	upper    => sub { defined $_[0] ? uc($_[0])      : undef },
 	lower    => sub { defined $_[0] ? lc($_[0])      : undef },
 	trim     => sub {
@@ -65,6 +77,8 @@ my %FUNCTIONS = (
 		defined $len ? CORE::substr($s, $start, $len)
 		             : CORE::substr($s, $start);
 	},
+
+	# --- numeric functions ---
 	round    => sub {
 		my ($n, $d) = @_;
 		return undef unless defined $n && looks_like_number($n);
@@ -80,13 +94,74 @@ my %FUNCTIONS = (
 	'abs'    => sub {
 		defined $_[0] && looks_like_number($_[0]) ? CORE::abs($_[0]) : undef;
 	},
+
+	# --- conditional / null-handling ---
 	isnull   => sub { defined $_[0] ? $_[0] : $_[1] },
 	coalesce => sub {
 		for my $v (@_) { return $v if defined $v }
 		return undef;
 	},
-	# 'if' is NOT here -- it is handled as a special form in _parse_call
-	# so the true/false branches are short-circuit evaluated at runtime.
+
+	# --- date functions (ISO-8601 YYYY-MM-DD prefix; no external module) ---
+	year => sub {
+		return undef unless defined $_[0] && $_[0] =~ /\A(\d{4})-\d\d-\d\d/;
+		$1 + 0;
+	},
+	month => sub {
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(\d\d)-\d\d/;
+		$1 + 0;
+	},
+	day => sub {
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-\d\d-(\d\d)/;
+		$1 + 0;
+	},
+	quarter => sub {
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(\d\d)-/;
+		int(($1 - 1) / 3) + 1;
+	},
+	week => sub {
+		# Returns ISO 8601 week number (1-53); week containing the first
+		# Thursday of the year is week 1.
+		return undef unless defined $_[0] && $_[0] =~ /\A(\d{4})-(\d\d)-(\d\d)/;
+		my ($yr, $mo, $dy) = ($1 + 0, $2 + 0, $3 + 0);
+		my $t  = POSIX::mktime(0, 0, 12, $dy, $mo - 1, $yr - 1900);
+		my @lt = localtime($t);
+		POSIX::strftime('%V', @lt) + 0;
+	},
+	month_name => sub {
+		# Returns full English month name, e.g. 'January'.
+		my @M = qw(January February March April May June
+		           July August September October November December);
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(\d\d)-/;
+		$M[$1 - 1] // undef;
+	},
+	weekday => sub {
+		# Returns ISO 8601 weekday: 1 = Monday, 7 = Sunday.
+		return undef unless defined $_[0] && $_[0] =~ /\A(\d{4})-(\d\d)-(\d\d)/;
+		my ($yr, $mo, $dy) = ($1 + 0, $2 + 0, $3 + 0);
+		my $t  = POSIX::mktime(0, 0, 12, $dy, $mo - 1, $yr - 1900);
+		my $wd = (localtime($t))[6];	# 0 = Sunday
+		$wd == 0 ? 7 : $wd;
+	},
+	now => sub {
+		# Returns today's date as 'YYYY-MM-DD'.  Takes no arguments.
+		my @t = (localtime)[3, 4, 5];	# mday, mon (0-based), year (since 1900)
+		sprintf '%04d-%02d-%02d', $t[2] + 1900, $t[1] + 1, $t[0];
+	},
+
+	# --- grouping / binning ---
+	bin => sub {
+		# bin(value, width) -> '[lo,hi)' label for the interval containing value.
+		# Width must be a positive number.  Both endpoints use %d when width is
+		# an integer, %g otherwise, to avoid spurious ".0" suffixes.
+		my ($v, $w) = @_;
+		return undef unless defined $v && defined $w;
+		return undef unless looks_like_number($v) && looks_like_number($w) && $w > 0;
+		my $lo  = POSIX::floor($v / $w) * $w;
+		my $hi  = $lo + $w;
+		my $fmt = ($w == int($w)) ? '%d' : '%g';
+		sprintf("[${fmt},${fmt})", $lo, $hi);
+	},
 );
 
 # ---------------------------------------------------------------------------
@@ -121,7 +196,7 @@ sub new {
 	my $pos   = 0;
 	my $depth = 0;
 	my $code;
-	$ok = eval { $code = _parse_expr($tokens, \$pos, \$depth, $self->{_columns}); 1 };
+	$ok = eval { $code = _parse_cmp($tokens, \$pos, \$depth, $self->{_columns}); 1 };
 	unless ($ok) {
 		my $err = $@; $err =~ s/ at \S+ line \d+\.?\n?$//;
 		$self->{_error} = $err;
@@ -215,7 +290,41 @@ sub _tokenize {
 			next;
 		}
 
-		# single-character operator/punctuation
+		# two-character comparison operators (must be tested before single-char)
+		if ($pos + 1 < $len) {
+			my $two = substr($expr, $pos, 2);
+			if ($two eq '!=') {
+				push @tokens, { type => $T_NEQ, val => '!=', pos => $pos };
+				$pos += 2; next;
+			}
+			if ($two eq '<=') {
+				push @tokens, { type => $T_LE, val => '<=', pos => $pos };
+				$pos += 2; next;
+			}
+			if ($two eq '>=') {
+				push @tokens, { type => $T_GE, val => '>=', pos => $pos };
+				$pos += 2; next;
+			}
+			if ($two eq '==') {
+				croak _fmt('error_double_eq', $pos);
+			}
+		}
+
+		# single-character comparison operators
+		if ($ch eq '=') {
+			push @tokens, { type => $T_EQ, val => '=', pos => $pos };
+			$pos++; next;
+		}
+		if ($ch eq '<') {
+			push @tokens, { type => $T_LT, val => '<', pos => $pos };
+			$pos++; next;
+		}
+		if ($ch eq '>') {
+			push @tokens, { type => $T_GT, val => '>', pos => $pos };
+			$pos++; next;
+		}
+
+		# single-character arithmetic operators and punctuation
 		if (exists $single_ops{$ch}) {
 			push @tokens, { type => $single_ops{$ch}, val => $ch, pos => $pos };
 			$pos++;
@@ -246,8 +355,54 @@ sub _expect {
 	$$pos_ref++;
 }
 
-# expr ::= term ( ('+' | '-') term )*
-sub _parse_expr {
+# cmp_expr ::= add_expr (cmp_op add_expr)?
+# Comparison yields 1 (true), 0 (false), or undef (either operand undef).
+# When both operands look numeric, numeric comparison is used; otherwise
+# case-insensitive string comparison, matching _apply_filter_spec semantics.
+sub _parse_cmp {
+	my ($tokens, $pos_ref, $depth_ref, $cols) = @_;
+	_check_depth($depth_ref);
+	$$depth_ref++;
+
+	my $left = _parse_add($tokens, $pos_ref, $depth_ref, $cols);
+
+	my $type = $tokens->[$$pos_ref]{type};
+	if ($type eq $T_EQ || $type eq $T_NEQ
+	 || $type eq $T_LT || $type eq $T_LE
+	 || $type eq $T_GT || $type eq $T_GE) {
+		my $op = $type;
+		$$pos_ref++;
+		my $right = _parse_add($tokens, $pos_ref, $depth_ref, $cols);
+		my ($l, $r) = ($left, $right);
+		$left = sub {
+			my $lv = $l->($_[0]);
+			my $rv = $r->($_[0]);
+			return undef unless defined $lv && defined $rv;
+			if (looks_like_number($lv) && looks_like_number($rv)) {
+				return $op eq $T_EQ  ? ($lv == $rv ? 1 : 0)
+				     : $op eq $T_NEQ ? ($lv != $rv ? 1 : 0)
+				     : $op eq $T_LT  ? ($lv <  $rv ? 1 : 0)
+				     : $op eq $T_LE  ? ($lv <= $rv ? 1 : 0)
+				     : $op eq $T_GT  ? ($lv >  $rv ? 1 : 0)
+				     :                 ($lv >= $rv ? 1 : 0);
+			} else {
+				my $cmp = lc($lv) cmp lc($rv);
+				return $op eq $T_EQ  ? ($cmp == 0 ? 1 : 0)
+				     : $op eq $T_NEQ ? ($cmp != 0 ? 1 : 0)
+				     : $op eq $T_LT  ? ($cmp <  0 ? 1 : 0)
+				     : $op eq $T_LE  ? ($cmp <= 0 ? 1 : 0)
+				     : $op eq $T_GT  ? ($cmp >  0 ? 1 : 0)
+				     :                 ($cmp >= 0 ? 1 : 0);
+			}
+		};
+	}
+
+	$$depth_ref--;
+	return $left;
+}
+
+# add_expr ::= term ( ('+' | '-') term )*
+sub _parse_add {
 	my ($tokens, $pos_ref, $depth_ref, $cols) = @_;
 	_check_depth($depth_ref);
 	$$depth_ref++;
@@ -314,7 +469,7 @@ sub _parse_term {
 	return $left;
 }
 
-# factor ::= unary | '(' expr ')' | number | string | column | call
+# factor ::= unary | '(' cmp_expr ')' | number | string | column | call
 sub _parse_factor {
 	my ($tokens, $pos_ref, $depth_ref, $cols) = @_;
 	my $tok = $tokens->[$$pos_ref];
@@ -336,10 +491,10 @@ sub _parse_factor {
 		return _parse_factor($tokens, $pos_ref, $depth_ref, $cols);
 	}
 
-	# parenthesized sub-expression
+	# parenthesized sub-expression: allow full cmp_expr so (qty > 0) works
 	if ($tok->{type} eq $T_LPAREN) {
 		$$pos_ref++;
-		my $inner = _parse_expr($tokens, $pos_ref, $depth_ref, $cols);
+		my $inner = _parse_cmp($tokens, $pos_ref, $depth_ref, $cols);
 		_expect($tokens, $pos_ref, $T_RPAREN);
 		return $inner;
 	}
@@ -362,7 +517,7 @@ sub _parse_factor {
 	if ($tok->{type} eq $T_IDENT) {
 		my $name = $tok->{val};
 		$$pos_ref++;
-		return _tokens_ahead_is_lparen($tokens, $pos_ref)
+		return $tokens->[$$pos_ref]{type} eq $T_LPAREN
 			? _parse_call($tokens, $pos_ref, $depth_ref, $cols, $name, $tok->{pos})
 			: _parse_colref($cols, $name, $tok->{pos});
 	}
@@ -370,27 +525,22 @@ sub _parse_factor {
 	croak _fmt('error_unexpected_tok', $tok->{val}, $tok->{pos});
 }
 
-sub _tokens_ahead_is_lparen {
-	my ($tokens, $pos_ref) = @_;
-	return $tokens->[$$pos_ref]{type} eq $T_LPAREN;
-}
-
 # Parse a function call.  'if' is a special form (short-circuit branches).
+# Arguments may be full cmp_expr (e.g. IF(qty > 0, amount/qty, 0)).
 sub _parse_call {
 	my ($tokens, $pos_ref, $depth_ref, $cols, $name, $name_pos) = @_;
 	my $lc = lc($name);
 
-	# validate function name at compile time
 	croak _fmt('error_unknown_fn', $name)
 		unless exists $FUNCTIONS{$lc} || $lc eq 'if';
 
 	$$pos_ref++;	# consume '('
 	my @arg_fns;
 	if ($tokens->[$$pos_ref]{type} ne $T_RPAREN) {
-		push @arg_fns, _parse_expr($tokens, $pos_ref, $depth_ref, $cols);
+		push @arg_fns, _parse_cmp($tokens, $pos_ref, $depth_ref, $cols);
 		while ($tokens->[$$pos_ref]{type} eq $T_COMMA) {
 			$$pos_ref++;
-			push @arg_fns, _parse_expr($tokens, $pos_ref, $depth_ref, $cols);
+			push @arg_fns, _parse_cmp($tokens, $pos_ref, $depth_ref, $cols);
 		}
 	}
 	_expect($tokens, $pos_ref, $T_RPAREN);
@@ -412,21 +562,25 @@ sub _parse_call {
 
 # Parse a column reference; validates against the whitelist at compile time.
 # Underscores in the expression may match spaces in the actual column name,
-# so  account_number  can address a column named "Account Number".
+# and the comparison is case-insensitive, so  per_unit_price  can address
+# a column named "Per Unit Price".
 sub _parse_colref {
 	my ($cols, $name, $name_pos) = @_;
 
-	my $lookup = $name;
-	unless ($cols->{$lookup}) {
-		(my $spaced = $name) =~ s/_/ /g;
-		if ($cols->{$spaced}) {
-			$lookup = $spaced;
-		} else {
-			croak _fmt('error_unknown_col', $name);
+	# 1. Exact match
+	return sub { $_[0]->{$name} } if $cols->{$name};
+
+	# 2. Underscore-to-space alias, case-insensitive
+	(my $spaced = $name) =~ s/_/ /g;
+	my $lc_spaced = lc($spaced);
+	for my $col (keys %{$cols}) {
+		if (lc($col) eq $lc_spaced) {
+			my $lookup = $col;
+			return sub { $_[0]->{$lookup} };
 		}
 	}
 
-	return sub { $_[0]->{$lookup} };
+	croak _fmt('error_unknown_col', $name);
 }
 
 1;
@@ -439,23 +593,22 @@ Database::BI::Calc - Safe recursive-descent expression evaluator for Database::B
 
 =head1 VERSION
 
-0.001
+0.002
 
 =head1 SYNOPSIS
 
     use Database::BI::Calc;
 
     my $calc = Database::BI::Calc->new(
-        expr    => 'round(amount * qty, 2)',
-        columns => [qw(amount qty price discount name)],
+        expr    => 'if(qty > 0, round(amount / qty, 2), 0)',
+        columns => [qw(amount qty)],
     );
 
     die $calc->error if $calc->error;
 
-    # evaluate against each data row
     for my $row (@rows) {
         my $val = $calc->evaluate($row);   # undef on runtime error
-        $row->{extended} = $val;
+        $row->{unit_price} = $val;
     }
 
 =head1 DESCRIPTION
@@ -469,8 +622,8 @@ strings is ever performed anywhere in this module.
 =head2 new(%args)
 
     my $calc = Database::BI::Calc->new(
-        expr    => 'if(discount, price - discount, price)',
-        columns => [qw(price discount)],
+        expr    => 'if(year(date) = 2026, amount * 1.1, amount)',
+        columns => [qw(date amount)],
     );
 
 Recognised keys:
@@ -485,8 +638,8 @@ The expression string. Maximum 512 characters.
 
 Arrayref of allowed column names. Any identifier in C<expr> that is not a
 known function name must appear in this list (or must match when underscores
-in the expression are replaced with spaces). Unknown identifiers cause a
-compile-time error stored in C<error()>.
+are replaced with spaces). Unknown identifiers cause a compile-time error
+stored in C<error()>.
 
 =back
 
@@ -516,10 +669,20 @@ operand, undef column value, etc.) rather than croaking.
     -x unary negation   +x unary identity
     (expr)  grouping
 
-Operator precedence follows standard arithmetic: C<*> and C</> bind more
-tightly than C<+> and C<->. Use parentheses to override.
+    =   equal          !=  not equal
+    <   less than      <=  less-or-equal
+    >   greater than   >=  greater-or-equal
+
+Operator precedence (highest to lowest): unary, then C<* />, then C<+ ->,
+then comparisons. Comparisons yield C<1> (true) or C<0> (false). When both
+operands look numeric, numeric comparison is used; otherwise case-insensitive
+string comparison, matching C<_apply_filter_spec> semantics.
+
+Use C<=> for equality, not C<==>. Writing C<==> is a compile-time error.
 
 =head1 BUILT-IN FUNCTIONS
+
+=head2 String
 
     upper(s)                 uc($s)
     lower(s)                 lc($s)
@@ -528,25 +691,47 @@ tightly than C<+> and C<->. Use parentheses to override.
     concat(a, b, ...)        join('', ...), undef treated as ''
     substr(s, start)         0-based start, to end of string
     substr(s, start, len)    0-based start, len characters
+
+=head2 Numeric
+
     round(n, decimals)       sprintf-based rounding
     floor(n)                 POSIX::floor
     ceil(n)                  POSIX::ceil
     abs(n)                   absolute value
-    if(cond, true, false)    short-circuit ternary (true/false branch not
-                             evaluated unless needed)
+
+=head2 Conditional
+
+    if(cond, true, false)    short-circuit ternary: only the taken branch is
+                             evaluated, so if(qty > 0, amount/qty, 0) is safe
     isnull(val, default)     val if defined, else default
     coalesce(v1, v2, ...)    first defined value
 
-All arithmetic functions return C<undef> when a required numeric argument is
-not defined or does not look like a number.
+=head2 Date (ISO-8601 C<YYYY-MM-DD> only)
+
+    year(s)        four-digit year (2026)
+    month(s)       month number 1-12
+    day(s)         day of month 1-31
+    quarter(s)     quarter 1-4
+    week(s)        ISO 8601 week number 1-53
+    month_name(s)  full English month name ('January' .. 'December')
+    weekday(s)     ISO 8601 weekday: 1 = Monday, 7 = Sunday
+    now()          today's date as 'YYYY-MM-DD' (no arguments)
+
+All date functions return C<undef> when the value does not start with a
+valid C<YYYY-MM-DD> prefix, rather than croaking.
+
+=head2 Binning
+
+    bin(value, width)   '[lo,hi)' label for the half-open interval containing
+                        value.  Width must be a positive number.  Integer widths
+                        produce integer labels ('[0,100)'); fractional widths
+                        use %g ('[0.5,1)')
 
 =head1 COLUMN NAMES WITH SPACES
 
-Column names containing spaces can be referenced in expressions by replacing
-the spaces with underscores. For example, a column named C<"Per Unit Price">
-can be written as C<per_unit_price> in an expression. The constructor's
-C<columns> list may contain the original name with spaces; the underscore form
-is accepted in expressions automatically.
+Column names containing spaces can be referenced by replacing spaces with
+underscores. C<per_unit_price> in an expression addresses a column named
+C<"Per Unit Price"> automatically.
 
 =head1 SECURITY
 
@@ -559,8 +744,7 @@ No C<eval> of user-supplied strings is performed anywhere in this module.
 =item *
 
 Column references are validated at compile time against the C<columns>
-whitelist passed to C<new()>. An unknown identifier causes C<new()> to record
-an error in C<error()> and compile to a no-op.
+whitelist. Unknown identifiers are rejected at C<new()> time.
 
 =item *
 
@@ -578,7 +762,7 @@ Nesting deeper than 20 levels is rejected.
 =item *
 
 Division by zero and undef/non-numeric operands return C<undef> rather than
-croaking, so a bad row does not abort an entire export pipeline.
+croaking, so a bad row does not abort an export pipeline.
 
 =back
 
@@ -593,7 +777,7 @@ L<Database::BI>, L<Database::BI::Controller::Dashboard>
 
 =head1 AUTHOR
 
-Nigel Horne, C<< <njh@bandsman.co.uk> >>
+Nigel Horne, C<< <njh@nigelhorne.com> >>
 
 =head1 LICENSE
 
