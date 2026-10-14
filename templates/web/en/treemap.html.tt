@@ -10,6 +10,7 @@
     word-break: break-all;
   }
   .chart-source a { color: inherit; }
+  .tm-cell-g { cursor: pointer; }
 </style>
 
 <p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a>[%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
@@ -26,6 +27,60 @@
   <script src="https://d3js.org/d3.v7.min.js"></script>
   [% treemap_html %]
 </div>
+
+<!-- Metadata read by the drill-down click handler below. -->
+<div id="treemap-meta" data-back-url="[% back_url | html %]" data-cat-col="[% cat_col | html %]" hidden></div>
+
+<script>
+// Fix tooltip position: HTML::D3 uses event.offsetX/Y (rect-relative) but the
+// tooltip div is position:absolute in page coordinates.  Switch it to
+// position:fixed and override with clientX/Y via a bubbling SVG listener that
+// runs after D3's rect-level handler.
+(function () {
+  var tip = document.getElementById('treemap_tip');
+  if (!tip) return;
+  tip.style.position = 'fixed';
+  var svg = document.getElementById('treemap');
+  if (!svg) return;
+  svg.addEventListener('mousemove', function (e) {
+    if (tip.style.display === 'none') return;
+    tip.style.left = (e.clientX + 12) + 'px';
+    tip.style.top  = (e.clientY - 28) + 'px';
+  });
+}());
+</script>
+
+<script>
+// Clicking a tile filters the source table to that category.
+(function () {
+  var meta    = document.getElementById('treemap-meta');
+  var backUrl = meta ? meta.getAttribute('data-back-url') : '';
+  var catCol  = meta ? meta.getAttribute('data-cat-col')  : '';
+  if (!backUrl || !catCol) return;
+
+  function drillDown(label) {
+    var tmUrl  = window.location.href;
+    var sep    = backUrl.indexOf('?') >= 0 ? '&' : '?';
+    var target = backUrl + sep + 'f=' + encodeURIComponent(catCol + ':eq:' + label);
+    target    += '&back2='       + encodeURIComponent(tmUrl);
+    target    += '&back2_label=' + encodeURIComponent('Back to treemap');
+    window.location.href = target;
+  }
+
+  // D3 binds data synchronously; a brief delay ensures elements are in the DOM.
+  setTimeout(function () {
+    document.querySelectorAll('#treemap .tm-cell-g').forEach(function (g) {
+      var d = g.__data__;
+      if (!d || !d.id) return;
+      var label = d.id.split('/').pop();
+      if (!label) return;
+      g.style.cursor = 'pointer';
+      g.setAttribute('title', 'Filter table to: ' + label);
+      g.addEventListener('click', function () { drillDown(label); });
+    });
+  }, 50);
+}());
+</script>
 
 <script>
 (function () {

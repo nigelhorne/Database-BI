@@ -4644,6 +4644,7 @@ sub treemap_view ($self) {
 		title           => $title,
 		treemap_html    => $treemap_html,
 		tile_count      => scalar @data,
+		cat_col         => $cat_col,
 		back_url        => ($back2 // $back),
 		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
