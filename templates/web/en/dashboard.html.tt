@@ -120,6 +120,7 @@
     min-width: 160px;
   }
   .pivot-config-wide { flex: 1 1 260px; }
+  .pivot-config-col .btn-add-filter { align-self: flex-start; }
   .pivot-section-head {
     font-size: 0.8rem;
     font-weight: 600;
@@ -183,9 +184,9 @@
 </style>
 
 [%- IF back_url -%]
-<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a>[%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
+<p class="back-link"><span><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a>[%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</span>[%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</p>
 [%- ELSE -%]
-<p class="back-link"><a href="/">&larr; Choose another database</a></p>
+<p class="back-link"><span><a href="/">&larr; Choose another database</a></span>[%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</p>
 [%- END -%]
 [%- IF schema_warnings.size -%]
 <ul class="schema-warnings" role="alert">
@@ -197,14 +198,6 @@
 
 [%- IF left_spec -%]
 <div class="toolbar">
-  <p class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %]
-    [%- IF join_summaries.size -%]
-    &ensp;
-    [%- FOREACH s IN join_summaries -%]
-    <span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>
-    [%- END -%]
-    [%- END -%]
-  </p>
   [%- IF filter_specs.size -%]
   <span class="filter-chips" id="filter-chip-row">
     [%- FOREACH fs IN filter_specs -%]

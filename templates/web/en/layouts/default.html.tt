@@ -148,9 +148,20 @@
     .back-link {
       margin-bottom: 1rem;
       font-size: 0.875rem;
+      display: flex;
+      align-items: baseline;
+      gap: 1rem;
+      flex-wrap: wrap;
     }
     .back-link a { color: #2c3e7a; text-decoration: none; }
     .back-link a:hover { text-decoration: underline; }
+    .back-link .record-count {
+      margin-left: auto;
+      flex: 0 0 auto;
+      color: #666;
+      font-size: 0.8rem;
+      white-space: nowrap;
+    }
 
     /* Toolbar row: record count + "Add database" button */
     .toolbar {

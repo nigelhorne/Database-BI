@@ -4250,7 +4250,7 @@ sub pivot_view ($self) {
 	# across all col combos); aggregate the remaining rows as an "Other" row.
 	# -----------------------------------------------------------------------
 	{
-		my $topn_n   = int($self->param('topn') // 0);
+		my $topn_n   = int($self->param('topn') || 0);
 		my $topn_col = $self->param('topn_col') // '';
 
 		if ($topn_n > 0 && @row_key_order > $topn_n) {
