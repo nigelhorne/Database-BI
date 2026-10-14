@@ -1370,4 +1370,87 @@ subtest '/graph with ?series= renders multi-series line chart' => sub {
 	  ->content_like(qr/North/, '/line alias works with series');
 };
 
+# ---------------------------------------------------------------------------
+# SECTION 15: Phase 2.5 -- Time intelligence (date normalisation)
+# ---------------------------------------------------------------------------
+
+subtest 'Date patterns CRUD: /dates/save, /dates/list, /dates/delete' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'usdate.csv');
+	Mojo::File->new($csv)->spurt("date,amount\n12/25/2025,100\n01/15/2026,200\n");
+	my $l_raw = "path:$csv";
+	my $l     = url_escape($l_raw);
+
+	# Initially no patterns registered
+	$t->get_ok("/dates/list?l=$l")->status_is(200)
+	  ->json_is('/patterns', {}, 'no patterns initially');
+
+	# Save a valid US date pattern
+	$t->post_ok('/dates/save', form => { l => $l_raw, col => 'date', pattern => '%m/%d/%Y' })
+	  ->status_is(200)->json_is('/ok', 1, 'dates_save ok');
+
+	# List confirms the pattern is stored
+	$t->get_ok("/dates/list?l=$l")->status_is(200)
+	  ->json_is('/patterns/date', '%m/%d/%Y', 'pattern stored under col key');
+
+	# Unsupported pattern is rejected with 400
+	$t->post_ok('/dates/save', form => { l => $l_raw, col => 'date', pattern => '%Y/%m/%d' })
+	  ->status_is(400)
+	  ->json_like('/error', qr/[Uu]nsupported|[Uu]nknown/, 'bad pattern rejected with 400');
+
+	# Missing l= -> 400
+	$t->get_ok('/dates/list')->status_is(400, 'dates_list without l= -> 400');
+	$t->post_ok('/dates/save', form => { col => 'date', pattern => '%m/%d/%Y' })
+	  ->status_is(400, 'dates_save without l= -> 400');
+
+	# Delete the pattern for one column
+	$t->post_ok('/dates/delete', form => { l => $l_raw, col => 'date' })
+	  ->status_is(200)->json_is('/ok', 1, 'dates_delete ok');
+	$t->get_ok("/dates/list?l=$l")->status_is(200)
+	  ->json_is('/patterns', {}, 'pattern removed after delete');
+};
+
+subtest 'Date normalisation: M/D/YYYY -> ISO-8601 before YEAR() in /pivot' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'usdate2.csv');
+	Mojo::File->new($csv)->spurt(
+		"date,amount\n12/25/2025,100\n01/15/2026,200\n12/31/2025,300\n"
+	);
+	my $l_raw = "path:$csv";
+	my $l     = url_escape($l_raw);
+
+	# Register US date pattern
+	$t->post_ok('/dates/save', form => { l => $l_raw, col => 'date', pattern => '%m/%d/%Y' })
+	  ->status_is(200);
+
+	# Pivot: rows=yr (calc=year(date)), measure sum(amount)
+	# With normalisation: 12/25/2025 -> 2025-12-25, 12/31/2025 -> 2025-12-31 -> YEAR=2025 (sum=400)
+	#                     01/15/2026 -> 2026-01-15 -> YEAR=2026 (sum=200)
+	my $c = url_escape('yr:year(date)');
+	$t->get_ok("/pivot?l=$l&rows=yr&m=amount:sum:total&c=$c")
+	  ->status_is(200)
+	  ->content_like(qr/2025/, '2025 year group visible after normalisation')
+	  ->content_like(qr/2026/, '2026 year group visible after normalisation')
+	  ->content_like(qr/400/,  '2025 sum=400 (100+300) after normalisation');
+
+	# Cleanup
+	$t->post_ok('/dates/delete', form => { l => $l_raw })->status_is(200);
+};
+
+subtest 'Date normalisation: undef calc result groups as (unparseable) in /pivot' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'baddate.csv');
+	# Two ISO dates + one non-date value; YEAR(date) returns undef for 'badvalue'
+	Mojo::File->new($csv)->spurt("date,amount\n2025-12-25,100\n2026-01-15,200\nbadvalue,300\n");
+	my $l = url_escape("path:$csv");
+	my $c = url_escape('yr:year(date)');
+
+	$t->get_ok("/pivot?l=$l&rows=yr&m=amount:sum:total&c=$c")
+	  ->status_is(200)
+	  ->content_like(qr/2025/, '2025 group present')
+	  ->content_like(qr/2026/, '2026 group present')
+	  ->content_like(qr/\(unparseable\)/, '(unparseable) bucket for bad date value')
+	  ->content_like(qr/300/, 'amount for unparseable row is present');
+};
+
 done_testing();

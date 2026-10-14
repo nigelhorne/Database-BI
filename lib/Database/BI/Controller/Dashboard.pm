@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.013.0';
+our $VERSION = '0.014.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -96,6 +96,7 @@ Readonly my %MESSAGES => (
 	error_calc_name             => 'Calculated field name "%s" is not a valid identifier',
 	error_topn_col              => 'Top-N column "%s" is not a measure alias in this view',
 	warn_calc_undef             => 'Calculated field "%s" returned undef for %d row(s)',
+	error_date_pattern          => 'Unsupported date format pattern "%s"; allowed: %%m/%%d/%%Y, %%d/%%m/%%Y, %%d-%%b-%%Y',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -114,6 +115,10 @@ Readonly my $MAX_PER_PAGE          => 2_000;
 # a corresponding entry in the lower-layer aggregate() implementations.
 Readonly my @MEASURE_FNS  => qw(sum avg min max count count_distinct);
 Readonly my %MEASURE_FN_OK => map { $_ => 1 } @MEASURE_FNS;
+
+# Allowed strptime-style date format patterns for the /dates/save endpoint.
+Readonly my %ALLOWED_DATE_PATTERNS => map { $_ => 1 }
+	qw(%m/%d/%Y %d/%m/%Y %d-%b-%Y);
 
 # ---------------------------------------------------------------------------
 # Protected helpers
@@ -814,6 +819,8 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 
 	for my $row (@$records) {
 		# Skip rows where any 'by' column is empty/undef (mirrors SQL GROUP BY NULL exclusion).
+		# Note: calc field columns store '(unparseable)' (not undef) for failed expressions,
+		# so those rows pass this guard and appear in the (unparseable) group instead.
 		my @key_parts = map { $row->{$_} // '' } @$by;
 		next if @$by && grep { !length($_) } @key_parts;
 		my $key = join("\x00", @key_parts);
@@ -1200,6 +1207,35 @@ sub _run_pipeline_source :Protected ($self) {
 	return ($src, $records, \@columns, $left_label);
 }
 
+# _apply_date_normalization($self, $records, \@columns, $spec_key) -> void
+#
+# Reads date_patterns from .bi/models.json for $spec_key and normalises each
+# configured column's values to ISO-8601 in-place.  A value that does not match
+# the stored pattern is left unchanged so YEAR/MONTH/etc. return undef (and the
+# row falls into the '(unparseable)' bucket in _grouped_totals).
+# Called at the top of _apply_calc_fields so registered patterns are applied
+# before any calc expression is evaluated.
+sub _apply_date_normalization :Protected ($self, $records, $columns, $spec_key) {
+	return unless defined $spec_key && length $spec_key;
+	my $models   = $self->_read_models;
+	my $patterns = $models->{date_patterns}{$spec_key};
+	return unless $patterns && %{$patterns};
+	my %col_set = map { $_ => 1 } @{$columns};
+	require Database::BI::Calc;
+	for my $col (keys %{$patterns}) {
+		next unless $col_set{$col};
+		my $pat = $patterns->{$col};
+		for my $row (@{$records}) {
+			my $v = $row->{$col};
+			next unless defined $v && length $v;
+			# Only overwrite when normalisation succeeds; leave unchanged on
+			# mismatch so the row lands in the '(unparseable)' group.
+			my $iso = Database::BI::Calc::date_normalise($v, $pat);
+			$row->{$col} = $iso if defined $iso;
+		}
+	}
+}
+
 # _apply_calc_fields($self, $records, \@columns) -> ($records, \@columns)
 #
 # Reads ?c=<name>:<expression> params (those NOT matching a path:/table:/url:/redis:
@@ -1208,6 +1244,11 @@ sub _run_pipeline_source :Protected ($self) {
 # (caller renders 400); runtime undef values are logged at warn level.
 # Later ?c= specs may reference names defined by earlier ones (evaluated in order).
 sub _apply_calc_fields :Protected ($self, $records, $columns) {
+	# Normalise date columns before evaluating expressions so that date
+	# functions (YEAR, MONTH, etc.) see ISO-8601 values even when the source
+	# file uses a non-ISO format (e.g. M/D/YYYY).
+	$self->_apply_date_normalization($records, $columns, $self->param('l'));
+
 	my @calc_specs;
 	for my $spec (@{ $self->every_param('c') // [] }) {
 		# Skip source specs handled by _run_pipeline_source.
@@ -1230,7 +1271,10 @@ sub _apply_calc_fields :Protected ($self, $records, $columns) {
 		my $undef_count = 0;
 		for my $row (@{$records}) {
 			my $val = $calc->evaluate($row);
-			$row->{$name} = $val;
+			# Store '(unparseable)' rather than undef so that pivot/bar
+			# grouping (which skips empty-string keys) keeps these rows in a
+			# visible '(unparseable)' bucket rather than silently dropping them.
+			$row->{$name} = defined $val ? $val : '(unparseable)';
 			$undef_count++ unless defined $val;
 		}
 		if ($undef_count) {
@@ -1274,14 +1318,15 @@ sub _calc_models_path :Protected ($self) {
 # Returns the parsed models hashref from .bi/models.json, or an empty scaffold.
 sub _read_models :Protected ($self) {
 	my $path = $self->_calc_models_path;
-	my $scaffold = { version => 1, fields => {}, groups => {} };
+	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {} };
 	return $scaffold unless defined $path && -f $path;
 	my $json = eval { Mojo::File->new($path)->slurp };
 	return $scaffold unless $json && !$@;
 	my $data = eval { decode_json($json) };
 	return $scaffold unless ref $data eq 'HASH';
-	$data->{fields} //= {};
-	$data->{groups} //= {};
+	$data->{fields}        //= {};
+	$data->{groups}        //= {};
+	$data->{date_patterns} //= {};
 	return $data;
 }
 
@@ -4503,6 +4548,63 @@ sub groups_list ($self) {
 
 	my $models = $self->_read_models;
 	$self->render(json => { groups => $models->{groups}{$spec} // {} });
+}
+
+# ---------------------------------------------------------------------------
+# Date-pattern CRUD  (POST /dates/save, POST /dates/delete, GET /dates/list)
+# ---------------------------------------------------------------------------
+
+# dates_save: POST /dates/save?l=<spec>&col=<col>&pattern=<fmt>
+# Stores a strptime-style date normalisation pattern for $col in models.json.
+# Only the three patterns in %ALLOWED_DATE_PATTERNS are accepted.
+sub dates_save ($self) {
+	my $spec    = $self->param('l')       // '';
+	my $col     = $self->param('col')     // '';
+	my $pattern = $self->param('pattern') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+	return $self->render(json => { error => 'col= required' }, status => 400)
+		unless length $col;
+	return $self->render(
+		json   => { error => $self->_i18n('error_date_pattern', $pattern) },
+		status => 400,
+	) unless $ALLOWED_DATE_PATTERNS{$pattern};
+
+	my $models = $self->_read_models;
+	$models->{date_patterns}{$spec}{$col} = $pattern;
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+# dates_delete: POST /dates/delete?l=<spec>&col=<col>
+# Removes the pattern for $col (or all patterns for $spec when col is absent).
+sub dates_delete ($self) {
+	my $spec = $self->param('l')   // '';
+	my $col  = $self->param('col') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	if (length $col) {
+		delete $models->{date_patterns}{$spec}{$col};
+	} else {
+		delete $models->{date_patterns}{$spec};
+	}
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+# dates_list: GET /dates/list?l=<spec>
+# Returns { patterns: { col: pattern, ... } } for $spec.
+sub dates_list ($self) {
+	my $spec = $self->param('l') // '';
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	$self->render(json => { patterns => $models->{date_patterns}{$spec} // {} });
 }
 
 # ---------------------------------------------------------------------------

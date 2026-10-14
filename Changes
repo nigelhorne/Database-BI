@@ -1,5 +1,26 @@
 Revision history for Database-BI
 
+0.014.0  Wed Oct 14 12:00:00 PM EDT 2026
+    [ Phase 2.5 -- Time intelligence (date normalisation) ]
+
+    - Database::BI::Calc: new standalone helper date_normalise($value, $pattern)
+      converts non-ISO dates to ISO-8601; supported patterns: %m/%d/%Y (US),
+      %d/%m/%Y (EU), %d-%b-%Y (DD-Mon-YYYY); returns undef on mismatch.
+    - GET /dates/list?l=<spec>           -> JSON { patterns: { col: pattern } }
+    - POST /dates/save  body: l=&col=&pattern=   (400 for unsupported pattern)
+    - POST /dates/delete body: l=&col=           (omit col= to clear all for spec)
+    - Dashboard::_apply_date_normalization: reads stored date_patterns from
+      .bi/models.json for the current l= spec and normalises matching columns
+      to ISO-8601 in-place; called automatically at the top of _apply_calc_fields
+      so YEAR/MONTH/DAY/QUARTER/WEEK see ISO values before expression evaluation.
+    - _apply_calc_fields: calc fields that evaluate to undef now store
+      '(unparseable)' in the row hashref instead of undef.  This ensures that
+      pivot/bar grouping (which skips empty-string keys to mirror SQL GROUP BY
+      NULL exclusion) keeps these rows in a visible '(unparseable)' bucket rather
+      than silently dropping them.
+    - t/integration.t sections 44-46: date pattern CRUD, M/D/YYYY -> YEAR
+      e2e normalisation, (unparseable) bucket for bad date values in /pivot.
+
 0.013.0  Wed Oct 15 12:00:00 PM EDT 2026
     [ Phase 2.4 -- multi-series line chart + integration tests ]
 

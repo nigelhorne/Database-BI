@@ -8,7 +8,7 @@ use POSIX	qw(floor ceil);
 use Readonly;
 use Scalar::Util	qw(looks_like_number);
 
-our $VERSION = '0.013.0';
+our $VERSION = '0.014.0';
 
 Readonly my $MAX_EXPR_LEN => 512;
 Readonly my $MAX_DEPTH    => 20;
@@ -583,6 +583,43 @@ sub _parse_colref {
 	croak _fmt('error_unknown_col', $name);
 }
 
+# ---------------------------------------------------------------------------
+# Standalone date-normalisation helper (used by Dashboard::_apply_date_normalization)
+# ---------------------------------------------------------------------------
+
+Readonly my %_MONTH_NAME_TO_NUM => (
+	jan => 1, feb => 2, mar => 3, apr => 4,  may => 5,  jun => 6,
+	jul => 7, aug => 8, sep => 9, oct => 10, nov => 11, dec => 12,
+);
+
+# date_normalise($value, $pattern) -> 'YYYY-MM-DD' or undef
+#
+# Converts $value from the given strptime-style $pattern to ISO-8601.
+# Returns undef when $value does not match the pattern or the pattern is
+# unknown.  No external modules required.
+#
+# Supported patterns:
+#   %m/%d/%Y  -- US slash-date (01/15/2026)
+#   %d/%m/%Y  -- EU slash-date (15/01/2026)
+#   %d-%b-%Y  -- DD-Mon-YYYY  (15-Jan-2026, case-insensitive month abbrev)
+sub date_normalise {
+	my ($val, $pattern) = @_;
+	return undef unless defined $val && defined $pattern && length $val;
+	if ($pattern eq '%m/%d/%Y') {
+		return undef unless $val =~ /\A(\d{1,2})\/(\d{1,2})\/(\d{4})\z/;
+		return sprintf('%04d-%02d-%02d', $3, $1, $2);
+	} elsif ($pattern eq '%d/%m/%Y') {
+		return undef unless $val =~ /\A(\d{1,2})\/(\d{1,2})\/(\d{4})\z/;
+		return sprintf('%04d-%02d-%02d', $3, $2, $1);
+	} elsif ($pattern eq '%d-%b-%Y') {
+		return undef unless $val =~ /\A(\d{1,2})-([A-Za-z]{3})-(\d{4})\z/;
+		my $mon = $_MONTH_NAME_TO_NUM{lc($2)};
+		return undef unless defined $mon;
+		return sprintf('%04d-%02d-%02d', $3, $mon, $1);
+	}
+	return undef;
+}
+
 1;
 
 __END__
@@ -719,6 +756,21 @@ Use C<=> for equality, not C<==>. Writing C<==> is a compile-time error.
 
 All date functions return C<undef> when the value does not start with a
 valid C<YYYY-MM-DD> prefix, rather than croaking.
+
+=head2 Date normalisation (standalone helper)
+
+    date_normalise($value, $pattern) -> 'YYYY-MM-DD' or undef
+
+Converts C<$value> from a non-ISO format to ISO-8601 C<YYYY-MM-DD>.
+Returns C<undef> when the value does not match the pattern.
+Supported patterns:
+
+    %m/%d/%Y   US slash-date  (01/15/2026)
+    %d/%m/%Y   EU slash-date  (15/01/2026)
+    %d-%b-%Y   DD-Mon-YYYY   (15-Jan-2026; month abbreviation is case-insensitive)
+
+This is called by C<Dashboard::_apply_date_normalization> before calc fields
+are evaluated, so C<YEAR(date)> sees ISO values regardless of the source format.
 
 =head2 Binning
 

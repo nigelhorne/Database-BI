@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.013.0';
+our $VERSION = '0.014.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -33,7 +33,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.012.0
+0.014.0
 
 =head1 DESCRIPTION
 
@@ -508,7 +508,7 @@ works correctly in production without any special workarounds.
 
 =head1 ROADMAP
 
-Features planned for future releases (post-0.013.0).  Items are ordered by
+Features planned for future releases (post-0.014.0).  Items are ordered by
 priority.
 
 =over 4
@@ -755,6 +755,9 @@ sub startup ($self) {
 	$r->post('/groups/save')  ->to('Dashboard#groups_save');
 	$r->post('/groups/delete')->to('Dashboard#groups_delete');
 	$r->get('/groups/list')   ->to('Dashboard#groups_list');
+	$r->post('/dates/save')   ->to('Dashboard#dates_save');
+	$r->post('/dates/delete') ->to('Dashboard#dates_delete');
+	$r->get('/dates/list')    ->to('Dashboard#dates_list');
 	$r->get('/scatter')       ->to('Dashboard#scatter_view');
 	$r->get('/stacked')       ->to('Dashboard#stacked_view');
 	$r->get('/combo')         ->to('Dashboard#combo_view');
