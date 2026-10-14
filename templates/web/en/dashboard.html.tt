@@ -1035,6 +1035,8 @@
   [%- FOREACH fs IN filter_specs -%]
   <input type="hidden" name="f" value="[% fs | html %]">
   [%- END -%]
+  <input type="hidden" name="back" id="stats-form-back" value="">
+  <input type="hidden" name="back_label" value="Back to table">
 </form>
 [%- END -%]
 
@@ -2773,6 +2775,8 @@ function parseAccounting(v) {
   if (!btn || !form) return;
 
   btn.addEventListener('click', function () {
+    var backInp = document.getElementById('stats-form-back');
+    if (backInp) backInp.value = window.location.href;
     form.submit();
   });
 }());
@@ -2906,6 +2910,18 @@ function parseAccounting(v) {
   pivotForm.addEventListener('submit', function () {
     // Remove previously-generated dynamic pivot params.
     Array.from(pivotForm.querySelectorAll('[data-pivot-dyn]')).forEach(function (i) { i.remove(); });
+
+    // Inject back= so pivot page can render a breadcrumb back to this view.
+    (function () {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = 'back'; inp.value = window.location.href;
+      inp.setAttribute('data-pivot-dyn', '1');
+      pivotForm.appendChild(inp);
+      var lbl = document.createElement('input');
+      lbl.type = 'hidden'; lbl.name = 'back_label'; lbl.value = 'Back to table';
+      lbl.setAttribute('data-pivot-dyn', '1');
+      pivotForm.appendChild(lbl);
+    }());
 
     function addHidden(name, val) {
       var inp = document.createElement('input');

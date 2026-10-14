@@ -3814,6 +3814,10 @@ sub pivot_view ($self) {
 	return $self->render(text => 'Missing l= parameter', status => 400)
 		unless length $left_spec;
 
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
 	my $rows_str = $self->param('rows') // '';
 	return $self->render(text => $self->_i18n('error_pivot_rows_required'), status => 400)
 		unless length $rows_str;
@@ -4115,8 +4119,9 @@ sub pivot_view ($self) {
 		scheme        => $scheme,
 		left_spec     => $left_spec,
 		left_label    => $left_label,
-		back_url      => _safe_back_url($self->param('back')) // '/',
-		back_label    => 'Back',
+		back_url      => ($back2 // $back),
+		back_label    => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
+		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
 	);
 }
 
@@ -4137,6 +4142,10 @@ sub stats_view ($self) {
 	my $left_spec = $self->param('l') // '';
 	return $self->render(text => 'Missing l= parameter', status => 400)
 		unless length $left_spec;
+
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
 
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
@@ -4207,8 +4216,9 @@ sub stats_view ($self) {
 		stats      => \@stats,
 		row_count  => $row_count,
 		left_spec  => $left_spec,		left_label => $left_label,
-		back_url   => _safe_back_url($self->param('back')) // '/',
-		back_label => 'Back',
+		back_url   => ($back2 // $back),
+		back_label => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
+		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
 	);
 }
 
