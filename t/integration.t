@@ -1078,4 +1078,148 @@ subtest '/pivot pagination slices the row groups' => sub {
 	is scalar(@csv_lines) - 1, 6, 'CSV export returns all 6 rows regardless of per_page';
 };
 
+# ---------------------------------------------------------------------------
+# Section 13: Phase 2.2 -- Calculated fields (?c= wiring and CRUD)
+# ---------------------------------------------------------------------------
+
+subtest 'Calculated fields: ?c= inline field on /pivot' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'calc_src.csv');
+	Mojo::File->new($csv)->spurt(
+		"region,amount,cost\n"
+		. "North,500,300\n"
+		. "South,400,250\n"
+		. "North,600,350\n"
+		. "South,300,200\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	# Basic: ?c=margin:amount-cost adds virtual column used by measure
+	my $url = "/pivot?l=$lspec&rows=region&m=" . url_escape('margin:sum:total_margin')
+	        . '&c=' . url_escape('margin:amount-cost');
+	$t->get_ok($url)->status_is(200);
+	my $body = $t->tx->res->body;
+	like $body, qr/total_margin/, 'measure alias present in pivot output';
+	# North total margin: (500-300)+(600-350) = 200+250 = 450
+	like $body, qr/450/, 'North total_margin = 450';
+	# South total margin: (400-250)+(300-200) = 150+100 = 250
+	like $body, qr/250/, 'South total_margin = 250';
+
+	# IF with comparison: ?c=flag:if(amount>400,"high","low") groups correctly
+	my $url2 = "/pivot?l=$lspec&rows=flag&m=:count:orders"
+	         . '&c=' . url_escape('flag:if(amount>400,"high","low")');
+	$t->get_ok($url2)->status_is(200);
+	my $body2 = $t->tx->res->body;
+	like $body2, qr/high/, 'flag=high present in pivot';
+	like $body2, qr/low/,  'flag=low present in pivot';
+
+	# YEAR() date function: groups by year extracted from date column
+	my $date_csv = File::Spec->catfile("$dir", 'dated.csv');
+	Mojo::File->new($date_csv)->spurt(
+		"date,amount\n"
+		. "2024-01-15,100\n"
+		. "2024-06-20,200\n"
+		. "2025-03-10,150\n"
+	);
+	my $dlspec = url_escape("path:$date_csv");
+	my $url3 = "/pivot?l=$dlspec&rows=yr&m=amount:sum:total"
+	         . '&c=' . url_escape('yr:year(date)');
+	$t->get_ok($url3)->status_is(200);
+	my $body3 = $t->tx->res->body;
+	like $body3, qr/2024/, 'year 2024 present in pivot';
+	like $body3, qr/2025/, 'year 2025 present in pivot';
+	# 2024 total: 300; 2025 total: 150
+	like $body3, qr/300/, '2024 sum correct';
+	like $body3, qr/150/, '2025 sum correct';
+
+	# Unknown column -> 400
+	$t->get_ok("/pivot?l=$lspec&rows=region&m=" . url_escape('x:sum:total')
+	         . '&c=' . url_escape('x:nosuchcol'))
+	  ->status_is(400, 'unknown column in calc expr -> 400');
+
+	# Bad expression syntax -> 400
+	$t->get_ok("/pivot?l=$lspec&rows=region&m=" . url_escape('x:sum:total')
+	         . '&c=' . url_escape('x:amount =='))
+	  ->status_is(400, 'syntax error in calc expr -> 400');
+};
+
+subtest 'Calculated fields: ?c= on /bar' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'bar_calc.csv');
+	Mojo::File->new($csv)->spurt(
+		"region,revenue,cost\n"
+		. "East,800,500\n"
+		. "West,600,400\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	$t->get_ok("/bar?l=$lspec&cat=region&val=margin&c=" . url_escape('margin:revenue-cost'))
+	  ->status_is(200)
+	  ->content_like(qr/bar_chart/, 'bar chart rendered with calc field');
+};
+
+subtest 'Calc CRUD: /calc/save, /calc/list, /calc/delete' => sub {
+	my $spec = 'table:sales';
+
+	# Save a named calc field
+	$t->post_ok('/calc/save', form => {
+		l    => $spec,
+		name => 'margin',
+		expr => 'amount - cost',
+	})->status_is(200)
+	  ->json_is('/ok', 1, 'calc_save returns ok:1');
+
+	# List returns the saved field
+	$t->get_ok('/calc/list?l=' . url_escape($spec))
+	  ->status_is(200)
+	  ->json_is('/fields/margin', 'amount - cost', 'saved field appears in list');
+
+	# Save a second field
+	$t->post_ok('/calc/save', form => {
+		l    => $spec,
+		name => 'doubled',
+		expr => 'amount * 2',
+	})->status_is(200);
+
+	$t->get_ok('/calc/list?l=' . url_escape($spec))
+	  ->status_is(200)
+	  ->json_has('/fields/margin',  'first field still present')
+	  ->json_has('/fields/doubled', 'second field present');
+
+	# Delete one field
+	$t->post_ok('/calc/delete', form => {
+		l    => $spec,
+		name => 'doubled',
+	})->status_is(200)
+	  ->json_is('/ok', 1);
+
+	$t->get_ok('/calc/list?l=' . url_escape($spec))
+	  ->status_is(200)
+	  ->json_is('/fields/doubled', undef, 'deleted field absent')
+	  ->json_is('/fields/margin', 'amount - cost', 'remaining field intact');
+
+	# Delete the last field
+	$t->post_ok('/calc/delete', form => {
+		l    => $spec,
+		name => 'margin',
+	})->status_is(200);
+
+	$t->get_ok('/calc/list?l=' . url_escape($spec))
+	  ->status_is(200)
+	  ->json_is('/fields', {}, 'all fields deleted');
+
+	# Error cases
+	$t->post_ok('/calc/save', form => { name => 'x', expr => '1' })
+	  ->status_is(400, 'calc_save without l= -> 400');
+
+	$t->post_ok('/calc/save', form => { l => $spec, name => 'bad-name', expr => '1' })
+	  ->status_is(400, 'calc_save with invalid name -> 400');
+
+	$t->post_ok('/calc/save', form => { l => $spec, name => 'x' })
+	  ->status_is(400, 'calc_save without expr -> 400');
+
+	$t->get_ok('/calc/list')
+	  ->status_is(400, 'calc_list without l= -> 400');
+};
+
 done_testing();

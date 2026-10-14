@@ -641,6 +641,18 @@ subtest 'GET /pivot' => sub {
 };
 
 # ---------------------------------------------------------------------------
+subtest 'GET /calc/list' => sub {
+	# With a known spec, returns JSON with a 'fields' key.
+	$t->get_ok('/calc/list?l=table:sales')
+	  ->status_is(200)
+	  ->json_has('/fields', 'fields key present');
+
+	# Without l= param returns 400.
+	$t->get_ok('/calc/list')
+	  ->status_is(400);
+};
+
+# ---------------------------------------------------------------------------
 subtest 'GET /stats' => sub {
 	my $dir = File::Temp->newdir;
 	my $csv = File::Spec->catfile("$dir", 'statssmoke.csv');

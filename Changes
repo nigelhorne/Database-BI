@@ -1,5 +1,33 @@
 Revision history for Database-BI
 
+0.013.0  Wed Oct 15 12:00:00 PM EDT 2026
+    [ Phase 2.2 -- Calculated fields (complete) ]
+
+    - Database::BI::Calc: recursive-descent expression evaluator; no string
+      eval anywhere; compile-time column whitelist; arithmetic (+ - * /),
+      comparison (= != < <= > >=), short-circuit IF, string functions
+      (upper lower trim len concat substr), numeric functions (round floor
+      ceil abs), date functions (year month day quarter week month_name
+      weekday now), bin(value,width) for histogram grouping, coalesce,
+      isnull; expression-length limit (512 chars); nesting-depth limit (20).
+    - All chart and pivot routes accept ?c=<name>:<expr> (repeatable) for
+      inline virtual columns; evaluated once per row before any grouping;
+      later ?c= specs may reference names from earlier ones.
+    - GET /calc/list?l=<spec>  -> JSON { fields: { name: expr } }
+    - POST /calc/save   body: l=<spec>&name=<ident>&expr=<expression>
+    - POST /calc/delete body: l=<spec>&name=<ident>
+    - Named calc fields stored in <app_home>/.bi/models.json; model_dir
+      config key overrides the .bi/ location; data_dir safety guard prevents
+      writing inside the data directory.
+    - Hostile expressions (eval, require, system, backticks, BEGIN) produce
+      a 400 from the HTTP API and a compile-time error from Calc->new,
+      never code execution (t/cgi_security.t attack vector 13).
+    - t/calc.t: grammar acceptance/rejection table, hostile-input security
+      cases, column whitelist, depth-limit, underscore-to-space alias.
+    - t/integration.t sections 35-37: inline ?c= on /pivot and /bar; calc
+      CRUD lifecycle; error paths.
+    - t/basic.t: GET /calc/list smoke test.
+
 0.012.0
     [ Phase 2 -- analytical views (items 2.1, 2.3, and 2.4 implemented) ]
 
