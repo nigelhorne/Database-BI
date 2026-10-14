@@ -1533,7 +1533,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1165: 		next unless +{ map { $_ =&gt; 1 } @$right_cols }-&gt;{$right_key};
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1166: 
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1167: 		require Database::Join;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1168: 		local $SIG{__WARN__} = sub { push @schema_warnings, $_[0] };
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1168: 		local $SIG{__WARN__} = sub { push @schema_warnings, $_[0] };
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -4266,7 +4266,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 3835: 		my ($p) = $val =~ /\A([A-Z]+)/;
 </span><span class=""> 3836: 		next unless defined $p;
 </span><span class=""> 3837: 		push @{ $prefix_to_rows{$p} }, $row;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 3838: 	}
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 3838: 	}
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -4319,7 +4319,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 3867: 
 </span><span class=""> 3868: 	# Base URL carries the table spec (and optional col=) so every sub-link
 </span><span class=""> 3869: 	# re-uses the same data source without repeating params.
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 3870: 	my $base_url = &#39;/folder?l=&#39; . url_escape($left_spec);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 3870: 	my $base_url = &#39;/folder?l=&#39; . url_escape($left_spec);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
