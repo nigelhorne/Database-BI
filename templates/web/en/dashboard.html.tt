@@ -1143,6 +1143,14 @@
       <button type="button" id="btn-save-date" class="btn-primary" disabled>Save &amp; apply</button>
     </div>
   </div>
+  <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #d0d8f0">
+    <div class="filter-section-label" style="margin-bottom:0.45rem">Quick date filters (uses selected column)</div>
+    <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
+      <button type="button" id="btn-dates-ytd"  class="btn-secondary" disabled>This year</button>
+      <button type="button" id="btn-dates-qtd"  class="btn-secondary" disabled>This quarter</button>
+      <button type="button" id="btn-dates-mtd"  class="btn-secondary" disabled>This month</button>
+    </div>
+  </div>
   <div class="join-actions" style="margin-top:0.75rem">
     <button type="button" id="btn-cancel-dates" class="btn-secondary">Close</button>
   </div>
@@ -3336,6 +3344,9 @@ function parseAccounting(v) {
   var btnSave  = document.getElementById('btn-save-date');
   var btnClose = document.getElementById('btn-cancel-dates');
   var listEl   = document.getElementById('dates-list');
+  var btnYtd   = document.getElementById('btn-dates-ytd');
+  var btnQtd   = document.getElementById('btn-dates-qtd');
+  var btnMtd   = document.getElementById('btn-dates-mtd');
 
   var lspec = '[% left_spec | html %]';
 
@@ -3346,10 +3357,51 @@ function parseAccounting(v) {
       return document.getElementById(id);
     }).filter(Boolean);
 
+  function pad2(n) { return n < 10 ? '0' + n : '' + n; }
+
+  function isoDate(y, m, d) {
+    return y + '-' + pad2(m) + '-' + pad2(d);
+  }
+
+  function lastDayOfMonth(y, m) {
+    return new Date(y, m, 0).getDate(); // day 0 of next month = last day of this month
+  }
+
+  function applyPeriodFilter(ge, le) {
+    var col = colSel.value;
+    if (!col) return;
+    // Build a new URL from the current page, appending the two f= filters.
+    var url = new URL(window.location.href);
+    url.searchParams.append('f', col + ':ge:' + ge);
+    url.searchParams.append('f', col + ':le:' + le);
+    window.location.href = url.toString();
+  }
+
   function checkSaveEnabled() {
-    btnSave.disabled = !colSel.value;
+    var hasCol = !!colSel.value;
+    btnSave.disabled = !hasCol;
+    if (btnYtd) { btnYtd.disabled = !hasCol; btnQtd.disabled = !hasCol; btnMtd.disabled = !hasCol; }
   }
   colSel.addEventListener('change', checkSaveEnabled);
+
+  if (btnYtd) {
+    btnYtd.addEventListener('click', function() {
+      var now = new Date();
+      var y = now.getFullYear();
+      applyPeriodFilter(isoDate(y, 1, 1), isoDate(y, now.getMonth() + 1, now.getDate()));
+    });
+    btnQtd.addEventListener('click', function() {
+      var now = new Date();
+      var y = now.getFullYear(), m = now.getMonth() + 1; // 1-12
+      var qstart = [1, 1, 1, 4, 4, 4, 7, 7, 7, 10, 10, 10][m - 1];
+      applyPeriodFilter(isoDate(y, qstart, 1), isoDate(y, m, now.getDate()));
+    });
+    btnMtd.addEventListener('click', function() {
+      var now = new Date();
+      var y = now.getFullYear(), m = now.getMonth() + 1;
+      applyPeriodFilter(isoDate(y, m, 1), isoDate(y, m, now.getDate()));
+    });
+  }
 
   function renderList(dates) {
     listEl.innerHTML = '';

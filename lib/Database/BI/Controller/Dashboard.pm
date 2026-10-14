@@ -1403,6 +1403,13 @@ sub _run_export_pipeline :Protected ($self) {
 	my (undef, $records, $columns, $left_label) = $self->_run_pipeline_source;
 	return () unless defined $records;
 
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) {
+		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+		$self->render(text => $e, status => 400);
+		return ();
+	}
+
 	my @columns = @{ $columns // [] };
 
 	for my $s (@{ $self->every_param('f') }) {
