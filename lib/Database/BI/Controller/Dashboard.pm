@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.014.0';
+our $VERSION = '0.015.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -1257,33 +1257,66 @@ sub _apply_calc_fields :Protected ($self, $records, $columns) {
 		next unless defined $name && defined $expr;
 		push @calc_specs, { name => $name, expr => $expr };
 	}
-	return ($records, $columns) unless @calc_specs;
 
-	require Database::BI::Calc;
 	my @cols = @{$columns};
 
-	for my $cs (@calc_specs) {
-		my $name = $cs->{name};
-		my $calc = Database::BI::Calc->new(expr => $cs->{expr}, columns => \@cols);
-		croak $self->_i18n('error_calc_compile', $name, $calc->error)
-			if $calc->has_error;
+	if (@calc_specs) {
+		require Database::BI::Calc;
+		for my $cs (@calc_specs) {
+			my $name = $cs->{name};
+			my $calc = Database::BI::Calc->new(expr => $cs->{expr}, columns => \@cols);
+			croak $self->_i18n('error_calc_compile', $name, $calc->error)
+				if $calc->has_error;
 
-		my $undef_count = 0;
-		for my $row (@{$records}) {
-			my $val = $calc->evaluate($row);
-			# Store '(unparseable)' rather than undef so that pivot/bar
-			# grouping (which skips empty-string keys) keeps these rows in a
-			# visible '(unparseable)' bucket rather than silently dropping them.
-			$row->{$name} = defined $val ? $val : '(unparseable)';
-			$undef_count++ unless defined $val;
+			my $undef_count = 0;
+			for my $row (@{$records}) {
+				my $val = $calc->evaluate($row);
+				# Store '(unparseable)' rather than undef so that pivot/bar
+				# grouping (which skips empty-string keys) keeps these rows in a
+				# visible '(unparseable)' bucket rather than silently dropping them.
+				$row->{$name} = defined $val ? $val : '(unparseable)';
+				$undef_count++ unless defined $val;
+			}
+			if ($undef_count) {
+				$self->app->log->warn(
+					$self->_i18n('warn_calc_undef', $name, $undef_count)
+				);
+			}
+			push @cols, $name unless grep { $_ eq $name } @cols;
 		}
-		if ($undef_count) {
-			$self->app->log->warn(
-				$self->_i18n('warn_calc_undef', $name, $undef_count)
-			);
-		}
-		push @cols, $name unless grep { $_ eq $name } @cols;
 	}
+
+	# Apply named value groups from models.json.
+	# For each source column that has groups registered under the current l=
+	# spec, add a virtual "${col}_group" column to every row.  Each row's value
+	# is mapped to its group label; values not in any group become '(other)'.
+	{
+		my $spec_key = $self->param('l') // '';
+		if (length $spec_key) {
+			my $models = $self->_read_models;
+			my $grps   = $models->{groups}{$spec_key};
+			if ($grps && %{$grps}) {
+				my %col_set = map { $_ => 1 } @cols;
+				for my $col (sort keys %{$grps}) {
+					next unless $col_set{$col};
+					# Build reverse map: value -> group label.
+					my %val2group;
+					for my $gname (keys %{$grps->{$col}}) {
+						for my $v (@{$grps->{$col}{$gname}}) {
+							$val2group{$v} = $gname;
+						}
+					}
+					my $vcol = "${col}_group";
+					for my $row (@{$records}) {
+						my $v = $row->{$col} // '';
+						$row->{$vcol} = $val2group{$v} // '(other)';
+					}
+					push @cols, $vcol unless grep { $_ eq $vcol } @cols;
+				}
+			}
+		}
+	}
+
 	return ($records, \@cols);
 }
 
@@ -3284,6 +3317,27 @@ sub pie_view ($self) {
 		},
 	);
 
+	# Top-N: keep the highest-N slices, aggregate the rest as "Other".
+	my $topn_n = int($self->param('topn') // 0);
+	if ($topn_n > 0 && @$agg_rows > $topn_n) {
+		my @sorted   = sort { ($b->{value} // 0) <=> ($a->{value} // 0) } @$agg_rows;
+		my @top_agg  = @sorted[0 .. $topn_n - 1];
+		my %top_cats = map { ($_->{$cat_col} // '') => 1 } @top_agg;
+		my $other_rec = [
+			grep { !$top_cats{$_->{$cat_col} // ''} } @$records
+		];
+		if (@$other_rec) {
+			my $other = $self->_grouped_totals(
+				{ source => undef, records => $other_rec },
+				{ by  => [], fn  => ($count_mode ? 'count' : 'sum'),
+				  val => ($count_mode ? undef : $val_col), as => 'value' },
+			);
+			push @top_agg, { $cat_col => 'Other', value => $other->[0]{value} }
+				if @$other && defined $other->[0]{value};
+		}
+		$agg_rows = \@top_agg;
+	}
+
 	return $self->render(
 		text   => 'No plottable data: no rows have valid data in the selected columns.',
 		status => 200,
@@ -3587,6 +3641,27 @@ sub bar_view ($self) {
 			as  => 'value',
 		},
 	);
+
+	# Top-N: keep the highest-N categories, aggregate the rest as "Other".
+	my $topn_n = int($self->param('topn') // 0);
+	if ($topn_n > 0 && @$agg_rows > $topn_n) {
+		my @sorted   = sort { ($b->{value} // 0) <=> ($a->{value} // 0) } @$agg_rows;
+		my @top_agg  = @sorted[0 .. $topn_n - 1];
+		my %top_cats = map { ($_->{$cat_col} // '') => 1 } @top_agg;
+		my $other_rec = [
+			grep { !$top_cats{$_->{$cat_col} // ''} } @$records
+		];
+		if (@$other_rec) {
+			my $other = $self->_grouped_totals(
+				{ source => undef, records => $other_rec },
+				{ by  => [], fn  => ($count_mode ? 'count' : 'sum'),
+				  val => ($count_mode ? undef : $val_col), as => 'value' },
+			);
+			push @top_agg, { $cat_col => 'Other', value => $other->[0]{value} }
+				if @$other && defined $other->[0]{value};
+		}
+		$agg_rows = \@top_agg;
+	}
 
 	return $self->render(
 		text   => 'No plottable data: no rows have valid data in the selected columns.',
@@ -4150,6 +4225,66 @@ sub pivot_view ($self) {
 			push @keep, $rkey if $ok;
 		}
 		@row_key_order = @keep;
+	}
+
+	# -----------------------------------------------------------------------
+	# Top-N rows: keep only the top-N row groups (ranked by measure sum
+	# across all col combos); aggregate the remaining rows as an "Other" row.
+	# -----------------------------------------------------------------------
+	{
+		my $topn_n   = int($self->param('topn') // 0);
+		my $topn_col = $self->param('topn_col') // '';
+
+		if ($topn_n > 0 && @row_key_order > $topn_n) {
+			my %m_aliases = map { $_->{as} => 1 } @measures;
+			if (length $topn_col && !$m_aliases{$topn_col}) {
+				return $self->render(
+					text   => $self->_i18n('error_topn_col', $topn_col),
+					status => 400,
+				);
+			}
+			my $sort_as = length($topn_col) ? $topn_col : $measures[0]{as};
+
+			# Sort rows by descending sum of sort_as across all column combos.
+			my @sorted_rkeys = sort {
+				(do { my $s = 0; $s += ($cells{$b}{$_}{$sort_as} // 0) for @col_key_order; $s })
+				<=>
+				(do { my $s = 0; $s += ($cells{$a}{$_}{$sort_as} // 0) for @col_key_order; $s })
+			} @row_key_order;
+
+			my @top_rkeys  = @sorted_rkeys[0 .. $topn_n - 1];
+			my @rest_rkeys = @sorted_rkeys[$topn_n .. $#sorted_rkeys];
+
+			if (@rest_rkeys) {
+				my %top_rkey_set = map { $_ => 1 } @top_rkeys;
+				my $other_rec = [
+					grep {
+						my $r = $_;
+						!$top_rkey_set{ join("\x00", map { $r->{$_} // '' } @rows) }
+					} @$records
+				];
+				if (@$other_rec) {
+					my $ork = '__topn_other__';
+					$row_combos{$ork} = { map { $_ => 'Other' } @rows };
+					for my $m (@measures) {
+						my $cv = (defined $m->{col} && length $m->{col}) ? $m->{col} : undef;
+						my $oa = $self->_grouped_totals(
+							{ source => undef, records => $other_rec },
+							{ by => [@cols], fn => $m->{fn}, val => $cv, as => $m->{as} },
+						);
+						for my $row (@$oa) {
+							my $ck = join("\x00", map { $row->{$_} // '' } @cols);
+							$cells{$ork}{$ck}{$m->{as}} = $row->{$m->{as}};
+						}
+					}
+					@row_key_order = (@top_rkeys, $ork);
+				} else {
+					@row_key_order = @top_rkeys;
+				}
+			} else {
+				@row_key_order = @top_rkeys;
+			}
+		}
 	}
 
 	# -----------------------------------------------------------------------
@@ -4901,6 +5036,27 @@ sub treemap_view ($self) {
 			as  => 'value',
 		},
 	);
+
+	# Top-N: keep the highest-N tiles, aggregate the rest as "Other".
+	my $topn_n = int($self->param('topn') // 0);
+	if ($topn_n > 0 && @$agg_rows > $topn_n) {
+		my @sorted   = sort { ($b->{value} // 0) <=> ($a->{value} // 0) } @$agg_rows;
+		my @top_agg  = @sorted[0 .. $topn_n - 1];
+		my %top_cats = map { ($_->{$cat_col} // '') => 1 } @top_agg;
+		my $other_rec = [
+			grep { !$top_cats{$_->{$cat_col} // ''} } @$records
+		];
+		if (@$other_rec) {
+			my $other = $self->_grouped_totals(
+				{ source => undef, records => $other_rec },
+				{ by  => [], fn  => ($count_mode ? 'count' : 'sum'),
+				  val => ($count_mode ? undef : $val_col), as => 'value' },
+			);
+			push @top_agg, { $cat_col => 'Other', value => $other->[0]{value} }
+				if @$other && defined $other->[0]{value};
+		}
+		$agg_rows = \@top_agg;
+	}
 
 	return $self->render(
 		text   => 'No plottable data: no rows have valid data in the selected column.',

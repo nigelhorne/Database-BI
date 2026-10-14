@@ -1453,4 +1453,121 @@ subtest 'Date normalisation: undef calc result groups as (unparseable) in /pivot
 	  ->content_like(qr/300/, 'amount for unparseable row is present');
 };
 
+# ---------------------------------------------------------------------------
+# Section 16: Phase 2.6 -- Named groups and Top-N
+# ---------------------------------------------------------------------------
+
+subtest 'Named groups: ${col}_group virtual column added via models.json' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'regions.csv');
+	Mojo::File->new($csv)->spurt(
+		"region,sales\n"
+		. "North,100\n"
+		. "South,200\n"
+		. "East,150\n"
+		. "West,50\n"
+		. "Unknown,10\n"
+	);
+	my $l = url_escape("path:$csv");
+
+	# Save a named group: North+East => "Northern", South+West => "Southern"
+	$t->post_ok('/groups/save', form => {
+		l      => "path:$csv",
+		col    => 'region',
+		group  => 'Northern',
+		values => ['North', 'East'],
+	})->status_is(200)->json_is('/ok', 1);
+
+	$t->post_ok('/groups/save', form => {
+		l      => "path:$csv",
+		col    => 'region',
+		group  => 'Southern',
+		values => ['South', 'West'],
+	})->status_is(200)->json_is('/ok', 1);
+
+	# Confirm groups stored
+	$t->get_ok("/groups/list?l=" . url_escape("path:$csv"))
+	  ->status_is(200)
+	  ->json_like('/groups/region/Northern/0', qr/North/)
+	  ->json_like('/groups/region/Southern/0', qr/South/);
+
+	# /pivot grouping by region_group virtual column
+	my $url = "/pivot?l=$l&rows=region_group&m=sales:sum:total";
+	$t->get_ok($url)->status_is(200);
+	my $body = $t->tx->res->body;
+	# Northern = 100+150 = 250
+	like $body, qr/Northern/, 'Northern group present in pivot';
+	like $body, qr/250/,      'Northern total sales = 250';
+	# Southern = 200+50 = 250
+	like $body, qr/Southern/, 'Southern group present in pivot';
+	# Unknown row -> (other)
+	like $body, qr/\(other\)/, '(other) group present for unmapped values';
+
+	# /bar grouping by region_group virtual column
+	$t->get_ok("/bar?l=$l&cat=region_group")
+	  ->status_is(200)
+	  ->content_like(qr/Northern/, 'bar chart has Northern group');
+
+	# Clean up groups to avoid polluting other tests
+	$t->post_ok('/groups/delete', form => { l => "path:$csv" })
+	  ->status_is(200)->json_is('/ok', 1);
+};
+
+subtest '/bar ?topn=N: shows N bars plus correct "Other" aggregate' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'products.csv');
+	# 5 products; topn=3 should show top 3 + Other (sum of remaining 2)
+	Mojo::File->new($csv)->spurt(
+		"product,revenue\n"
+		. "A,500\n"
+		. "B,400\n"
+		. "C,300\n"
+		. "D,200\n"
+		. "E,100\n"
+	);
+	my $l = url_escape("path:$csv");
+
+	$t->get_ok("/bar?l=$l&cat=product&val=revenue&topn=3")
+	  ->status_is(200);
+	my $body = $t->tx->res->body;
+	# Top 3: A=500, B=400, C=300; Other = D+E = 300
+	like $body, qr/Other/, '"Other" bar present';
+	# bar_count stash = 4 (3 top + Other); reflected in the page
+	like $body, qr/4 bar/, 'bar_count is 4 (3 top + Other)';
+
+	# topn=0 (disabled): all 5 bars, no Other
+	$t->get_ok("/bar?l=$l&cat=product&val=revenue&topn=0")
+	  ->status_is(200)
+	  ->content_unlike(qr/Other/, 'no Other bar when topn=0');
+};
+
+subtest '/pivot ?topn=N: top-N row groups with "Other" row' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'pivot_topn.csv');
+	Mojo::File->new($csv)->spurt(
+		"category,amount\n"
+		. "Alpha,1000\n"
+		. "Beta,800\n"
+		. "Gamma,600\n"
+		. "Delta,400\n"
+		. "Epsilon,200\n"
+	);
+	my $l = url_escape("path:$csv");
+
+	$t->get_ok("/pivot?l=$l&rows=category&m=amount:sum:total&topn=2")
+	  ->status_is(200);
+	my $body = $t->tx->res->body;
+	# Top 2 by total: Alpha=1000, Beta=800; Other = 600+400+200 = 1200
+	like $body, qr/Alpha/,  'Alpha row present';
+	like $body, qr/Beta/,   'Beta row present';
+	like $body, qr/Other/,  '"Other" row present';
+	like $body, qr/1200/,   'Other total = 1200';
+	unlike $body, qr/Gamma/, 'Gamma row not present (not in top 2)';
+
+	# Bad topn_col
+	$t->get_ok("/pivot?l=$l&rows=category&m=amount:sum:total&topn=2&topn_col=nonexistent")
+	  ->status_is(400)
+	  ->content_like(qr/nonexistent/, 'error message names bad topn_col');
+};
+
 done_testing();

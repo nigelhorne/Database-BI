@@ -1,5 +1,24 @@
 Revision history for Database-BI
 
+0.015.0  Wed Oct 14 14:00:00 PM EDT 2026
+    [ Phase 2.6 -- Bins, Groups, Top-N ]
+
+    - _apply_calc_fields: named value groups are now applied as virtual
+      "${col}_group" columns for any source column that has groups registered
+      under the current l= spec in .bi/models.json.  Values not matched by any
+      group label are mapped to '(other)'.  The groups CRUD routes
+      (POST /groups/save|delete, GET /groups/list) were already present; this
+      wires them into the data pipeline so they can be used as chart dimensions.
+    - bar_view, pie_view, treemap_view: new ?topn=N parameter keeps only the
+      top-N categories by value.  The remainder is re-aggregated over the
+      original records (not summed from displayed values) and appended as an
+      "Other" bar/slice/tile.
+    - pivot_view: new ?topn=N and ?topn_col=<alias> parameters keep only the
+      top-N row groups ranked by the specified measure (default: first measure).
+      Remaining records are re-aggregated by column dimensions and appended as
+      an "Other" row.  Invalid ?topn_col= returns 400 error_topn_col.
+    - Version 0.015.0 adds no new routes, templates, or external dependencies.
+
 0.014.0  Wed Oct 14 12:00:00 PM EDT 2026
     [ Phase 2.5 -- Time intelligence (date normalisation) ]
 
