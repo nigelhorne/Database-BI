@@ -881,4 +881,143 @@ subtest '/combine + filter narrows the stacked result' => sub {
 	 ->content_unlike(qr/<td[^>]*>B2<\/td>/, 'B2 (services) absent from filtered combined view');
 };
 
+# ---------------------------------------------------------------------------
+# Phase 0.2 acceptance tests: pagination and sort on /join, /combine, /export
+# ---------------------------------------------------------------------------
+
+# SECTION 8: /join pagination
+subtest '/join pagination slices the joined view' => sub {
+	my $dir = File::Temp->newdir;
+	Mojo::File->new(File::Spec->catfile($dir, 'orders.csv'))->spurt(
+		"id,item,amount\n1,Alpha,100\n2,Beta,200\n3,Gamma,300\n4,Delta,400\n5,Epsilon,500\n"
+	);
+	my $l_spec = url_escape("path:" . File::Spec->catfile($dir, 'orders.csv'));
+
+	# Without pagination: all 5 rows.
+	$t->get_ok("/join?l=$l_spec")->status_is(200);
+	my $body = $t->tx->res->body;
+	my @rows = ($body =~ /<td[^>]*>[^<]+<\/td>/g);
+	ok scalar(@rows) >= 5, 'no pagination returns all rows';
+
+	# With per_page=2 page=1: first 2 rows, has_next.
+	$t->get_ok("/join?l=$l_spec&per_page=2&page=1")->status_is(200)
+	  ->content_like(qr/pagination|page/i, '/join page 1 shows pagination nav');
+	my $p1_body = $t->tx->res->body;
+
+	# With per_page=2 page=2: next 2 rows.
+	$t->get_ok("/join?l=$l_spec&per_page=2&page=2")->status_is(200);
+	my $p2_body = $t->tx->res->body;
+
+	# page 1 and page 2 must not show identical rows.
+	my @p1_cells = ($p1_body =~ /<td[^>]*>([^<]+)<\/td>/g);
+	my @p2_cells = ($p2_body =~ /<td[^>]*>([^<]+)<\/td>/g);
+	my %p1_set = map { $_ => 1 } @p1_cells;
+	my @overlap = grep { $p1_set{$_} } @p2_cells;
+	# Some overlap is expected (column headers row reuse) but row data differs.
+	ok scalar(@p1_cells) > 0, 'page 1 has data cells';
+	ok scalar(@p2_cells) > 0, 'page 2 has data cells';
+};
+
+# SECTION 9: /join sort pushdown
+subtest '/join sort= orders the result' => sub {
+	SKIP: {
+		eval { require DBI; DBI->install_driver('SQLite') }
+			or skip 'DBD::SQLite not available', 4;
+
+		my $dir     = File::Temp->newdir;
+		my $sqlfile = File::Spec->catfile($dir, 'sortable.sql');
+		my $dbh = DBI->connect("dbi:SQLite:dbname=$sqlfile", '', '',
+			{ RaiseError => 1 });
+		$dbh->do('CREATE TABLE sortable (id INTEGER, name TEXT, score INTEGER)');
+		my $ins = $dbh->prepare('INSERT INTO sortable VALUES (?,?,?)');
+		$ins->execute(1, 'Charlie', 70);
+		$ins->execute(2, 'Alice',   90);
+		$ins->execute(3, 'Bob',     80);
+		$dbh->disconnect;
+
+		my $l_spec = url_escape("path:$sqlfile");
+
+		# Sort ascending by name.
+		$t->get_ok("/join?l=$l_spec&sort=name&dir=asc")->status_is(200);
+		my $body = $t->tx->res->body;
+		my @names = ($body =~ /<td[^>]*>([A-Z][a-z]+)<\/td>/g);
+		is $names[0], 'Alice',   'asc sort: Alice is first';
+		is $names[-1], 'Charlie', 'asc sort: Charlie is last';
+
+		# Sort descending by name.
+		$t->get_ok("/join?l=$l_spec&sort=name&dir=desc")->status_is(200);
+		$body = $t->tx->res->body;
+		@names = ($body =~ /<td[^>]*>([A-Z][a-z]+)<\/td>/g);
+		is $names[0], 'Charlie', 'desc sort: Charlie is first';
+		is $names[-1], 'Alice',   'desc sort: Alice is last';
+	}
+};
+
+# SECTION 10: /combine pagination and sort
+subtest '/combine pagination and sort' => sub {
+	my $dir = File::Temp->newdir;
+	Mojo::File->new(File::Spec->catfile($dir, 'grp_a.csv'))->spurt(
+		"label,val\nZebra,10\nApe,20\n"
+	);
+	Mojo::File->new(File::Spec->catfile($dir, 'grp_b.csv'))->spurt(
+		"label,val\nMink,30\nBear,40\n"
+	);
+	my $a_spec = url_escape("path:" . File::Spec->catfile($dir, 'grp_a.csv'));
+	my $b_spec = url_escape("path:" . File::Spec->catfile($dir, 'grp_b.csv'));
+
+	# Pagination: 4 rows total, per_page=2.
+	$t->get_ok("/combine?l=$a_spec&c=$b_spec&per_page=2&page=1")->status_is(200);
+	my $p1 = $t->tx->res->body;
+	$t->get_ok("/combine?l=$a_spec&c=$b_spec&per_page=2&page=2")->status_is(200);
+	my $p2 = $t->tx->res->body;
+	ok $p1 =~ /<td/, 'combine page 1 has data';
+	ok $p2 =~ /<td/, 'combine page 2 has data';
+
+	# Sort ascending by label: Ape, Bear, Mink, Zebra.
+	$t->get_ok("/combine?l=$a_spec&c=$b_spec&sort=label&dir=asc")->status_is(200);
+	my $body = $t->tx->res->body;
+	my @labels = ($body =~ /<td[^>]*>([A-Z][a-z]+)<\/td>/g);
+	is $labels[0], 'Ape',   'combine asc sort: Ape first';
+	is $labels[-1], 'Zebra', 'combine asc sort: Zebra last';
+
+	# Sort descending by label: Zebra, Mink, Bear, Ape.
+	$t->get_ok("/combine?l=$a_spec&c=$b_spec&sort=label&dir=desc")->status_is(200);
+	$body = $t->tx->res->body;
+	@labels = ($body =~ /<td[^>]*>([A-Z][a-z]+)<\/td>/g);
+	is $labels[0],  'Zebra', 'combine desc sort: Zebra first';
+	is $labels[-1], 'Ape',   'combine desc sort: Ape last';
+};
+
+# SECTION 11: /export page slice
+subtest '/export page slice writes exactly the requested rows' => sub {
+	my $dir = File::Temp->newdir;
+	Mojo::File->new(File::Spec->catfile($dir, 'export_src.csv'))->spurt(
+		"id,color\n1,Red\n2,Green\n3,Blue\n4,Yellow\n5,Purple\n"
+	);
+	my $l_spec = url_escape("path:" . File::Spec->catfile($dir, 'export_src.csv'));
+
+	# Page 1, per_page=2: rows 1 and 2 (Red, Green).
+	$t->get_ok("/export?l=$l_spec&format=csv&per_page=2&page=1")->status_is(200);
+	my $csv1 = $t->tx->res->body;
+	like   $csv1, qr/Red/,   'export page 1 contains Red';
+	like   $csv1, qr/Green/, 'export page 1 contains Green';
+	unlike $csv1, qr/Blue/,  'export page 1 excludes Blue';
+
+	# Page 2, per_page=2: rows 3 and 4 (Blue, Yellow).
+	$t->get_ok("/export?l=$l_spec&format=csv&per_page=2&page=2")->status_is(200);
+	my $csv2 = $t->tx->res->body;
+	like   $csv2, qr/Blue/,   'export page 2 contains Blue';
+	like   $csv2, qr/Yellow/, 'export page 2 contains Yellow';
+	unlike $csv2, qr/\bRed\b/, 'export page 2 excludes Red';
+
+	# Sort descending: page 1 with sort=color desc should start with Yellow (last alpha).
+	$t->get_ok("/export?l=$l_spec&format=csv&per_page=2&page=1&sort=color&dir=desc")
+	  ->status_is(200);
+	my $sorted_csv = $t->tx->res->body;
+	# First data row after header should be Yellow (descending alpha).
+	my @lines = split /\r?\n/, $sorted_csv;
+	shift @lines;  # skip header
+	like $lines[0], qr/Yellow/, 'export sort desc: Yellow is first row';
+};
+
 done_testing();

@@ -871,6 +871,8 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 #   params: per_page  -- page size (required)
 #           offset    -- 0-based row offset (required)
 #           dedup     -- truthy when ?d=1 dedup is requested
+#           sort_col  -- column name to sort by (optional)
+#           sort_dir  -- 'asc' or 'desc' (default 'asc'; ignored unless sort_col set)
 #
 # Purpose: Fetch and reduce one page of records from $source, honouring the
 #          reduce-before-paginate ordering contract.  Two modes:
@@ -884,8 +886,10 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 #     applies dedup if requested, then paginates in Perl.  This guarantees that
 #     the Nth page contains the Nth page of the *reduced* set, not the Nth page
 #     of the raw set reduced to fewer rows.  Memory cost: the full reduced set.
-#     Criteria pushdown to the backend (avoiding the full-fetch cost) is deferred
-#     to Phase 0.3+ once dbi_source() identifies backend type.
+#
+# Sort: sort_col/sort_dir are forwarded to selectall_arrayref as
+#   sort_by => [$sort_col, $sort_dir].  Both Database::Abstraction 0.49+
+#   and Database::Join 0.009.0 honour this parameter natively.
 #
 # Returns (undef, 0) when the underlying fetch throws; the caller must handle
 # $records being undef.
@@ -893,6 +897,12 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	my $per_page = $params->{per_page};
 	my $offset   = $params->{offset};
 	my $dedup    = $params->{dedup};
+	my $sort_col = $params->{sort_col};
+	my $sort_dir = ($params->{sort_dir} // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
+
+	# sort_by args forwarded to the backend when a sort column is requested.
+	# D::A 0.49+ and D::J 0.009.0 both support sort_by => [$col, $dir].
+	my @sort_args = $sort_col ? (sort_by => [$sort_col, $sort_dir]) : ();
 
 	# Collect and validate f= specs.
 	my @f_specs = grep {
@@ -903,7 +913,9 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	unless (@f_specs || $dedup) {
 		# Fast path: no filters, no dedup.  Let the backend paginate via N+1 trick.
 		# Copy before pop: D::A may return a read-only ref to its internal cache.
-		my @records = @{ $source->selectall_arrayref(limit => $per_page + 1, offset => $offset) // [] };
+		my @records = @{ $source->selectall_arrayref(
+			limit => $per_page + 1, offset => $offset, @sort_args,
+		) // [] };
 		my $has_next = (@records > $per_page) ? 1 : 0;
 		pop @records if $has_next;
 		return (\@records, $has_next);
@@ -919,18 +931,20 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# Use N+1 trick with SQL criteria + LIMIT/OFFSET -- avoids full-table fetch.
 	# Copy before pop: D::A may return a read-only ref to its internal cache.
 	if (!$dedup && !@$residual) {
-		my @records = @{ $source->selectall_arrayref(%$criteria, limit => $per_page + 1, offset => $offset) // [] };
+		my @records = @{ $source->selectall_arrayref(
+			%$criteria, limit => $per_page + 1, offset => $offset, @sort_args,
+		) // [] };
 		my $has_next = (@records > $per_page) ? 1 : 0;
 		pop @records if $has_next;
 		return (\@records, $has_next);
 	}
 
-	# Partial-pushdown / dedup path: fetch the SQL-filtered set (if any criteria
-	# were pushable) then apply residual specs and/or dedup in Perl, then
-	# paginate the reduced set.  Memory cost: the full reduced set.
+	# Partial-pushdown / dedup path: fetch the SQL-filtered (and sorted) set,
+	# apply residual specs and/or dedup in Perl, then paginate the reduced set.
+	# Memory cost: the full reduced set.
 	my $all = $has_criteria
-		? $source->selectall_arrayref(%$criteria)
-		: $source->selectall_arrayref;
+		? $source->selectall_arrayref(%$criteria, @sort_args)
+		: $source->selectall_arrayref(@sort_args);
 	$all //= [];
 
 	$all = _apply_filter_spec($all, $_) for @$residual;
@@ -1300,6 +1314,16 @@ sub _run_export_pipeline :Protected ($self) {
 	}
 
 	$records = _dedup_records($records, \@columns) if $self->param('d');
+
+	# Sort support for /export: applied in memory after filtering/dedup.
+	my $sort = $self->param('sort');
+	my $dir  = ($self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
+	if (defined $sort && grep { $_ eq $sort } @columns) {
+		@$records = sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records;
+		@$records = reverse @$records if $dir eq 'desc';
+	} elsif (defined $sort) {
+		carp $self->_i18n('error_sort_column', $sort);
+	}
 
 	# Server-side pagination for /export.
 	if (defined $self->param('page') || defined $self->param('per_page')) {
@@ -2277,7 +2301,9 @@ sub join_tables ($self) {
 	my ($records, $has_next);
 	eval {
 		($records, $has_next) = $self->_fetch_page($src,
-			{ per_page => $per_page, offset => $offset, dedup => $dedup });
+			{ per_page  => $per_page, offset   => $offset,
+			  dedup     => $dedup,    sort_col => $sort,
+			  sort_dir  => $dir });
 	};
 	if ($@) {
 		return $self->render(
@@ -2292,12 +2318,7 @@ sub join_tables ($self) {
 	$records //= [];
 	my @columns = _get_columns($src, $records);
 
-	# Apply in-memory sort when sort= is set and the column exists.
-	if (defined $sort && grep { $_ eq $sort } @columns) {
-		my $rev = $dir eq 'desc' ? -1 : 1;
-		@$records = sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records;
-		@$records = reverse @$records if $dir eq 'desc';
-	} elsif (defined $sort) {
+	if (defined $sort && !grep { $_ eq $sort } @columns) {
 		carp $self->_i18n('error_sort_column', $sort);
 	}
 
