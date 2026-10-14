@@ -8,12 +8,12 @@ requires 'CHI';
 requires 'Carp';
 requires 'DBI';
 requires 'DB_File';   # Used in DataSource.pm for Berkeley DB magic-byte detection
-requires 'Database::Abstraction', '0.50';   # 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
-requires 'Database::Join', '0.009.0';    # 0.009.0 added aggregate(); 0.004.0 added backend=>'auto' SQLite spill
+requires 'Database::Abstraction', '0.51';   # 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+requires 'Database::Join', '0.009.0';   # 0.009.0 added aggregate(); 0.004.0 added backend=>'auto' SQLite spill
 requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
-requires 'HTML::D3', '0.18';
+requires 'HTML::D3', '0.19';
 requires 'HTML::TableExtract';
 requires 'IPC::System::Simple';   # For autodie (:all) in DataSource.pm at runtime
 requires 'LWP::UserAgent';   # Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path

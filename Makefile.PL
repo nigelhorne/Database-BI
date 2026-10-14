@@ -24,7 +24,7 @@ WriteMakefile(
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',
-		'Database::Abstraction'	=> '0.50',	# 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+		'Database::Abstraction'	=> '0.51',	# 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
 		'Database::Join'	=> '0.009.0',	# 0.009.0 added aggregate(); 0.004.0 added backend=>'auto' SQLite spill
 		'DBI'		=> 0,
 		'Net::SFTP::Foreign' => 0,
@@ -35,7 +35,7 @@ WriteMakefile(
 		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
 		'Mojo::Base' => 0,
 		'Mojo::JSON' => 0,
-		'HTML::D3' => 0.18,
+		'HTML::D3' => 0.19,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'		=> 0,		# Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path
 		'LWP::UserAgent::Cached'	=> 0,		# Used by Database::Abstraction for URL-backed tables (import_url)
