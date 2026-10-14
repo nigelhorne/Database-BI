@@ -56,6 +56,20 @@
   .pivot-meta { font-size: 0.82rem; color: #666; }
   .scheme-min { color: #0055aa; }
   .scheme-max { color: #cc2200; }
+  .piv-pagination { display: flex; align-items: center; gap: 0.5rem; margin: 0.75rem 0; flex-wrap: wrap; }
+  .piv-page-btn {
+    padding: 0.3rem 0.7rem;
+    border: 1px solid #8899cc;
+    border-radius: 4px;
+    background: #f0f3fc;
+    color: #2c3e7a;
+    text-decoration: none;
+    font-size: 0.85rem;
+  }
+  .piv-page-btn:hover { background: #dde3f0; }
+  .piv-page-btn-dis { background: #f8f9fc; color: #aaa; border-color: #ccc; cursor: default; }
+  .piv-page-btn-cur { background: #2c3e7a; color: #fff; border-color: #2c3e7a; cursor: default; }
+  .piv-page-info { font-size: 0.82rem; color: #555; }
 </style>
 
 <p class="back-link"><a href="/">&larr; Home</a>[% IF back_url && back_url != '/' %] &rsaquo; <a href="[% back_url | html %]">[% back_label | html %]</a>[% END %][%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
@@ -68,7 +82,7 @@
   <a class="btn-pexport" href="[% request.url | html %]&amp;format=sqlite">Export SQLite</a>
   <a class="btn-pexport" href="[% request.url | html %]&amp;format=json">Export JSON</a>
   <span class="pivot-meta">
-    [% grid_rows.size %] row group[% IF grid_rows.size != 1 %]s[% END %],
+    [% total_row_groups %] row group[% IF total_row_groups != 1 %]s[% END %],
     [% col_combos.size %] column combo[% IF col_combos.size != 1 %]s[% END %]
   </span>
 </div>
@@ -163,6 +177,26 @@
 [%- END -%]
 </table>
 </div>
+
+[%- SET pnum = page ? page : 0 -%]
+[%- IF pnum > 1 OR has_next -%]
+[%- SET sep = (page_base_url.search('\?') >= 0) ? '&amp;' : '?' -%]
+<nav class="piv-pagination" aria-label="Pivot page navigation">
+  [%- IF pnum > 1 -%]
+  <a class="piv-page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>
+  [%- ELSE -%]
+  <span class="piv-page-btn piv-page-btn-dis">&laquo; Prev</span>
+  [%- END -%]
+  <span class="piv-page-btn piv-page-btn-cur">[% page %]</span>
+  [%- IF has_next -%]
+  <a class="piv-page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum + 1 %]&amp;per_page=[% per_page %]">Next &raquo;</a>
+  [%- ELSE -%]
+  <span class="piv-page-btn piv-page-btn-dis">Next &raquo;</span>
+  [%- END -%]
+  <span class="piv-page-info">Page [% page %] &mdash; [% per_page %] row groups/page</span>
+</nav>
+[%- END -%]
+
 [%- END -%]
 
 [%- END -%]

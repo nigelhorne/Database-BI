@@ -4196,6 +4196,21 @@ sub pivot_view ($self) {
 	}
 
 	# -----------------------------------------------------------------------
+	# Pagination: slice @row_key_order using the N+1 trick.
+	# Must come after the export early-return above (exports use the full set)
+	# and after subtotals/grand total (computed from $pipeline, not @row_key_order).
+	# -----------------------------------------------------------------------
+	my ($page, $per_page, $offset) = $self->_pagination;
+	my $total_row_groups = scalar @row_key_order;
+	my $piv_has_next = ($total_row_groups > $offset + $per_page) ? 1 : 0;
+	@row_key_order = $offset < $total_row_groups
+		? @row_key_order[$offset .. ($piv_has_next ? $offset + $per_page - 1 : $#row_key_order)]
+		: ();
+
+	my $piv_page_url = $self->req->url->clone;
+	$piv_page_url->query->remove('page')->remove('per_page');
+
+	# -----------------------------------------------------------------------
 	# Build the template-ready data structure.
 	# -----------------------------------------------------------------------
 	my @col_combo_list = map {
@@ -4236,12 +4251,17 @@ sub pivot_view ($self) {
 		show_totals   => $show_totals,
 		col_subtotals => \%col_subtotals,
 		grand_total   => \%grand_total,
-		scheme        => $scheme,
-		left_spec     => $left_spec,
-		left_label    => $left_label,
-		back_url      => ($back2 // $back),
-		back_label    => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
+		scheme            => $scheme,
+		left_spec         => $left_spec,
+		left_label        => $left_label,
+		back_url          => ($back2 // $back),
+		back_label        => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
 		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
+		page              => $page,
+		per_page          => $per_page,
+		has_next          => $piv_has_next,
+		page_base_url     => $piv_page_url->to_string,
+		total_row_groups  => $total_row_groups,
 	);
 }
 

@@ -1020,4 +1020,62 @@ subtest '/export page slice writes exactly the requested rows' => sub {
 	like $lines[0], qr/Yellow/, 'export sort desc: Yellow is first row';
 };
 
+# SECTION 12: /pivot pagination
+subtest '/pivot pagination slices the row groups' => sub {
+	my $dir = File::Temp->newdir;
+	# 6 distinct region values -> 6 row groups in the pivot
+	Mojo::File->new(File::Spec->catfile($dir, 'sales_p.csv'))->spurt(
+		"region,amount\n" .
+		"North,100\nSouth,200\nEast,300\n" .
+		"West,400\nCentral,500\nNorthEast,600\n"
+	);
+	my $l = url_escape("path:" . File::Spec->catfile($dir, 'sales_p.csv'));
+	my $m = url_escape('amount:sum:total');
+
+	# No pagination: all 6 row groups visible.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m")->status_is(200);
+	my $full = $t->tx->res->body;
+	my @all_rows = ($full =~ /<td[^>]*class="row-dim"[^>]*>/g);
+	is scalar(@all_rows), 6, 'no pagination: all 6 region rows present';
+	unlike $full, qr/<nav[^>]*piv-pagination/, 'no pagination nav when all rows fit';
+
+	# per_page=2: page 1 has exactly 2 row groups, has_next shown.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m&per_page=2&page=1")->status_is(200);
+	my $p1 = $t->tx->res->body;
+	my @p1_rows = ($p1 =~ /<td[^>]*class="row-dim"[^>]*>/g);
+	is scalar(@p1_rows), 2, 'page 1 has exactly 2 row groups';
+	like $p1, qr/piv-pagination/, 'page 1 shows pagination nav';
+	like $p1, qr/page=2/, 'page 1 has Next link to page 2';
+
+	# per_page=2: page 2 has 2 more rows.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m&per_page=2&page=2")->status_is(200);
+	my $p2 = $t->tx->res->body;
+	my @p2_rows = ($p2 =~ /<td[^>]*class="row-dim"[^>]*>/g);
+	is scalar(@p2_rows), 2, 'page 2 has exactly 2 row groups';
+	like $p2, qr/page=1/, 'page 2 has Prev link to page 1';
+
+	# per_page=2: page 3 has the last 2 rows, no Next.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m&per_page=2&page=3")->status_is(200);
+	my $p3 = $t->tx->res->body;
+	my @p3_rows = ($p3 =~ /<td[^>]*class="row-dim"[^>]*>/g);
+	is scalar(@p3_rows), 2, 'page 3 has 2 row groups';
+	unlike $p3, qr/page=4/, 'page 3 has no Next link (last page)';
+
+	# page 4 beyond end: 0 row groups, "No data" message.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m&per_page=2&page=4")->status_is(200);
+	my $p4 = $t->tx->res->body;
+	like $p4, qr/No data to display/, 'page 4 beyond end shows no-data message';
+
+	# Subtotals computed over the full set even when paginated.
+	# Grand total of amount:sum must equal 2100 regardless of page.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m&per_page=2&page=1&totals=1")->status_is(200);
+	like $t->tx->res->body, qr/2100/, 'grand total (2100) visible on page 1 even with per_page=2';
+
+	# Export ignores pagination params and returns all 6 rows.
+	$t->get_ok("/pivot?l=$l&rows=region&m=$m&per_page=2&page=1&format=csv")->status_is(200);
+	my $csv = $t->tx->res->body;
+	my @csv_lines = grep { /\S/ } split /\r?\n/, $csv;
+	is scalar(@csv_lines) - 1, 6, 'CSV export returns all 6 rows regardless of per_page';
+};
+
 done_testing();
