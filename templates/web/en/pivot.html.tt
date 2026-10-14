@@ -197,6 +197,141 @@
 </nav>
 [%- END -%]
 
+<script>
+// ---------------------------------------------------------------------------
+// Pivot table: click-to-sort and (flat header only) drag-to-reorder columns
+// ---------------------------------------------------------------------------
+(function () {
+  var table = document.querySelector('table.pivot-table');
+  if (!table || !table.tHead || !table.tBodies[0]) return;
+
+  // NDIMS: number of row-dimension columns (always at the left of every tbody row)
+  // HASTWO: true when col-dimension headers produce a 2-level thead
+  var NDIMS  = [% rows_dims.size %];
+  var HASTWO = [% (cols_dims.size > 0) ? 1 : 0 %];
+
+  // "Leaf" headers: the row of <th> cells that map 1:1 onto tbody columns.
+  // In the 2-level case this is tHead row 1 (dim headers span via rowspan=2).
+  // In the flat case this is tHead row 0.
+  var leafRow     = table.tHead.rows[HASTWO ? 1 : 0];
+  var leafHeaders = Array.from(leafRow.cells);
+
+  var dragSrcIdx = null;
+  var sortColIdx = -1;
+  var sortAsc    = true;
+
+  // Compute the DOM cell index in tbody/tfoot for a leaf-header position.
+  // In the 2-level case the dim cells (rowspan=2) occupy positions 0..NDIMS-1
+  // in the tbody but are absent from tHead row 1, so offset by NDIMS.
+  function domColIdx(leafIdx) {
+    return HASTWO ? NDIMS + leafIdx : leafIdx;
+  }
+
+  function sortByCol(leafIdx, asc) {
+    var dIdx  = domColIdx(leafIdx);
+    var tbody = table.tBodies[0];
+    var rows  = Array.from(tbody.rows);
+
+    var nonEmpty = rows
+      .map(function (r) { return r.cells[dIdx] ? r.cells[dIdx].textContent.trim() : ''; })
+      .filter(Boolean);
+
+    var numeric = nonEmpty.length > 0 && nonEmpty.every(function (v) {
+      var s = v.replace(/[^\d.\-]/g, '');
+      return s.length > 0 && !isNaN(parseFloat(s));
+    });
+
+    rows.sort(function (a, b) {
+      var av = a.cells[dIdx] ? a.cells[dIdx].textContent.trim() : '';
+      var bv = b.cells[dIdx] ? b.cells[dIdx].textContent.trim() : '';
+      var cmp;
+      if (numeric) {
+        var an = parseFloat(av.replace(/[^\d.\-]/g, '') || '0');
+        var bn = parseFloat(bv.replace(/[^\d.\-]/g, '') || '0');
+        cmp = an - bn;
+      } else {
+        cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      return asc ? cmp : -cmp;
+    });
+    rows.forEach(function (r) { tbody.appendChild(r); });
+
+    leafHeaders.forEach(function (h, i) {
+      h.setAttribute('aria-sort', i === leafIdx ? (asc ? 'ascending' : 'descending') : 'none');
+    });
+  }
+
+  // Move leaf column from -> to (flat mode only: no col-dim group structure to break).
+  function moveCol(from, to) {
+    var fd = domColIdx(from);
+    var td = domColIdx(to);
+    Array.from(table.rows).forEach(function (row) {
+      var cells  = Array.from(row.children);
+      var moving = cells[fd];
+      var target = cells[td];
+      if (!moving || !target) return;
+      row.insertBefore(moving, from < to ? target.nextSibling : target);
+    });
+    var moved = leafHeaders.splice(from, 1)[0];
+    leafHeaders.splice(to, 0, moved);
+    if      (sortColIdx === from)                                  sortColIdx = to;
+    else if (from < to && sortColIdx > from && sortColIdx <= to)   sortColIdx--;
+    else if (from > to && sortColIdx >= to  && sortColIdx <  from) sortColIdx++;
+  }
+
+  leafHeaders.forEach(function (th) {
+    th.setAttribute('aria-sort', 'none');
+    th.style.cursor = 'pointer';
+    th.title = 'Click to sort' + (!HASTWO ? ' | Drag to reorder' : '');
+
+    th.addEventListener('click', function () {
+      if (dragSrcIdx !== null) return;
+      var idx = leafHeaders.indexOf(th);
+      if (sortColIdx === idx) { sortAsc = !sortAsc; }
+      else { sortColIdx = idx; sortAsc = true; }
+      sortByCol(sortColIdx, sortAsc);
+    });
+
+    // Drag-to-reorder only works in flat (single-row header) mode -- in the
+    // 2-level case moving individual measure columns would break the colspan
+    // group labels in the first header row.
+    if (!HASTWO) {
+      th.setAttribute('draggable', 'true');
+
+      th.addEventListener('dragstart', function (e) {
+        dragSrcIdx = leafHeaders.indexOf(th);
+        e.dataTransfer.effectAllowed = 'move';
+        setTimeout(function () { th.classList.add('dragging'); }, 0);
+      });
+
+      th.addEventListener('dragend', function () {
+        th.classList.remove('dragging');
+        leafHeaders.forEach(function (h) { h.classList.remove('drag-over'); });
+        dragSrcIdx = null;
+      });
+
+      th.addEventListener('dragover', function (e) {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        leafHeaders.forEach(function (h) { h.classList.remove('drag-over'); });
+        if (leafHeaders.indexOf(th) !== dragSrcIdx) th.classList.add('drag-over');
+      });
+
+      th.addEventListener('dragleave', function () {
+        th.classList.remove('drag-over');
+      });
+
+      th.addEventListener('drop', function (e) {
+        e.preventDefault();
+        var toIdx = leafHeaders.indexOf(th);
+        if (dragSrcIdx !== null && dragSrcIdx !== toIdx) moveCol(dragSrcIdx, toIdx);
+        leafHeaders.forEach(function (h) { h.classList.remove('drag-over'); });
+      });
+    }
+  });
+}());
+</script>
+
 [%- END -%]
 
 [%- END -%]
