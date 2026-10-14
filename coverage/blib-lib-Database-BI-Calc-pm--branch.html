@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Calc.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">79.1%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c0">73.2%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -99,6 +99,14 @@ https://pjcj.net
 <tr><td class="h"><a id="L552">552</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">&amp;$cond_fn($_[0]) ? :</td></tr>
 <tr><td class="h"><a id="L571">571</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $cols-&gt;{$name}</td></tr>
 <tr><td class="h"><a id="L577">577</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (lc $col eq $lc_spaced)</td></tr>
+<tr><td class="h"><a id="L607">607</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $val and defined $pattern and length $val</td></tr>
+<tr><td class="h"><a id="L608">608</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($pattern eq &#39;%m/%d/%Y&#39;) { }</td></tr>
+<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($pattern eq &#39;%d/%m/%Y&#39;) { }</td></tr>
+<tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($pattern eq &#39;%d-%b-%Y&#39;) { }</td></tr>
+<tr><td class="h"><a id="L609">609</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $val =~ m[\A(\d{1,2})/(\d{1,2})/(\d{4})\z]</td></tr>
+<tr><td class="h"><a id="L612">612</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless $val =~ m[\A(\d{1,2})/(\d{1,2})/(\d{4})\z]</td></tr>
+<tr><td class="h"><a id="L615">615</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless $val =~ /\A(\d{1,2})-([A-Za-z]{3})-(\d{4})\z/</td></tr>
+<tr><td class="h"><a id="L617">617</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless defined $mon</td></tr>
 </table>
 </body>
 </html>
