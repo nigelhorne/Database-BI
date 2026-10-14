@@ -29,7 +29,7 @@
 </div>
 
 <!-- Metadata read by the drill-down click handler below. -->
-<div id="treemap-meta" data-back-url="[% back_url | html %]" data-cat-col="[% cat_col | html %]" hidden></div>
+<div id="treemap-meta" data-back-url="[% drill_back_url | html %]" data-cat-col="[% cat_col | html %]" hidden></div>
 
 <script>
 // Fix tooltip position: HTML::D3 uses event.offsetX/Y (rect-relative) but the
@@ -46,6 +46,18 @@
     if (tip.style.display === 'none') return;
     tip.style.left = (e.clientX + 12) + 'px';
     tip.style.top  = (e.clientY - 28) + 'px';
+  });
+
+  // HTML::D3 truncates labels with U+2026 (ellipsis) but that module lacks
+  // 'use utf8', so Perl embeds the raw UTF-8 bytes as Latin-1 chars which
+  // the browser renders as mojibake (typically the sequence a-with-circumflex
+  // followed by a broken-bar/pipe).  Replace any trailing non-ASCII chars
+  // on each label with three plain ASCII dots.
+  document.querySelectorAll('#treemap .tm-label').forEach(function (el) {
+    var t = el.textContent;
+    if (t && /[^\x00-\x7F]/.test(t)) {
+      el.textContent = t.replace(/[^\x00-\x7F]+$/, '...');
+    }
   });
 }());
 </script>
