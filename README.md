@@ -4,7 +4,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 ## Version
 
-0.012.0
+0.015.0
 
 ## Description
 
@@ -462,7 +462,7 @@ works correctly in production without any special workarounds.
 
 ## Roadmap
 
-Features planned for future releases (post-0.013.0).  Items are ordered by
+Features planned for future releases (post-0.015.0).  Items are ordered by
 priority.
 
 - **XLSX export** (High) -- `/export` supports CSV, SQLite, and JSON

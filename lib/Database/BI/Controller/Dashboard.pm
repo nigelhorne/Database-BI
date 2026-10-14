@@ -1249,13 +1249,31 @@ sub _apply_calc_fields :Protected ($self, $records, $columns) {
 	# file uses a non-ISO format (e.g. M/D/YYYY).
 	$self->_apply_date_normalization($records, $columns, $self->param('l'));
 
-	my @calc_specs;
+	# Build calc spec list: stored fields from models.json first (lower priority),
+	# then URL ?c= params (higher priority — they override stored fields of the
+	# same name so the user can test a new expression without permanently saving).
+	my (@calc_specs, %seen_calc);
+	{
+		my $sk = $self->param('l') // '';
+		if (length $sk) {
+			my $stored = ($self->_read_models)->{fields}{$sk} // {};
+			for my $n (sort keys %{$stored}) {
+				push @calc_specs, { name => $n, expr => $stored->{$n} };
+				$seen_calc{$n} = $#calc_specs;
+			}
+		}
+	}
 	for my $spec (@{ $self->every_param('c') // [] }) {
 		# Skip source specs handled by _run_pipeline_source.
 		next if $spec =~ /\A(?:path:|table:|url:|redis:)/i;
 		my ($name, $expr) = ($spec =~ /\A([A-Za-z_][A-Za-z0-9_]*):(.+)\z/s);
 		next unless defined $name && defined $expr;
-		push @calc_specs, { name => $name, expr => $expr };
+		if (exists $seen_calc{$name}) {
+			$calc_specs[$seen_calc{$name}]{expr} = $expr; # URL overrides stored
+		} else {
+			push @calc_specs, { name => $name, expr => $expr };
+			$seen_calc{$name} = $#calc_specs;
+		}
 	}
 
 	my @cols = @{$columns};

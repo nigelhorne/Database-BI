@@ -245,6 +245,12 @@
           title="Summarise the data as a pivot table - group by row and column dimensions and compute aggregates">&#x25A6; Pivot table&hellip;</button>
   <button class="btn-stats" id="btn-stats" type="button"
           title="Show column statistics: row count, nulls, distinct values, numeric min, max, mean and median">&#x03A3; Column stats</button>
+  <button class="btn-calc" id="btn-calc" type="button"
+          title="Add virtual columns computed from expressions (e.g. revenue-cost). Saved fields are applied automatically whenever this data source is opened.">&fnof;(x) Calc fields&hellip;</button>
+  <button class="btn-groups" id="btn-groups" type="button"
+          title="Map column values to group labels (e.g. North+East = Northern). The virtual col_group column can then be used in charts and pivots.">&#x25BC; Group values&hellip;</button>
+  <button class="btn-dates" id="btn-dates" type="button"
+          title="Tell the app how date columns are formatted so YEAR(), MONTH() and date sorting work correctly. Saved patterns apply automatically.">&#x1F4C5; Date format&hellip;</button>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
@@ -566,6 +572,11 @@
           <input type="checkbox" id="pie-donut-chk" name="donut" value="1"> Donut
         </label>
       </div>
+      <div class="join-field">
+        <label for="pie-topn-inp" title="Show only the top N slices; the rest are aggregated into an Other slice">Top N slices</label>
+        <input type="number" id="pie-topn-inp" name="topn" min="1" placeholder="all"
+               style="width:5rem" title="Show only the top N slices; the rest become Other">
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <div class="graph-btn-row">
@@ -702,6 +713,11 @@
           <option value="vertical">Vertical</option>
           <option value="h">Horizontal</option>
         </select>
+      </div>
+      <div class="join-field">
+        <label for="bar-topn-inp" title="Show only the top N categories by value; remaining categories are aggregated into an Other bar">Top N</label>
+        <input type="number" id="bar-topn-inp" name="topn" min="1" placeholder="all"
+               style="width:5rem" title="Show only the top N categories; the rest become Other">
       </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
@@ -905,6 +921,11 @@
           [%- END -%]
         </select>
       </div>
+      <div class="join-field">
+        <label for="treemap-topn-inp" title="Show only the top N tiles; the rest are aggregated into an Other tile">Top N tiles</label>
+        <input type="number" id="treemap-topn-inp" name="topn" min="1" placeholder="all"
+               style="width:5rem" title="Show only the top N tiles; the rest become Other">
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <div class="graph-btn-row">
@@ -1021,6 +1042,17 @@
 
     <div class="pivot-options-row">
       <label><input type="checkbox" id="pivot-totals"> Show subtotals and grand total</label>
+      <span style="margin-left:1.5rem;white-space:nowrap" title="Show only the top N row groups; remaining rows are aggregated into an Other row">
+        Limit to top
+        <input type="number" id="pivot-topn-inp" name="topn" min="1" placeholder="all"
+               style="width:4rem;margin:0 0.3rem">
+        rows
+      </span>
+      <span style="margin-left:0.75rem;white-space:nowrap" title="Measure alias to rank rows by (leave blank to use the first measure)">
+        ranked by
+        <input type="text" id="pivot-topn-col-inp" name="topn_col" placeholder="measure alias"
+               style="width:9rem;margin-left:0.3rem">
+      </span>
     </div>
 
     <div class="join-actions">
@@ -1028,6 +1060,99 @@
       <button type="submit" id="btn-do-pivot" class="btn-primary" disabled>Build pivot</button>
     </div>
   </form>
+</div>
+
+<div class="graph-panel" id="calc-panel" hidden>
+  <h3 class="graph-panel-title">&fnof;(x) Calculated columns</h3>
+  <p class="graph-panel-desc">Define virtual columns from expressions. Column names are variables; supports +, -, *, /, IF(), YEAR(), MONTH(), bin(), and more. Saved fields are applied automatically when this data source is opened.</p>
+  <div id="calc-field-list" style="margin-bottom:0.5rem"></div>
+  <div class="graph-fields-row" style="align-items:flex-end;gap:0.5rem;flex-wrap:wrap">
+    <div class="join-field" style="flex:0 0 auto;min-width:8rem">
+      <label for="calc-name-inp">Column name</label>
+      <input type="text" id="calc-name-inp" placeholder="e.g. margin"
+             title="Identifier: letters, digits, underscore; must start with a letter or _">
+    </div>
+    <div class="join-field" style="flex:1 1 12rem">
+      <label for="calc-expr-inp">Expression</label>
+      <input type="text" id="calc-expr-inp" placeholder="e.g. revenue - cost">
+    </div>
+    <div style="padding-bottom:0.2rem">
+      <button type="button" id="btn-save-calc" class="btn-primary" disabled>Save &amp; apply</button>
+    </div>
+  </div>
+  <div class="join-actions" style="margin-top:0.75rem">
+    <button type="button" id="btn-cancel-calc" class="btn-secondary">Close</button>
+  </div>
+</div>
+
+<div class="graph-panel" id="groups-panel" hidden>
+  <h3 class="graph-panel-title">&#x25BC; Group values</h3>
+  <p class="graph-panel-desc">Map values in a column to a label. A virtual <em>col_group</em> column is added: values in a group become the group label; unmatched values become <em>(other)</em>. Changes apply after reload.</p>
+  <div class="graph-fields-row" style="align-items:flex-end;gap:0.5rem;margin-bottom:0.75rem">
+    <div class="join-field" style="flex:0 0 auto;min-width:10rem">
+      <label for="groups-col-sel">Source column</label>
+      <select id="groups-col-sel">
+        <option value="">&#x2014; select &#x2014;</option>
+        [%- FOREACH col IN columns -%]
+        <option value="[% col | html %]">[% col | html %]</option>
+        [%- END -%]
+      </select>
+    </div>
+  </div>
+  <div id="groups-existing" style="margin-bottom:0.5rem"></div>
+  <div id="groups-add-row" hidden>
+    <div class="graph-fields-row" style="align-items:flex-end;gap:0.5rem;flex-wrap:wrap">
+      <div class="join-field" style="flex:0 0 auto;min-width:8rem">
+        <label for="groups-name-inp">Group label</label>
+        <input type="text" id="groups-name-inp" placeholder="e.g. Northern">
+      </div>
+      <div class="join-field" style="flex:1 1 12rem">
+        <label for="groups-vals-inp">Values (one per line)</label>
+        <textarea id="groups-vals-inp" rows="3" placeholder="North&#10;Northeast"
+                  style="width:100%;box-sizing:border-box;font-family:monospace;font-size:0.87rem"></textarea>
+      </div>
+      <div style="padding-bottom:0.2rem">
+        <button type="button" id="btn-save-group" class="btn-primary">Save group</button>
+      </div>
+    </div>
+  </div>
+  <div id="groups-add-btn-row" hidden style="margin-top:0.25rem">
+    <button type="button" id="btn-add-group" class="btn-add-filter">&#x2b; Add group</button>
+  </div>
+  <div class="join-actions" style="margin-top:0.75rem">
+    <button type="button" id="btn-cancel-groups" class="btn-secondary">Close</button>
+  </div>
+</div>
+
+<div class="graph-panel" id="dates-panel" hidden>
+  <h3 class="graph-panel-title">&#x1F4C5; Date column formats</h3>
+  <p class="graph-panel-desc">Tell the app how date columns are formatted so YEAR(), MONTH(), DAY(), QUARTER() and date sorting work correctly. Saved patterns are applied automatically when this data source is opened.</p>
+  <div id="dates-list" style="margin-bottom:0.5rem"></div>
+  <div class="graph-fields-row" style="align-items:flex-end;gap:0.5rem;flex-wrap:wrap">
+    <div class="join-field" style="flex:0 0 auto;min-width:10rem">
+      <label for="dates-col-sel">Column</label>
+      <select id="dates-col-sel">
+        <option value="">&#x2014; select &#x2014;</option>
+        [%- FOREACH col IN columns -%]
+        <option value="[% col | html %]">[% col | html %]</option>
+        [%- END -%]
+      </select>
+    </div>
+    <div class="join-field" style="flex:0 0 auto;min-width:14rem">
+      <label for="dates-pat-sel">Format</label>
+      <select id="dates-pat-sel">
+        <option value="%m/%d/%Y">M/D/YYYY &mdash; US (12/31/2025)</option>
+        <option value="%d/%m/%Y">D/M/YYYY &mdash; EU (31/12/2025)</option>
+        <option value="%d-%b-%Y">D-Mon-YYYY (31-Dec-2025)</option>
+      </select>
+    </div>
+    <div style="padding-bottom:0.2rem">
+      <button type="button" id="btn-save-date" class="btn-primary" disabled>Save &amp; apply</button>
+    </div>
+  </div>
+  <div class="join-actions" style="margin-top:0.75rem">
+    <button type="button" id="btn-cancel-dates" class="btn-secondary">Close</button>
+  </div>
 </div>
 
 <form id="stats-form" method="get" action="/stats" style="display:none">
@@ -2033,7 +2158,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('graph-back2-label-inp');
   var graphForm     = document.getElementById('graph-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2151,7 +2276,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('pie-back2-label-inp');
   var pieForm       = document.getElementById('pie-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2236,7 +2361,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('heatmap-back2-label-inp');
   var heatmapForm   = document.getElementById('heatmap-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2307,7 +2432,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('bar-back2-label-inp');
   var barForm       = document.getElementById('bar-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2381,7 +2506,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('stacked-back2-label-inp');
   var stackedForm   = document.getElementById('stacked-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2430,7 +2555,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('scatter-back2-label-inp');
   var scatterForm   = document.getElementById('scatter-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2535,7 +2660,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('combo-back2-label-inp');
   var comboForm     = document.getElementById('combo-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2614,7 +2739,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('treemap-back2-label-inp');
   var treemapForm   = document.getElementById('treemap-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'histogram-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2659,7 +2784,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('histogram-back2-label-inp');
   var histogramForm = document.getElementById('histogram-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'folder-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2741,7 +2866,7 @@ function parseAccounting(v) {
   var colSel    = document.getElementById('folder-col-sel');
   var backInp   = document.getElementById('folder-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'pivot-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2799,7 +2924,7 @@ function parseAccounting(v) {
   var measureList   = document.getElementById('pivot-measures');
   var chkTotals     = document.getElementById('pivot-totals');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2831,9 +2956,9 @@ function parseAccounting(v) {
   function addDimRow(container, label) {
     var row = document.createElement('div');
     row.className = 'pivot-dim-row';
-    var sel = makeColSelect(label || '— column —');
+    var sel = makeColSelect(label || '\u2014 column \u2014');
     var rm  = document.createElement('button');
-    rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '×';
+    rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '\u00d7';
     rm.addEventListener('click', function () { row.remove(); checkPivot(); });
     row.appendChild(sel); row.appendChild(rm);
     container.appendChild(row);
@@ -2852,7 +2977,7 @@ function parseAccounting(v) {
     row.className = 'pivot-measure-row';
 
     var colSel = document.createElement('select');
-    var ph = document.createElement('option'); ph.value = ''; ph.textContent = '— column —';
+    var ph = document.createElement('option'); ph.value = ''; ph.textContent = '\u2014 column \u2014';
     colSel.appendChild(ph);
     getColumns().forEach(function (c) { colSel.appendChild(colOption(c)); });
 
@@ -2885,7 +3010,7 @@ function parseAccounting(v) {
     });
 
     var rm = document.createElement('button');
-    rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '×';
+    rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '\u00d7';
     rm.addEventListener('click', function () { row.remove(); checkPivot(); });
 
     row.appendChild(colSel); row.appendChild(fnSel);
@@ -2956,10 +3081,10 @@ function parseAccounting(v) {
   });
 
   document.getElementById('btn-add-pivot-row').addEventListener('click', function () {
-    addDimRow(rowDimList, '— row —');
+    addDimRow(rowDimList, '\u2014 row \u2014');
   });
   document.getElementById('btn-add-pivot-col').addEventListener('click', function () {
-    addDimRow(colDimList, '— column —');
+    addDimRow(colDimList, '\u2014 column \u2014');
   });
   document.getElementById('btn-add-pivot-measure').addEventListener('click', addMeasureRow);
 
@@ -2967,7 +3092,7 @@ function parseAccounting(v) {
     otherPanels.forEach(function (p) { p.hidden = true; });
     panel.hidden = !panel.hidden;
     if (!panel.hidden && rowDimList.childElementCount === 0) {
-      addDimRow(rowDimList, '— row —');
+      addDimRow(rowDimList, '\u2014 row \u2014');
       addMeasureRow();
     }
   });
@@ -2975,6 +3100,324 @@ function parseAccounting(v) {
   btnCancel && btnCancel.addEventListener('click', function () {
     panel.hidden = true;
   });
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Calculated columns panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-calc');
+  var panel     = document.getElementById('calc-panel');
+  if (!btnOpen || !panel) return;
+
+  var nameInp   = document.getElementById('calc-name-inp');
+  var exprInp   = document.getElementById('calc-expr-inp');
+  var btnSave   = document.getElementById('btn-save-calc');
+  var btnClose  = document.getElementById('btn-cancel-calc');
+  var listEl    = document.getElementById('calc-field-list');
+
+  var lspec     = '[% left_spec | html %]';
+
+  var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
+    'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
+    'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
+    'groups-panel','dates-panel'].map(function(id){
+      return document.getElementById(id);
+    }).filter(Boolean);
+
+  var NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/;
+
+  function checkSaveEnabled() {
+    btnSave.disabled = !(NAME_RE.test(nameInp.value.trim()) && exprInp.value.trim().length > 0);
+  }
+  nameInp.addEventListener('input', checkSaveEnabled);
+  exprInp.addEventListener('input', checkSaveEnabled);
+
+  function renderList(fields) {
+    listEl.innerHTML = '';
+    if (!fields || !Object.keys(fields).length) {
+      listEl.innerHTML = '<p class="graph-panel-desc" style="margin:0 0 0.4rem">No saved fields yet.</p>';
+      return;
+    }
+    Object.keys(fields).sort().forEach(function(n) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;font-size:0.87rem';
+      var badge = document.createElement('code');
+      badge.style.cssText = 'flex:0 0 auto;background:var(--badge-bg,#e8eef5);padding:0.1rem 0.4rem;border-radius:3px';
+      badge.textContent = n + ' = ' + fields[n];
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn-secondary'; del.textContent = '\u00d7';
+      del.style.cssText = 'flex:0 0 auto;padding:0.1rem 0.5rem;font-size:0.8rem';
+      del.title = 'Delete ' + n;
+      del.addEventListener('click', function() {
+        fetch('/calc/delete', {
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:'l=' + encodeURIComponent(lspec) + '&name=' + encodeURIComponent(n)
+        }).then(function(r){ return r.json(); }).then(function(j){
+          if (j.ok) { loadList(); location.reload(); }
+          else alert('Error: ' + (j.error||'unknown'));
+        });
+      });
+      row.appendChild(badge); row.appendChild(del);
+      listEl.appendChild(row);
+    });
+  }
+
+  function loadList() {
+    if (!lspec) return;
+    fetch('/calc/list?l=' + encodeURIComponent(lspec))
+      .then(function(r){ return r.json(); })
+      .then(function(j){ renderList(j.fields || {}); })
+      .catch(function(){ renderList({}); });
+  }
+
+  btnSave.addEventListener('click', function() {
+    var n = nameInp.value.trim();
+    var e = exprInp.value.trim();
+    if (!NAME_RE.test(n) || !e) return;
+    fetch('/calc/save', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'l=' + encodeURIComponent(lspec) + '&name=' + encodeURIComponent(n) + '&expr=' + encodeURIComponent(e)
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (j.ok) { nameInp.value = ''; exprInp.value = ''; checkSaveEnabled(); loadList(); location.reload(); }
+      else alert('Error: ' + (j.error||'unknown'));
+    });
+  });
+
+  btnOpen.addEventListener('click', function() {
+    otherPanels.forEach(function(p){ p.hidden = true; });
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) loadList();
+  });
+
+  btnClose && btnClose.addEventListener('click', function(){ panel.hidden = true; });
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Group values panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-groups');
+  var panel     = document.getElementById('groups-panel');
+  if (!btnOpen || !panel) return;
+
+  var colSel      = document.getElementById('groups-col-sel');
+  var existingEl  = document.getElementById('groups-existing');
+  var addRow      = document.getElementById('groups-add-row');
+  var addBtnRow   = document.getElementById('groups-add-btn-row');
+  var nameInp     = document.getElementById('groups-name-inp');
+  var valsInp     = document.getElementById('groups-vals-inp');
+  var btnSaveGrp  = document.getElementById('btn-save-group');
+  var btnAddGrp   = document.getElementById('btn-add-group');
+  var btnClose    = document.getElementById('btn-cancel-groups');
+
+  var lspec = '[% left_spec | html %]';
+
+  var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
+    'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
+    'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
+    'calc-panel','dates-panel'].map(function(id){
+      return document.getElementById(id);
+    }).filter(Boolean);
+
+  function getUniqueVals(col) {
+    var tbl = document.querySelector('table[data-table]') || document.querySelector('table');
+    if (!tbl || !col) return [];
+    var hdrs = Array.from(tbl.tHead.rows[0].cells).map(function(th){ return th.textContent.trim(); });
+    var idx  = hdrs.indexOf(col);
+    if (idx < 0) return [];
+    var seen = {};
+    Array.from(tbl.tBodies[0].rows).forEach(function(r){
+      var v = (r.cells[idx] || {}).textContent;
+      if (v && v.trim()) seen[v.trim()] = 1;
+    });
+    return Object.keys(seen).sort();
+  }
+
+  function renderExisting(groups, col) {
+    existingEl.innerHTML = '';
+    if (!groups || !Object.keys(groups).length) {
+      existingEl.innerHTML = '<p class="graph-panel-desc" style="margin:0 0 0.4rem">No groups defined for this column yet.</p>';
+      return;
+    }
+    Object.keys(groups).sort().forEach(function(gname) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:flex-start;gap:0.5rem;margin-bottom:0.4rem;font-size:0.87rem';
+      var badge = document.createElement('span');
+      badge.style.cssText = 'flex:1 1 auto';
+      badge.innerHTML = '<strong>' + gname.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</strong>: '
+        + (groups[gname]||[]).map(function(v){
+            return '<code style="background:var(--badge-bg,#e8eef5);padding:0.05rem 0.3rem;border-radius:2px">'
+              + v.replace(/&/g,'&amp;').replace(/</g,'&lt;') + '</code>';
+          }).join(' ');
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn-secondary'; del.textContent = '\u00d7';
+      del.style.cssText = 'flex:0 0 auto;padding:0.1rem 0.5rem;font-size:0.8rem';
+      del.title = 'Delete group ' + gname;
+      del.addEventListener('click', function() {
+        fetch('/groups/delete', {
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:'l=' + encodeURIComponent(lspec) + '&col=' + encodeURIComponent(col) + '&group=' + encodeURIComponent(gname)
+        }).then(function(r){ return r.json(); }).then(function(j){
+          if (j.ok) loadForCol(col);
+          else alert('Error: ' + (j.error||'unknown'));
+        });
+      });
+      row.appendChild(badge); row.appendChild(del);
+      existingEl.appendChild(row);
+    });
+  }
+
+  function loadForCol(col) {
+    existingEl.innerHTML = '';
+    addRow.hidden = true;
+    addBtnRow.hidden = true;
+    if (!col || !lspec) return;
+    fetch('/groups/list?l=' + encodeURIComponent(lspec) + '&col=' + encodeURIComponent(col))
+      .then(function(r){ return r.json(); })
+      .then(function(j){
+        renderExisting(j.groups || {}, col);
+        addBtnRow.hidden = false;
+      })
+      .catch(function(){ renderExisting({}, col); addBtnRow.hidden = false; });
+  }
+
+  colSel.addEventListener('change', function(){ loadForCol(colSel.value); });
+
+  btnAddGrp && btnAddGrp.addEventListener('click', function(){
+    nameInp.value = ''; valsInp.value = '';
+    // Suggest unique values
+    var uniq = getUniqueVals(colSel.value);
+    if (uniq.length && uniq.length <= 30) {
+      valsInp.placeholder = uniq.slice(0,10).join('\n') + (uniq.length > 10 ? '\n...' : '');
+    }
+    addRow.hidden = false;
+    nameInp.focus();
+  });
+
+  btnSaveGrp && btnSaveGrp.addEventListener('click', function(){
+    var col   = colSel.value;
+    var gname = nameInp.value.trim();
+    var vals  = valsInp.value.split('\n').map(function(v){ return v.trim(); }).filter(Boolean);
+    if (!col || !gname || !vals.length) return;
+    fetch('/groups/save', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'l=' + encodeURIComponent(lspec)
+        + '&col='   + encodeURIComponent(col)
+        + '&group=' + encodeURIComponent(gname)
+        + '&values='+ encodeURIComponent(vals.join('\n'))
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (j.ok) { addRow.hidden = true; loadForCol(col); }
+      else alert('Error: ' + (j.error||'unknown'));
+    });
+  });
+
+  btnOpen.addEventListener('click', function() {
+    otherPanels.forEach(function(p){ p.hidden = true; });
+    panel.hidden = !panel.hidden;
+  });
+
+  btnClose && btnClose.addEventListener('click', function(){ panel.hidden = true; });
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Date format panel
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-dates');
+  var panel     = document.getElementById('dates-panel');
+  if (!btnOpen || !panel) return;
+
+  var colSel   = document.getElementById('dates-col-sel');
+  var patSel   = document.getElementById('dates-pat-sel');
+  var btnSave  = document.getElementById('btn-save-date');
+  var btnClose = document.getElementById('btn-cancel-dates');
+  var listEl   = document.getElementById('dates-list');
+
+  var lspec = '[% left_spec | html %]';
+
+  var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
+    'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
+    'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
+    'calc-panel','groups-panel'].map(function(id){
+      return document.getElementById(id);
+    }).filter(Boolean);
+
+  function checkSaveEnabled() {
+    btnSave.disabled = !colSel.value;
+  }
+  colSel.addEventListener('change', checkSaveEnabled);
+
+  function renderList(dates) {
+    listEl.innerHTML = '';
+    if (!dates || !Object.keys(dates).length) {
+      listEl.innerHTML = '<p class="graph-panel-desc" style="margin:0 0 0.4rem">No date formats saved yet.</p>';
+      return;
+    }
+    Object.keys(dates).sort().forEach(function(col) {
+      var row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;font-size:0.87rem';
+      var badge = document.createElement('code');
+      badge.style.cssText = 'flex:0 0 auto;background:var(--badge-bg,#e8eef5);padding:0.1rem 0.4rem;border-radius:3px';
+      badge.textContent = col + ' \u2192 ' + dates[col];
+      var del = document.createElement('button');
+      del.type = 'button'; del.className = 'btn-secondary'; del.textContent = '\u00d7';
+      del.style.cssText = 'flex:0 0 auto;padding:0.1rem 0.5rem;font-size:0.8rem';
+      del.title = 'Remove format for ' + col;
+      del.addEventListener('click', function() {
+        fetch('/dates/delete', {
+          method:'POST',
+          headers:{'Content-Type':'application/x-www-form-urlencoded'},
+          body:'l=' + encodeURIComponent(lspec) + '&col=' + encodeURIComponent(col)
+        }).then(function(r){ return r.json(); }).then(function(j){
+          if (j.ok) { loadList(); location.reload(); }
+          else alert('Error: ' + (j.error||'unknown'));
+        });
+      });
+      row.appendChild(badge); row.appendChild(del);
+      listEl.appendChild(row);
+    });
+  }
+
+  function loadList() {
+    if (!lspec) return;
+    fetch('/dates/list?l=' + encodeURIComponent(lspec))
+      .then(function(r){ return r.json(); })
+      .then(function(j){ renderList(j.dates || {}); })
+      .catch(function(){ renderList({}); });
+  }
+
+  btnSave.addEventListener('click', function() {
+    var col = colSel.value;
+    var pat = patSel.value;
+    if (!col || !pat) return;
+    fetch('/dates/save', {
+      method:'POST',
+      headers:{'Content-Type':'application/x-www-form-urlencoded'},
+      body:'l=' + encodeURIComponent(lspec) + '&col=' + encodeURIComponent(col) + '&pattern=' + encodeURIComponent(pat)
+    }).then(function(r){ return r.json(); }).then(function(j){
+      if (j.ok) { loadList(); location.reload(); }
+      else alert('Error: ' + (j.error||'unknown'));
+    });
+  });
+
+  btnOpen.addEventListener('click', function() {
+    otherPanels.forEach(function(p){ p.hidden = true; });
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) loadList();
+  });
+
+  btnClose && btnClose.addEventListener('click', function(){ panel.hidden = true; });
 }());
 </script>
 
