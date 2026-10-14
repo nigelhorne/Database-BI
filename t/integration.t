@@ -1222,4 +1222,152 @@ subtest 'Calc CRUD: /calc/save, /calc/list, /calc/delete' => sub {
 	  ->status_is(400, 'calc_list without l= -> 400');
 };
 
+# ---------------------------------------------------------------------------
+# Section 14: Phase 2.4 -- New chart routes smoke tests + multi-series line
+# ---------------------------------------------------------------------------
+
+subtest '/scatter -- renders with id="scatter_chart"' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'scatter_src.csv');
+	Mojo::File->new($csv)->spurt(
+		"x,y\n1,10\n2,20\n3,15\n4,25\n5,18\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	$t->get_ok("/scatter?l=$lspec&x=x&y=y")
+	  ->status_is(200)
+	  ->content_like(qr/id="scatter_chart"/, 'scatter SVG id present');
+
+	# Missing required params -> 400
+	$t->get_ok("/scatter?l=$lspec&x=x")->status_is(400, 'missing y= -> 400');
+	$t->get_ok("/scatter?l=$lspec&y=y")->status_is(400, 'missing x= -> 400');
+};
+
+subtest '/stacked -- renders with id="stacked_bar"' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'stacked_src.csv');
+	Mojo::File->new($csv)->spurt(
+		"region,product,amount\n"
+		. "North,Widget A,500\n"
+		. "South,Widget A,300\n"
+		. "North,Widget B,200\n"
+		. "South,Widget B,400\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	$t->get_ok("/stacked?l=$lspec&cat=region&seg=product")
+	  ->status_is(200)
+	  ->content_like(qr/id="stacked_bar"/, 'stacked SVG id present');
+
+	# Count mode (no val=)
+	$t->get_ok("/stacked?l=$lspec&cat=region&seg=product")
+	  ->status_is(200)
+	  ->content_like(qr/Count by/, 'count mode label present');
+
+	# Val mode
+	$t->get_ok("/stacked?l=$lspec&cat=region&seg=product&val=amount")
+	  ->status_is(200)
+	  ->content_like(qr/amount by/, 'val mode label present');
+
+	# Missing required params -> 400
+	$t->get_ok("/stacked?l=$lspec&seg=product")->status_is(400, 'missing cat= -> 400');
+	$t->get_ok("/stacked?l=$lspec&cat=region")->status_is(400, 'missing seg= -> 400');
+};
+
+subtest '/combo -- renders with id="combo_chart"' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'combo_src.csv');
+	Mojo::File->new($csv)->spurt(
+		"month,revenue,cost\n"
+		. "Jan,1000,600\n"
+		. "Feb,1200,700\n"
+		. "Mar,900,550\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	$t->get_ok("/combo?l=$lspec&x=month&bar=revenue&line=cost")
+	  ->status_is(200)
+	  ->content_like(qr/id="combo_chart"/, 'combo SVG id present');
+
+	# Missing required params -> 400
+	$t->get_ok("/combo?l=$lspec&bar=revenue&line=cost")->status_is(400, 'missing x= -> 400');
+	$t->get_ok("/combo?l=$lspec&x=month&line=cost")->status_is(400, 'missing bar= -> 400');
+	$t->get_ok("/combo?l=$lspec&x=month&bar=revenue")->status_is(400, 'missing line= -> 400');
+};
+
+subtest '/treemap -- renders with id="treemap"' => sub {
+	my $lspec = url_escape('table:sales');
+
+	$t->get_ok("/treemap?l=$lspec&cat=product")
+	  ->status_is(200)
+	  ->content_like(qr/id="treemap"/, 'treemap SVG id present');
+
+	# Count mode (no val=): renders successfully
+	$t->get_ok("/treemap?l=$lspec&cat=region")
+	  ->status_is(200);
+
+	# Missing cat= -> 400
+	$t->get_ok("/treemap?l=$lspec")->status_is(400, 'missing cat= -> 400');
+};
+
+subtest '/histogram -- renders with id="histogram" and correct bin count' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'hist_src.csv');
+	Mojo::File->new($csv)->spurt(
+		"value\n10\n25\n45\n60\n80\n95\n110\n140\n170\n200\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	$t->get_ok("/histogram?l=$lspec&col=value")
+	  ->status_is(200)
+	  ->content_like(qr/id="histogram"/, 'histogram SVG id present');
+
+	# bins=5 produces 5 bins
+	$t->get_ok("/histogram?l=$lspec&col=value&bins=5")
+	  ->status_is(200)
+	  ->content_like(qr/id="histogram"/, 'histogram with bins=5 renders');
+
+	# Missing col= -> 400
+	$t->get_ok("/histogram?l=$lspec")->status_is(400, 'missing col= -> 400');
+
+	# Non-numeric col -> graceful (renders empty or 200)
+	$t->get_ok("/histogram?l=table:sales&col=product")
+	  ->status_is(200, 'non-numeric col returns 200');
+};
+
+subtest '/graph with ?series= renders multi-series line chart' => sub {
+	my $dir = File::Temp->newdir;
+	my $csv = File::Spec->catfile("$dir", 'multi_src.csv');
+	Mojo::File->new($csv)->spurt(
+		"month,region,amount\n"
+		. "Jan,North,500\n"
+		. "Feb,North,600\n"
+		. "Mar,North,550\n"
+		. "Jan,South,300\n"
+		. "Feb,South,400\n"
+		. "Mar,South,350\n"
+	);
+	my $lspec = url_escape("path:$csv");
+
+	# Multi-series: one line per region value
+	$t->get_ok("/graph?l=$lspec&x=month&y=amount&series=region")
+	  ->status_is(200)
+	  ->content_like(qr/North/, 'North series present in multi-series chart')
+	  ->content_like(qr/South/, 'South series present in multi-series chart');
+
+	# Without series: single-series (existing behaviour unchanged)
+	$t->get_ok("/graph?l=$lspec&x=month&y=amount")
+	  ->status_is(200)
+	  ->content_like(qr/id="chart"/, 'single-series: zoomable chart id present');
+
+	# Unknown series col -> 400
+	$t->get_ok("/graph?l=$lspec&x=month&y=amount&series=nosuchcol")
+	  ->status_is(400, 'unknown series col -> 400');
+
+	# /line alias for /graph also works with series
+	$t->get_ok("/line?l=$lspec&x=month&y=amount&series=region")
+	  ->status_is(200)
+	  ->content_like(qr/North/, '/line alias works with series');
+};
+
 done_testing();

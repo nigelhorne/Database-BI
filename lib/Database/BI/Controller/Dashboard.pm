@@ -3034,11 +3034,12 @@ sub clear_uploads ($self) {
 #          data source cannot be opened, 200 with an error message when
 #          no plottable rows exist.
 sub graph_view ($self) {
-	my $x_col     = $self->param('x') // '';
-	my $y_col     = $self->param('y') // '';
-	my $back      = _safe_back_url($self->param('back')) // '/';
-	my $back2     = _safe_back_url($self->param('back2'));
-	my $back2_lbl = $self->param('back2_label') // '';
+	my $x_col      = $self->param('x')      // '';
+	my $y_col      = $self->param('y')      // '';
+	my $series_col = $self->param('series') // '';
+	my $back       = _safe_back_url($self->param('back')) // '/';
+	my $back2      = _safe_back_url($self->param('back2'));
+	my $back2_lbl  = $self->param('back2_label') // '';
 
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
@@ -3060,6 +3061,46 @@ sub graph_view ($self) {
 		unless $col_set{$x_col};
 	return $self->render(text => "Column not found: $y_col", status => 400)
 		unless $col_set{$y_col};
+	if (length $series_col) {
+		return $self->render(text => "Column not found: $series_col", status => 400)
+			unless $col_set{$series_col};
+	}
+
+	# --- Multi-series path: ?series=<col> groups records into one line per value ---
+	if (length $series_col) {
+		my %by_series;
+		my @series_order;
+		for my $row (@{$records}) {
+			my $x   = $row->{$x_col}      // '';
+			my $y   = $row->{$y_col}      // '';
+			my $grp = $row->{$series_col} // '';
+			next unless length($x) && length($y) && length($grp);
+			my $yn  = _numeric_cell($y);
+			next unless defined $yn;
+			unless (exists $by_series{$grp}) {
+				push @series_order, $grp;
+				$by_series{$grp} = [];
+			}
+			push @{$by_series{$grp}}, { label => _decode_cell($x), value => $yn };
+		}
+
+		return $self->render(
+			text   => 'No plottable data: no rows have valid numeric values in the Y column.',
+			status => 200,
+		) unless @series_order;
+
+		my @series_data = map { { name => $_, data => $by_series{$_} } } @series_order;
+
+		require HTML::D3;
+		my $title = "$y_col vs $x_col by $series_col";
+		my $html  = HTML::D3->new(title => $title, width => 1100, height => 580)
+			->render_multi_series_line_chart_with_interactive_legends(\@series_data);
+
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return $self->render(data => encode('UTF-8', $html), format => 'html');
+	}
+
+	# --- Single-series path (original behaviour when ?series= is absent) ---
 
 	# Extract [label, value] pairs; skip rows where Y is missing or non-numeric.
 	my @pairs;

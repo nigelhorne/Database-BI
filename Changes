@@ -1,6 +1,19 @@
 Revision history for Database-BI
 
 0.013.0  Wed Oct 15 12:00:00 PM EDT 2026
+    [ Phase 2.4 -- multi-series line chart + integration tests ]
+
+    - GET /graph now accepts ?series=<col>; when present, records are grouped
+      by that column and each distinct value becomes one series.  The chart is
+      rendered via HTML::D3 render_multi_series_line_chart_with_interactive_legends
+      (interactive legend toggles series visibility).  When ?series= is absent
+      the route behaves exactly as before (zoomable single-series line chart).
+    - GET /line (alias for /graph): works with all /graph params including ?series=.
+    - t/integration.t sections 38-43: smoke tests for /scatter, /stacked,
+      /combo, /treemap, /histogram (SVG ids, required-param 400s) and
+      multi-series /graph/?series= (two series present, /line alias works,
+      unknown series col -> 400).
+
     [ Phase 2.2 -- Calculated fields (complete) ]
 
     - Database::BI::Calc: recursive-descent expression evaluator; no string
