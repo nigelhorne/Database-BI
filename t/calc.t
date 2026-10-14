@@ -174,6 +174,15 @@ subtest 'bin function' => sub {
 	ok_eval 'bin float',     'bin(1.5, 0.5)',  [], {}, '[1.5,2)';
 	ok_eval 'bin zero width','bin(5, 0)',      [], {}, undef;
 	ok_eval 'bin neg width', 'bin(5, -1)',     [], {}, undef;
+
+	# Binary-inexact widths (TODO-1 regression guard): without the %.10g
+	# normalisation, 0.3/0.1 == 2.9999... floors to 2, giving [0.2,0.3).
+	ok_eval 'bin 0.3/0.1',   'bin(v, 0.1)',   ['v'], {v => 0.3}, '[0.3,0.4)';
+	ok_eval 'bin 0.4/0.1',   'bin(v, 0.1)',   ['v'], {v => 0.4}, '[0.4,0.5)';
+	ok_eval 'bin 0.7/0.1',   'bin(v, 0.1)',   ['v'], {v => 0.7}, '[0.7,0.8)';
+	ok_eval 'bin 0/0.1',     'bin(v, 0.1)',   ['v'], {v => 0},   '[0,0.1)';
+	ok_eval 'bin -0.3/0.1',  'bin(v, 0.1)',   ['v'], {v => -0.3},'[-0.3,-0.2)';
+	ok_eval 'bin -100/100',  'bin(v, 100)',    ['v'], {v => -100},'[-100,0)';
 };
 
 # ---------------------------------------------------------------------------

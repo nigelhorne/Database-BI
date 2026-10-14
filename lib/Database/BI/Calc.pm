@@ -157,7 +157,11 @@ my %FUNCTIONS = (
 		my ($v, $w) = @_;
 		return undef unless defined $v && defined $w;
 		return undef unless looks_like_number($v) && looks_like_number($w) && $w > 0;
-		my $lo  = POSIX::floor($v / $w) * $w;
+		# Normalise the quotient to 10 significant digits before flooring: binary
+		# representation error (0.3 / 0.1 == 2.9999999999999996) must not move a
+		# value one bin to the left.  %.10g is magnitude-independent.
+		my $n   = POSIX::floor(sprintf('%.10g', $v / $w) + 0);
+		my $lo  = $n * $w;
 		my $hi  = $lo + $w;
 		my $fmt = ($w == int($w)) ? '%d' : '%g';
 		sprintf("[${fmt},${fmt})", $lo, $hi);
@@ -630,7 +634,7 @@ Database::BI::Calc - Safe recursive-descent expression evaluator for Database::B
 
 =head1 VERSION
 
-0.012.0
+0.015.0
 
 =head1 SYNOPSIS
 

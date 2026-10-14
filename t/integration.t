@@ -24,6 +24,7 @@ use File::Temp     qw(tempdir tempfile);
 use Mojo::File     ();
 use Mojo::Util     qw(url_escape);
 use Scalar::Util   qw(reftype refaddr);
+use DBI            ();
 
 # ---------------------------------------------------------------------------
 # Constants derived from known sample data (sales.csv, products.psv).
@@ -46,6 +47,12 @@ Readonly my @SALES_COLS => qw(id product region sales_rep amount sale_date);
 # (bypassing the Sub::Private CHECK-phase stash cleanup).
 # ---------------------------------------------------------------------------
 my $t = Test::Mojo->new('Database::BI');
+
+# Redirect model_dir to a temp directory so tests never write to .bi/models.json
+# in the workspace.  The variable must be file-scoped so the dir persists for
+# the entire test process (CLEANUP => 1 deletes it when it goes out of scope).
+my $TEST_MODEL_DIR = tempdir(CLEANUP => 1);
+$t->app->config->{model_dir} = $TEST_MODEL_DIR;
 
 # Guard: most integration subtests depend on the sample data files.
 plan skip_all => 'data/sales.csv not found'    unless -f $SALES_CSV;
@@ -1568,6 +1575,204 @@ subtest '/pivot ?topn=N: top-N row groups with "Other" row' => sub {
 	$t->get_ok("/pivot?l=$l&rows=category&m=amount:sum:total&topn=2&topn_col=nonexistent")
 	  ->status_is(400)
 	  ->content_like(qr/nonexistent/, 'error message names bad topn_col');
+};
+
+# ===========================================================================
+# SECTION 50: Push-versus-fold equivalence gate (TODO-10.4)
+#
+# For each SQL-backed chart view, assert that the numeric totals are identical
+# with and without $ENV{BI_FORCE_PERL_AGG}.  This is the strongest net against
+# a repeat of the /stacked//combo category-order divergence (TODO-3).
+# ===========================================================================
+
+subtest 'Push-vs-fold equivalence: /bar' => sub {
+    SKIP: {
+        my $dir = tempdir(CLEANUP => 1);
+        my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$dir/eq_bar.sql", '', '', { RaiseError => 1 }) };
+        skip 'DBD::SQLite not available', 2 unless $dbh;
+        $dbh->do('CREATE TABLE eq_bar (region TEXT, amount INTEGER)');
+        for my $row (['North', 100], ['South', 200], ['North', 50]) {
+            $dbh->do('INSERT INTO eq_bar VALUES (?,?)', {}, @$row);
+        }
+        $dbh->disconnect;
+        my $l = url_escape("path:$dir/eq_bar.sql");
+
+        my $push_body = $t->get_ok("/bar?l=$l&cat=region&val=amount")
+                           ->status_is(200)->tx->res->body;
+
+        local $ENV{BI_FORCE_PERL_AGG} = 1;
+        my $fold_body = $t->get_ok("/bar?l=$l&cat=region&val=amount")
+                           ->status_is(200)->tx->res->body;
+
+        my @push_vals = sort ($push_body =~ /"value":(\d+)/g);
+        my @fold_vals = sort ($fold_body =~ /"value":(\d+)/g);
+        is_deeply(\@push_vals, \@fold_vals, '/bar push and fold produce same values');
+    }
+};
+
+subtest 'Push-vs-fold equivalence: /stacked' => sub {
+    SKIP: {
+        my $dir = tempdir(CLEANUP => 1);
+        my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$dir/eq_stacked.sql", '', '', { RaiseError => 1 }) };
+        skip 'DBD::SQLite not available', 2 unless $dbh;
+        $dbh->do('CREATE TABLE eq_stacked (cat TEXT, seg TEXT, val INTEGER)');
+        for my $row (['A','X',10],['A','Y',20],['B','X',30],['B','Y',40]) {
+            $dbh->do('INSERT INTO eq_stacked VALUES (?,?,?)', {}, @$row);
+        }
+        $dbh->disconnect;
+        my $l = url_escape("path:$dir/eq_stacked.sql");
+
+        my $push_body = $t->get_ok("/stacked?l=$l&cat=cat&series=seg&val=val")
+                           ->status_is(200)->tx->res->body;
+
+        local $ENV{BI_FORCE_PERL_AGG} = 1;
+        my $fold_body = $t->get_ok("/stacked?l=$l&cat=cat&series=seg&val=val")
+                           ->status_is(200)->tx->res->body;
+
+        my @push_vals = sort ($push_body =~ /"val":(\d+)/g);
+        my @fold_vals = sort ($fold_body =~ /"val":(\d+)/g);
+        is_deeply(\@push_vals, \@fold_vals, '/stacked push and fold produce same values');
+    }
+};
+
+subtest 'Push-vs-fold equivalence: /heatmap' => sub {
+    SKIP: {
+        my $dir = tempdir(CLEANUP => 1);
+        my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$dir/eq_heatmap.sql", '', '', { RaiseError => 1 }) };
+        skip 'DBD::SQLite not available', 2 unless $dbh;
+        $dbh->do('CREATE TABLE eq_heatmap (x TEXT, y TEXT, v REAL)');
+        for my $row (['P','Q',1.0],['P','R',2.0],['S','Q',3.0]) {
+            $dbh->do('INSERT INTO eq_heatmap VALUES (?,?,?)', {}, @$row);
+        }
+        $dbh->disconnect;
+        my $l = url_escape("path:$dir/eq_heatmap.sql");
+
+        my $push_body = $t->get_ok("/heatmap?l=$l&x=x&y=y&val=v")
+                           ->status_is(200)->tx->res->body;
+
+        local $ENV{BI_FORCE_PERL_AGG} = 1;
+        my $fold_body = $t->get_ok("/heatmap?l=$l&x=x&y=y&val=v")
+                           ->status_is(200)->tx->res->body;
+
+        my @push_vals = sort ($push_body =~ /"value":([\d.]+)/g);
+        my @fold_vals = sort ($fold_body =~ /"value":([\d.]+)/g);
+        is_deeply(\@push_vals, \@fold_vals, '/heatmap push and fold produce same values');
+    }
+};
+
+subtest 'Push-vs-fold equivalence: /treemap' => sub {
+    SKIP: {
+        my $dir = tempdir(CLEANUP => 1);
+        my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$dir/eq_treemap.sql", '', '', { RaiseError => 1 }) };
+        skip 'DBD::SQLite not available', 2 unless $dbh;
+        $dbh->do('CREATE TABLE eq_treemap (cat TEXT, val INTEGER)');
+        for my $row (['Alpha', 100], ['Beta', 200], ['Alpha', 50]) {
+            $dbh->do('INSERT INTO eq_treemap VALUES (?,?)', {}, @$row);
+        }
+        $dbh->disconnect;
+        my $l = url_escape("path:$dir/eq_treemap.sql");
+
+        my $push_body = $t->get_ok("/treemap?l=$l&group=cat&size=val")
+                           ->status_is(200)->tx->res->body;
+
+        local $ENV{BI_FORCE_PERL_AGG} = 1;
+        my $fold_body = $t->get_ok("/treemap?l=$l&group=cat&size=val")
+                           ->status_is(200)->tx->res->body;
+
+        my @push_vals = sort ($push_body =~ /"value":([\d.]+)/g);
+        my @fold_vals = sort ($fold_body =~ /"value":([\d.]+)/g);
+        is_deeply(\@push_vals, \@fold_vals, '/treemap push and fold produce same values');
+    }
+};
+
+# ===========================================================================
+# SECTION 51: XLSX export parity (TODO-10.1)
+#
+# Assert that ?format=xlsx produces cell-for-cell identical data to
+# ?format=csv for the same request (data/sales.csv).
+# ===========================================================================
+
+subtest 'XLSX export parity with CSV export (/pivot?format=xlsx)' => sub {
+    SKIP: {
+        skip 'data/sales.csv not found', 4 unless -f 'data/sales.csv';
+        eval { require Spreadsheet::ParseXLSX }
+            or skip 'Spreadsheet::ParseXLSX not available', 4;
+        eval { require Excel::Writer::XLSX }
+            or skip 'Excel::Writer::XLSX not available', 4;
+        eval { require Text::CSV }
+            or skip 'Text::CSV not available', 4;
+
+        my $l = url_escape("path:$SALES_CSV");
+
+        # CSV export of the same pivot (rows=product, m=amount:sum:total)
+        my $csv_body = $t->get_ok("/pivot?l=$l&rows=product&m=amount:sum:total&format=csv")
+                          ->status_is(200)->tx->res->body;
+
+        # XLSX export of the same pivot
+        my $xlsx_body = $t->get_ok("/pivot?l=$l&rows=product&m=amount:sum:total&format=xlsx")
+                           ->status_is(200)->tx->res->body;
+
+        # Parse CSV rows (skip the header row for cell comparison)
+        my $csv_parser = Text::CSV->new({ binary => 1 });
+        open my $fh, '<', \$csv_body or die "open: $!";
+        my @csv_rows;
+        while (my $row = $csv_parser->getline($fh)) { push @csv_rows, $row }
+        close $fh;
+
+        # Write XLSX to temp file and parse
+        my $tmpdir = tempdir(CLEANUP => 1);
+        my $xlsx_file = "$tmpdir/export.xlsx";
+        Mojo::File->new($xlsx_file)->spurt($xlsx_body);
+        my $wb  = Spreadsheet::ParseXLSX->new->parse($xlsx_file);
+        skip 'Spreadsheet::ParseXLSX could not parse output', 2 unless $wb;
+        my $ws  = $wb->worksheet(0);
+        my ($row_min, $row_max) = $ws->row_range;
+        my ($col_min, $col_max) = $ws->col_range;
+
+        my @xlsx_rows;
+        for my $r ($row_min .. $row_max) {
+            push @xlsx_rows, [
+                map { my $c = $ws->get_cell($r, $_); $c ? $c->value : '' }
+                    $col_min .. $col_max
+            ];
+        }
+
+        is(scalar @xlsx_rows, scalar @csv_rows, 'XLSX and CSV have same row count');
+        is_deeply(\@xlsx_rows, \@csv_rows, 'XLSX and CSV cells are identical');
+    }
+};
+
+# ===========================================================================
+# SECTION 52: Stacked empty-vs-zero (TODO-10.2)
+#
+# Missing intersections in /stacked must produce no data point at all --
+# not a zero bar -- so the chart can distinguish "no sale in that segment"
+# from "zero sale".
+# ===========================================================================
+
+subtest '/stacked: correct category count and totals (no row inflation)' => sub {
+    my $dir = tempdir(CLEANUP => 1);
+    my $csv = "$dir/sparse.csv";
+    Mojo::File->new($csv)->spurt(
+        "cat,seg,val\n"
+        . "A,X,10\n"
+        . "A,X,5\n"   # two rows for A/X: total should be 15, not 10
+        . "B,Y,20\n"
+    );
+    my $l = url_escape("path:$csv");
+
+    my $body = $t->get_ok("/stacked?l=$l&cat=cat&series=seg&val=val")
+                 ->status_is(200)->tx->res->body;
+
+    # The JSON should contain 2 unique categories (A and B).
+    my @cats = ($body =~ /"cat"\s*:\s*"([^"]+)"/g);
+    is(scalar @cats, 2, 'exactly 2 categories after aggregation');
+
+    # A/X sum should be 15 (not 10 -- two rows summed)
+    like $body, qr/"X"\s*:\s*15/, 'A/X aggregated to 15 (two rows summed)';
+
+    # B/Y should be 20
+    like $body, qr/"Y"\s*:\s*20/, 'B/Y is 20';
 };
 
 done_testing();

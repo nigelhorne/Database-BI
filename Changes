@@ -1,28 +1,27 @@
 Revision history for Database-BI
 
-0.012.0
-    [ Phase 0/1 residual fixes ]
+0.012.0	Mon Oct 12 12:00:00 PM EDT 2026
+    [ Bug Fixes ]
     - /join and /combine: the no-params default returns the first 200 rows with
       a Prev/Next pagination bar (consistent with /view and /open).  GET /export
       with no page= returns all rows regardless of size.
-    - _grouped_totals Perl fold now returns groups in ascending key order (same as
-      the SQL push path), so chart category order no longer changes when a filter
-      is added or removed.
-    - _grouped_totals push path now works when all f= filters are SQL-pushable
-      (SQLite backend): criteria are passed to aggregate() directly instead of
-      forcing a full Perl fold.  Non-pushable filters still fall back to the fold.
-    - DataSource::dbi_source() now wraps the inner delegate in eval and returns
-      undef on failure rather than propagating the exception.
-    - Removed dead error_measure_fn message key (no call site existed).
-    - Downgraded noisy aggregate() push-failure carp to Mojo log debug level.
+    - Chart category order no longer changes when a filter is added or removed:
+      the Perl aggregation path now returns groups in the same ascending key order
+      as the SQL path.
+    - Aggregation on SQLite sources now pushes SQL-compatible f= filters directly
+      to the database; previously any active filter forced a full in-memory fold.
+      Filters that cannot be expressed in SQL still fall back to the Perl fold.
+    - DataSource::dbi_source() no longer propagates exceptions from non-SQL
+      backends; it returns undef instead.
+    - CSV and other non-SQL sources no longer emit "Bad limit clause" warnings
+      during paginated views; LIMIT/OFFSET is now only sent to SQL-backed sources.
     - README.md: documented /pivot, /stats, /calc/*, /dates/*, /groups/* routes;
       documented pagination and sort params for /join and /combine; documented
       join_max_rows config key.
 
-    [ Phase 2 -- analytical views, calculated fields, time intelligence,
-                  bins/groups/Top-N, multi-series charts, Redis backend ]
+    [ Analytical views ]
 
-    Item 2.1 -- GET /pivot: crosstab view (IMPLEMENTED)
+    GET /pivot: crosstab view
     - Accepts ?l= (required), ?j= (repeatable joins), ?rows=col[,col]
       (required), ?cols=col[,col] (optional column dimensions), and
       ?m=col:fn:as (repeatable; fn is one of sum avg min max count
@@ -40,7 +39,7 @@ Revision history for Database-BI
       Invalid ?topn_col= returns 400.
     - New template: templates/web/en/pivot.html.tt.
 
-    Item 2.2 -- Calculated fields (IMPLEMENTED)
+    Calculated fields
     - Database::BI::Calc: recursive-descent expression evaluator; no string
       eval anywhere; compile-time column whitelist; arithmetic (+ - * /),
       comparison (= != < <= > >=), short-circuit IF, string functions
@@ -65,13 +64,13 @@ Revision history for Database-BI
     - _apply_calc_fields: fields that evaluate to undef now store
       '(unparseable)' so pivot/bar grouping keeps those rows visible.
 
-    Item 2.3 -- GET /stats: column statistics panel (IMPLEMENTED)
+    GET /stats: column statistics panel
     - Accepts ?l= (required), ?j= (repeatable joins), ?f= (repeatable filters).
     - Displays per-column: row_count, null_count, distinct_count, min, max,
       mean, median.
     - New template: templates/web/en/stats.html.tt.
 
-    Item 2.4 -- Additional chart routes (IMPLEMENTED)
+    Additional chart routes
     - GET /scatter -- scatter plot; SVG id scatter_chart.
     - GET /stacked -- stacked bar chart; ?seg=col; SVG id stacked_bar.
     - GET /combo   -- combo bar+line chart; SVG id combo_chart.
@@ -87,7 +86,7 @@ Revision history for Database-BI
       Histogram buttons; all five new templates follow the VWF hierarchy.
     - Requires HTML::D3 >= 0.19.
 
-    Item 2.5 -- Time intelligence: date normalisation (IMPLEMENTED)
+    Time intelligence: date normalisation
     - Database::BI::Calc: new standalone helper date_normalise($value, $pattern)
       converts non-ISO dates to ISO-8601; supported patterns: %m/%d/%Y (US),
       %d/%m/%Y (EU), %d-%b-%Y (DD-Mon-YYYY); returns undef on mismatch.
@@ -98,7 +97,7 @@ Revision history for Database-BI
       and normalises matching columns to ISO-8601 in-place before expression
       evaluation.
 
-    Item 2.6 -- Named value groups and Top-N (IMPLEMENTED)
+    Named value groups and Top-N
     - _apply_calc_fields: named value groups are now applied as virtual
       "${col}_group" columns for any source column that has groups registered
       under the current l= spec in .bi/models.json.  Values not matched by any
@@ -155,6 +154,52 @@ Revision history for Database-BI
     - Database::Abstraction >= 0.50.
     - Database::Join >= 0.009.0.
     - Added Redis to TEST_REQUIRES (optional; tests skip when absent).
+
+    [ Bug Fixes ]
+    - Calc bin() function: fixed binary floating-point rounding (e.g.
+      0.3/0.1 was 2.9999... -> wrong bin index).  A sprintf('%.10g')
+      normalisation before floor() prevents the off-by-one.
+    - Virtual calc columns (?c= and stored fields) no longer crash
+      _grouped_totals when the virtual column name appears in ?rows=,
+      ?cols=, or ?val=: the push path is skipped for virtual columns (SQL
+      does not know them) and the Perl fold path is used instead.
+    - /stacked and /combo aggregation via _grouped_totals: category order
+      is now stable when filters are added or removed, and empty
+      intersections are truly absent (no phantom zero cells).
+
+    [ New Features ]
+    - GET /scatter: new ?series=<col> parameter colours points by a
+      categorical column using a D3 colour scheme.  New ?size=<col>
+      scales point radius by a numeric column (bubble chart mode).
+      Requires HTML::D3 >= 0.19.
+    - GET /graph with ?series=<col>: multi-series line chart now rendered
+      as a VWF template fragment (via render_multi_series_line_chart_snippet)
+      and displayed through the shared graph.html.tt template, consistent
+      with the single-series path.
+    - GET /histogram: server-side binning replaces client-side computation.
+      Default bin count changed from 20 to 10.  The HTML::D3 snippet now
+      receives pre-binned [{label,count,lo,hi}] rows (binned => 1 mode).
+
+    [ Parameter aliases ]
+    - GET /stacked: ?series=<col> is the canonical parameter name;
+      ?seg=<col> remains as a backwards-compatible alias.
+    - GET /combo: ?cat=<col> is the canonical parameter name;
+      ?x=<col> remains as a backwards-compatible alias.
+    - GET /treemap: ?group=<col> and ?size=<col> are the canonical
+      parameter names; ?cat=<col> and ?val=<col> remain as aliases.
+    - GET /treemap: explicit 400 for unsupported ?color= parameter.
+
+    [ Architecture ]
+    - All chart render() calls now expose a unified chart_html stash key
+      (previously each view used its own graph_html / pie_html / etc.).
+    - All chart render() calls now include a chart => { kind, title,
+      encode, options } DTO for templates and downstream tooling.
+    - _calc_models_path: model_dir that is equal to or inside data_dir
+      is rejected with a warning rather than writing calc models into the
+      data directory.
+
+    [ Internal ]
+    - .bi/ directory added to .gitignore (runtime model store).
 
 0.011.0	Sun Oct 11 09:20:48 PM EDT 2026
     [ Enhancements ]

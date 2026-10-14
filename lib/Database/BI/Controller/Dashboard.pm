@@ -806,7 +806,14 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 		: ({}, []);
 	my $can_push_filters = !$has_filter || (!@$push_residual && %$push_crit);
 
-	unless ($ENV{BI_FORCE_PERL_AGG} || !$can_push_filters || $has_null_by_key || !$source
+	# Skip the push path when any 'by' or 'val' column is virtual (added by
+	# _apply_calc_fields or named-group loader).  Virtual columns do not exist in
+	# the backend and would cause a "No such column" SQL error before the fold fallback.
+	my $virt        = $self->stash('_virtual_columns') // {};
+	my $has_virtual = grep { $virt->{$_} }
+		(@$by, (defined $val_col ? $val_col : ()));
+
+	unless ($ENV{BI_FORCE_PERL_AGG} || $has_virtual || !$can_push_filters || $has_null_by_key || !$source
 		|| !_measure_pushable($source, $fn, $val_col, $records)) {
 		my $m = _measure($fn, $val_col, $as);
 		my $agg_rows = eval {
@@ -1333,6 +1340,9 @@ sub _apply_calc_fields :Protected ($self, $records, $columns) {
 				);
 			}
 			push @cols, $name unless grep { $_ eq $name } @cols;
+		# Record as virtual so _grouped_totals can skip the SQL push path.
+		$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
+		$self->stash('_virtual_columns')->{$name} = 1;
 		}
 	}
 
@@ -1362,6 +1372,9 @@ sub _apply_calc_fields :Protected ($self, $records, $columns) {
 						$row->{$vcol} = $val2group{$v} // '(other)';
 					}
 					push @cols, $vcol unless grep { $_ eq $vcol } @cols;
+					# Record group column as virtual.
+					$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
+					$self->stash('_virtual_columns')->{$vcol} = 1;
 				}
 			}
 		}
@@ -1382,11 +1395,20 @@ sub _calc_models_path :Protected ($self) {
 	my $app      = $self->app;
 	my $home     = $app->home;
 	my $cfg_dir  = $app->config('model_dir') // '.bi';
-	my $bi_dir   = $home->child($cfg_dir);
+	# Support absolute paths in model_dir (e.g. when tests redirect to a temp dir).
+	my $bi_dir   = Mojo::File->new($cfg_dir)->is_abs
+	                ? Mojo::File->new($cfg_dir)
+	                : $home->child($cfg_dir);
 	my $data_dir = $home->child($app->config('data_dir') // 'data');
 
-	if ($bi_dir->to_string eq $data_dir->to_string) {
-		$app->log->warn('model_dir equals data_dir; skipping model file write');
+	# Use canonical absolute paths so that relative variants (e.g. 'data/.bi') are
+	# caught even when they are not equal to data_dir as strings.  Refuse when the
+	# model directory is equal to OR inside data_dir (prefix + separator).
+	my $bi_abs   = eval { $bi_dir->to_abs->to_string }   // $bi_dir->to_string;
+	my $data_abs = eval { $data_dir->to_abs->to_string } // $data_dir->to_string;
+	my $sep      = '/';
+	if ($bi_abs eq $data_abs || index($bi_abs, $data_abs . $sep) == 0) {
+		carp 'model_dir is inside data_dir; skipping model file write';
 		return undef;
 	}
 	unless (-d $bi_dir) {
@@ -3226,13 +3248,36 @@ sub graph_view ($self) {
 
 		my @series_data = map { { name => $_, data => $by_series{$_} } } @series_order;
 
-		require HTML::D3;
-		my $title = "$y_col vs $x_col by $series_col";
-		my $html  = HTML::D3->new(title => $title, width => 1100, height => 580)
-			->render_multi_series_line_chart_with_interactive_legends(\@series_data);
+		my ($source_url, $source_accessed) = $self->_url_attribution;
 
-		utf8::decode($html) unless utf8::is_utf8($html);
-		return $self->render(data => encode('UTF-8', $html), format => 'html');
+		require HTML::D3;
+		my $title   = "$y_col vs $x_col by $series_col";
+		my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580, responsive => 1)
+			->render_multi_series_line_chart_snippet(\@series_data, { animated => 1 });
+
+		my $chart_html = $snippet->{html};
+		utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
+
+		my %chart_spec = (
+			kind   => 'graph',
+			title  => $title,
+			encode => { x => $x_col, y => $y_col, series => $series_col },
+		);
+		my ($platform, $language) = $self->_resolve_template;
+		return $self->render(
+			handler         => 'tt',
+			template        => "$platform/$language/graph",
+			format          => 'html',
+			title           => $title,
+			chart_html      => $chart_html,
+			chart           => \%chart_spec,
+			back_url        => ($back2 // $back),
+			back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+			($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+			point_count     => scalar @series_order,
+			source_url      => $source_url,
+			source_accessed => $source_accessed,
+		);
 	}
 
 	# --- Single-series path (original behaviour when ?series= is absent) ---
@@ -3294,16 +3339,22 @@ sub graph_view ($self) {
 	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580, responsive => 1)
 		->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 });
 
-	my $graph_html = $snippet->{html};
-	utf8::decode($graph_html) unless utf8::is_utf8($graph_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind   => 'graph',
+		title  => $title,
+		encode => { x => $x_col, y => $y_col },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/graph",
 		format           => 'html',
 		title            => $title,
-		graph_html       => $graph_html,
+		chart_html       => $chart_html,
+		chart            => \%chart_spec,
 		back_url         => ($back2 // $back),
 		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
@@ -3417,16 +3468,23 @@ sub pie_view ($self) {
 			color_scheme => $scheme,
 		});
 
-	my $pie_html = $snippet->{html};
-	utf8::decode($pie_html) unless utf8::is_utf8($pie_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'pie',
+		title   => $title,
+		encode  => { cat => $cat_col, value => $val_col },
+		options => { scheme => $scheme, donut => $donut },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/pie",
 		format           => 'html',
 		title            => $title,
-		pie_html         => $pie_html,
+		chart_html       => $chart_html,
+		chart            => \%chart_spec,
 		back_url         => ($back2 // $back),
 		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
@@ -3581,16 +3639,23 @@ sub heatmap_view ($self) {
 			animated     => 1,
 		});
 
-	my $heatmap_html = $snippet->{html};
-	utf8::decode($heatmap_html) unless utf8::is_utf8($heatmap_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'heatmap',
+		title   => $title,
+		encode  => { x => $x_col, y => $y_col, value => $val_col },
+		options => { scheme => $scheme, show_values => $show_v },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/heatmap",
 		format           => 'html',
 		title            => $title,
-		heatmap_html     => $heatmap_html,
+		chart_html       => $chart_html,
+		chart            => \%chart_spec,
 		cell_count       => scalar @triples,
 		back_url         => ($back2 // $back),
 		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
@@ -3747,16 +3812,23 @@ sub bar_view ($self) {
 			($max_bars > 0 ? (max_bars => $max_bars) : ()),
 		});
 
-	my $bar_html = $snippet->{html};
-	utf8::decode($bar_html) unless utf8::is_utf8($bar_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'bar',
+		title   => $title,
+		encode  => { cat => $cat_col, value => $val_col },
+		options => { orientation => ($orient // 'v'), max_items => $max_bars },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/bar",
 		format          => 'html',
 		title           => $title,
-		bar_html        => $bar_html,
+		chart_html      => $chart_html,
+		chart           => \%chart_spec,
 		bar_count       => scalar @bars,
 		cat_col         => $cat_col,
 		back_url        => ($back2 // $back),
@@ -4804,11 +4876,14 @@ sub dates_list ($self) {
 # ---------------------------------------------------------------------------
 
 sub scatter_view ($self) {
-	my $x_col     = $self->param('x')    // '';
-	my $y_col     = $self->param('y')    // '';
-	my $back      = _safe_back_url($self->param('back')) // '/';
-	my $back2     = _safe_back_url($self->param('back2'));
-	my $back2_lbl = $self->param('back2_label') // '';
+	my $x_col      = $self->param('x')      // '';
+	my $y_col      = $self->param('y')      // '';
+	my $series_col = $self->param('series') // '';
+	my $size_col   = $self->param('size')   // '';
+	my $scheme     = $self->param('scheme') // 'tableau10';
+	my $back       = _safe_back_url($self->param('back')) // '/';
+	my $back2      = _safe_back_url($self->param('back2'));
+	my $back2_lbl  = $self->param('back2_label') // '';
 
 	return $self->render(text => 'Missing x= parameter', status => 400) unless length $x_col;
 	return $self->render(text => 'Missing y= parameter', status => 400) unless length $y_col;
@@ -4824,8 +4899,12 @@ sub scatter_view ($self) {
 	}
 
 	my %col_set = map { $_ => 1 } @{$columns};
-	return $self->render(text => "Column not found: $x_col", status => 400) unless $col_set{$x_col};
-	return $self->render(text => "Column not found: $y_col", status => 400) unless $col_set{$y_col};
+	return $self->render(text => "Column not found: $x_col",      status => 400) unless $col_set{$x_col};
+	return $self->render(text => "Column not found: $y_col",      status => 400) unless $col_set{$y_col};
+	return $self->render(text => "Column not found: $series_col", status => 400)
+		if length $series_col && !$col_set{$series_col};
+	return $self->render(text => "Column not found: $size_col",   status => 400)
+		if length $size_col && !$col_set{$size_col};
 
 	my @points;
 	for my $row (@$records) {
@@ -4834,7 +4913,13 @@ sub scatter_view ($self) {
 		next unless defined $xv && defined $yv;
 		my %extra = map { $_ => _decode_cell($row->{$_} // '') }
 		            grep { $_ ne $x_col && $_ ne $y_col } @$columns;
-		push @points, [$xv, $yv, \%extra];
+		my %pt_meta;
+		$pt_meta{series} = _decode_cell($row->{$series_col}) if length $series_col;
+		if (length $size_col) {
+			my $sv = _numeric_cell($row->{$size_col} // '');
+			$pt_meta{size} = $sv if defined $sv;
+		}
+		push @points, [$xv, $yv, \%extra, (%pt_meta ? \%pt_meta : ())];
 	}
 
 	return $self->render(
@@ -4848,21 +4933,33 @@ sub scatter_view ($self) {
 	my $title   = "$y_col vs $x_col";
 	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
 		->render_scatter_chart_snippet(\@points, {
-			animated => 1,
-			x_label  => $x_col,
-			y_label  => $y_col,
+			animated           => 1,
+			x_label            => $x_col,
+			y_label            => $y_col,
+			(length $series_col ? (colour_by_series => 1, series_col => $series_col, scheme => $scheme) : ()),
+			(length $size_col   ? (size_col         => $size_col)                                       : ()),
 		});
 
-	my $scatter_html = $snippet->{html};
-	utf8::decode($scatter_html) unless utf8::is_utf8($scatter_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'scatter',
+		title   => $title,
+		encode  => { x => $x_col, y => $y_col,
+			(length $series_col ? (series => $series_col) : ()),
+			(length $size_col   ? (size   => $size_col)   : ()),
+		},
+		options => { scheme => $scheme },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/scatter",
 		format          => 'html',
 		title           => $title,
-		scatter_html    => $scatter_html,
+		chart_html      => $chart_html,
+		chart           => \%chart_spec,
 		point_count     => scalar @points,
 		x_col           => $x_col,
 		y_col           => $y_col,
@@ -4880,15 +4977,17 @@ sub scatter_view ($self) {
 
 sub stacked_view ($self) {
 	my $cat_col   = $self->param('cat')    // '';
-	my $seg_col   = $self->param('seg')    // '';
+	# ?series= is the canonical spec name; ?seg= is the legacy alias (keep both).
+	my $seg_col   = $self->param('series') // $self->param('seg') // '';
 	my $val_col   = $self->param('val')    // '';
 	my $orient    = $self->param('orient') // 'v';
+	my $scheme    = $self->param('scheme') // 'tableau10';
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
 
-	return $self->render(text => 'Missing cat= parameter', status => 400) unless length $cat_col;
-	return $self->render(text => 'Missing seg= parameter', status => 400) unless length $seg_col;
+	return $self->render(text => 'Missing cat= parameter',    status => 400) unless length $cat_col;
+	return $self->render(text => 'Missing series= parameter', status => 400) unless length $seg_col;
 
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
@@ -4908,28 +5007,28 @@ sub stacked_view ($self) {
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
 
-	# Build [{cat=>, seg=>, val=>N}] via Perl fold.
-	my (%totals, %cat_seen, %seg_seen, @cat_order);
-	for my $row (@$records) {
-		my $cat = _decode_cell($row->{$cat_col} // '');
-		my $seg = _decode_cell($row->{$seg_col} // '');
-		next unless length $cat && length $seg;
-		push @cat_order, $cat unless $cat_seen{$cat}++;
-		$seg_seen{$seg} = 1;
-		if ($count_mode) {
-			$totals{$cat}{$seg}++;
-		} else {
-			my $v = _numeric_cell($row->{$val_col} // '');
-			$totals{$cat}{$seg} += ($v // 0) if defined $v;
-		}
-	}
+	# Aggregate by [cat, seg] via _grouped_totals to respect the governing
+	# invariant (all numbers from a single path) and to get ascending key order.
+	my $agg_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{
+			by  => [$cat_col, $seg_col],
+			fn  => $count_mode ? 'count' : 'sum',
+			val => $count_mode ? undef   : $val_col,
+			as  => 'value',
+		},
+	);
 
-	my @data;
-	for my $cat (@cat_order) {
-		for my $seg (sort keys %seg_seen) {
-			push @data, { cat => $cat, seg => $seg, val => $totals{$cat}{$seg} // 0 };
-		}
-	}
+	# render_stacked_bar_snippet accepts flat [{cat_col=>,seg_col=>,val_col=>}] rows
+	# and handles the stacking itself; only include pairs actually returned (no phantom
+	# zero cells for missing intersections).
+	my @data = map {
+		my $cat = _decode_cell($_->{$cat_col} // '');
+		my $seg = _decode_cell($_->{$seg_col} // '');
+		(length $cat && length $seg)
+			? { cat => $cat, seg => $seg, val => $_->{value} }
+			: ()
+	} @$agg_rows;
 
 	return $self->render(
 		text   => 'No plottable data: no rows have valid data in the selected columns.',
@@ -4945,19 +5044,27 @@ sub stacked_view ($self) {
 		->render_stacked_bar_snippet(\@data, {
 			orient  => ($orient eq 'h') ? 'h' : 'v',
 			x_label => $cat_col,
+			scheme  => $scheme,
 		});
 
-	my $stacked_html = $snippet->{html};
-	utf8::decode($stacked_html) unless utf8::is_utf8($stacked_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'stacked',
+		title   => $title,
+		encode  => { cat => $cat_col, series => $seg_col, value => $val_col },
+		options => { orientation => $orient, scheme => $scheme },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/stacked",
 		format          => 'html',
 		title           => $title,
-		stacked_html    => $stacked_html,
-		bar_count       => scalar keys %cat_seen,
+		chart_html      => $chart_html,
+		chart           => \%chart_spec,
+		bar_count       => scalar(grep { defined $_->{cat} } @data),
 		back_url        => ($back2 // $back),
 		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
@@ -4971,7 +5078,8 @@ sub stacked_view ($self) {
 # ---------------------------------------------------------------------------
 
 sub combo_view ($self) {
-	my $x_col      = $self->param('x')          // '';
+	# ?cat= is the canonical spec name; ?x= is the legacy alias (keep both).
+	my $x_col      = $self->param('cat') // $self->param('x') // '';
 	my $bar_col    = $self->param('bar')         // '';
 	my $line_col   = $self->param('line')        // '';
 	my $bar_label  = $self->param('bar_label')   // '';
@@ -4980,7 +5088,7 @@ sub combo_view ($self) {
 	my $back2      = _safe_back_url($self->param('back2'));
 	my $back2_lbl  = $self->param('back2_label') // '';
 
-	return $self->render(text => 'Missing x= parameter',    status => 400) unless length $x_col;
+	return $self->render(text => 'Missing cat= parameter',  status => 400) unless length $x_col;
 	return $self->render(text => 'Missing bar= parameter',  status => 400) unless length $bar_col;
 	return $self->render(text => 'Missing line= parameter', status => 400) unless length $line_col;
 
@@ -4999,22 +5107,37 @@ sub combo_view ($self) {
 	return $self->render(text => "Column not found: $bar_col",  status => 400) unless $col_set{$bar_col};
 	return $self->render(text => "Column not found: $line_col", status => 400) unless $col_set{$line_col};
 
-	# Aggregate bar and line values by x via Perl fold.
-	my (%bar_sum, %line_sum, @x_order, %x_seen);
-	for my $row (@$records) {
-		my $xv = _decode_cell($row->{$x_col} // '');
+	# Aggregate bar and line measures separately via _grouped_totals so both
+	# use the same path (push or fold) and produce ascending x-axis order.
+	# A category missing from one result set renders as a gap (undef), not zero.
+	my $bar_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{ by => [$x_col], fn => 'sum', val => $bar_col,  as => 'bar_val' },
+	);
+	my $line_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{ by => [$x_col], fn => 'sum', val => $line_col, as => 'line_val' },
+	);
+
+	# Merge: build a lookup from both result sets and walk the union of categories.
+	my (%bar_map, %line_map, @x_order, %x_seen);
+	for my $r (@$bar_rows) {
+		my $xv = _decode_cell($r->{$x_col} // '');
 		next unless length $xv;
 		push @x_order, $xv unless $x_seen{$xv}++;
-		my $bv = _numeric_cell($row->{$bar_col}  // '');
-		my $lv = _numeric_cell($row->{$line_col} // '');
-		$bar_sum{$xv}  += ($bv // 0);
-		$line_sum{$xv} += ($lv // 0);
+		$bar_map{$xv} = $r->{bar_val};
+	}
+	for my $r (@$line_rows) {
+		my $xv = _decode_cell($r->{$x_col} // '');
+		next unless length $xv;
+		push @x_order, $xv unless $x_seen{$xv}++;
+		$line_map{$xv} = $r->{line_val};
 	}
 
 	my @data = map { {
 		x        => $_,
-		bar_val  => $bar_sum{$_}  // 0,
-		line_val => $line_sum{$_} // 0,
+		bar_val  => $bar_map{$_},   # undef = gap in bar series
+		line_val => $line_map{$_},  # undef = gap in line series
 	} } @x_order;
 
 	return $self->render(
@@ -5034,16 +5157,22 @@ sub combo_view ($self) {
 			line_label => $eff_line_lbl,
 		});
 
-	my $combo_html = $snippet->{html};
-	utf8::decode($combo_html) unless utf8::is_utf8($combo_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind   => 'combo',
+		title  => $title,
+		encode => { x => $x_col, bar => $bar_col, line => $line_col },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/combo",
 		format          => 'html',
 		title           => $title,
-		combo_html      => $combo_html,
+		chart_html      => $chart_html,
+		chart           => \%chart_spec,
 		point_count     => scalar @data,
 		back_url        => ($back2 // $back),
 		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
@@ -5058,14 +5187,19 @@ sub combo_view ($self) {
 # ---------------------------------------------------------------------------
 
 sub treemap_view ($self) {
-	my $cat_col   = $self->param('cat')    // '';
-	my $val_col   = $self->param('val')    // '';
+	# ?group= is the canonical spec name; ?cat= is the legacy alias (keep both).
+	my $cat_col   = $self->param('group') // $self->param('cat') // '';
+	# ?size= is the canonical spec name; ?val= is the legacy alias (keep both).
+	my $val_col   = $self->param('size')  // $self->param('val') // '';
 	my $scheme    = $self->param('scheme') // 'tableau10';
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
 
-	return $self->render(text => 'Missing cat= parameter', status => 400) unless length $cat_col;
+	return $self->render(text => 'Missing group= parameter', status => 400) unless length $cat_col;
+	# ?color= (colour-by-measure) is not yet implemented; reject it explicitly.
+	return $self->render(text => '?color= is not yet supported for /treemap', status => 400)
+		if defined $self->param('color');
 
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
@@ -5133,16 +5267,23 @@ sub treemap_view ($self) {
 			scheme => $scheme,
 		});
 
-	my $treemap_html = $snippet->{html};
-	utf8::decode($treemap_html) unless utf8::is_utf8($treemap_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'treemap',
+		title   => $title,
+		encode  => { cat => $cat_col, value => $val_col },
+		options => { scheme => $scheme },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/treemap",
 		format          => 'html',
 		title           => $title,
-		treemap_html    => $treemap_html,
+		chart_html      => $chart_html,
+		chart           => \%chart_spec,
 		tile_count      => scalar @data,
 		cat_col         => $cat_col,
 		drill_back_url  => $back,
@@ -5160,7 +5301,7 @@ sub treemap_view ($self) {
 
 sub histogram_view ($self) {
 	my $col       = $self->param('col')   // '';
-	my $bins      = $self->param('bins')  // 20;
+	my $bins      = $self->param('bins')  // 10;
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
@@ -5195,26 +5336,76 @@ sub histogram_view ($self) {
 	$bins = 1   if $bins < 1;
 	$bins = 200 if $bins > 200;
 
+	# Server-side binning: compute equal-width bins over the data range.
+	# Values equal to $max land in the highest bin (no overflow bar).
+	# Uses the same bin-boundary logic as Calc.pm bin() to stay consistent with
+	# ?c=band:bin(col,width) computed columns on the same data.
+	use POSIX qw(floor);
+	my $min_v = min(@values);
+	my $max_v = max(@values);
+	my @bin_data;
+	if ($min_v == $max_v) {
+		# All values identical: one bin.
+		push @bin_data, { label => "$min_v", count => scalar @values, lo => $min_v, hi => $min_v };
+	} else {
+		my $raw_w = ($max_v - $min_v) / $bins;
+		# Round up to a "nice" width using 10 significant digits (same guard as Calc bin()).
+		my $width = sprintf('%.10g', $raw_w) + 0;
+		$width = $raw_w if $width <= 0;  # safety: never produce zero width
+		my $fmt = ($width == int($width)) ? '%d' : '%g';
+
+		# Build bin boundaries.
+		my @bin_counts;
+		my @bin_los;
+		for my $i (0 .. $bins - 1) {
+			push @bin_los, $min_v + $i * $width;
+			push @bin_counts, 0;
+		}
+
+		# Assign each value to a bin.
+		for my $v (@values) {
+			my $idx = floor(sprintf('%.10g', ($v - $min_v) / $width) + 0);
+			$idx = $bins - 1 if $idx >= $bins;  # max value -> last bin
+			$idx = 0         if $idx < 0;
+			$bin_counts[$idx]++;
+		}
+
+		for my $i (0 .. $bins - 1) {
+			next unless $bin_counts[$i];
+			my $lo  = $bin_los[$i];
+			my $hi  = $lo + $width;
+			my $lbl = sprintf("[${fmt},${fmt})", $lo, $hi);
+			push @bin_data, { label => $lbl, count => $bin_counts[$i], lo => $lo, hi => $hi };
+		}
+	}
+
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
 	require HTML::D3;
 	my $title   = "Distribution of $col";
 	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
-		->render_histogram_snippet(\@values, {
-			bins    => $bins,
+		->render_histogram_snippet(\@bin_data, {
+			binned  => 1,
 			x_label => $col,
 		});
 
-	my $histogram_html = $snippet->{html};
-	utf8::decode($histogram_html) unless utf8::is_utf8($histogram_html);
+	my $chart_html = $snippet->{html};
+	utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
 
+	my %chart_spec = (
+		kind    => 'histogram',
+		title   => $title,
+		encode  => { value => $col },
+		options => { bins => $bins },
+	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler          => 'tt',
 		template         => "$platform/$language/histogram",
 		format           => 'html',
 		title            => $title,
-		histogram_html   => $histogram_html,
+		chart_html       => $chart_html,
+		chart            => \%chart_spec,
 		value_count      => scalar @values,
 		bins             => $bins,
 		back_url         => ($back2 // $back),
