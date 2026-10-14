@@ -49,9 +49,9 @@ WriteMakefile(
 		'Socket'	=> '2.010',
 		'Spreadsheet::ParseXLSX'	=> 0,
 		'Sub::Protected'	=> 0,
+		'Excel::Writer::XLSX'	=> '1.07',
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
-		'Excel::Writer::XLSX' => 0,
 		'Encode' => 0,
 		'Test::Memory::Cycle' => 0,
 		'Test::Mockingbird' => 0,

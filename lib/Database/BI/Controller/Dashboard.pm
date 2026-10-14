@@ -12,7 +12,7 @@ use List::Util		qw(min max sum);
 use CGI::Info;
 use CGI::Lingua;
 use Mojo::File;
-use Mojo::JSON		qw(encode_json);
+use Mojo::JSON		qw(encode_json decode_json);
 use Mojo::Util		qw(url_escape encode);
 use File::Path		qw(remove_tree);
 use File::Temp		qw(tempfile tempdir);
@@ -92,6 +92,10 @@ Readonly my %MESSAGES => (
 	error_pivot_measure_invalid => 'Invalid measure spec "%s"; expected col:fn:as where fn is one of: sum avg min max count count_distinct',
 	error_pivot_dim_not_found   => 'Row/column dimension "%s" is not in the view',
 	error_pivot_dim_comma       => 'Dimension name "%s" must not contain a comma',
+	error_calc_compile          => 'Calculated field "%s": %s',
+	error_calc_name             => 'Calculated field name "%s" is not a valid identifier',
+	error_topn_col              => 'Top-N column "%s" is not a measure alias in this view',
+	warn_calc_undef             => 'Calculated field "%s" returned undef for %d row(s)',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -1082,6 +1086,99 @@ sub _run_pipeline_source :Protected ($self) {
 	}
 
 	return ($src, $records, \@columns, $left_label);
+}
+
+# _apply_calc_fields($self, $records, \@columns) -> ($records, \@columns)
+#
+# Reads ?c=<name>:<expression> params (those NOT matching a path:/table:/url:/redis:
+# source spec) and compiles each via Database::BI::Calc.  Evaluates per row,
+# appending the virtual column to each row hashref.  Croaks on compile error
+# (caller renders 400); runtime undef values are logged at warn level.
+# Later ?c= specs may reference names defined by earlier ones (evaluated in order).
+sub _apply_calc_fields :Protected ($self, $records, $columns) {
+	my @calc_specs;
+	for my $spec (@{ $self->every_param('c') // [] }) {
+		# Skip source specs handled by _run_pipeline_source.
+		next if $spec =~ /\A(?:path:|table:|url:|redis:)/i;
+		my ($name, $expr) = ($spec =~ /\A([A-Za-z_][A-Za-z0-9_]*):(.+)\z/s);
+		next unless defined $name && defined $expr;
+		push @calc_specs, { name => $name, expr => $expr };
+	}
+	return ($records, $columns) unless @calc_specs;
+
+	require Database::BI::Calc;
+	my @cols = @{$columns};
+
+	for my $cs (@calc_specs) {
+		my $name = $cs->{name};
+		my $calc = Database::BI::Calc->new(expr => $cs->{expr}, columns => \@cols);
+		croak $self->_i18n('error_calc_compile', $name, $calc->error)
+			if $calc->has_error;
+
+		my $undef_count = 0;
+		for my $row (@{$records}) {
+			my $val = $calc->evaluate($row);
+			$row->{$name} = $val;
+			$undef_count++ unless defined $val;
+		}
+		if ($undef_count) {
+			$self->app->log->warn(
+				$self->_i18n('warn_calc_undef', $name, $undef_count)
+			);
+		}
+		push @cols, $name unless grep { $_ eq $name } @cols;
+	}
+	return ($records, \@cols);
+}
+
+# ---------------------------------------------------------------------------
+# Calculated-field model storage  (.bi/models.json)
+# ---------------------------------------------------------------------------
+
+# _calc_models_path($self) -> $path_string_or_undef
+#
+# Returns the path to .bi/models.json (creating .bi/ on first call), or undef
+# when the write must be skipped (data_dir safety guard, mkdir failure).
+sub _calc_models_path :Protected ($self) {
+	my $app      = $self->app;
+	my $home     = $app->home;
+	my $cfg_dir  = $app->config('model_dir') // '.bi';
+	my $bi_dir   = $home->child($cfg_dir);
+	my $data_dir = $home->child($app->config('data_dir') // 'data');
+
+	if ($bi_dir->to_string eq $data_dir->to_string) {
+		$app->log->warn('model_dir equals data_dir; skipping model file write');
+		return undef;
+	}
+	unless (-d $bi_dir) {
+		mkdir $bi_dir->to_string
+			or do { $app->log->warn("Cannot create $bi_dir: $!"); return undef };
+	}
+	return $bi_dir->child('models.json')->to_string;
+}
+
+# _read_models($self) -> \%models
+#
+# Returns the parsed models hashref from .bi/models.json, or an empty scaffold.
+sub _read_models :Protected ($self) {
+	my $path = $self->_calc_models_path;
+	my $scaffold = { version => 1, fields => {}, groups => {} };
+	return $scaffold unless defined $path && -f $path;
+	my $json = eval { Mojo::File->new($path)->slurp };
+	return $scaffold unless $json && !$@;
+	my $data = eval { decode_json($json) };
+	return $scaffold unless ref $data eq 'HASH';
+	$data->{fields} //= {};
+	$data->{groups} //= {};
+	return $data;
+}
+
+# _write_models($self, \%models) -- persists models to .bi/models.json
+sub _write_models :Protected ($self, $models) {
+	my $path = $self->_calc_models_path;
+	return unless defined $path;
+	eval { Mojo::File->new($path)->spurt(encode_json($models)) };
+	$self->app->log->warn("Cannot write $path: $@") if $@;
 }
 
 # _run_export_pipeline($self) -> ($records, \@columns, $left_label) or ()
@@ -2831,6 +2928,9 @@ sub graph_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
 	# Apply f= filters (pre-filter before building pairs, same as _run_export_pipeline).
 	for my $s (@{ $self->every_param('f') }) {
 		$records = _apply_filter_spec($records, $s);
@@ -2935,6 +3035,9 @@ sub pie_view ($self) {
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
 	for my $s (@{ $self->every_param('f') }) {
@@ -3089,6 +3192,9 @@ sub heatmap_view ($self) {
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
 	for my $s (@{ $self->every_param('f') }) {
@@ -3247,6 +3353,9 @@ sub bar_view ($self) {
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
 	for my $s (@{ $self->every_param('f') }) {
@@ -3739,6 +3848,14 @@ sub pivot_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
+	# Calculated fields (?c=name:expr) -- evaluated before aggregation so calc
+	# columns are available as row/col dimensions and measure columns.
+	{
+		my $err;
+		eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+		if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+	}
+
 	for my $s (@{ $self->every_param('f') }) {
 		$records = _apply_filter_spec($records, $s);
 	}
@@ -3913,7 +4030,7 @@ sub pivot_view ($self) {
 	# -----------------------------------------------------------------------
 	# Export path: build flat records from the grid.
 	# -----------------------------------------------------------------------
-	if ($format && $format =~ /\A(?:csv|sqlite|sql|json)\z/) {
+	if ($format && $format =~ /\A(?:csv|sqlite|sql|json|xlsx)\z/) {
 		my @grid_records;
 		for my $rk (@row_key_order) {
 			for my $ck (@col_key_order) {
@@ -3931,6 +4048,27 @@ sub pivot_view ($self) {
 			if $format eq 'sqlite' || $format eq 'sql';
 		return $self->_render_json(\@grid_records, \@export_cols, 'pivot')
 			if $format eq 'json';
+		if ($format eq 'xlsx') {
+			require Excel::Writer::XLSX;
+			my $out = '';
+			open my $fh, '>', \$out
+				or return $self->render(text => 'Cannot open XLSX buffer', status => 500);
+			my $wb = Excel::Writer::XLSX->new($fh);
+			my $ws = $wb->add_worksheet('pivot');
+			$ws->write_row(0, 0, \@export_cols);
+			my $row_idx = 1;
+			for my $rec (@grid_records) {
+				$ws->write_row($row_idx++, 0, [ map { $rec->{$_} // '' } @export_cols ]);
+			}
+			$wb->close;
+			$self->res->headers->content_type(
+				'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+			);
+			$self->res->headers->content_disposition(
+				'attachment; filename="pivot.xlsx"'
+			);
+			return $self->render(data => $out);
+		}
 	}
 
 	# -----------------------------------------------------------------------
@@ -4004,6 +4142,9 @@ sub stats_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
 	for my $s (@{ $self->every_param('f') }) {
 		$records = _apply_filter_spec($records, $s);
 	}
@@ -4065,10 +4206,510 @@ sub stats_view ($self) {
 		title      => 'Column statistics',
 		stats      => \@stats,
 		row_count  => $row_count,
-		left_spec  => $left_spec,
-		left_label => $left_label,
+		left_spec  => $left_spec,		left_label => $left_label,
 		back_url   => _safe_back_url($self->param('back')) // '/',
 		back_label => 'Back',
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Calculated-field CRUD  (POST /calc/save, POST /calc/delete, GET /calc/list)
+# ---------------------------------------------------------------------------
+
+sub calc_save ($self) {
+	my $spec = $self->param('l') // '';
+	my $name = $self->param('name') // '';
+	my $expr = $self->param('expr') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+	return $self->render(
+		json   => { error => $self->_i18n('error_calc_name', $name) },
+		status => 400,
+	) unless $name =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/;
+	return $self->render(json => { error => 'expr= required' }, status => 400)
+		unless length $expr;
+
+	my $models = $self->_read_models;
+	$models->{fields}{$spec}{$name} = $expr;
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+sub calc_delete ($self) {
+	my $spec = $self->param('l') // '';
+	my $name = $self->param('name') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	delete $models->{fields}{$spec}{$name};
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+sub calc_list ($self) {
+	my $spec = $self->param('l') // '';
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	$self->render(json => { fields => $models->{fields}{$spec} // {} });
+}
+
+# ---------------------------------------------------------------------------
+# Named-group CRUD  (POST /groups/save, POST /groups/delete, GET /groups/list)
+# ---------------------------------------------------------------------------
+
+sub groups_save ($self) {
+	my $spec       = $self->param('l')     // '';
+	my $col        = $self->param('col')   // '';
+	my $group_name = $self->param('group') // '';
+	my @values     = @{ $self->every_param('values') // [] };
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+	return $self->render(json => { error => 'col= required' }, status => 400)
+		unless length $col;
+	return $self->render(json => { error => 'group= required' }, status => 400)
+		unless length $group_name;
+
+	my $models = $self->_read_models;
+	$models->{groups}{$spec}{$col}{$group_name} = \@values;
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+sub groups_delete ($self) {
+	my $spec       = $self->param('l')     // '';
+	my $col        = $self->param('col')   // '';
+	my $group_name = $self->param('group') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	if (length $col && length $group_name) {
+		delete $models->{groups}{$spec}{$col}{$group_name};
+	} elsif (length $col) {
+		delete $models->{groups}{$spec}{$col};
+	} else {
+		delete $models->{groups}{$spec};
+	}
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+sub groups_list ($self) {
+	my $spec = $self->param('l') // '';
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	$self->render(json => { groups => $models->{groups}{$spec} // {} });
+}
+
+# ---------------------------------------------------------------------------
+# Scatter chart  (GET /scatter)
+# ---------------------------------------------------------------------------
+
+sub scatter_view ($self) {
+	my $x_col     = $self->param('x')    // '';
+	my $y_col     = $self->param('y')    // '';
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	return $self->render(text => 'Missing x= parameter', status => 400) unless length $x_col;
+	return $self->render(text => 'Missing y= parameter', status => 400) unless length $y_col;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $x_col", status => 400) unless $col_set{$x_col};
+	return $self->render(text => "Column not found: $y_col", status => 400) unless $col_set{$y_col};
+
+	my @points;
+	for my $row (@$records) {
+		my $xv = _numeric_cell($row->{$x_col} // '');
+		my $yv = _numeric_cell($row->{$y_col} // '');
+		next unless defined $xv && defined $yv;
+		my %extra = map { $_ => _decode_cell($row->{$_} // '') }
+		            grep { $_ ne $x_col && $_ ne $y_col } @$columns;
+		push @points, [$xv, $yv, \%extra];
+	}
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid numeric values in both selected columns.',
+		status => 200,
+	) unless @points;
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
+	require HTML::D3;
+	my $title   = "$y_col vs $x_col";
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
+		->render_scatter_chart_snippet(\@points, {
+			animated => 1,
+			x_label  => $x_col,
+			y_label  => $y_col,
+		});
+
+	my $scatter_html = $snippet->{html};
+	utf8::decode($scatter_html) unless utf8::is_utf8($scatter_html);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/scatter",
+		format          => 'html',
+		title           => $title,
+		scatter_html    => $scatter_html,
+		point_count     => scalar @points,
+		x_col           => $x_col,
+		y_col           => $y_col,
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Stacked bar chart  (GET /stacked)
+# ---------------------------------------------------------------------------
+
+sub stacked_view ($self) {
+	my $cat_col   = $self->param('cat')    // '';
+	my $seg_col   = $self->param('seg')    // '';
+	my $val_col   = $self->param('val')    // '';
+	my $orient    = $self->param('orient') // 'v';
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	return $self->render(text => 'Missing cat= parameter', status => 400) unless length $cat_col;
+	return $self->render(text => 'Missing seg= parameter', status => 400) unless length $seg_col;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $cat_col", status => 400) unless $col_set{$cat_col};
+	return $self->render(text => "Column not found: $seg_col", status => 400) unless $col_set{$seg_col};
+
+	my $count_mode = (!length $val_col || $val_col eq '__count__');
+	return $self->render(text => "Column not found: $val_col", status => 400)
+		unless $count_mode || $col_set{$val_col};
+
+	# Build [{cat=>, seg=>, val=>N}] via Perl fold.
+	my (%totals, %cat_seen, %seg_seen, @cat_order);
+	for my $row (@$records) {
+		my $cat = _decode_cell($row->{$cat_col} // '');
+		my $seg = _decode_cell($row->{$seg_col} // '');
+		next unless length $cat && length $seg;
+		push @cat_order, $cat unless $cat_seen{$cat}++;
+		$seg_seen{$seg} = 1;
+		if ($count_mode) {
+			$totals{$cat}{$seg}++;
+		} else {
+			my $v = _numeric_cell($row->{$val_col} // '');
+			$totals{$cat}{$seg} += ($v // 0) if defined $v;
+		}
+	}
+
+	my @data;
+	for my $cat (@cat_order) {
+		for my $seg (sort keys %seg_seen) {
+			push @data, { cat => $cat, seg => $seg, val => $totals{$cat}{$seg} // 0 };
+		}
+	}
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid data in the selected columns.',
+		status => 200,
+	) unless @data;
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
+	require HTML::D3;
+	my $title   = $count_mode ? "Count by $cat_col and $seg_col"
+	                          : "$val_col by $cat_col and $seg_col";
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500, responsive => 1)
+		->render_stacked_bar_snippet(\@data, {
+			orient  => ($orient eq 'h') ? 'h' : 'v',
+			x_label => $cat_col,
+		});
+
+	my $stacked_html = $snippet->{html};
+	utf8::decode($stacked_html) unless utf8::is_utf8($stacked_html);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/stacked",
+		format          => 'html',
+		title           => $title,
+		stacked_html    => $stacked_html,
+		bar_count       => scalar keys %cat_seen,
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Combo bar+line chart  (GET /combo)
+# ---------------------------------------------------------------------------
+
+sub combo_view ($self) {
+	my $x_col      = $self->param('x')          // '';
+	my $bar_col    = $self->param('bar')         // '';
+	my $line_col   = $self->param('line')        // '';
+	my $bar_label  = $self->param('bar_label')   // '';
+	my $line_label = $self->param('line_label')  // '';
+	my $back       = _safe_back_url($self->param('back')) // '/';
+	my $back2      = _safe_back_url($self->param('back2'));
+	my $back2_lbl  = $self->param('back2_label') // '';
+
+	return $self->render(text => 'Missing x= parameter',    status => 400) unless length $x_col;
+	return $self->render(text => 'Missing bar= parameter',  status => 400) unless length $bar_col;
+	return $self->render(text => 'Missing line= parameter', status => 400) unless length $line_col;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $x_col",    status => 400) unless $col_set{$x_col};
+	return $self->render(text => "Column not found: $bar_col",  status => 400) unless $col_set{$bar_col};
+	return $self->render(text => "Column not found: $line_col", status => 400) unless $col_set{$line_col};
+
+	# Aggregate bar and line values by x via Perl fold.
+	my (%bar_sum, %line_sum, @x_order, %x_seen);
+	for my $row (@$records) {
+		my $xv = _decode_cell($row->{$x_col} // '');
+		next unless length $xv;
+		push @x_order, $xv unless $x_seen{$xv}++;
+		my $bv = _numeric_cell($row->{$bar_col}  // '');
+		my $lv = _numeric_cell($row->{$line_col} // '');
+		$bar_sum{$xv}  += ($bv // 0);
+		$line_sum{$xv} += ($lv // 0);
+	}
+
+	my @data = map { {
+		x        => $_,
+		bar_val  => $bar_sum{$_}  // 0,
+		line_val => $line_sum{$_} // 0,
+	} } @x_order;
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid data in the selected columns.',
+		status => 200,
+	) unless @data;
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
+	require HTML::D3;
+	my $eff_bar_lbl  = $bar_label  || $bar_col;
+	my $eff_line_lbl = $line_label || $line_col;
+	my $title        = "$eff_bar_lbl and $eff_line_lbl by $x_col";
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500, responsive => 1)
+		->render_combo_snippet(\@data, {
+			bar_label  => $eff_bar_lbl,
+			line_label => $eff_line_lbl,
+		});
+
+	my $combo_html = $snippet->{html};
+	utf8::decode($combo_html) unless utf8::is_utf8($combo_html);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/combo",
+		format          => 'html',
+		title           => $title,
+		combo_html      => $combo_html,
+		point_count     => scalar @data,
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Treemap  (GET /treemap)
+# ---------------------------------------------------------------------------
+
+sub treemap_view ($self) {
+	my $cat_col   = $self->param('cat')    // '';
+	my $val_col   = $self->param('val')    // '';
+	my $scheme    = $self->param('scheme') // 'tableau10';
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	return $self->render(text => 'Missing cat= parameter', status => 400) unless length $cat_col;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $cat_col", status => 400) unless $col_set{$cat_col};
+
+	my $count_mode = (!length $val_col || $val_col eq '__count__');
+	return $self->render(text => "Column not found: $val_col", status => 400)
+		unless $count_mode || $col_set{$val_col};
+
+	my $agg_rows = $self->_grouped_totals(
+		{ source => $src, records => $records },
+		{
+			by  => [$cat_col],
+			fn  => $count_mode ? 'count' : 'sum',
+			val => $count_mode ? undef   : $val_col,
+			as  => 'value',
+		},
+	);
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid data in the selected column.',
+		status => 200,
+	) unless @$agg_rows;
+
+	my @data = map {
+		{ path => 'Root/' . _decode_cell($_->{$cat_col}), value => $_->{value} }
+	} @$agg_rows;
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
+	require HTML::D3;
+	my $title   = $count_mode ? "Treemap of $cat_col by count" : "Treemap of $cat_col by $val_col";
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 500, responsive => 1)
+		->render_treemap_snippet(\@data, {
+			scheme => $scheme,
+		});
+
+	my $treemap_html = $snippet->{html};
+	utf8::decode($treemap_html) unless utf8::is_utf8($treemap_html);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/treemap",
+		format          => 'html',
+		title           => $title,
+		treemap_html    => $treemap_html,
+		tile_count      => scalar @data,
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Histogram  (GET /histogram)
+# ---------------------------------------------------------------------------
+
+sub histogram_view ($self) {
+	my $col       = $self->param('col')   // '';
+	my $bins      = $self->param('bins')  // 20;
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	return $self->render(text => 'Missing col= parameter', status => 400) unless length $col;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{$columns};
+	return $self->render(text => "Column not found: $col", status => 400) unless $col_set{$col};
+
+	my @values;
+	for my $row (@$records) {
+		my $v = _numeric_cell($row->{$col} // '');
+		push @values, $v if defined $v;
+	}
+
+	return $self->render(
+		text   => 'No plottable data: no rows have valid numeric values in the selected column.',
+		status => 200,
+	) unless @values;
+
+	$bins = int($bins);
+	$bins = 1   if $bins < 1;
+	$bins = 200 if $bins > 200;
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+
+	require HTML::D3;
+	my $title   = "Distribution of $col";
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
+		->render_histogram_snippet(\@values, {
+			bins    => $bins,
+			x_label => $col,
+		});
+
+	my $histogram_html = $snippet->{html};
+	utf8::decode($histogram_html) unless utf8::is_utf8($histogram_html);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler          => 'tt',
+		template         => "$platform/$language/histogram",
+		format           => 'html',
+		title            => $title,
+		histogram_html   => $histogram_html,
+		value_count      => scalar @values,
+		bins             => $bins,
+		back_url         => ($back2 // $back),
+		back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url       => $source_url,
+		source_accessed  => $source_accessed,
 	);
 }
 

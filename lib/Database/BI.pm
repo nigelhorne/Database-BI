@@ -748,6 +748,18 @@ sub startup ($self) {
 	$r->get('/tables')->to('Dashboard#tables_view');
 	$r->get('/pivot')->to('Dashboard#pivot_view');
 	$r->get('/stats')->to('Dashboard#stats_view');
+	$r->post('/calc/save')    ->to('Dashboard#calc_save');
+	$r->post('/calc/delete')  ->to('Dashboard#calc_delete');
+	$r->get('/calc/list')     ->to('Dashboard#calc_list');
+	$r->post('/groups/save')  ->to('Dashboard#groups_save');
+	$r->post('/groups/delete')->to('Dashboard#groups_delete');
+	$r->get('/groups/list')   ->to('Dashboard#groups_list');
+	$r->get('/scatter')       ->to('Dashboard#scatter_view');
+	$r->get('/stacked')       ->to('Dashboard#stacked_view');
+	$r->get('/combo')         ->to('Dashboard#combo_view');
+	$r->get('/treemap')       ->to('Dashboard#treemap_view');
+	$r->get('/histogram')     ->to('Dashboard#histogram_view');
+	$r->get('/line')          ->to('Dashboard#graph_view');	# alias for /graph
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is

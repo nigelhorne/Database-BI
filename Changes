@@ -1,7 +1,33 @@
 Revision history for Database-BI
 
-0.013.0	Tue Oct 13 10:00:00 AM EDT 2026
-    [ Phase 2 -- analytical views (items 2.1 and 2.3 implemented) ]
+0.012.0
+    [ Phase 2 -- analytical views (items 2.1, 2.3, and 2.4 implemented) ]
+
+    Item 2.4 -- Five new HTML::D3 0.19 chart routes (IMPLEMENTED)
+    - GET /scatter -- scatter plot; ?l=, ?x=col (numeric), ?y=col (numeric),
+      ?back=, ?back2=, ?back2_label=, ?f= filters; SVG id scatter_chart.
+    - GET /stacked -- stacked bar chart; ?l=, ?cat=col, ?seg=col,
+      ?val=col (optional; count mode when absent or __count__),
+      ?orient=h|v (default v); SVG id stacked_bar.
+    - GET /combo -- combo bar+line chart; ?l=, ?x=col, ?bar=col (numeric),
+      ?line=col (numeric), ?bar_label=, ?line_label=, ?back=, ?back2=,
+      ?back2_label=, ?f= filters; SVG id combo_chart.
+    - GET /treemap -- treemap; ?l=, ?cat=col, ?val=col (optional; count
+      mode when absent or __count__), ?scheme=<d3-scheme>, ?back=,
+      ?back2=, ?back2_label=, ?f= filters; SVG id treemap.
+    - GET /histogram -- histogram; ?l=, ?col=col (numeric), ?bins=N
+      (default 20, max 200), ?back=, ?back2=, ?back2_label=, ?f= filters;
+      SVG id histogram.
+    - GET /line -- alias for GET /graph (same action, same params).
+    - Dashboard toolbar: five new buttons (Stacked bar, Scatter, Combo
+      chart, Treemap, Histogram) with matching panels and panel JS scripts
+      following the existing otherPanels close-on-open pattern.
+    - All five new templates (scatter, stacked, combo, treemap, histogram)
+      follow the VWF hierarchy at templates/web/en/<name>.html.tt with
+      SVG/PNG export buttons and back-link breadcrumbs.
+    - Requires HTML::D3 >= 0.19 (render_scatter_chart_snippet,
+      render_stacked_bar_snippet, render_combo_snippet,
+      render_treemap_snippet, render_histogram_snippet).
 
     Item 2.1 -- GET /pivot: crosstab view (IMPLEMENTED)
     - Accepts ?l= (required), ?j= (repeatable joins), ?rows=col[,col]
@@ -102,8 +128,6 @@ Revision history for Database-BI
     - Database::Abstraction >= 0.50 required (0.50 added redis_key parameter
       and standalone-key support for non-compound Redis keys; bumped from
       0.49 in a prior commit this release cycle).
-
-0.012.0
     [ API Changes ]
     - GET /join now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc for
       server-side pagination and in-memory ordering of the joined view.

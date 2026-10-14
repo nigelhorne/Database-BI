@@ -31,11 +31,11 @@ requires 'Scalar::Util';   # Used in DataSource.pm (blessed, looks_like_number)
 requires 'Socket', '2.010';
 requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected';
+requires 'Excel::Writer::XLSX', '1.07';  # For XLSX export in pivot_view
 
 on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'Encode';
-	requires 'Excel::Writer::XLSX';
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';
 	requires 'Test::Mojo';
