@@ -13,14 +13,16 @@
     white-space: nowrap;
   }
   .pivot-table thead th {
-    background: #eef1f8;
+    /* Inherits white-on-dark-blue background/color from default.html.tt.
+       Measure headers are centred; dim-header overrides to left. */
     font-weight: 600;
     text-align: center;
-    color: #2c3e7a;
   }
   .pivot-table thead th.dim-header {
-    background: #dde3f0;
     text-align: left;
+  }
+  .pivot-table thead th.total-header {
+    /* inherits background/color from default.html.tt thead tr rule */
   }
   .pivot-table td.row-dim {
     font-weight: 500;
@@ -37,9 +39,6 @@
   .pivot-table tr.totals-row td, .pivot-table tr.totals-row th {
     background: #e8ecf7;
     font-weight: 600;
-  }
-  .pivot-table th.total-header {
-    background: #d4daf0;
   }
   .pivot-export { margin: 0.75rem 0; display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; }
   .btn-pexport {
