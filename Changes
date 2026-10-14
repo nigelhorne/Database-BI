@@ -1,114 +1,8 @@
 Revision history for Database-BI
 
-0.015.0  Wed Oct 14 14:00:00 PM EDT 2026
-    [ Phase 2.6 -- Bins, Groups, Top-N ]
-
-    - _apply_calc_fields: named value groups are now applied as virtual
-      "${col}_group" columns for any source column that has groups registered
-      under the current l= spec in .bi/models.json.  Values not matched by any
-      group label are mapped to '(other)'.  The groups CRUD routes
-      (POST /groups/save|delete, GET /groups/list) were already present; this
-      wires them into the data pipeline so they can be used as chart dimensions.
-    - bar_view, pie_view, treemap_view: new ?topn=N parameter keeps only the
-      top-N categories by value.  The remainder is re-aggregated over the
-      original records (not summed from displayed values) and appended as an
-      "Other" bar/slice/tile.
-    - pivot_view: new ?topn=N and ?topn_col=<alias> parameters keep only the
-      top-N row groups ranked by the specified measure (default: first measure).
-      Remaining records are re-aggregated by column dimensions and appended as
-      an "Other" row.  Invalid ?topn_col= returns 400 error_topn_col.
-    - Version 0.015.0 adds no new routes, templates, or external dependencies.
-
-0.014.0  Wed Oct 14 12:00:00 PM EDT 2026
-    [ Phase 2.5 -- Time intelligence (date normalisation) ]
-
-    - Database::BI::Calc: new standalone helper date_normalise($value, $pattern)
-      converts non-ISO dates to ISO-8601; supported patterns: %m/%d/%Y (US),
-      %d/%m/%Y (EU), %d-%b-%Y (DD-Mon-YYYY); returns undef on mismatch.
-    - GET /dates/list?l=<spec>           -> JSON { patterns: { col: pattern } }
-    - POST /dates/save  body: l=&col=&pattern=   (400 for unsupported pattern)
-    - POST /dates/delete body: l=&col=           (omit col= to clear all for spec)
-    - Dashboard::_apply_date_normalization: reads stored date_patterns from
-      .bi/models.json for the current l= spec and normalises matching columns
-      to ISO-8601 in-place; called automatically at the top of _apply_calc_fields
-      so YEAR/MONTH/DAY/QUARTER/WEEK see ISO values before expression evaluation.
-    - _apply_calc_fields: calc fields that evaluate to undef now store
-      '(unparseable)' in the row hashref instead of undef.  This ensures that
-      pivot/bar grouping (which skips empty-string keys to mirror SQL GROUP BY
-      NULL exclusion) keeps these rows in a visible '(unparseable)' bucket rather
-      than silently dropping them.
-    - t/integration.t sections 44-46: date pattern CRUD, M/D/YYYY -> YEAR
-      e2e normalisation, (unparseable) bucket for bad date values in /pivot.
-
-0.013.0  Wed Oct 15 12:00:00 PM EDT 2026
-    [ Phase 2.4 -- multi-series line chart + integration tests ]
-
-    - GET /graph now accepts ?series=<col>; when present, records are grouped
-      by that column and each distinct value becomes one series.  The chart is
-      rendered via HTML::D3 render_multi_series_line_chart_with_interactive_legends
-      (interactive legend toggles series visibility).  When ?series= is absent
-      the route behaves exactly as before (zoomable single-series line chart).
-    - GET /line (alias for /graph): works with all /graph params including ?series=.
-    - t/integration.t sections 38-43: smoke tests for /scatter, /stacked,
-      /combo, /treemap, /histogram (SVG ids, required-param 400s) and
-      multi-series /graph/?series= (two series present, /line alias works,
-      unknown series col -> 400).
-
-    [ Phase 2.2 -- Calculated fields (complete) ]
-
-    - Database::BI::Calc: recursive-descent expression evaluator; no string
-      eval anywhere; compile-time column whitelist; arithmetic (+ - * /),
-      comparison (= != < <= > >=), short-circuit IF, string functions
-      (upper lower trim len concat substr), numeric functions (round floor
-      ceil abs), date functions (year month day quarter week month_name
-      weekday now), bin(value,width) for histogram grouping, coalesce,
-      isnull; expression-length limit (512 chars); nesting-depth limit (20).
-    - All chart and pivot routes accept ?c=<name>:<expr> (repeatable) for
-      inline virtual columns; evaluated once per row before any grouping;
-      later ?c= specs may reference names from earlier ones.
-    - GET /calc/list?l=<spec>  -> JSON { fields: { name: expr } }
-    - POST /calc/save   body: l=<spec>&name=<ident>&expr=<expression>
-    - POST /calc/delete body: l=<spec>&name=<ident>
-    - Named calc fields stored in <app_home>/.bi/models.json; model_dir
-      config key overrides the .bi/ location; data_dir safety guard prevents
-      writing inside the data directory.
-    - Hostile expressions (eval, require, system, backticks, BEGIN) produce
-      a 400 from the HTTP API and a compile-time error from Calc->new,
-      never code execution (t/cgi_security.t attack vector 13).
-    - t/calc.t: grammar acceptance/rejection table, hostile-input security
-      cases, column whitelist, depth-limit, underscore-to-space alias.
-    - t/integration.t sections 35-37: inline ?c= on /pivot and /bar; calc
-      CRUD lifecycle; error paths.
-    - t/basic.t: GET /calc/list smoke test.
-
 0.012.0
-    [ Phase 2 -- analytical views (items 2.1, 2.3, and 2.4 implemented) ]
-
-    Item 2.4 -- Five new HTML::D3 0.19 chart routes (IMPLEMENTED)
-    - GET /scatter -- scatter plot; ?l=, ?x=col (numeric), ?y=col (numeric),
-      ?back=, ?back2=, ?back2_label=, ?f= filters; SVG id scatter_chart.
-    - GET /stacked -- stacked bar chart; ?l=, ?cat=col, ?seg=col,
-      ?val=col (optional; count mode when absent or __count__),
-      ?orient=h|v (default v); SVG id stacked_bar.
-    - GET /combo -- combo bar+line chart; ?l=, ?x=col, ?bar=col (numeric),
-      ?line=col (numeric), ?bar_label=, ?line_label=, ?back=, ?back2=,
-      ?back2_label=, ?f= filters; SVG id combo_chart.
-    - GET /treemap -- treemap; ?l=, ?cat=col, ?val=col (optional; count
-      mode when absent or __count__), ?scheme=<d3-scheme>, ?back=,
-      ?back2=, ?back2_label=, ?f= filters; SVG id treemap.
-    - GET /histogram -- histogram; ?l=, ?col=col (numeric), ?bins=N
-      (default 20, max 200), ?back=, ?back2=, ?back2_label=, ?f= filters;
-      SVG id histogram.
-    - GET /line -- alias for GET /graph (same action, same params).
-    - Dashboard toolbar: five new buttons (Stacked bar, Scatter, Combo
-      chart, Treemap, Histogram) with matching panels and panel JS scripts
-      following the existing otherPanels close-on-open pattern.
-    - All five new templates (scatter, stacked, combo, treemap, histogram)
-      follow the VWF hierarchy at templates/web/en/<name>.html.tt with
-      SVG/PNG export buttons and back-link breadcrumbs.
-    - Requires HTML::D3 >= 0.19 (render_scatter_chart_snippet,
-      render_stacked_bar_snippet, render_combo_snippet,
-      render_treemap_snippet, render_histogram_snippet).
+    [ Phase 2 -- analytical views, calculated fields, time intelligence,
+                  bins/groups/Top-N, multi-series charts, Redis backend ]
 
     Item 2.1 -- GET /pivot: crosstab view (IMPLEMENTED)
     - Accepts ?l= (required), ?j= (repeatable joins), ?rows=col[,col]
@@ -117,163 +11,132 @@ Revision history for Database-BI
       count_distinct; col empty for count).
     - ?totals=1 adds row subtotals, column subtotals, and a grand total;
       each is computed by a dedicated _grouped_totals call grouped by only
-      the row or column dimensions -- never by summing rendered cells.  This
-      means avg/min/max/count_distinct subtotals are arithmetically correct
-      (summing rendered cells would give wrong results for those functions).
-    - ?h=as:op:val (repeatable) applies post-aggregation HAVING filters
-      using the existing _apply_filter_spec operator vocabulary.
+      the row or column dimensions -- never by summing rendered cells.
+    - ?h=as:op:val (repeatable) applies post-aggregation HAVING filters.
     - ?max_cols=N collapses the tail of column-dimension combos beyond the
-      top-N (ranked by the first measure's column subtotal) into an "Other"
-      group computed by summing the collapsed cells -- acceptable for sum/count
-      here because the collapse is over disjoint complementary groups.
-    - ?format=csv|sqlite|json exports the laid-out grid (including totals rows
-      when ?totals=1) through the existing _render_csv/_render_sqlite/_render_json
-      helpers; no separate export path is needed.
-    - ?scheme= is accepted and forwarded to the template for future cell-shading
-      use; shading is not yet rendered (the CSS hook is present).
-    - Empty cells render as an HTML em-dash entity, visually distinct from zero.
-    - All aggregation is delegated to _grouped_totals so pivot numbers agree by
-      construction with /bar, /pie, /heatmap, and /graph on the same dataset.
-    - New template: templates/web/en/pivot.html.tt (ASCII-only; TT | html
-      throughout; responsive overflow-x: auto table).
+      top-N into an "Other" group.
+    - ?format=csv|sqlite|json exports the laid-out grid.
+    - ?topn=N and ?topn_col=<alias> keep only the top-N row groups ranked
+      by the specified measure (default: first measure); remaining records
+      are re-aggregated by column dimensions and appended as an "Other" row.
+      Invalid ?topn_col= returns 400.
+    - New template: templates/web/en/pivot.html.tt.
 
-    Item 2.2 -- calculated fields (DEFERRED to a future release)
-    - A hand-written recursive-descent parser evaluating a restricted expression
-      grammar (arithmetic, IF, UPPER/LOWER/LEN/TRIM/SUBSTR/CONCAT/ROUND/ABS/
-      YEAR/MONTH/DAY/NOW) over per-row column values.
-    - Storage in <app>/.bi/models.json keyed by table spec.
-    - Security requirement: no eval, no symbolic dispatch; hostile input must
-      produce a 400 parse error, never code execution (t/cgi_security.t case
-      required).
-    - Deferred because it requires a new security-sensitive parser component
-      that deserves its own review cycle; all other Phase 2 items that reference
-      calculated fields can be implemented without it.
+    Item 2.2 -- Calculated fields (IMPLEMENTED)
+    - Database::BI::Calc: recursive-descent expression evaluator; no string
+      eval anywhere; compile-time column whitelist; arithmetic (+ - * /),
+      comparison (= != < <= > >=), short-circuit IF, string functions
+      (upper lower trim len concat substr), numeric functions (round floor
+      ceil abs), date functions (year month day quarter week month_name
+      weekday now), bin(value,width) for histogram grouping, coalesce,
+      isnull; expression-length limit (512 chars); nesting-depth limit (20).
+    - All chart and pivot routes accept ?c=<name>:<expr> (repeatable) for
+      inline virtual columns; later specs may reference earlier names.
+    - GET /calc/list?l=<spec>  -> JSON { fields: { name: expr } }
+    - POST /calc/save   body: l=<spec>&name=<ident>&expr=<expression>
+    - POST /calc/delete body: l=<spec>&name=<ident>
+    - Named calc fields stored in <app_home>/.bi/models.json; model_dir
+      config key overrides; data_dir safety guard prevents writing inside
+      the data directory.
+    - Hostile expressions (eval, require, system, backticks, BEGIN) produce
+      a 400 from the HTTP API and a compile-time error from Calc->new.
+    - t/calc.t: grammar acceptance/rejection table, hostile-input security
+      cases, column whitelist, depth-limit, underscore-to-space alias.
+    - _apply_calc_fields: stored fields from .bi/models.json are merged
+      first; ?c= URL params may override individual fields by name.
+    - _apply_calc_fields: fields that evaluate to undef now store
+      '(unparseable)' so pivot/bar grouping keeps those rows visible.
 
     Item 2.3 -- GET /stats: column statistics panel (IMPLEMENTED)
     - Accepts ?l= (required), ?j= (repeatable joins), ?f= (repeatable filters).
     - Displays per-column: row_count, null_count, distinct_count, min, max,
       mean, median.
-    - null_count is defined as rows where the cell value is undef or '' (the
-      Phase 2 spec definition: "count - count(col)").
-    - distinct_count is computed via _grouped_totals(by => [$col], fn => 'count')
-      so the number agrees with a pivot that groups by that column.
-    - min/max/mean use _numeric_cell() to strip currency notation, consistent
-      with how /bar and /graph handle the same values.
-    - median is computed in Perl by sorting the numeric values and selecting the
-      middle element (or averaging the two middle elements for even counts).
-      This is option (a) from the Phase 2 spec: correct, O(n) memory, no
-      Statistics::Descriptive dependency.  It is intentionally NOT routed
-      through _grouped_totals because no backend aggregate() supports median.
-    - New template: templates/web/en/stats.html.tt (ASCII-only; TT | html
-      throughout; responsive table).
+    - New template: templates/web/en/stats.html.tt.
 
-    Item 2.4 -- more chart marks: scatter, multi-series line, stacked bar,
-                combo bar+line, treemap, histogram (DEFERRED)
-    - Requires introducing a chart-spec object so a new mark is one template
-      plus one param block, not a new controller action copy.
-    - The four existing chart views (pie_view, bar_view, heatmap_view,
-      graph_view) must be refactored onto that object before any new mark
-      is added; otherwise the refactor will never happen.
-    - HTML::D3 >= 0.18 ships render_scatter_chart_snippet; stacked bar and
-      combo may need upstream HTML::D3 additions (tracked as upstream deps,
-      not forked into BI).
+    Item 2.4 -- Additional chart routes (IMPLEMENTED)
+    - GET /scatter -- scatter plot; SVG id scatter_chart.
+    - GET /stacked -- stacked bar chart; ?seg=col; SVG id stacked_bar.
+    - GET /combo   -- combo bar+line chart; SVG id combo_chart.
+    - GET /treemap -- treemap; ?topn=N keeps top-N tiles, rest -> "Other".
+    - GET /histogram -- histogram; ?bins=N (default 20, max 200);
+      SVG id histogram.
+    - GET /line    -- alias for GET /graph (all /graph params accepted).
+    - GET /graph now accepts ?series=<col> for multi-series line charts
+      rendered via HTML::D3 render_multi_series_line_chart_with_interactive_legends.
+    - bar_view and pie_view: new ?topn=N parameter; remainder re-aggregated
+      from original records and appended as an "Other" category.
+    - Dashboard toolbar: Stacked bar, Scatter, Combo chart, Treemap,
+      Histogram buttons; all five new templates follow the VWF hierarchy.
+    - Requires HTML::D3 >= 0.19.
 
-    Item 2.5 -- time intelligence (DEFERRED)
-    - Date-dimension helper: parse a column to ISO-8601 or a user-supplied
-      strptime pattern, then derive year/quarter/month/week/day/month_name/
-      weekday as ordinary dimensions usable in ?rows=/?cols= without new
-      aggregation.
-    - Period-to-date (YTD/QTD/MTD) and prior-period comparison (YoY/MoM)
-      as two-aggregation presentation-layer combinations, not new measure
-      functions.
-    - Unparseable dates fall into an explicit "(unparseable)" bucket.
+    Item 2.5 -- Time intelligence: date normalisation (IMPLEMENTED)
+    - Database::BI::Calc: new standalone helper date_normalise($value, $pattern)
+      converts non-ISO dates to ISO-8601; supported patterns: %m/%d/%Y (US),
+      %d/%m/%Y (EU), %d-%b-%Y (DD-Mon-YYYY); returns undef on mismatch.
+    - GET /dates/list?l=<spec>           -> JSON { patterns: { col: pattern } }
+    - POST /dates/save  body: l=&col=&pattern=   (400 for unsupported pattern)
+    - POST /dates/delete body: l=&col=           (omit col= to clear all for spec)
+    - _apply_date_normalization: reads stored date_patterns from .bi/models.json
+      and normalises matching columns to ISO-8601 in-place before expression
+      evaluation.
 
-    Item 2.6 -- bins, groups, sets (DEFERRED)
-    - bin(col, width) as a synthetic dimension producing labelled half-open
-      intervals ([0,100)) usable in ?rows=/?cols=.
-    - Named value groups ({ West, Southwest } => "West region") stored with
-      calculated fields.
-    - "Top N by measure" via _grouped_totals(limit => N) plus a second
-      aggregation over the complement for the "Other" row -- not by
-      subtracting rendered cells.
+    Item 2.6 -- Named value groups and Top-N (IMPLEMENTED)
+    - _apply_calc_fields: named value groups are now applied as virtual
+      "${col}_group" columns for any source column that has groups registered
+      under the current l= spec in .bi/models.json.  Values not matched by any
+      group label are mapped to '(other)'.
+    - GET /groups/list?l=<spec>&col=<col> -> JSON { groups: { label: [vals] } }
+    - POST /groups/save   body: l=&col=&group=&values=
+    - POST /groups/delete body: l=&col=&group=
 
-    [ Bug Fixes ]
-    - stats_view: use alias 'cnt' (not '_cnt') for distinct-count aggregation
-      to avoid the DBD::CSV push-path rejection of underscore-leading aliases.
-    [ Tests ]
-    - t/basic.t: added smoke subtests for GET /pivot (15 assertions covering
-      basic render, col dimension, totals, CSV export, and four error cases)
-      and GET /stats (6 assertions covering render and missing-l= error);
-      test count 29 -> 31.
-    [ Dependencies ]
-    - Database::Abstraction >= 0.50 required (0.50 added redis_key parameter
-      and standalone-key support for non-compound Redis keys; bumped from
-      0.49 in a prior commit this release cycle).
-    [ API Changes ]
-    - GET /join now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc for
-      server-side pagination and in-memory ordering of the joined view.
-    - GET /combine now accepts ?page=N, ?per_page=M, ?sort=col, ?dir=asc|desc.
-      Sorting is applied in memory (union has no single backend to delegate to).
-    - GET /export and POST /export now accept ?page=N and ?per_page=M; the output
-      contains only the requested slice of the result set.
-    - GET /view/:table and GET /open now apply f= filters and d=1 dedup BEFORE
-      paginating (reduce-before-paginate): ?page=2 now returns the second page of
-      the filtered set, not the second raw page filtered to fewer rows.
-    [ Enhancements -- semantic layer (Phase 1) ]
-    - Added _grouped_totals() as the single aggregation entry point for all four
-      chart routes (/bar, /pie, /heatmap, /graph).  It tries to push GROUP BY to
-      the backend via Database::Abstraction::aggregate() / Database::Join::aggregate()
-      when safe to do so, and falls back to an in-Perl fold otherwise.
+    [ Dashboard UI ]
+    - Toolbar buttons: ƒ(x) Calc fields, Group values, Date format -- open
+      inline panels for managing calc fields, named groups, and date patterns
+      via AJAX (load/save/delete without page reload; reload on change).
+    - Top-N inputs added to bar, pie, treemap, and pivot chart panels.
+
+    [ Enhancements -- semantic layer ]
+    - Added _grouped_totals() as the single aggregation entry point for all
+      chart routes.  Tries to push GROUP BY to the backend via
+      Database::Abstraction::aggregate() / Database::Join::aggregate() when
+      safe; falls back to an in-Perl fold otherwise.
     - Added _measure(), _numeric_cell(), _measure_pushable(), and
       _parse_measure_param() private helpers supporting the aggregation layer.
-    - Push path is used only when: the source object supports aggregate(), no f=
-      filters are active (post-filter GROUP BY cannot be pushed safely), and every
-      sampled value in the measure column is a plain number (no currency symbols,
-      accounting notation, or blank cells -- all cases that diverge between SQL
-      and the Perl fold).  $ENV{BI_FORCE_PERL_AGG} overrides to Perl fold for
-      test equivalence assertions.
-    - Refactored _run_export_pipeline into a thin wrapper over the new
-      _run_pipeline_source, which returns the raw (source, records, columns)
-      triple without applying filters, dedup, or pagination.  Chart routes call
-      _run_pipeline_source directly so they can pass the live source object to
-      the push path.
-    - Added DataSource::aggregate() delegating method; returns [] immediately for
-      in-memory (headerless CSV/XLSX), empty-file, and URL-backed sources;
-      delegates to Database::Abstraction::aggregate() for file-backed sources.
-    - Eliminated four copies of the category-aggregation loop (one per chart
-      route) in favour of the single _grouped_totals() call.
+    - Refactored _run_export_pipeline into a thin wrapper over _run_pipeline_source.
+    - Added DataSource::aggregate() delegating method.
+
     [ Enhancements -- Redis backend ]
-    - Added Redis backend support.  DataSource now accepts a redis => 'redis://...'
-      constructor option; the named table is read from the Redis server via
-      Database::Abstraction's Redis backend (Redis::Fast preferred, Redis fallback).
-    - Added redis:tablename|redis://... spec format to _open_spec so Redis tables
-      can be used as the left source in joins (/join?l=redis:...).
-    - Added open_table helper support for the redis => option in BI.pm so the
-      full controller pipeline (join, export, graph, etc.) works with Redis sources.
-    - Added t/redis.t: 13 subtests covering DataSource construction, fetch_all,
-      selectall_arrayref, columns() laziness, _open_spec parsing, and Database::Join
-      integration, all using a mocked Redis so no real server is required.
-    - Added t/redis_live.t: 14 subtests against a real Redis server; skipped unless
-      REDIS_SERVER=redis://host:port is set in the environment.
+    - DataSource accepts redis => 'redis://...' constructor option.
+    - redis:tablename|redis://... spec format added to _open_spec.
+    - t/redis.t: 13 subtests (mocked); t/redis_live.t: 14 subtests (real server,
+      skipped unless REDIS_SERVER env is set).
+
     [ Enhancements -- pagination and pipeline ]
-    - Added DataSource::dbi_source() delegating method.  Database::Join 0.009.0
-      uses this to take the zero-copy ATTACH path for SQLite-backed sources,
-      avoiding a row-by-row spill into a temporary SQLite file.
-    - Added X-BI-Warnings response header to GET /export when schema-type-mismatch
-      warnings are present; API consumers can now see them without HTML parsing.
-    - Added _filter_specs_to_criteria and _fetch_page private helpers to Dashboard
-      to centralise the reduce-before-paginate logic.
+    - GET /join and /combine now accept ?page=N, ?per_page=M, ?sort=col, ?dir=.
+    - GET /export and POST /export now accept ?page=N, ?per_page=M.
+    - f= filters and d=1 dedup applied before pagination (reduce-before-paginate).
+    - Added DataSource::dbi_source() for Database::Join zero-copy ATTACH path.
+    - Added X-BI-Warnings response header to GET /export.
+
     [ Bug Fixes ]
-    - f= filters on paginated views no longer produce short pages or miss matching
-      rows on subsequent pages.
-    - d=1 dedup now deduplicates the full result before slicing, not just the page.
-    - has_next is now recomputed after any in-memory reduction so Next/Prev buttons
-      are accurate even when filters remove rows from the last page.
+    - stats_view: use alias 'cnt' (not '_cnt') for distinct-count aggregation.
+    - f= filters on paginated views no longer produce short pages.
+    - d=1 dedup now deduplicates the full result before slicing.
+    - has_next recomputed after in-memory reduction.
+
+    [ Tests ]
+    - t/integration.t sections 35-49 cover calc fields, named groups, top-N,
+      date normalisation, and multi-series line charts.
+    - t/calc.t: Calc grammar and security tests.
+    - t/basic.t: smoke subtests for /pivot, /stats, /calc/list; test count
+      updated.
+
     [ Dependencies ]
-    - Added Redis to TEST_REQUIRES (optional; tests skip gracefully when absent).
-    - Database::Abstraction >= 0.49 required (0.49 added aggregate()).
-    - Database::Join >= 0.009.0 required (0.009.0 added aggregate() and the
-      zero-copy ATTACH path via dbi_source()).
+    - HTML::D3 >= 0.19 (render_scatter_chart_snippet, render_stacked_bar_snippet,
+      render_combo_snippet, render_treemap_snippet, render_histogram_snippet).
+    - Database::Abstraction >= 0.50.
+    - Database::Join >= 0.009.0.
+    - Added Redis to TEST_REQUIRES (optional; tests skip when absent).
 
 0.011.0	Sun Oct 11 09:20:48 PM EDT 2026
     [ Enhancements ]
