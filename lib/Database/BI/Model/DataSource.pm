@@ -640,7 +640,6 @@ sub _init_redis_backend :Protected {
 		database  => $self->{_redis_url},
 		table     => $table,
 		redis_key => $self->{_raw_table},
-		no_entry  => 1,
 	) };
 	croak $self->_msg('error_backend_init', $table, $@) if $@;
 
@@ -1494,6 +1493,16 @@ sub columns {
 	# Redis-backed tables: delegate to _db->columns() which triggers the lazy
 	# open() on first call.  D::J requires a real column list at construction
 	# time so returning undef here would make join validation always fail.
+	# D::A builds its Redis column list from hgetall fields only and omits the
+	# entry key (the suffix of the Redis key pattern tablename:entryid).
+	# Prepend the id column so callers and D::J see a complete column list.
+	if (defined $self->{_redis_url} && $self->{_db}) {
+		my $da_cols  = $self->{_db}->columns() // [];
+		my $id       = $self->{_id_col} // 'entry';
+		my @full     = ($id, grep { $_ ne $id } @{$da_cols});
+		$self->{_columns} = \@full;
+		return $self->{_columns};
+	}
 	return $self->{_db} ? $self->{_db}->columns() : undef;
 }
 
