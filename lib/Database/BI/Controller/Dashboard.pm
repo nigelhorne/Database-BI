@@ -1565,7 +1565,7 @@ sub _validate_analysis :Protected ($self, $doc) {
 # _analysis_to_url($self, \%analysis) -> $url_string_or_undef
 #
 # Reconstructs a /join?l=...&j=...&f=... URL from a saved analysis.
-# Used by analysis_render (Phase 3.1) until a full canvas exists (Phase 3.2).
+# Used by canvas_render (Phase 3.1) to redirect when no visuals exist yet.
 sub _analysis_to_url :Protected ($self, $a) {
 	my @datasets = @{ $a->{datasets} // [] };
 	return undef unless @datasets;
@@ -1794,7 +1794,7 @@ sub analyses_import ($self) {
 #
 # Opens the first dataset from a saved analysis and chains any declared joins.
 # Returns the base pipeline triple for _render_visual_html.
-# Returns an empty list on any error so analysis_render can respond 422.
+# Returns an empty list on any error so canvas_render can respond 422.
 sub _build_canvas_pipeline :Protected ($self, $analysis) {
 	my @datasets = @{ $analysis->{datasets} // [] };
 	return () unless @datasets;
@@ -2240,12 +2240,12 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src) {
 	return { error => "Unknown visual kind: $kind" };
 }
 
-# GET /a/:id  -- render a saved analysis
+# GET /a/:id  -- render a saved canvas
 #
 # Phase 3.1 bridge: redirects to the reconstructed data-view URL when the
-# analysis has no visuals array.
-# Phase 3.2 canvas: renders N visuals in a CSS grid when visuals are present.
-sub analysis_render ($self) {
+# canvas has no visuals array.
+# Phase 3.2: renders N visuals in a CSS grid when visuals are present.
+sub canvas_render ($self) {
 	my $id = $self->stash('id') // '';
 	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -2255,12 +2255,12 @@ sub analysis_render ($self) {
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
-	# Phase 3.2: if visuals array is non-empty, render the dashboard canvas.
+	# Phase 3.2: if visuals array is non-empty, render the canvas.
 	my @visuals = @{ $a->{visuals} // [] };
 	if (@visuals) {
 		my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
 		return $self->render(
-			text   => 'Cannot open data source for this analysis',
+			text   => 'Cannot open data source for this canvas',
 			status => 422,
 		) unless defined $records;
 
@@ -2289,19 +2289,19 @@ sub analysis_render ($self) {
 
 		my ($platform, $language) = $self->_resolve_template;
 		return $self->render(
-			handler       => 'tt',
-			template      => "$platform/$language/analysis",
-			format        => 'html',
-			title         => $a->{name},
-			analysis_id   => $id,
-			analysis_name => $a->{name},
-			visuals       => \@rendered,
-			back_url      => '/',
-			back_label    => 'Home',
+			handler     => 'tt',
+			template    => "$platform/$language/canvas",
+			format      => 'html',
+			title       => $a->{name},
+			canvas_id   => $id,
+			canvas_name => $a->{name},
+			visuals     => \@rendered,
+			back_url    => '/',
+			back_label  => 'Home',
 		);
 	}
 
-	# Phase 3.1 bridge: reconstruct the data-view URL from the analysis spec.
+	# Phase 3.1 bridge: no visuals yet -- reconstruct the data-view URL and redirect.
 	my $url = $self->_analysis_to_url($a);
 	return $self->render(text => 'Cannot reconstruct URL from this analysis', status => 422)
 		unless defined $url;

@@ -84,7 +84,7 @@
 	</span>
 </div>
 
-<div class="canvas-grid" id="canvas-grid" data-analysis-id="[% analysis_id | html %]">
+<div class="canvas-grid" id="canvas-grid" data-canvas-id="[% canvas_id | html %]">
 [% FOREACH v IN visuals %]
 	<div class="visual-card" id="visual-[% v.id %]"
 	     data-visual="[% v.id %]"
@@ -111,7 +111,7 @@
 	'use strict';
 
 	var grid    = document.getElementById('canvas-grid');
-	var anaId   = grid ? grid.getAttribute('data-analysis-id') : '';
+	var anaId   = grid ? grid.getAttribute('data-canvas-id') : '';
 	var dragSrc = null;
 
 	function onDragStart(e) {

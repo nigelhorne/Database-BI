@@ -771,7 +771,7 @@ sub startup ($self) {
 	# Phase 3.1 -- Saved analyses
 	# /api/analyses/import must be registered BEFORE /api/analyses/:id so that the
 	# literal segment "import" is matched before the :id placeholder captures it.
-	$r->get('/a/:id')                   ->to('Dashboard#analysis_render');
+	$r->get('/a/:id')                   ->to('Dashboard#canvas_render');
 	$r->get('/api/analyses')            ->to('Dashboard#analyses_list');
 	$r->post('/api/analyses')           ->to('Dashboard#analyses_create');
 	$r->post('/api/analyses/import')    ->to('Dashboard#analyses_import');
