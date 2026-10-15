@@ -4881,6 +4881,11 @@ sub scatter_view ($self) {
 	my $series_col = $self->param('series') // '';
 	my $size_col   = $self->param('size')   // '';
 	my $scheme     = $self->param('scheme') // 'tableau10';
+	my $min_r      = int($self->param('min_r') // 3);
+	my $max_r      = int($self->param('max_r') // 15);
+	$min_r = 1 if $min_r < 1; $min_r = 40 if $min_r > 40;
+	$max_r = 1 if $max_r < 1; $max_r = 40 if $max_r > 40;
+	($min_r, $max_r) = ($max_r, $min_r) if $min_r > $max_r;
 	my $back       = _safe_back_url($self->param('back')) // '/';
 	my $back2      = _safe_back_url($self->param('back2'));
 	my $back2_lbl  = $self->param('back2_label') // '';
@@ -4905,6 +4910,11 @@ sub scatter_view ($self) {
 		if length $series_col && !$col_set{$series_col};
 	return $self->render(text => "Column not found: $size_col",   status => 400)
 		if length $size_col && !$col_set{$size_col};
+
+	my %SCATTER_SCHEMES = map { $_ => 1 } qw(tableau10 category10 set2 set3 paired);
+	if (length $series_col && !$SCATTER_SCHEMES{$scheme}) {
+		return $self->render(text => "Unknown colour scheme: $scheme", status => 400);
+	}
 
 	my @points;
 	for my $row (@$records) {
@@ -4937,7 +4947,7 @@ sub scatter_view ($self) {
 			x_label            => $x_col,
 			y_label            => $y_col,
 			(length $series_col ? (colour_by_series => 1, series_col => $series_col, scheme => $scheme) : ()),
-			(length $size_col   ? (size_col         => $size_col)                                       : ()),
+			(length $size_col   ? (size_col => $size_col, radius_range => [$min_r, $max_r])            : ()),
 		});
 
 	my $chart_html = $snippet->{html};

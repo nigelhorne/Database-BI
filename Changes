@@ -10,7 +10,13 @@ Revision history for Database-BI
       ?format=csv|sqlite|json|xlsx exports the result.
     - GET /stats: per-column statistics (row count, null count, distinct
       count, min, max, mean, median).
-    - GET /scatter: scatter/bubble plot (?x=, ?y=, ?series=, ?size=).
+    - GET /scatter: scatter/bubble plot (?x=, ?y=, ?series=, ?size=,
+      ?scheme=, ?min_r=, ?max_r=).  The scatter panel now exposes all
+      parameters: "Colour by" (any column), "Bubble size" (numeric
+      columns only), colour scheme (tableau10|category10|set2|set3|paired
+      -- enabled only when a series column is chosen), and Min/Max radius
+      1-40 (enabled only when a size column is chosen).  ?scheme= is
+      validated server-side; an unrecognised name returns 400.
     - GET /stacked: stacked bar chart (?cat=, ?series=, ?val=).
     - GET /combo: combo bar+line chart (?cat=, ?bar_val=, ?line_val=).
     - GET /treemap: treemap (?group=, ?size=, ?topn=N).

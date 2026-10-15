@@ -817,12 +817,47 @@
         </select>
         <input type="text" id="scatter-y-text" readonly hidden tabindex="-1">
       </div>
+      <div class="join-field">
+        <label for="scatter-series-sel">Colour by (optional)</label>
+        <select id="scatter-series-sel" name="series">
+          <option value="">&#x2014; none &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="scatter-size-sel">Bubble size (optional)</label>
+        <select id="scatter-size-sel" name="size">
+          <option value="">&#x2014; none &#x2014;</option>
+        </select>
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <div class="graph-btn-row">
           <button type="submit" id="btn-do-scatter" class="btn-primary" disabled>Plot</button>
           <button type="button" id="btn-cancel-scatter" class="btn-secondary">Cancel</button>
         </div>
+      </div>
+    </div>
+    <div class="graph-fields-row">
+      <div class="join-field">
+        <label for="scatter-scheme-sel">Colour scheme</label>
+        <select id="scatter-scheme-sel" name="scheme" disabled>
+          <option value="tableau10">Tableau 10</option>
+          <option value="category10">Category 10</option>
+          <option value="set2">Set 2</option>
+          <option value="set3">Set 3</option>
+          <option value="paired">Paired</option>
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="scatter-min-r">Min radius (1&#x2013;40)</label>
+        <input type="number" id="scatter-min-r" name="min_r" min="1" max="40" value="3" disabled>
+      </div>
+      <div class="join-field">
+        <label for="scatter-max-r">Max radius (1&#x2013;40)</label>
+        <input type="number" id="scatter-max-r" name="max_r" min="1" max="40" value="15" disabled>
       </div>
     </div>
   </form>
@@ -2551,6 +2586,11 @@ function parseAccounting(v) {
   var ySel          = document.getElementById('scatter-y-sel');
   var yTextInput    = document.getElementById('scatter-y-text');
   var yLabel        = document.getElementById('scatter-y-label');
+  var seriesSel     = document.getElementById('scatter-series-sel');
+  var sizeSel       = document.getElementById('scatter-size-sel');
+  var schemeSel     = document.getElementById('scatter-scheme-sel');
+  var minRInp       = document.getElementById('scatter-min-r');
+  var maxRInp       = document.getElementById('scatter-max-r');
   var backInp       = document.getElementById('scatter-back-inp');
   var back2Inp      = document.getElementById('scatter-back2-inp');
   var back2LabelInp = document.getElementById('scatter-back2-label-inp');
@@ -2564,17 +2604,26 @@ function parseAccounting(v) {
     btnDo.disabled = !(xSel.value && ySel.value);
   }
 
-  // Populate both X and Y selects with numeric-only columns.
+  function updateScatterState() {
+    if (schemeSel) schemeSel.disabled = !(seriesSel && seriesSel.value);
+    var hasSize = sizeSel && sizeSel.value;
+    if (minRInp) minRInp.disabled = !hasSize;
+    if (maxRInp) maxRInp.disabled = !hasSize;
+  }
+
+  // Populate X, Y, and size selects with numeric-only columns.
   function buildScatterSelects() {
     var tbl = document.querySelector('table[data-table]') || document.querySelector('table');
     if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return;
-    var headers = Array.from(tbl.tHead.rows[0].cells);
-    var rows    = Array.from(tbl.tBodies[0].rows);
-    var prevX   = xSel.value;
-    var prevY   = ySel.value;
+    var headers  = Array.from(tbl.tHead.rows[0].cells);
+    var rows     = Array.from(tbl.tBodies[0].rows);
+    var prevX    = xSel.value;
+    var prevY    = ySel.value;
+    var prevSize = sizeSel ? sizeSel.value : '';
     [xSel, ySel].forEach(function (sel) {
       while (sel.options.length > 1) sel.remove(1);
     });
+    if (sizeSel) { while (sizeSel.options.length > 1) sizeSel.remove(1); }
     headers.forEach(function (th, idx) {
       var name = th.textContent.trim();
       var vals = rows.map(function (r) {
@@ -2593,6 +2642,12 @@ function parseAccounting(v) {
       optY.value = name; optY.textContent = name;
       if (name === prevY) optY.selected = true;
       ySel.appendChild(optY);
+      if (sizeSel) {
+        var optS = document.createElement('option');
+        optS.value = name; optS.textContent = name;
+        if (name === prevSize) optS.selected = true;
+        sizeSel.appendChild(optS);
+      }
     });
     var n = ySel.options.length - 1;
     if (n === 1 && yTextInput && yLabel) {
@@ -2609,6 +2664,7 @@ function parseAccounting(v) {
       btnOpen.disabled = true;
       btnOpen.title    = 'Scatter plots need at least one numeric column';
     }
+    updateScatterState();
     return n;
   }
 
@@ -2639,6 +2695,8 @@ function parseAccounting(v) {
 
   xSel.addEventListener('change', checkScatter);
   ySel.addEventListener('change', checkScatter);
+  seriesSel && seriesSel.addEventListener('change', updateScatterState);
+  sizeSel   && sizeSel.addEventListener('change', updateScatterState);
 }());
 </script>
 
