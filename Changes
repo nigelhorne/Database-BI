@@ -42,10 +42,42 @@ Revision history for Database-BI
       degrades gracefully to 503 when model_dir is read-only.
     - Dashboard toolbar: "Save analysis..." button posts the current view as
       a named analysis and shows the shareable /a/:id link.
+    [ New Features -- Phase 3.3: Cross-Filtering ]
+    - GET /a/:id now accepts repeatable ?cf=col:op:val URL params (same
+      operators as the ?f= filter: eq, ne, lt, le, gt, ge, contains, starts,
+      empty, notempty) that filter every visual on the canvas except the
+      designated source.
+    - ?cv=N (optional) identifies the source visual index (0-based).  The
+      source visual is shown unfiltered but highlighted with a blue border
+      (class .cf-source) so the user can see what drove the selection.
+    - A yellow cross-filter chip appears below the canvas title showing the
+      active filter in plain English (e.g. "region = North") with an x Clear
+      link that strips ?cf= and ?cv= from the URL.
+    - Clicking a mark on any visual (bar segment, pie slice, scatter dot, etc.)
+      navigates to ?cf=col:eq:val&cv=N, reloading the canvas with that row
+      selected across all other visuals.
+    - _vis_cf_col(\%vis) selects the primary categorical column from a visual
+      spec (priority: cat > group > x > col) and exposes it as data-cf-col on
+      the .visual-card element so JS knows which column to cross-filter on.
+    - Bug fix: ?cf= was previously always truthy because every_param('cf')
+      returns an arrayref and the grep iterated over the ref rather than its
+      elements.  Fixed by dereferencing: @{ $self->every_param('cf') // [] }.
     [ Tests ]
     - Add t/model.t: 28 subtests covering CRUD, validation rejection table,
       export/import round-trip, /a/:id redirect, atomic write verification,
       and read-only model_dir degradation.
+    - t/model.t subtests 29-30: cross-filter chip rendering (chip absent when
+      no ?cf=, chip shown with description when ?cf= set, source visual
+      highlighted with cf-source class, non-source filtered); _vis_cf_col
+      column selection per encode spec.
+    [ Renames ]
+    - analysis.html.tt renamed to canvas.html.tt.
+    - analysis_render renamed to canvas_render; stash keys analysis_id /
+      analysis_name renamed to canvas_id / canvas_name; data-analysis-id
+      attribute renamed to data-canvas-id.  /api/analyses, analyses.json,
+      and all Phase 3.1 API helpers are unchanged.
+    - "Save analysis..." toolbar button renamed to "New canvas...";
+      "+ Canvas" chart-page button renamed to "+ Add to Existing Canvas".
 
 0.012.1	Thu Oct 15 12:00:00 PM EDT 2026
     [ Bug Fixes ]

@@ -74,11 +74,55 @@
 	align-items: center;
 	gap: 0.5rem;
 	margin-bottom: 0.75rem;
+	flex-wrap: wrap;
+}
+/* Cross-filter chip */
+.cf-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+	background: #fff3cd;
+	border: 1px solid #ffc107;
+	border-radius: 4px;
+	padding: 0.2rem 0.6rem;
+	font-size: 0.82rem;
+	color: #664d03;
+}
+.cf-chip a {
+	color: #664d03;
+	text-decoration: none;
+	font-weight: 700;
+}
+.cf-chip a:hover { text-decoration: underline; }
+/* Source visual: highlighted border, not filtered */
+.visual-card.cf-source {
+	border-color: #0d6efd;
+	box-shadow: 0 0 0 2px rgba(13,110,253,0.25);
+}
+.visual-card.cf-source .visual-card-header::after {
+	content: 'filter source';
+	font-size: 0.7rem;
+	color: #0d6efd;
+	margin-left: auto;
+	padding-left: 0.5rem;
+	white-space: nowrap;
+}
+/* SVG marks become pointer-cursor when cross-filter is possible */
+.visual-card[data-cf-col] svg rect,
+.visual-card[data-cf-col] svg path,
+.visual-card[data-cf-col] svg circle {
+	cursor: pointer;
 }
 </style>
 
 <div class="canvas-toolbar">
 	<h2 style="margin:0;flex:1">[% title | html %]</h2>
+	[% IF cf_display.length %]
+	<div class="cf-chip" id="cf-chip">
+		<span>Cross-filter: <strong>[% cf_display | html %]</strong></span>
+		<a href="[% cf_clear_url | html %]" title="Clear cross-filter">&times; Clear</a>
+	</div>
+	[% END %]
 	<span style="color:var(--muted,#6c757d);font-size:0.85rem">
 		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
 	</span>
@@ -86,8 +130,10 @@
 
 <div class="canvas-grid" id="canvas-grid" data-canvas-id="[% canvas_id | html %]">
 [% FOREACH v IN visuals %]
-	<div class="visual-card" id="visual-[% v.id %]"
+	<div class="visual-card[% v.cf_source ? ' cf-source' : '' %]"
+	     id="visual-[% v.id %]"
 	     data-visual="[% v.id %]"
+	     [% IF v.cf_col %]data-cf-col="[% v.cf_col | html %]"[% END %]
 	     [% IF v.style %]style="[% v.style | html %]"[% END %]
 	     draggable="true">
 		<div class="visual-card-header">
@@ -110,6 +156,7 @@
 (function () {
 	'use strict';
 
+	/* ---- drag-to-reorder ---- */
 	var grid    = document.getElementById('canvas-grid');
 	var anaId   = grid ? grid.getAttribute('data-canvas-id') : '';
 	var dragSrc = null;
@@ -172,6 +219,71 @@
 		grid.addEventListener('dragover', onDragOver);
 		grid.addEventListener('drop',     onDrop);
 	}
+
+	/* ---- cross-filter (3.3 URL-stage) ----
+	 *
+	 * Semantics: self-highlighting.
+	 *   - Clicking a mark on visual N navigates to ?cf=col:eq:val&cv=N.
+	 *   - On reload the server filters every visual except the source (cv=N).
+	 *   - The source card gets a blue border (.cf-source) to show it is the
+	 *     filter origin and is intentionally shown unfiltered.
+	 *   - Multi-select not supported: each click replaces any prior cross-filter.
+	 *   - Cross-filter respects each visual's own saved filters because the
+	 *     server applies ?cf= on top of them (see canvas_render in Dashboard.pm).
+	 *
+	 * extractCfValue(d) extracts the categorical value from a D3 datum.
+	 * HTML::D3 uses these shapes depending on chart kind:
+	 *   bar/treemap : d = [label, value]   (positional array)
+	 *   pie         : d = { data:[label,value], ... }  (pie arc datum)
+	 *   stacked     : d = { cat, seg, val }
+	 *   combo/line  : d = { x, bar_val, line_val } or { label, value }
+	 *   scatter     : d = [x, y]  -- less useful for CF; skipped when val==NaN
+	 */
+	function extractCfValue(d) {
+		if (d === undefined || d === null) return null;
+		if (Array.isArray(d) && d.length >= 1) {
+			var v = d[0];
+			return (v !== null && v !== undefined) ? String(v) : null;
+		}
+		if (d.data) {
+			if (Array.isArray(d.data) && d.data.length >= 1) return String(d.data[0]);
+			if (d.data.label !== undefined)                   return String(d.data.label);
+		}
+		if (d.cat   !== undefined) return String(d.cat);
+		if (d.label !== undefined) return String(d.label);
+		if (d.x     !== undefined) return String(d.x);
+		return null;
+	}
+
+	function initCrossFilters() {
+		if (typeof d3 === 'undefined') return;
+		var cards = document.querySelectorAll('.visual-card[data-cf-col]');
+		cards.forEach(function (card) {
+			var cfCol = card.getAttribute('data-cf-col');
+			var visId = card.getAttribute('data-visual');
+			if (!cfCol || visId === null) return;
+			var svg = card.querySelector('svg');
+			if (!svg) return;
+			d3.select(svg)
+				.selectAll('rect, path.arc, path.slice, circle.dot, g.bar > rect')
+				.on('click.cf', function (event, d) {
+					event.stopPropagation();
+					var val = extractCfValue(d);
+					if (val === null || val === '') return;
+					var u = new URL(window.location.href);
+					u.searchParams.delete('cf');
+					u.searchParams.delete('cv');
+					u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
+					u.searchParams.set('cv', visId);
+					window.location.href = u.toString();
+				});
+		});
+	}
+
+	/* Run after a short delay so D3 chart init (which is synchronous but
+	 * may queue microtasks) has fully bound data to the SVG elements. */
+	setTimeout(initCrossFilters, 50);
+
 }());
 </script>
 [%- END -%]

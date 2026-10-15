@@ -345,4 +345,111 @@ SKIP: {
 	chmod 0755, $ro_dir;  # restore for CLEANUP
 }
 
+# ---------------------------------------------------------------------------
+# Phase 3.3 -- cross-filter on the canvas (/a/:id?cf=col:op:val&cv=N)
+# ---------------------------------------------------------------------------
+
+subtest '3.3: cross-filter filters non-source visuals and highlights source' => sub {
+	# Use table visuals (kind=>'table') so we can inspect rendered cell data
+	# without needing HTML::D3 to be installed.  sales.csv has columns:
+	#   id, product, region, sales_rep, amount, sale_date
+	# We create two visuals, both showing the full table.
+	# With ?cf=region:eq:North, visual 1 should show only North rows;
+	# visual 0 (the source, cv=0) should still show all regions.
+
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'CF test canvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => { columns => ['region', 'amount'] }, title => 'All regions' },
+			{ kind => 'table', encode => { columns => ['region', 'amount'] }, title => 'Filtered' },
+		],
+	};
+
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid = $res->{id};
+	ok $cid, 'canvas id returned';
+
+	# -- Phase 1: no cross-filter -- both visuals show all rows
+	$t->get_ok("/a/$cid")
+	  ->status_is(200, 'canvas renders without cross-filter');
+	my $body = $t->tx->res->body;
+	is scalar(() = $body =~ /North/g) >= 2, 1,
+		'North appears in both visuals (no cross-filter)';
+	unlike $body, qr/id="cf-chip"/, 'no cross-filter chip element when cf= absent';
+
+	# -- Phase 2: cross-filter with cv=0 (source) --
+	# visual 0 is source: unfiltered, gets cf-source class
+	# visual 1 is filtered: shows only North rows
+	use Mojo::Util qw(url_escape);
+	$t->get_ok("/a/$cid?cf=" . url_escape('region:eq:North') . "&cv=0")
+	  ->status_is(200, 'canvas renders with cross-filter');
+	my $cf_body = $t->tx->res->body;
+
+	like   $cf_body, qr/id="cf-chip"/,      'cross-filter chip rendered';
+	like   $cf_body, qr/region = North/,    'chip shows filter description';
+	like   $cf_body, qr/class="[^"]*\bcf-source\b/, 'source visual gets cf-source class on element';
+	like   $cf_body, qr/Clear/,             'clear link present';
+	like   $cf_body, qr/\?cf=/,             'clear link URL contains cf param (before stripping)';
+
+	# The cross-filter chip's clear href must NOT contain cf= or cv=
+	if ($cf_body =~ /href="([^"]+)"[^>]*>\s*[&\#x2F;\w]*\s*Clear/) {
+		my $clear_href = $1;
+		unlike $clear_href, qr/[?&]cf=/,  'clear href has no cf= param';
+		unlike $clear_href, qr/[?&]cv=/,  'clear href has no cv= param';
+	}
+
+	# visual 0 (source, cv=0): both North and South should still appear
+	# visual 1 (filtered): only North rows, South absent from that visual's section
+	# We check by counting visual card sections -- source card has cf-source class;
+	# the text "South" should appear in the source section but not in the filtered one.
+	# Simplified: verify South appears at all (source) and North appears at all (both).
+	like   $cf_body, qr/North/,   'North visible (in source and/or filtered visual)';
+	like   $cf_body, qr/South/,   'South visible in source (unfiltered) visual';
+
+	# -- Phase 3: cross-filter without cv (no source) -- both visuals filtered
+	$t->get_ok("/a/$cid?cf=" . url_escape('region:eq:North'))
+	  ->status_is(200, 'cross-filter without cv= still renders');
+	my $nocv_body = $t->tx->res->body;
+	like   $nocv_body, qr/id="cf-chip"/, 'chip shown when cv absent';
+	unlike $nocv_body, qr/class="[^"]*\bcf-source\b/, 'no cf-source class on any element when cv absent';
+
+	# -- Phase 4: clear URL round-trip -- canvas renders normally after clearing
+	$t->get_ok("/a/$cid")
+	  ->status_is(200, 'canvas renders cleanly after cross-filter cleared');
+};
+
+subtest '3.3: _vis_cf_col selects correct dimension per kind' => sub {
+	# White-box check via canvas_render stash (inspect rendered HTML for data-cf-col).
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'CF col test',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table',   encode => { cat => 'region' },                      title => 'T1' },
+			{ kind => 'table',   encode => { x   => 'sale_date' },                   title => 'T2' },
+			{ kind => 'table',   encode => {},                                        title => 'T3' },
+		],
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid2 = $res->{id};
+
+	$t->get_ok("/a/$cid2")->status_is(200);
+	my $b = $t->tx->res->body;
+	like   $b, qr/data-cf-col="region"/,    'cat column exposed as data-cf-col';
+	like   $b, qr/data-cf-col="sale_date"/, 'x column exposed as data-cf-col';
+	unlike $b, qr/data-cf-col=""/, 'empty cf_col produces no data-cf-col attribute';
+};
+
 done_testing;

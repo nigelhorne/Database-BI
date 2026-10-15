@@ -2240,6 +2240,21 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src) {
 	return { error => "Unknown visual kind: $kind" };
 }
 
+# _vis_cf_col(\%vis) -> $col_name | undef
+#
+# Returns the primary categorical dimension of a visual -- the column that
+# makes sense to cross-filter on when the user clicks a mark.
+# Priority: cat > group > x > col (histogram).  Series/size/val are measures,
+# not dimensions, so they are intentionally excluded.
+sub _vis_cf_col {
+	my ($vis) = @_;
+	my $enc = $vis->{encode} // {};
+	for my $key (qw(cat group x col)) {
+		return $enc->{$key} if length($enc->{$key} // '');
+	}
+	return undef;
+}
+
 # GET /a/:id  -- render a saved canvas
 #
 # Phase 3.1 bridge: redirects to the reconstructed data-view URL when the
@@ -2255,7 +2270,7 @@ sub canvas_render ($self) {
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
-	# Phase 3.2: if visuals array is non-empty, render the canvas.
+	# Phase 3.2 / 3.3: if visuals array is non-empty, render the canvas.
 	my @visuals = @{ $a->{visuals} // [] };
 	if (@visuals) {
 		my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
@@ -2263,6 +2278,39 @@ sub canvas_render ($self) {
 			text   => 'Cannot open data source for this canvas',
 			status => 422,
 		) unless defined $records;
+
+		# Phase 3.3 -- cross-filter state from URL params.
+		# ?cf=col:op:val (repeatable) filters all visuals except the source.
+		# ?cv=N identifies the source visual (shown unfiltered but highlighted).
+		# Semantics: self-highlighting (source shown in full; others filtered).
+		# Multiple simultaneous selections are not supported in this version.
+		my @cf_specs  = grep { /\S/ } @{ $self->every_param('cf') // [] };
+		my $cf_source = defined($self->param('cv'))
+			? int($self->param('cv')) : -1;
+		my $cf_active = !!@cf_specs;
+
+		# Build the "clear cross-filter" URL for the chip close button.
+		my $cf_clear_url = $self->req->url->clone;
+		$cf_clear_url->query->remove('cf')->remove('cv');
+		$cf_clear_url = $cf_clear_url->to_string;
+
+		# Human-readable summary for the cross-filter chip, e.g. "region = North".
+		my $cf_display = '';
+		if ($cf_active) {
+			my @parts;
+			for my $spec (@cf_specs) {
+				my ($col, $op, $val) = split /:/, $spec, 3;
+				$val //= '';
+				my $sym = ($op eq 'eq') ? '='  : ($op eq 'ne') ? '!='
+				        : ($op eq 'lt') ? '<'  : ($op eq 'le') ? '<='
+				        : ($op eq 'gt') ? '>'  : ($op eq 'ge') ? '>='
+				        : ($op eq 'contains') ? 'contains'
+				        : ($op eq 'starts')   ? 'starts with'
+				        : $op;
+				push @parts, "$col $sym $val";
+			}
+			$cf_display = join(' AND ', @parts);
+		}
 
 		# Pre-build CSS grid position strings to avoid TT hash-key lookups.
 		my %layout_pos;
@@ -2275,29 +2323,43 @@ sub canvas_render ($self) {
 
 		my @rendered;
 		for my $i (0 .. $#visuals) {
-			my $vis    = $visuals[$i];
-			my $result = $self->_render_visual_html($vis, $records, $columns, $src);
+			my $vis = $visuals[$i];
+
+			# Apply cross-filter to every visual except the source (self-highlighting).
+			my $vis_recs = $records;
+			if ($cf_active && $i != $cf_source) {
+				for my $cfs (@cf_specs) {
+					$vis_recs = _apply_filter_spec($vis_recs, $cfs);
+				}
+			}
+
+			my $result = $self->_render_visual_html($vis, $vis_recs, $columns, $src);
 			push @rendered, {
-				id    => $i,
-				title => ($vis->{title} // $result->{title} // ('Visual ' . ($i + 1))),
-				html  => $result->{html}  // '',
-				error => $result->{error} // '',
-				kind  => $vis->{kind}     // '',
-				style => $layout_pos{$i}  // '',
+				id        => $i,
+				title     => ($vis->{title} // $result->{title} // ('Visual ' . ($i + 1))),
+				html      => $result->{html}  // '',
+				error     => $result->{error} // '',
+				kind      => $vis->{kind}     // '',
+				style     => $layout_pos{$i}  // '',
+				cf_col    => (_vis_cf_col($vis) // ''),
+				cf_source => ($i == $cf_source ? 1 : 0),
 			};
 		}
 
 		my ($platform, $language) = $self->_resolve_template;
 		return $self->render(
-			handler     => 'tt',
-			template    => "$platform/$language/canvas",
-			format      => 'html',
-			title       => $a->{name},
-			canvas_id   => $id,
-			canvas_name => $a->{name},
-			visuals     => \@rendered,
-			back_url    => '/',
-			back_label  => 'Home',
+			handler      => 'tt',
+			template     => "$platform/$language/canvas",
+			format       => 'html',
+			title        => $a->{name},
+			canvas_id    => $id,
+			canvas_name  => $a->{name},
+			visuals      => \@rendered,
+			cf_active    => $cf_active    ? 1 : 0,
+			cf_display   => $cf_display,
+			cf_clear_url => $cf_clear_url,
+			back_url     => '/',
+			back_label   => 'Home',
 		);
 	}
 
