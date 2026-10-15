@@ -1,5 +1,14 @@
 Revision history for Database-BI
 
+0.012.1	Thu Oct 15 12:00:00 PM EDT 2026
+    [ Bug Fixes ]
+    - Fix 'Argument "" isn't numeric in int' warnings logged to the console
+      when numeric query parameters (?topn=, ?max=, ?max_cols=, ?bins=,
+      ?per_page=, ?page=, ?min_r=, ?max_r=) are submitted with an empty
+      value.  All eight int($self->param(...) // N) calls changed to
+      int($self->param(...) || N) so that an empty string falls back to
+      the default just as undef does.
+
 0.012.0	Wed Oct 14 09:10:15 PM EDT 2026
     [ New Features ]
     - GET /pivot: crosstab/pivot table.  Accepts ?rows=, ?cols=, and
