@@ -1545,7 +1545,7 @@ sub _validate_analysis :Protected ($self, $doc) {
 		return sprintf($MESSAGES{error_analysis_version}, $doc->{version})
 			unless $doc->{version} =~ /\A\d+\z/ && $doc->{version} <= 1;
 	}
-	for my $key (qw( visuals joins measures combines bookmarks layout )) {
+	for my $key (qw( visuals joins measures combines bookmarks layout hierarchies )) {
 		if (defined $doc->{$key}) {
 			return "$key must be an array"
 				unless ref $doc->{$key} eq 'ARRAY';
@@ -1638,7 +1638,7 @@ sub analyses_create ($self) {
 	$body->{updated} = time();
 
 	# Strip caller-supplied immutable fields except id/version/created/updated
-	delete $body->{$_} for grep { !m/\A(?:id|version|created|updated|name|datasets|joins|combines|fields|measures|params|visuals|layout|bookmarks)\z/ } keys %$body;
+	delete $body->{$_} for grep { !m/\A(?:id|version|created|updated|name|datasets|joins|combines|fields|measures|params|visuals|layout|bookmarks|hierarchies)\z/ } keys %$body;
 
 	$analyses->{$id} = $body;
 	$self->_write_analyses($analyses);
@@ -2312,6 +2312,97 @@ sub canvas_render ($self) {
 			$cf_display = join(' AND ', @parts);
 		}
 
+		# Phase 3.4 -- drill-through and drill-down.
+		#
+		# Drill-through: when cross-filters are active, build a URL to the
+		# primary data source with those filters applied as ?f= params so the
+		# user can inspect the raw rows behind the selection.
+		my $drillthrough_url = '';
+		if (@cf_specs) {
+			my $ds0   = ($a->{datasets} // [])->[0];
+			my $spec0 = ($ds0  // {})->{spec} // '';
+			my $base  = $self->_spec_to_url($spec0);
+			if ($base ne '/') {
+				my $sep = ($base =~ /\?/) ? '&' : '?';
+				for my $cf (@cf_specs) {
+					$base .= $sep . 'f=' . url_escape($cf);
+					$sep = '&';
+				}
+				$drillthrough_url = $base;
+			}
+		}
+
+		# Drill-down: navigate a named hierarchy one level at a time.
+		# ?dd=<name> names the active hierarchy; ?dl=<N> is the current level
+		# (0-based); accumulated ?cf= params carry the drill path.
+		my $dd_name  = $self->param('dd') // '';
+		my $dl_raw   = $self->param('dl');
+		my $dd_level = (defined $dl_raw && length $dl_raw) ? int($dl_raw) : 0;
+		$dd_level    = 0 if $dd_level < 0;
+
+		my ($dd_hier) = grep { ($_->{name} // '') eq $dd_name }
+		                     @{ $a->{hierarchies} // [] };
+
+		my $drill_active = (defined $dd_hier && length $dd_name) ? 1 : 0;
+		my $drill_col    = '';
+		my @drill_crumb  = ();
+		my $drill_max    = 0;
+
+		if ($drill_active) {
+			my @levels = @{ $dd_hier->{levels} // [] };
+			$drill_max = $#levels;
+			# Allow dl up to scalar(@levels) -- one past the last valid level
+			# means "all levels drilled through" (drill-through mode).
+			my $dl_cap = scalar @levels;
+			$dd_level  = $dl_cap if $dd_level > $dl_cap;
+			$drill_col = $levels[$dd_level] // '';
+
+			# Extract drilled values: each crossed level contributes a
+			# cf=<col>:eq:<val> param in the URL.
+			my %cf_by_col;
+			for my $cf (@cf_specs) {
+				my ($col, $op, $val) = split /:/, $cf, 3;
+				$cf_by_col{$col} = ($val // '')
+					if length($col // '') && ($op // '') eq 'eq';
+			}
+
+			# "All" crumb -- keep ?dd=, remove dl/cf/cv.
+			my $all_url = $self->req->url->clone;
+			$all_url->query->remove('dl')->remove('cf')->remove('cv');
+			push @drill_crumb, {
+				label => 'All',
+				url   => ($dd_level > 0 ? $all_url->to_string : ''),
+				cur   => ($dd_level == 0 ? 1 : 0),
+			};
+
+			# One crumb per drilled value (levels 0 .. dd_level-1).
+			for my $i (0 .. $dd_level - 1) {
+				my $col_i   = $levels[$i];
+				my $val_i   = $cf_by_col{$col_i} // '';
+				my $is_last = ($i == $dd_level - 1);
+
+				# Back-link: keep ?dd=, cf for levels 0..i, dl=i+1.
+				my $back_url = '';
+				unless ($is_last) {
+					my $u = $self->req->url->clone;
+					$u->query->remove('dl')->remove('cf')->remove('cv');
+					$u->query->append('dl' => $i + 1);
+					for my $j (0 .. $i) {
+						my $val_j = $cf_by_col{ $levels[$j] };
+						$u->query->append('cf' => "$levels[$j]:eq:$val_j")
+							if defined $val_j;
+					}
+					$back_url = $u->to_string;
+				}
+
+				push @drill_crumb, {
+					label => $val_i,
+					url   => $back_url,
+					cur   => $is_last ? 1 : 0,
+				};
+			}
+		}
+
 		# Pre-build CSS grid position strings to avoid TT hash-key lookups.
 		my %layout_pos;
 		for my $lp (@{ $a->{layout} // [] }) {
@@ -2355,11 +2446,18 @@ sub canvas_render ($self) {
 			canvas_id    => $id,
 			canvas_name  => $a->{name},
 			visuals      => \@rendered,
-			cf_active    => $cf_active    ? 1 : 0,
-			cf_display   => $cf_display,
-			cf_clear_url => $cf_clear_url,
-			back_url     => '/',
-			back_label   => 'Home',
+			cf_active        => $cf_active    ? 1 : 0,
+			cf_display       => $cf_display,
+			cf_clear_url     => $cf_clear_url,
+			drillthrough_url => $drillthrough_url,
+			drill_active     => $drill_active  ? 1 : 0,
+			drill_name       => $dd_name,
+			drill_level      => $dd_level,
+			drill_col        => $drill_col,
+			drill_crumb      => \@drill_crumb,
+			drill_max        => $drill_max,
+			back_url         => '/',
+			back_label       => 'Home',
 		);
 	}
 

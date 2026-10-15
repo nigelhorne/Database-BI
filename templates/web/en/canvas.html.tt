@@ -113,13 +113,50 @@
 .visual-card[data-cf-col] svg circle {
 	cursor: pointer;
 }
+/* Drill-down breadcrumb */
+.drill-crumb {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.25rem;
+	font-size: 0.85rem;
+	color: var(--muted, #6c757d);
+	flex-wrap: wrap;
+}
+.drill-crumb a { color: var(--link, #0d6efd); text-decoration: none; }
+.drill-crumb a:hover { text-decoration: underline; }
+.drill-crumb .drill-cur { font-weight: 600; color: var(--body-color, #212529); }
+/* Drill-through and cross-filter "View rows" links */
+.drill-through-link, .cf-drillthrough {
+	font-size: 0.82rem;
+	color: var(--link, #0d6efd);
+	text-decoration: none;
+	white-space: nowrap;
+}
+.drill-through-link:hover, .cf-drillthrough:hover { text-decoration: underline; }
 </style>
 
 <div class="canvas-toolbar">
 	<h2 style="margin:0;flex:1">[% title | html %]</h2>
-	[% IF cf_display.length %]
+	[% IF drill_name.length %]
+	<nav class="drill-crumb" aria-label="Drill path">
+		[% FOREACH crumb IN drill_crumb %]
+		[% UNLESS loop.first %] &rsaquo; [% END %]
+		[% IF crumb.url.length %]
+			<a href="[% crumb.url | html %]">[% crumb.label | html %]</a>
+		[% ELSE %]
+			<span class="drill-cur">[% crumb.label | html %]</span>
+		[% END %]
+		[% END %]
+		[% IF drillthrough_url.length %]
+		&nbsp;&middot;&nbsp;<a href="[% drillthrough_url | html %]" class="drill-through-link" title="View matching rows in source table">View rows &rarr;</a>
+		[% END %]
+	</nav>
+	[% ELSIF cf_display.length %]
 	<div class="cf-chip" id="cf-chip">
 		<span>Cross-filter: <strong>[% cf_display | html %]</strong></span>
+		[% IF drillthrough_url.length %]
+		<a href="[% drillthrough_url | html %]" class="cf-drillthrough" title="View matching rows in source table">View rows &rarr;</a>
+		[% END %]
 		<a href="[% cf_clear_url | html %]" title="Clear cross-filter">&times; Clear</a>
 	</div>
 	[% END %]
@@ -128,7 +165,8 @@
 	</span>
 </div>
 
-<div class="canvas-grid" id="canvas-grid" data-canvas-id="[% canvas_id | html %]">
+<div class="canvas-grid" id="canvas-grid" data-canvas-id="[% canvas_id | html %]"
+[% IF drill_name.length %]     data-drill-name="[% drill_name | html %]" data-drill-level="[% drill_level %]" data-drill-max="[% drill_max %]" data-drill-col="[% drill_col | html %]"[% END %]>
 [% FOREACH v IN visuals %]
 	<div class="visual-card[% v.cf_source ? ' cf-source' : '' %]"
 	     id="visual-[% v.id %]"
@@ -157,9 +195,13 @@
 	'use strict';
 
 	/* ---- drag-to-reorder ---- */
-	var grid    = document.getElementById('canvas-grid');
-	var anaId   = grid ? grid.getAttribute('data-canvas-id') : '';
-	var dragSrc = null;
+	var grid       = document.getElementById('canvas-grid');
+	var anaId      = grid ? grid.getAttribute('data-canvas-id') : '';
+	var drillName  = grid ? (grid.getAttribute('data-drill-name')  || '') : '';
+	var drillLevel = grid ? parseInt(grid.getAttribute('data-drill-level') || '0', 10) : 0;
+	var drillMax   = grid ? parseInt(grid.getAttribute('data-drill-max')   || '0', 10) : 0;
+	var drillCol   = grid ? (grid.getAttribute('data-drill-col')   || '') : '';
+	var dragSrc    = null;
 
 	function onDragStart(e) {
 		dragSrc = this.closest('.visual-card');
@@ -271,11 +313,30 @@
 					var val = extractCfValue(d);
 					if (val === null || val === '') return;
 					var u = new URL(window.location.href);
-					u.searchParams.delete('cf');
-					u.searchParams.delete('cv');
-					u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
-					u.searchParams.set('cv', visId);
-					window.location.href = u.toString();
+
+					if (drillName && cfCol === drillCol) {
+						/* Drill-down mode: clicking the current-level column
+						 * advances one level.  At the deepest level, open the
+						 * drill-through URL to see the raw matching rows. */
+						if (drillLevel >= drillMax) {
+							var dtLink = document.querySelector('a.drill-through-link');
+							if (dtLink) { window.location.href = dtLink.href; }
+							return;
+						}
+						u.searchParams.delete('cv');
+						u.searchParams.delete('dl');
+						u.searchParams.set('dl', drillLevel + 1);
+						u.searchParams.append('cf', drillCol + ':eq:' + encodeURIComponent(val));
+						window.location.href = u.toString();
+					} else if (!drillName) {
+						/* Normal cross-filter mode: replace any existing filter. */
+						u.searchParams.delete('cf');
+						u.searchParams.delete('cv');
+						u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
+						u.searchParams.set('cv', visId);
+						window.location.href = u.toString();
+					}
+					/* drillName set but cfCol !== drillCol: ignore click. */
 				});
 		});
 	}

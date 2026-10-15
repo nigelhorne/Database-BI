@@ -425,6 +425,91 @@ subtest '3.3: cross-filter filters non-source visuals and highlights source' => 
 	  ->status_is(200, 'canvas renders cleanly after cross-filter cleared');
 };
 
+subtest '3.4: drill-through link in cross-filter chip' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'DT Canvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Table' },
+		],
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid = $res->{id};
+
+	# Without cross-filter: no drill-through link
+	$t->get_ok("/a/$cid")->status_is(200);
+	unlike $t->tx->res->body, qr/cf-drillthrough/,
+		'no drill-through link when no cf= active';
+
+	# With cross-filter: drill-through link appears in the chip pointing to /open
+	require Mojo::Util;
+	my $cf_url = "/a/$cid?cf=" . Mojo::Util::url_escape('region:eq:North');
+	$t->get_ok($cf_url)->status_is(200);
+	my $b = $t->tx->res->body;
+	like $b, qr/class="cf-drillthrough"/,
+		'drill-through link present when cf= is active';
+	like $b, qr{/open\?path=.*[?&]f=region},
+		'drill-through URL contains /open with f= param';
+};
+
+subtest '3.4: drill-down breadcrumb from ?dd=/?dl= params' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name        => 'Drill Canvas',
+		datasets    => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals     => [
+			{ kind => 'bar', encode => { cat => 'region' },  title => 'By Region' },
+			{ kind => 'bar', encode => { cat => 'product' }, title => 'By Product' },
+		],
+		hierarchies => [ { name => 'Geo', levels => [ 'region', 'product' ] } ],
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201, 'canvas with hierarchies created')->tx->res->json;
+	my $cid = $res->{id};
+
+	# Level 0: "All" is current (no link)
+	$t->get_ok("/a/$cid?dd=Geo&dl=0")->status_is(200);
+	my $b0 = $t->tx->res->body;
+	like   $b0, qr/class="drill-cur"[^>]*>All</,
+		'All is current at dl=0';
+	unlike $b0, qr/<a [^>]*>All</,
+		'All has no link at dl=0 (already at top)';
+	unlike $b0, qr/id="cf-chip"/,
+		'no cf chip when drill mode is active';
+
+	# Level 1 after drilling into North: All is a link, North is current
+	require Mojo::Util;
+	my $dl1_url = "/a/$cid?dd=Geo&dl=1&cf=" . Mojo::Util::url_escape('region:eq:North');
+	$t->get_ok($dl1_url)->status_is(200);
+	my $b1 = $t->tx->res->body;
+	like   $b1, qr/<a [^>]*href=[^>]*>All</,
+		'All is a link at dl=1';
+	like   $b1, qr/class="drill-cur"[^>]*>North</,
+		'North is current at dl=1';
+	like   $b1, qr/drill-through-link/,
+		'drill-through link present when drill path is non-empty';
+
+	# Level 2 (max): breadcrumb = All > North > product_val (current)
+	my $dl2_url = "/a/$cid?dd=Geo&dl=2"
+		. '&cf=' . Mojo::Util::url_escape('region:eq:North')
+		. '&cf=' . Mojo::Util::url_escape('product:eq:Widget A');
+	$t->get_ok($dl2_url)->status_is(200);
+	my $b2 = $t->tx->res->body;
+	like   $b2, qr/<a [^>]*href=[^>]*>All</,     'All linked at dl=2';
+	like   $b2, qr/<a [^>]*href=[^>]*>North</,   'North linked at dl=2';
+	like   $b2, qr/class="drill-cur"[^>]*>Widget A</, 'Widget A is current at dl=2';
+};
+
 subtest '3.3: _vis_cf_col selects correct dimension per kind' => sub {
 	# White-box check via canvas_render stash (inspect rendered HTML for data-cf-col).
 	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
