@@ -66,10 +66,28 @@ Revision history for Database-BI
     - Add t/model.t: 28 subtests covering CRUD, validation rejection table,
       export/import round-trip, /a/:id redirect, atomic write verification,
       and read-only model_dir degradation.
-    - t/model.t subtests 29-30: cross-filter chip rendering (chip absent when
+    - t/model.t subtests 29-32: cross-filter chip rendering (chip absent when
       no ?cf=, chip shown with description when ?cf= set, source visual
-      highlighted with cf-source class, non-source filtered); _vis_cf_col
-      column selection per encode spec.
+      highlighted with cf-source class, non-source filtered); drill-through
+      link absent without ?cf= and present with ?cf= pointing to /open with
+      ?f=; drill-down breadcrumb at dl=0/1/2 for a two-level hierarchy;
+      _vis_cf_col column selection per encode spec.
+    [ New Features -- Phase 3.4: Drill-Through and Drill-Down ]
+    - Drill-through: when a cross-filter is active on the canvas, a "View rows
+      rightarrow" link appears in the cross-filter chip pointing to the primary
+      data source (/open?path=... or /view/:table) with ?f= params applied for
+      the active cross-filter values.  Lets the user inspect the raw rows
+      behind a selection without leaving the analysis context.
+    - Drill-down: analyses may store a hierarchies array (each entry has a name
+      and a levels array of column names).  Activating a hierarchy via ?dd=name
+      enables level-by-level dimension traversal: clicking a mark on the
+      current-level column advances to the next level (?dl=N+1) with the
+      selected value accumulated in ?cf=col:eq:val.  A breadcrumb ("All >
+      val0 > val1 > [current]") is shown in the canvas toolbar; each ancestor
+      level is a link to navigate back up.  At the deepest level the "View
+      rows" drill-through link opens the filtered source table.
+    - _validate_analysis and analyses_create now accept hierarchies as a valid
+      analysis key.
     [ Renames ]
     - analysis.html.tt renamed to canvas.html.tt.
     - analysis_render renamed to canvas_render; stash keys analysis_id /

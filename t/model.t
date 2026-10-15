@@ -442,19 +442,21 @@ subtest '3.4: drill-through link in cross-filter chip' => sub {
 	)->status_is(201)->tx->res->json;
 	my $cid = $res->{id};
 
-	# Without cross-filter: no drill-through link
+	# Without cross-filter: no drill-through link element (CSS class name
+	# appears in the <style> block, so match the HTML attribute form instead).
 	$t->get_ok("/a/$cid")->status_is(200);
-	unlike $t->tx->res->body, qr/cf-drillthrough/,
+	unlike $t->tx->res->body, qr/class="cf-drillthrough"/,
 		'no drill-through link when no cf= active';
 
-	# With cross-filter: drill-through link appears in the chip pointing to /open
+	# With cross-filter: drill-through link appears in the chip pointing to /open.
+	# The URL contains ?path=<encoded> followed by &f= (HTML-encoded as &amp;f=).
 	require Mojo::Util;
 	my $cf_url = "/a/$cid?cf=" . Mojo::Util::url_escape('region:eq:North');
 	$t->get_ok($cf_url)->status_is(200);
 	my $b = $t->tx->res->body;
 	like $b, qr/class="cf-drillthrough"/,
 		'drill-through link present when cf= is active';
-	like $b, qr{/open\?path=.*[?&]f=region},
+	like $b, qr{/open\?path=.*f=region},
 		'drill-through URL contains /open with f= param';
 };
 
