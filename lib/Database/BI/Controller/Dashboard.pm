@@ -5311,7 +5311,8 @@ sub treemap_view ($self) {
 
 sub histogram_view ($self) {
 	my $col       = $self->param('col')   // '';
-	my $bins      = $self->param('bins')  // 10;
+	my $_bins_raw = $self->param('bins');
+	my $bins      = (defined $_bins_raw && length $_bins_raw) ? $_bins_raw : 10;
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';

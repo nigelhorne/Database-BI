@@ -33,7 +33,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.012.0
+0.012.1
 
 =head1 DESCRIPTION
 
