@@ -12,7 +12,7 @@ use Readonly;
 
 use Database::BI::Model::DataSource;
 
-our $VERSION = '0.012.1';
+our $VERSION = '0.013.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -767,6 +767,19 @@ sub startup ($self) {
 	$r->get('/treemap')       ->to('Dashboard#treemap_view');
 	$r->get('/histogram')     ->to('Dashboard#histogram_view');
 	$r->get('/line')          ->to('Dashboard#graph_view');	# alias for /graph
+
+	# Phase 3.1 -- Saved analyses
+	# /api/analyses/import must be registered BEFORE /api/analyses/:id so that the
+	# literal segment "import" is matched before the :id placeholder captures it.
+	$r->get('/a/:id')                   ->to('Dashboard#analysis_render');
+	$r->get('/api/analyses')            ->to('Dashboard#analyses_list');
+	$r->post('/api/analyses')           ->to('Dashboard#analyses_create');
+	$r->post('/api/analyses/import')    ->to('Dashboard#analyses_import');
+	$r->get('/api/analyses/:id')        ->to('Dashboard#analyses_get');
+	$r->put('/api/analyses/:id')        ->to('Dashboard#analyses_update');
+	$r->patch('/api/analyses/:id')      ->to('Dashboard#analyses_patch');
+	$r->delete('/api/analyses/:id')     ->to('Dashboard#analyses_delete');
+	$r->get('/api/analyses/:id/export') ->to('Dashboard#analyses_export');
 
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is

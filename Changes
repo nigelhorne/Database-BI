@@ -1,5 +1,27 @@
 Revision history for Database-BI
 
+0.013.0
+    [ New Features -- Phase 3.1: Saved Analyses ]
+    - GET /api/analyses -- list all saved analyses (id, name, datasets, updated).
+    - POST /api/analyses -- create a saved analysis from a JSON spec body;
+      returns 201 with the server-assigned id.
+    - GET /api/analyses/:id -- retrieve one analysis.
+    - PUT /api/analyses/:id -- full replace.
+    - PATCH /api/analyses/:id -- partial update (e.g. layout-only from canvas).
+    - DELETE /api/analyses/:id -- remove.
+    - GET /api/analyses/:id/export -- download the analysis as a JSON file.
+    - POST /api/analyses/import -- create from an uploaded or posted JSON doc.
+    - GET /a/:id -- render a saved analysis (Phase 3.1: redirects to the
+      reconstructed data-view URL; full canvas rendering deferred to 3.2).
+    - Storage: model_dir/analyses.json (atomic write via temp+rename);
+      degrades gracefully to 503 when model_dir is read-only.
+    - Dashboard toolbar: "Save analysis..." button posts the current view as
+      a named analysis and shows the shareable /a/:id link.
+    [ Tests ]
+    - Add t/model.t: 28 subtests covering CRUD, validation rejection table,
+      export/import round-trip, /a/:id redirect, atomic write verification,
+      and read-only model_dir degradation.
+
 0.012.1	Thu Oct 15 12:00:00 PM EDT 2026
     [ Bug Fixes ]
     - Fix 'Argument "" isn't numeric in int' warnings logged to the console

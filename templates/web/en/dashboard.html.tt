@@ -244,6 +244,8 @@
           title="Map column values to group labels (e.g. North+East = Northern). The virtual col_group column can then be used in charts and pivots.">&#x25BC; Group values&hellip;</button>
   <button class="btn-dates" id="btn-dates" type="button"
           title="Tell the app how date columns are formatted so YEAR(), MONTH() and date sorting work correctly. Saved patterns apply automatically.">&#x1F4C5; Date format&hellip;</button>
+  <button class="btn-save-analysis" id="btn-save-analysis" type="button"
+          title="Save the current view as a named analysis you can share and reopen via a short URL">&#x1F4BE; Save analysis&hellip;</button>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
@@ -310,6 +312,23 @@
   </div>
 
   <p class="export-result" id="export-result" hidden></p>
+</div>
+[%- END -%]
+
+[%- IF left_spec -%]
+<div class="save-analysis-panel panel-section" id="save-analysis-panel" hidden>
+  <h3 class="panel-title">&#x1F4BE; Save analysis</h3>
+  <div class="panel-row">
+    <label for="save-analysis-name-inp">Analysis name</label>
+    <input type="text" id="save-analysis-name-inp" class="panel-text-inp"
+           placeholder="My analysis" autocomplete="off" maxlength="120">
+  </div>
+  <div class="panel-btn-row">
+    <button type="button" id="btn-do-save-analysis" class="btn-primary" disabled>Save</button>
+    <button type="button" id="btn-cancel-save-analysis" class="btn-secondary">Cancel</button>
+    <a id="save-analysis-link" href="#" hidden style="margin-left:1em;font-size:0.9em">&#x1F517; Open saved analysis</a>
+  </div>
+  <p id="save-analysis-msg" class="export-result" hidden></p>
 </div>
 [%- END -%]
 
@@ -2194,7 +2213,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('graph-back2-label-inp');
   var graphForm     = document.getElementById('graph-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2312,7 +2331,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('pie-back2-label-inp');
   var pieForm       = document.getElementById('pie-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2397,7 +2416,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('heatmap-back2-label-inp');
   var heatmapForm   = document.getElementById('heatmap-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2468,7 +2487,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('bar-back2-label-inp');
   var barForm       = document.getElementById('bar-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2542,7 +2561,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('stacked-back2-label-inp');
   var stackedForm   = document.getElementById('stacked-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2596,7 +2615,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('scatter-back2-label-inp');
   var scatterForm   = document.getElementById('scatter-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2719,7 +2738,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('combo-back2-label-inp');
   var comboForm     = document.getElementById('combo-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2798,7 +2817,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('treemap-back2-label-inp');
   var treemapForm   = document.getElementById('treemap-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'histogram-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2843,7 +2862,7 @@ function parseAccounting(v) {
   var back2LabelInp = document.getElementById('histogram-back2-label-inp');
   var histogramForm = document.getElementById('histogram-form');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'folder-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2925,7 +2944,7 @@ function parseAccounting(v) {
   var colSel    = document.getElementById('folder-col-sel');
   var backInp   = document.getElementById('folder-back-inp');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'pivot-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -2983,7 +3002,7 @@ function parseAccounting(v) {
   var measureList   = document.getElementById('pivot-measures');
   var chkTotals     = document.getElementById('pivot-totals');
 
-  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'calc-panel', 'groups-panel', 'dates-panel'].map(function (id) {
+  var otherPanels = ['join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel'].map(function (id) {
     return document.getElementById(id);
   }).filter(Boolean);
 
@@ -3182,7 +3201,7 @@ function parseAccounting(v) {
   var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
     'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
     'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
-    'groups-panel','dates-panel'].map(function(id){
+    'groups-panel','dates-panel','save-analysis-panel'].map(function(id){
       return document.getElementById(id);
     }).filter(Boolean);
 
@@ -3281,7 +3300,7 @@ function parseAccounting(v) {
   var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
     'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
     'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
-    'calc-panel','dates-panel'].map(function(id){
+    'calc-panel','dates-panel','save-analysis-panel'].map(function(id){
       return document.getElementById(id);
     }).filter(Boolean);
 
@@ -3411,7 +3430,7 @@ function parseAccounting(v) {
   var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
     'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
     'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
-    'calc-panel','groups-panel'].map(function(id){
+    'calc-panel','groups-panel','save-analysis-panel'].map(function(id){
       return document.getElementById(id);
     }).filter(Boolean);
 
@@ -3521,6 +3540,111 @@ function parseAccounting(v) {
   });
 
   btnClose && btnClose.addEventListener('click', function(){ panel.hidden = true; });
+}());
+</script>
+
+<script>
+// ---------------------------------------------------------------------------
+// Save-analysis panel -- POST /api/analyses and redirect to /a/:id
+// ---------------------------------------------------------------------------
+(function () {
+  var btnOpen   = document.getElementById('btn-save-analysis');
+  var panel     = document.getElementById('save-analysis-panel');
+  if (!btnOpen || !panel) return;
+
+  var nameInp   = document.getElementById('save-analysis-name-inp');
+  var btnSave   = document.getElementById('btn-do-save-analysis');
+  var btnCancel = document.getElementById('btn-cancel-save-analysis');
+  var linkEl    = document.getElementById('save-analysis-link');
+  var msgEl     = document.getElementById('save-analysis-msg');
+
+  var otherPanels = ['join-panel','combine-panel','export-panel','graph-panel',
+    'pie-panel','heatmap-panel','bar-panel','stacked-panel','scatter-panel',
+    'combo-panel','treemap-panel','histogram-panel','folder-panel','pivot-panel',
+    'calc-panel','groups-panel','dates-panel'].map(function(id){
+      return document.getElementById(id);
+    }).filter(Boolean);
+
+  // Build a minimal analysis spec from the current page URL.
+  function buildSpec(name) {
+    var params = new URLSearchParams(location.search);
+    var l = params.get('l') || '';
+    if (!l) return null;
+    var datasets = [{ spec: l, alias: 'left', filters: params.getAll('f') }];
+    var joins = [];
+    params.getAll('j').forEach(function(jspec) {
+      var parts = jspec.split('|');
+      if (parts.length >= 3) {
+        datasets.push({ spec: parts[0], alias: 'right' + joins.length });
+        joins.push({ left: 'left', right: 'right' + (joins.length), left_key: parts[1], right_key: parts[2] });
+      }
+    });
+    return { name: name, datasets: datasets, joins: joins };
+  }
+
+  nameInp.addEventListener('input', function() {
+    btnSave.disabled = !nameInp.value.trim();
+  });
+
+  btnOpen.addEventListener('click', function() {
+    otherPanels.forEach(function(p) { p.hidden = true; });
+    panel.hidden = !panel.hidden;
+    if (!panel.hidden) {
+      nameInp.focus();
+      linkEl.hidden = true;
+      msgEl.hidden  = true;
+    }
+  });
+
+  btnCancel.addEventListener('click', function() { panel.hidden = true; });
+
+  btnSave.addEventListener('click', function() {
+    var name = nameInp.value.trim();
+    if (!name) return;
+    var spec = buildSpec(name);
+    if (!spec) {
+      msgEl.textContent = 'Cannot save: no data source in the current URL.';
+      msgEl.className   = 'export-result error';
+      msgEl.hidden      = false;
+      return;
+    }
+    btnSave.disabled = true;
+    fetch('/api/analyses', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(spec),
+    })
+    .then(function(r) { return r.json().then(function(j) { return { ok: r.ok, j: j }; }); })
+    .then(function(res) {
+      if (res.ok && res.j.id) {
+        var href = '/a/' + res.j.id;
+        linkEl.href    = href;
+        linkEl.hidden  = false;
+        msgEl.textContent = 'Saved. Share the link to let others reopen this view.';
+        msgEl.className   = 'export-result';
+        msgEl.hidden      = false;
+        try {
+          var saved = JSON.parse(localStorage.getItem('bi:saved') || '[]');
+          var entry = { name: name, path: href, href: '/open?path=' + encodeURIComponent(href), lastSaved: new Date().toISOString() };
+          saved = saved.filter(function(s) { return s.href !== entry.href; });
+          saved.unshift(entry);
+          if (saved.length > 5) saved.length = 5;
+          localStorage.setItem('bi:saved', JSON.stringify(saved));
+        } catch(eS) {}
+      } else {
+        msgEl.textContent = 'Error: ' + ((res.j && res.j.error) || 'unknown error');
+        msgEl.className   = 'export-result error';
+        msgEl.hidden      = false;
+        btnSave.disabled  = false;
+      }
+    })
+    .catch(function() {
+      msgEl.textContent = 'Could not save analysis -- check the server log.';
+      msgEl.className   = 'export-result error';
+      msgEl.hidden      = false;
+      btnSave.disabled  = false;
+    });
+  });
 }());
 </script>
 

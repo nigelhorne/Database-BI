@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.012.1';
+our $VERSION = '0.013.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -96,6 +96,12 @@ Readonly my %MESSAGES => (
 	error_topn_col              => 'Top-N column "%s" is not a measure alias in this view',
 	warn_calc_undef             => 'Calculated field "%s" returned undef for %d row(s)',
 	error_date_pattern          => 'Unsupported date format pattern "%s"; allowed: %%m/%%d/%%Y, %%d/%%m/%%Y, %%d-%%b-%%Y',
+	error_analysis_not_found    => 'Analysis "%s" not found',
+	error_analysis_invalid      => 'Invalid analysis spec: %s',
+	error_analysis_version      => 'Unsupported analysis version %s; please upgrade the application',
+	error_analysis_storage      => 'Analysis storage is not writable; use import/export instead',
+	error_analysis_json         => 'Invalid JSON body: %s',
+	error_analysis_id_invalid   => 'Invalid analysis id',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -1442,6 +1448,362 @@ sub _write_models :Protected ($self, $models) {
 	return unless defined $path;
 	eval { Mojo::File->new($path)->spurt(encode_json($models)) };
 	$self->app->log->warn("Cannot write $path: $@") if $@;
+}
+
+# ---------------------------------------------------------------------------
+# Phase 3.1 -- Saved analyses
+# ---------------------------------------------------------------------------
+
+# _analyses_path($self) -> $path_string_or_undef
+#
+# Returns the path to model_dir/analyses.json (creating model_dir on first call),
+# or undef when the write must be skipped (data_dir safety guard, mkdir failure).
+sub _analyses_path :Protected ($self) {
+	my $app      = $self->app;
+	my $home     = $app->home;
+	my $cfg_dir  = $app->config('model_dir') // '.bi';
+	my $bi_dir   = Mojo::File->new($cfg_dir)->is_abs
+	                ? Mojo::File->new($cfg_dir)
+	                : $home->child($cfg_dir);
+	my $data_dir = $home->child($app->config('data_dir') // 'data');
+
+	my $bi_abs   = eval { $bi_dir->to_abs->to_string }   // $bi_dir->to_string;
+	my $data_abs = eval { $data_dir->to_abs->to_string } // $data_dir->to_string;
+	my $sep      = '/';
+	if ($bi_abs eq $data_abs || index($bi_abs, $data_abs . $sep) == 0) {
+		carp 'model_dir is inside data_dir; skipping analyses file write';
+		return undef;
+	}
+	unless (-d $bi_dir) {
+		mkdir $bi_dir->to_string
+			or do { $app->log->warn("Cannot create $bi_dir: $!"); return undef };
+	}
+	unless (-w $bi_dir) {
+		carp 'model_dir is not writable; analysis storage disabled';
+		return undef;
+	}
+	return $bi_dir->child('analyses.json')->to_string;
+}
+
+# _read_analyses($self) -> \%analyses  (keyed by id)
+sub _read_analyses :Protected ($self) {
+	my $path = $self->_analyses_path;
+	return {} unless defined $path && -f $path;
+	my $json = eval { Mojo::File->new($path)->slurp };
+	return {} unless $json && !$@;
+	my $data = eval { decode_json($json) };
+	return {} unless ref $data eq 'HASH';
+	return $data;
+}
+
+# _write_analyses($self, \%analyses) -- atomic write (temp + rename)
+sub _write_analyses :Protected ($self, $analyses) {
+	my $path = $self->_analyses_path;
+	return unless defined $path;
+	my $dir = Mojo::File->new($path)->dirname->to_string;
+	my ($fh, $tmpfile) = eval { tempfile(DIR => $dir, UNLINK => 0) };
+	if ($@ || !$fh) {
+		$self->app->log->warn("Cannot create temp file in $dir: " . ($@ // $!));
+		return;
+	}
+	my $ok = eval {
+		print {$fh} encode_json($analyses);
+		close $fh;
+		rename($tmpfile, $path);
+		1;
+	};
+	unless ($ok) {
+		$self->app->log->warn("Cannot write $path: $@");
+		unlink $tmpfile;
+	}
+}
+
+# _gen_analysis_id($self) -> $id_string
+#
+# Returns a 10-character URL-safe alphanumeric random ID.
+Readonly my $_ID_CHARS => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+sub _gen_analysis_id :Protected ($self) {
+	my $id = '';
+	$id .= substr($_ID_CHARS, int(rand(62)), 1) for 1..10;
+	return $id;
+}
+
+# _validate_analysis($self, \%doc) -> $error_string_or_undef
+sub _validate_analysis :Protected ($self, $doc) {
+	return 'Missing required field: name'
+		unless defined $doc->{name} && length $doc->{name};
+	return 'Missing required field: datasets'
+		unless ref $doc->{datasets} eq 'ARRAY' && @{ $doc->{datasets} };
+	for my $ds (@{ $doc->{datasets} }) {
+		return 'Each dataset entry must have a spec field'
+			unless defined $ds->{spec} && length $ds->{spec};
+		return qq{"$ds->{spec}" is not a valid spec (must start with table:, path:, url:, or redis:)}
+			unless $ds->{spec} =~ m{\A(?:table:|path:|url:|redis:)};
+	}
+	if (defined $doc->{version}) {
+		return sprintf($MESSAGES{error_analysis_version}, $doc->{version})
+			unless $doc->{version} =~ /\A\d+\z/ && $doc->{version} <= 1;
+	}
+	for my $key (qw( visuals joins measures combines bookmarks )) {
+		if (defined $doc->{$key}) {
+			return "$key must be an array"
+				unless ref $doc->{$key} eq 'ARRAY';
+		}
+	}
+	if (defined $doc->{fields}) {
+		return 'fields must be a hash'
+			unless ref $doc->{fields} eq 'HASH';
+	}
+	if (defined $doc->{params}) {
+		return 'params must be a hash'
+			unless ref $doc->{params} eq 'HASH';
+	}
+	return undef;
+}
+
+# _analysis_to_url($self, \%analysis) -> $url_string_or_undef
+#
+# Reconstructs a /join?l=...&j=...&f=... URL from a saved analysis.
+# Used by analysis_render (Phase 3.1) until a full canvas exists (Phase 3.2).
+sub _analysis_to_url :Protected ($self, $a) {
+	my @datasets = @{ $a->{datasets} // [] };
+	return undef unless @datasets;
+
+	my $left_spec = $datasets[0]{spec} or return undef;
+	my @params = ('l=' . url_escape($left_spec));
+
+	# Build an alias->spec lookup for join resolution
+	my %spec_by_alias;
+	for my $ds (@datasets) {
+		$spec_by_alias{ $ds->{alias} // '' } = $ds->{spec} // '';
+	}
+
+	for my $j (@{ $a->{joins} // [] }) {
+		my $right_spec = $spec_by_alias{ $j->{right} // '' } // '';
+		next unless $right_spec;
+		push @params, 'j=' . url_escape(
+			join('|', $right_spec, $j->{left_key}//'', $j->{right_key}//'')
+		);
+	}
+
+	# Filters from all datasets
+	for my $ds (@datasets) {
+		for my $f (@{ $ds->{filters} // [] }) {
+			push @params, 'f=' . url_escape($f);
+		}
+	}
+
+	return '/join?' . join('&', @params);
+}
+
+# ---------------------------------------------------------------------------
+# Controller actions for Phase 3.1 -- /api/analyses and /a/:id
+# ---------------------------------------------------------------------------
+
+# GET /api/analyses
+sub analyses_list ($self) {
+	my $analyses = $self->_read_analyses;
+	my @list = map {
+		my $a = $analyses->{$_};
+		{ id => $_, name => $a->{name}, datasets => $a->{datasets},
+		  updated => $a->{updated} }
+	} sort keys %$analyses;
+	$self->render(json => { analyses => \@list });
+}
+
+# POST /api/analyses
+sub analyses_create ($self) {
+	my $body = eval { decode_json($self->req->body) };
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+		unless ref $body eq 'HASH';
+
+	my $err = $self->_validate_analysis($body);
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
+		if $err;
+
+	my $analyses = $self->_read_analyses;
+	unless ($self->_analyses_path) {
+		return $self->render(json => { error => $MESSAGES{error_analysis_storage} }, status => 503);
+	}
+
+	my $id;
+	my $tries = 0;
+	do { $id = $self->_gen_analysis_id; $tries++ }
+		while (exists $analyses->{$id} && $tries < 100);
+
+	$body->{id}      = $id;
+	$body->{version} //= 1;
+	$body->{created} = time();
+	$body->{updated} = time();
+
+	# Strip caller-supplied immutable fields except id/version/created/updated
+	delete $body->{$_} for grep { !m/\A(?:id|version|created|updated|name|datasets|joins|combines|fields|measures|params|visuals|layout|bookmarks)\z/ } keys %$body;
+
+	$analyses->{$id} = $body;
+	$self->_write_analyses($analyses);
+
+	$self->res->headers->location("/api/analyses/$id");
+	$self->render(json => { id => $id, created => 1 }, status => 201);
+}
+
+# GET /api/analyses/:id
+sub analyses_get ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+
+	$self->render(json => $analyses->{$id});
+}
+
+# PUT /api/analyses/:id  (full replace)
+sub analyses_update ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+
+	my $body = eval { decode_json($self->req->body) };
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+		unless ref $body eq 'HASH';
+
+	my $err = $self->_validate_analysis($body);
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
+		if $err;
+
+	$body->{id}      = $id;
+	$body->{version} //= 1;
+	$body->{created} = $analyses->{$id}{created} // time();
+	$body->{updated} = time();
+
+	$analyses->{$id} = $body;
+	$self->_write_analyses($analyses);
+
+	$self->render(json => { id => $id, updated => 1 });
+}
+
+# PATCH /api/analyses/:id  (partial update -- merges supplied keys)
+sub analyses_patch ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+
+	my $body = eval { decode_json($self->req->body) };
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+		unless ref $body eq 'HASH';
+
+	my $existing = { %{ $analyses->{$id} } };
+	for my $key (keys %$body) {
+		next if $key eq 'id' || $key eq 'created';  # immutable
+		$existing->{$key} = $body->{$key};
+	}
+	$existing->{updated} = time();
+
+	$analyses->{$id} = $existing;
+	$self->_write_analyses($analyses);
+
+	$self->render(json => { id => $id, updated => 1 });
+}
+
+# DELETE /api/analyses/:id
+sub analyses_delete ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+
+	delete $analyses->{$id};
+	$self->_write_analyses($analyses);
+
+	$self->render(json => { deleted => 1 });
+}
+
+# GET /api/analyses/:id/export
+sub analyses_export ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+
+	my $json = encode_json($analyses->{$id});
+	$self->res->headers->content_disposition("attachment; filename=\"analysis-$id.json\"");
+	$self->render(data => $json, format => 'json');
+}
+
+# POST /api/analyses/import  (create from uploaded JSON or raw body)
+sub analyses_import ($self) {
+	my $upload    = $self->req->upload('file');
+	my $body_json = $upload ? $upload->slurp : $self->req->body;
+
+	my $body = eval { decode_json($body_json) };
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+		unless ref $body eq 'HASH';
+
+	# Strip any id/timestamps from imported document; assign fresh ones below
+	delete @{$body}{qw( id created updated )};
+
+	my $err = $self->_validate_analysis($body);
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
+		if $err;
+
+	unless ($self->_analyses_path) {
+		return $self->render(json => { error => $MESSAGES{error_analysis_storage} }, status => 503);
+	}
+
+	my $analyses = $self->_read_analyses;
+
+	my $id;
+	my $tries = 0;
+	do { $id = $self->_gen_analysis_id; $tries++ }
+		while (exists $analyses->{$id} && $tries < 100);
+
+	$body->{id}      = $id;
+	$body->{version} //= 1;
+	$body->{created} = time();
+	$body->{updated} = time();
+
+	$analyses->{$id} = $body;
+	$self->_write_analyses($analyses);
+
+	$self->res->headers->location("/api/analyses/$id");
+	$self->render(json => { id => $id, imported => 1 }, status => 201);
+}
+
+# GET /a/:id  -- render a saved analysis
+#
+# Phase 3.1: reconstructs the data-view URL from the analysis spec and redirects.
+# Full multi-visual canvas rendering is deferred to Phase 3.2.
+sub analysis_render ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+		unless exists $analyses->{$id};
+
+	my $url = $self->_analysis_to_url($analyses->{$id});
+	return $self->render(text => 'Cannot reconstruct URL from this analysis', status => 422)
+		unless defined $url;
+
+	$self->redirect_to($url);
 }
 
 # _run_export_pipeline($self) -> ($records, \@columns, $left_label) or ()
