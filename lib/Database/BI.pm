@@ -33,7 +33,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.015.0
+0.012.0
 
 =head1 DESCRIPTION
 
@@ -508,7 +508,7 @@ works correctly in production without any special workarounds.
 
 =head1 ROADMAP
 
-Features planned for future releases (post-0.015.0).  Items are ordered by
+Features planned for future releases (post-0.012.0).  Items are ordered by
 priority.
 
 =over 4
@@ -553,7 +553,7 @@ renderer, giving visible progress on slow joins.
 # =============================================================================
 #
 # Items marked [NEW 0.010.0] were identified during the 0.010.0 gap analysis.
-# Items completed in 0.015.0 (Phase 0):
+# Items completed in 0.012.0 (Phase 0):
 #   A. Pagination -- done: /view, /open, /join, /combine, /export all paginate.
 #   1. dbi_source() proxy -- done: DataSource::dbi_source() delegating method added.
 #   2. limit/offset plumbing -- done: /join, /combine, /export thread pagination.
