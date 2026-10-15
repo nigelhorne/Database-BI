@@ -107,6 +107,7 @@ Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
 Readonly my $MAX_PER_PAGE          => 2_000;
+Readonly my %SCATTER_SCHEMES       => map { $_ => 1 } qw(tableau10 category10 set2 set3 paired);
 
 # Valid aggregate function vocabulary shared by _measure, _grouped_totals,
 # and the /pivot measure-spec parser (Phase 2).  Do not add functions here
@@ -4911,7 +4912,6 @@ sub scatter_view ($self) {
 	return $self->render(text => "Column not found: $size_col",   status => 400)
 		if length $size_col && !$col_set{$size_col};
 
-	my %SCATTER_SCHEMES = map { $_ => 1 } qw(tableau10 category10 set2 set3 paired);
 	if (length $series_col && !$SCATTER_SCHEMES{$scheme}) {
 		return $self->render(text => "Unknown colour scheme: $scheme", status => 400);
 	}
@@ -5726,6 +5726,350 @@ No parameters.  The C<.uploads/> path is always the one under C<app->home>.
 
 C<freed> is the total number of bytes removed.  C<count> is the number of
 files deleted.  Both are 0 when the directory is absent or already empty.
+
+=cut
+
+=head2 scatter_view
+
+C<GET /scatter> -- Render a D3.js scatter plot or bubble chart.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  x=<col>        X-axis column (required; numeric)
+  y=<col>        Y-axis column (required; numeric)
+  series=<col>   Colour-by category column (optional)
+  size=<col>     Bubble-radius numeric column (optional)
+  scheme=<name>  D3 colour scheme (default tableau10; only used with series=)
+  min_r=N        Minimum bubble radius in px (default 3; range 1-40)
+  max_r=N        Maximum bubble radius in px (default 15; range 1-40)
+  back=<url>     URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l        spec    Required.  Left table spec (table:name or path:/abs/path).
+  x        string  Required.  Numeric X-axis column name.
+  y        string  Required.  Numeric Y-axis column name.
+  series   string  Optional.  Categorical colour-dimension column.
+  size     string  Optional.  Numeric bubble-radius column.
+  scheme   string  Optional.  One of: tableau10 category10 set2 set3 paired.
+  min_r    int     Optional.  Minimum radius 1-40 (default 3).
+  max_r    int     Optional.  Maximum radius 1-40 (default 15).
+  back     url     Optional.  Safe back-link URL (sanitised by _safe_back_url).
+
+=head4 OUTPUT
+
+  200 text/html    Rendered scatter chart page.
+  400 text/plain   Missing x= or y= parameter.
+  400 text/plain   Column not found: <col>.
+  400 text/plain   Unknown colour scheme: <scheme>  (only when series= is set).
+  404 text/plain   "Could not open data source" when l= is absent/invalid.
+
+=head3 FORMAL SPECIFICATION
+
+  scatter_view == lambda self .
+    pre  length(x_col) > 0 /\ length(y_col) > 0
+         /\ x_col in columns /\ y_col in columns
+         /\ (series_col != '' => series_col in columns)
+         /\ (size_col   != '' => size_col   in columns)
+         /\ (series_col != '' => scheme in SCATTER_SCHEMES)
+         /\ 1 <= min_r <= 40 /\ 1 <= max_r <= 40
+    post render(scatter, pairs)
+
+=head3 EXAMPLE
+
+  GET /scatter?l=table:sales&x=quantity&y=amount&series=region
+    -> 200 HTML page containing D3 scatter chart SVG
+
+=cut
+
+=head2 stacked_view
+
+C<GET /stacked> -- Render a D3.js stacked bar chart.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  cat=<col>     X-axis category column (required)
+  series=<col>  Stack-segment column (required; seg= is a backwards-compat alias)
+  val=<col>     Numeric measure column (optional; count rows when absent)
+  scheme=<name> D3 colour scheme (default tableau10)
+  back=<url>    URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l       spec    Required.  Left table spec.
+  cat     string  Required.  X-axis categorical column name.
+  series  string  Required.  Stack-segment categorical column name.
+  val     string  Optional.  Numeric measure column; omit for count mode.
+  scheme  string  Optional.  D3 colour scheme name.
+  back    url     Optional.  Safe back-link URL.
+
+=head4 OUTPUT
+
+  200 text/html    Rendered stacked bar chart page.
+  400 text/plain   Missing cat= or series= parameter.
+  400 text/plain   Column not found: <col>.
+  404 text/plain   "Could not open data source".
+
+=head3 FORMAL SPECIFICATION
+
+  stacked_view == lambda self .
+    pre  length(cat_col) > 0 /\ length(series_col) > 0
+         /\ cat_col in columns /\ series_col in columns
+    let rows = _grouped_totals(records, cat_col, series_col, val_col) in
+    post render(stacked, rows)
+
+=head3 EXAMPLE
+
+  GET /stacked?l=table:sales&cat=region&series=product&val=amount
+    -> 200 HTML page containing D3 stacked bar chart SVG
+
+=cut
+
+=head2 combo_view
+
+C<GET /combo> -- Render a D3.js combo bar+line chart.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  cat=<col>       X-axis category column (required; x= is a backwards-compat alias)
+  bar_val=<col>   Numeric column plotted as bars (required)
+  line_val=<col>  Numeric column plotted as a line (required)
+  back=<url>      URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l         spec    Required.  Left table spec.
+  cat       string  Required.  X-axis categorical column name (x= also accepted).
+  bar_val   string  Required.  Numeric bar-measure column.
+  line_val  string  Required.  Numeric line-measure column.
+  back      url     Optional.  Safe back-link URL.
+
+=head4 OUTPUT
+
+  200 text/html    Rendered combo chart page.
+  400 text/plain   Missing cat=, bar_val=, or line_val= parameter.
+  400 text/plain   Column not found: <col>.
+  404 text/plain   "Could not open data source".
+
+=head3 FORMAL SPECIFICATION
+
+  combo_view == lambda self .
+    pre  length(cat_col) > 0 /\ length(bar_col) > 0 /\ length(line_col) > 0
+         /\ cat_col in columns /\ bar_col in columns /\ line_col in columns
+    post render(combo, pairs)
+
+=head3 EXAMPLE
+
+  GET /combo?l=table:sales&cat=month&bar_val=revenue&line_val=units
+    -> 200 HTML page containing D3 combo bar+line chart SVG
+
+=cut
+
+=head2 treemap_view
+
+C<GET /treemap> -- Render a D3.js treemap where tile area encodes a numeric column.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  group=<col>  Tile-label categorical column (required; cat= is a backwards-compat alias)
+  size=<col>   Tile-area numeric column (required; val= is a backwards-compat alias)
+  topn=N       Keep only the top-N tiles by size; remainder collapsed into "Other"
+  scheme=<name> D3 colour scheme (default tableau10)
+  back=<url>   URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l       spec    Required.  Left table spec.
+  group   string  Required.  Tile-label categorical column (cat= also accepted).
+  size    string  Required.  Tile-area numeric column (val= also accepted).
+  topn    int     Optional.  Keep top-N tiles; 0 or absent means no limit.
+  scheme  string  Optional.  D3 colour scheme name.
+  back    url     Optional.  Safe back-link URL.
+
+=head4 OUTPUT
+
+  200 text/html    Rendered treemap page.
+  400 text/plain   Missing group= or size= parameter.
+  400 text/plain   Unrecognised scheme= parameter (?color= returns 400).
+  400 text/plain   Column not found: <col>.
+  404 text/plain   "Could not open data source".
+
+=head3 FORMAL SPECIFICATION
+
+  treemap_view == lambda self .
+    pre  length(group_col) > 0 /\ length(size_col) > 0
+         /\ group_col in columns /\ size_col in columns
+         /\ color param absent (scheme= is the correct param name)
+    let tiles = _grouped_totals(records, group_col, [], size_sum) in
+    let top   = topn > 0 ? top_n(tiles, topn) : tiles in
+    post render(treemap, top)
+
+=head3 EXAMPLE
+
+  GET /treemap?l=table:sales&group=product&size=amount&topn=10
+    -> 200 HTML page containing D3 treemap SVG
+
+=cut
+
+=head2 histogram_view
+
+C<GET /histogram> -- Render a D3.js histogram with server-side binning.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  col=<col>   Numeric column to bin (required)
+  bins=N      Number of bins (default 10; max 200)
+  back=<url>  URL for the "Back to table" breadcrumb link
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l     spec    Required.  Left table spec.
+  col   string  Required.  Numeric column to histogram.
+  bins  int     Optional.  Bin count 1-200 (default 10).
+  back  url     Optional.  Safe back-link URL.
+
+=head4 OUTPUT
+
+  200 text/html    Rendered histogram page.
+  400 text/plain   Missing col= parameter.
+  400 text/plain   Column not found: <col>.
+  200 text/html    Empty histogram page when no numeric values exist.
+  404 text/plain   "Could not open data source".
+
+=head3 FORMAL SPECIFICATION
+
+  histogram_view == lambda self .
+    pre  length(col) > 0 /\ col in columns
+         /\ 1 <= bins <= 200
+    let vals  = { row[col] | row in records, looks_like_number(row[col]) } in
+    let width = (max(vals) - min(vals)) / bins in
+    let bdata = bin(vals, width) in
+    post render(histogram, bdata, bins => |bdata|)
+
+=head3 EXAMPLE
+
+  GET /histogram?l=table:sales&col=amount&bins=20
+    -> 200 HTML page containing D3 histogram SVG
+
+=cut
+
+=head2 calc_list / calc_save / calc_delete
+
+C<GET /calc/list>, C<POST /calc/save>, C<POST /calc/delete> -- Manage stored
+calculated fields for a table spec.
+
+Calculated fields are named expression strings evaluated per-row by
+C<Database::BI::Calc> and appended as virtual columns before any aggregation.
+
+=head3 API SPECIFICATION
+
+=head4 calc_list (GET /calc/list)
+
+  INPUT:  l=<spec>   (required)
+  OUTPUT: 200 application/json  { "fields": { "<name>": "<expr>", ... } }
+          400 application/json  { "error": "l= required" }
+
+=head4 calc_save (POST /calc/save)
+
+  INPUT:  l=<spec>   (required)
+          name=<id>  (required; must match /\A[A-Za-z_][A-Za-z0-9_]*\z/)
+          expr=<expression>  (required; max 512 chars; hostile patterns rejected)
+  OUTPUT: 200 application/json  { "saved": 1 }
+          400 application/json  { "error": "..." }  (compile error or hostile input)
+
+=head4 calc_delete (POST /calc/delete)
+
+  INPUT:  l=<spec>   (required)
+          name=<id>  (required)
+  OUTPUT: 200 application/json  { "deleted": 1 }
+          400 application/json  { "error": "l= required" }
+
+=head3 EXAMPLE
+
+  POST /calc/save  l=path:/data/sales.csv&name=margin&expr=amount-cost
+    -> 200 { "saved": 1 }
+  GET /calc/list?l=path:/data/sales.csv
+    -> 200 { "fields": { "margin": "amount-cost" } }
+
+=cut
+
+=head2 groups_list / groups_save / groups_delete
+
+C<GET /groups/list>, C<POST /groups/save>, C<POST /groups/delete> -- Manage
+named value groups that produce virtual C<${col}_group> columns.
+
+=head3 API SPECIFICATION
+
+=head4 groups_list (GET /groups/list)
+
+  INPUT:  l=<spec>  (required), col=<col>  (required)
+  OUTPUT: 200 application/json  { "groups": { "<label>": ["<val>", ...], ... } }
+          400 application/json  { "error": "l= required" } or "col= required"
+
+=head4 groups_save (POST /groups/save)
+
+  INPUT:  l=<spec>, col=<col>, group=<label>, values=<newline-separated values>
+  OUTPUT: 200 application/json  { "saved": 1 }
+          400 application/json  { "error": "..." }
+
+=head4 groups_delete (POST /groups/delete)
+
+  INPUT:  l=<spec>, col=<col>, group=<label>  (omit group= to delete all groups for col)
+  OUTPUT: 200 application/json  { "deleted": 1 }
+          400 application/json  { "error": "l= required" }
+
+=head3 EXAMPLE
+
+  POST /groups/save  l=path:/data/sales.csv&col=region&group=North&values=MN%0AWI%0AIA
+    -> 200 { "saved": 1 }
+  GET /groups/list?l=path:/data/sales.csv&col=region
+    -> 200 { "groups": { "North": ["MN","WI","IA"] } }
+
+=cut
+
+=head2 dates_list / dates_save / dates_delete
+
+C<GET /dates/list>, C<POST /dates/save>, C<POST /dates/delete> -- Manage stored
+date-normalisation patterns that convert non-ISO date columns to ISO-8601
+(C<YYYY-MM-DD>) in-place before aggregation.
+
+=head3 API SPECIFICATION
+
+=head4 dates_list (GET /dates/list)
+
+  INPUT:  l=<spec>  (required)
+  OUTPUT: 200 application/json  { "patterns": { "<col>": "<pattern>", ... } }
+          400 application/json  { "error": "l= required" }
+
+=head4 dates_save (POST /dates/save)
+
+  INPUT:  l=<spec>, col=<col>, pattern=<fmt>
+          Supported patterns: %m/%d/%Y  %d/%m/%Y  %d-%b-%Y
+  OUTPUT: 200 application/json  { "ok": 1 }
+          400 application/json  { "error": "Unsupported date format pattern ..." }
+
+=head4 dates_delete (POST /dates/delete)
+
+  INPUT:  l=<spec>, col=<col>  (omit col= to delete all patterns for the spec)
+  OUTPUT: 200 application/json  { "deleted": 1 }
+          400 application/json  { "error": "l= required" }
+
+=head3 EXAMPLE
+
+  POST /dates/save  l=path:/data/sales.csv&col=sale_date&pattern=%m/%d/%Y
+    -> 200 { "ok": 1 }
+  GET /dates/list?l=path:/data/sales.csv
+    -> 200 { "patterns": { "sale_date": "%m/%d/%Y" } }
 
 =cut
 
