@@ -9,7 +9,8 @@ requires 'Carp';
 requires 'DBI';
 requires 'DB_File';   # Used in DataSource.pm for Berkeley DB magic-byte detection
 requires 'Database::Abstraction', '0.51';   # 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
-requires 'Database::Join', '0.009.0';   # 0.009.0 added aggregate(); 0.004.0 added backend=>'auto' SQLite spill
+requires 'Database::Join', '0.010.0';   # 0.009.0 added aggregate(); 0.004.0 added backend=>'auto' SQLite spill
+requires 'Excel::Writer::XLSX', '1.07';
 requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
@@ -31,7 +32,6 @@ requires 'Scalar::Util';   # Used in DataSource.pm (blessed, looks_like_number)
 requires 'Socket', '2.010';
 requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected';
-requires 'Excel::Writer::XLSX', '1.07';  # For XLSX export in pivot_view
 
 on 'test' => sub {
 	requires 'DBD::CSV';
