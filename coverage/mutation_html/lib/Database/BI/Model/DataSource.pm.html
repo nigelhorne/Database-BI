@@ -293,10 +293,10 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../Controller/Dashboard.pm.html">⬅ Previous</a> <a href="../../../../../index.html">Index</a>
 </div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 96.43%<br>
-TER2 (Branch): 81.67%<br>
+TER1 (Statement): 96.48%<br>
+TER2 (Branch): 84.43%<br>
 TER3 (LCSAJ): 100.0% (25/25)<br>
-Approximate LCSAJ segments: 121<br>
+Approximate LCSAJ segments: 123<br>
 </div>
 
     <div class="legend">
@@ -353,7 +353,7 @@ Approximate LCSAJ segments: 121<br>
 </span><span class="">   12: use Params::Validate::Strict qw(validate_strict);
 </span><span class="">   13: use Params::Get		();
 </span><span class="">   14: 
-</span><span class="">   15: our $VERSION = &#39;0.012.0&#39;;
+</span><span class="">   15: our $VERSION = &#39;0.013.0&#39;;
 </span><span class="">   16: 
 </span><span class="">   17: =head1 NAME
 </span><span class="">   18: 
@@ -361,7 +361,7 @@ Approximate LCSAJ segments: 121<br>
 </span><span class="">   20: 
 </span><span class="">   21: =head1 VERSION
 </span><span class="">   22: 
-</span><span class="">   23: 0.011.0
+</span><span class="">   23: 0.012.0
 </span><span class="">   24: 
 </span><span class="">   25: =head1 SYNOPSIS
 </span><span class="">   26: 
@@ -1898,812 +1898,814 @@ Approximate LCSAJ segments: 121<br>
 </span><span class=""> 1557: 	return undef if $self-&gt;{_file_data};
 </span><span class=""> 1558: 	return undef unless $self-&gt;{_db};
 </span><span class=""> 1559: 	return undef unless $self-&gt;{_db}-&gt;can(&#39;dbi_source&#39;);
-</span><span class=""> 1560: 	return $self-&gt;{_db}-&gt;dbi_source();
-</span><span class=""> 1561: }
-</span><span class=""> 1562: 
-</span><span class=""> 1563: =head2 aggregate
+</span><span class=""> 1560: 	my $result = eval { $self-&gt;{_db}-&gt;dbi_source() };
+</span><span class=""> 1561: 	return undef if $@;
+</span><span class=""> 1562: 	return $result;
+</span><span class=""> 1563: }
 </span><span class=""> 1564: 
-</span><span class=""> 1565: Delegates to the inner C&lt;Database::Abstraction&gt; backend&#39;s C&lt;aggregate()&gt; method
-</span><span class=""> 1566: (requires C&lt;Database::Abstraction&gt; E&lt;gt&gt;= 0.49).
-</span><span class=""> 1567: 
-</span><span class=""> 1568: Returns C&lt;[]&gt; for in-memory backends (headerless CSV, XLSX, empty files) and for
-</span><span class=""> 1569: URL-backed sources where aggregation is not available.
-</span><span class=""> 1570: 
-</span><span class=""> 1571: Accepts the same C&lt;by&gt;, C&lt;measures&gt;, C&lt;having&gt;, C&lt;sort_by&gt;, C&lt;limit&gt;, C&lt;offset&gt;,
-</span><span class=""> 1572: and WHERE-criteria parameters as C&lt;Database::Abstraction::aggregate()&gt;.
-</span><span class=""> 1573: 
-</span><span class=""> 1574: =head3 API SPECIFICATION
+</span><span class=""> 1565: =head2 aggregate
+</span><span class=""> 1566: 
+</span><span class=""> 1567: Delegates to the inner C&lt;Database::Abstraction&gt; backend&#39;s C&lt;aggregate()&gt; method
+</span><span class=""> 1568: (requires C&lt;Database::Abstraction&gt; E&lt;gt&gt;= 0.49).
+</span><span class=""> 1569: 
+</span><span class=""> 1570: Returns C&lt;[]&gt; for in-memory backends (headerless CSV, XLSX, empty files) and for
+</span><span class=""> 1571: URL-backed sources where aggregation is not available.
+</span><span class=""> 1572: 
+</span><span class=""> 1573: Accepts the same C&lt;by&gt;, C&lt;measures&gt;, C&lt;having&gt;, C&lt;sort_by&gt;, C&lt;limit&gt;, C&lt;offset&gt;,
+</span><span class=""> 1574: and WHERE-criteria parameters as C&lt;Database::Abstraction::aggregate()&gt;.
 </span><span class=""> 1575: 
-</span><span class=""> 1576: =head4 INPUT
+</span><span class=""> 1576: =head3 API SPECIFICATION
 </span><span class=""> 1577: 
-</span><span class=""> 1578:   by        arrayref    Column names to GROUP BY.
-</span><span class=""> 1579:   measures  arrayref    Measure descriptors (see Database::Abstraction::aggregate).
-</span><span class=""> 1580:   having    hashref     Optional HAVING criteria.
-</span><span class=""> 1581:   sort_by   string      Optional ORDER BY column.
-</span><span class=""> 1582:   limit     integer     Optional result limit.
-</span><span class=""> 1583:   offset    integer     Optional result offset.
-</span><span class=""> 1584:   (any other key)       WHERE column criteria passed through to D::A.
-</span><span class=""> 1585: 
-</span><span class=""> 1586: =head4 OUTPUT
+</span><span class=""> 1578: =head4 INPUT
+</span><span class=""> 1579: 
+</span><span class=""> 1580:   by        arrayref    Column names to GROUP BY.
+</span><span class=""> 1581:   measures  arrayref    Measure descriptors (see Database::Abstraction::aggregate).
+</span><span class=""> 1582:   having    hashref     Optional HAVING criteria.
+</span><span class=""> 1583:   sort_by   string      Optional ORDER BY column.
+</span><span class=""> 1584:   limit     integer     Optional result limit.
+</span><span class=""> 1585:   offset    integer     Optional result offset.
+</span><span class=""> 1586:   (any other key)       WHERE column criteria passed through to D::A.
 </span><span class=""> 1587: 
-</span><span class=""> 1588:   arrayref of hashrefs   -- one row per group.
-</span><span class=""> 1589:   []                     -- in-memory / empty / URL-backed sources.
-</span><span class=""> 1590: 
-</span><span class=""> 1591: =head3 MESSAGES
+</span><span class=""> 1588: =head4 OUTPUT
+</span><span class=""> 1589: 
+</span><span class=""> 1590:   arrayref of hashrefs   -- one row per group.
+</span><span class=""> 1591:   []                     -- in-memory / empty / URL-backed sources.
 </span><span class=""> 1592: 
-</span><span class=""> 1593: None.
+</span><span class=""> 1593: =head3 MESSAGES
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1594: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1595: =cut
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1595: None.
 </span><span class=""> 1596: 
-</span><span class=""> 1597: sub aggregate {
-</span><span class=""> 1598: 	my ($self, @args) = @_;
-</span><span class=""> 1599: 	return [] if $self-&gt;{_file_is_empty};
-</span><span class=""> 1600: 	return [] if $self-&gt;{_file_data};
-</span><span class=""> 1601: 	return [] unless $self-&gt;{_db};
-</span><span class=""> 1602: 	return [] unless $self-&gt;{_db}-&gt;can(&#39;aggregate&#39;);
-</span><span class=""> 1603: 	return $self-&gt;{_db}-&gt;aggregate(@args);
-</span><span class=""> 1604: }
-</span><span class=""> 1605: 
-</span><span class=""> 1606: =head2 id_column
+</span><span class=""> 1597: =cut
+</span><span class=""> 1598: 
+</span><span class=""> 1599: sub aggregate {
+</span><span class=""> 1600: 	my ($self, @args) = @_;
+</span><span class=""> 1601: 	return [] if $self-&gt;{_file_is_empty};
+</span><span class=""> 1602: 	return [] if $self-&gt;{_file_data};
+</span><span class=""> 1603: 	return [] unless $self-&gt;{_db};
+</span><span class=""> 1604: 	return [] unless $self-&gt;{_db}-&gt;can(&#39;aggregate&#39;);
+</span><span class=""> 1605: 	return $self-&gt;{_db}-&gt;aggregate(@args);
+</span><span class=""> 1606: }
 </span><span class=""> 1607: 
-</span><span class=""> 1608: Returns the name of the column used as the primary key and as
-</span><span class=""> 1609: C&lt;Database::Abstraction&gt;&#39;s row-existence anchor.
-</span><span class=""> 1610: 
-</span><span class=""> 1611: For file-backed tables this is the first column in the CSV/TSV/PSV header
-</span><span class=""> 1612: whose name is a valid SQL identifier (letters, digits, underscores only,
-</span><span class=""> 1613: not starting with a digit) B&lt;and&gt; whose value in the first data row is
-</span><span class=""> 1614: non-empty.  C&lt;DataSource&gt; detects this automatically to avoid the
-</span><span class=""> 1615: C&lt;Database::Abstraction&gt; default of C&lt;&#39;entry&#39;&gt;, which would silently
-</span><span class=""> 1616: discard every row in a file that has no C&lt;entry&gt; column.
-</span><span class=""> 1617: 
-</span><span class=""> 1618: Returns C&lt;undef&gt; for URL/HTML-table backends (no primary-key concept applies).
+</span><span class=""> 1608: =head2 id_column
+</span><span class=""> 1609: 
+</span><span class=""> 1610: Returns the name of the column used as the primary key and as
+</span><span class=""> 1611: C&lt;Database::Abstraction&gt;&#39;s row-existence anchor.
+</span><span class=""> 1612: 
+</span><span class=""> 1613: For file-backed tables this is the first column in the CSV/TSV/PSV header
+</span><span class=""> 1614: whose name is a valid SQL identifier (letters, digits, underscores only,
+</span><span class=""> 1615: not starting with a digit) B&lt;and&gt; whose value in the first data row is
+</span><span class=""> 1616: non-empty.  C&lt;DataSource&gt; detects this automatically to avoid the
+</span><span class=""> 1617: C&lt;Database::Abstraction&gt; default of C&lt;&#39;entry&#39;&gt;, which would silently
+</span><span class=""> 1618: discard every row in a file that has no C&lt;entry&gt; column.
 </span><span class=""> 1619: 
-</span><span class=""> 1620: =head3 API SPECIFICATION
+</span><span class=""> 1620: Returns C&lt;undef&gt; for URL/HTML-table backends (no primary-key concept applies).
 </span><span class=""> 1621: 
-</span><span class=""> 1622: =head4 INPUT
+</span><span class=""> 1622: =head3 API SPECIFICATION
 </span><span class=""> 1623: 
-</span><span class=""> 1624: None.
+</span><span class=""> 1624: =head4 INPUT
 </span><span class=""> 1625: 
-</span><span class=""> 1626: =head4 OUTPUT
+</span><span class=""> 1626: None.
 </span><span class=""> 1627: 
-</span><span class=""> 1628:     SCALAR string    # e.g. &#39;id&#39;, &#39;date&#39;, &#39;sku&#39; -- the first safe-identifier column
-</span><span class=""> 1629:     undef            # URL-backed (HTML table import) sources
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1630: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1631: =head3 MESSAGES
+</span><span class=""> 1628: =head4 OUTPUT
+</span><span class=""> 1629: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1630:     SCALAR string    # e.g. &#39;id&#39;, &#39;date&#39;, &#39;sku&#39; -- the first safe-identifier column
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1631:     undef            # URL-backed (HTML table import) sources
 </span><span class=""> 1632: 
-</span><span class=""> 1633: None.
+</span><span class=""> 1633: =head3 MESSAGES
 </span><span class=""> 1634: 
-</span><span class=""> 1635: =cut
+</span><span class=""> 1635: None.
 </span><span class=""> 1636: 
-</span><span class=""> 1637: sub id_column {
-</span><span class=""> 1638: 	my $self = shift;
-</span><span class=""> 1639: 	return $self-&gt;{_id_col};
-</span><span class=""> 1640: }
-</span><span class=""> 1641: 
-</span><span class=""> 1642: =head2 source_url
+</span><span class=""> 1637: =cut
+</span><span class=""> 1638: 
+</span><span class=""> 1639: sub id_column {
+</span><span class=""> 1640: 	my $self = shift;
+</span><span class=""> 1641: 	return $self-&gt;{_id_col};
+</span><span class=""> 1642: }
 </span><span class=""> 1643: 
-</span><span class=""> 1644: Returns the source URL for URL/HTML-table-backed instances.
-</span><span class=""> 1645: Returns C&lt;undef&gt; for all file-backed instances (local files and SFTP-fetched
-</span><span class=""> 1646: remote files).
-</span><span class=""> 1647: 
-</span><span class=""> 1648: Use this to distinguish a URL-backed C&lt;DataSource&gt; from a file-backed one
-</span><span class=""> 1649: when you need to decide whether to show a &quot;re-fetch&quot; button to the user.
-</span><span class=""> 1650: 
-</span><span class=""> 1651: =head3 API SPECIFICATION
+</span><span class=""> 1644: =head2 source_url
+</span><span class=""> 1645: 
+</span><span class=""> 1646: Returns the source URL for URL/HTML-table-backed instances.
+</span><span class=""> 1647: Returns C&lt;undef&gt; for all file-backed instances (local files and SFTP-fetched
+</span><span class=""> 1648: remote files).
+</span><span class=""> 1649: 
+</span><span class=""> 1650: Use this to distinguish a URL-backed C&lt;DataSource&gt; from a file-backed one
+</span><span class=""> 1651: when you need to decide whether to show a &quot;re-fetch&quot; button to the user.
 </span><span class=""> 1652: 
-</span><span class=""> 1653: =head4 INPUT
+</span><span class=""> 1653: =head3 API SPECIFICATION
 </span><span class=""> 1654: 
-</span><span class=""> 1655: None.
+</span><span class=""> 1655: =head4 INPUT
 </span><span class=""> 1656: 
-</span><span class=""> 1657: =head4 OUTPUT
+</span><span class=""> 1657: None.
 </span><span class=""> 1658: 
-</span><span class=""> 1659:     SCALAR string    # &#39;https://example.com/data.html&#39; -- the original URL
-</span><span class=""> 1660:     undef            # file-backed (local or SFTP) sources
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1661: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1662: =head3 MESSAGES
+</span><span class=""> 1659: =head4 OUTPUT
+</span><span class=""> 1660: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1661:     SCALAR string    # &#39;https://example.com/data.html&#39; -- the original URL
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1662:     undef            # file-backed (local or SFTP) sources
 </span><span class=""> 1663: 
-</span><span class=""> 1664: None.
+</span><span class=""> 1664: =head3 MESSAGES
 </span><span class=""> 1665: 
-</span><span class=""> 1666: =cut
+</span><span class=""> 1666: None.
 </span><span class=""> 1667: 
-</span><span class=""> 1668: sub source_url {
-</span><span class=""> 1669: 	my $self = shift;
-</span><span class=""> 1670: 	return $self-&gt;{_url};
-</span><span class=""> 1671: }
-</span><span class=""> 1672: 
-</span><span class=""> 1673: =head2 updated
+</span><span class=""> 1668: =cut
+</span><span class=""> 1669: 
+</span><span class=""> 1670: sub source_url {
+</span><span class=""> 1671: 	my $self = shift;
+</span><span class=""> 1672: 	return $self-&gt;{_url};
+</span><span class=""> 1673: }
 </span><span class=""> 1674: 
-</span><span class=""> 1675: Returns the Unix epoch timestamp (mtime) of the backing data file, or
-</span><span class=""> 1676: C&lt;undef&gt; for URL-backed tables and for sources whose file cannot be
-</span><span class=""> 1677: C&lt;stat()&gt;-ed.
-</span><span class=""> 1678: 
-</span><span class=""> 1679: C&lt;Database::Join&gt; calls C&lt;updated()&gt; on each component database to
-</span><span class=""> 1680: detect whether its SQLite spill cache is stale.  When a source file changes
-</span><span class=""> 1681: on disk, the mtime increases, the join detects the change, and re-runs the
-</span><span class=""> 1682: join rather than serving stale cached data.
-</span><span class=""> 1683: 
-</span><span class=""> 1684: =head3 API SPECIFICATION
+</span><span class=""> 1675: =head2 updated
+</span><span class=""> 1676: 
+</span><span class=""> 1677: Returns the Unix epoch timestamp (mtime) of the backing data file, or
+</span><span class=""> 1678: C&lt;undef&gt; for URL-backed tables and for sources whose file cannot be
+</span><span class=""> 1679: C&lt;stat()&gt;-ed.
+</span><span class=""> 1680: 
+</span><span class=""> 1681: C&lt;Database::Join&gt; calls C&lt;updated()&gt; on each component database to
+</span><span class=""> 1682: detect whether its SQLite spill cache is stale.  When a source file changes
+</span><span class=""> 1683: on disk, the mtime increases, the join detects the change, and re-runs the
+</span><span class=""> 1684: join rather than serving stale cached data.
 </span><span class=""> 1685: 
-</span><span class=""> 1686: =head4 INPUT
+</span><span class=""> 1686: =head3 API SPECIFICATION
 </span><span class=""> 1687: 
-</span><span class=""> 1688: None.
+</span><span class=""> 1688: =head4 INPUT
 </span><span class=""> 1689: 
-</span><span class=""> 1690: =head4 OUTPUT
+</span><span class=""> 1690: None.
 </span><span class=""> 1691: 
-</span><span class=""> 1692:     SCALAR integer   # Unix epoch seconds, e.g. 1728601234
-</span><span class=""> 1693:     undef            # URL-backed tables, or file cannot be stat()-ed
-</span><span class=""> 1694: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1695: =head3 MESSAGES
+</span><span class=""> 1692: =head4 OUTPUT
+</span><span class=""> 1693: 
+</span><span class=""> 1694:     SCALAR integer   # Unix epoch seconds, e.g. 1728601234
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1695:     undef            # URL-backed tables, or file cannot be stat()-ed
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1696: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1697: None.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1697: =head3 MESSAGES
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1698: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1699: =cut
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1699: None.
 </span><span class=""> 1700: 
-</span><span class=""> 1701: sub updated {
-</span><span class=""> 1702: 	my $self = shift;
-</span><span class=""> 1703: 	# Delegate to the D::A backend when available -- it tracks mtime internally.
-</span><span class=""> 1704: 	return $self-&gt;{_db}-&gt;updated() if $self-&gt;{_db} &amp;&amp; $self-&gt;{_db}-&gt;can(&#39;updated&#39;);
-</span><span class=""> 1705: 	# Fallback: stat the file path directly (header-less CSV and XLSX bypass D::A).
-</span><span class=""> 1706: 	return (stat($self-&gt;{_file_path}))[9] if defined $self-&gt;{_file_path} &amp;&amp; -f $self-&gt;{_file_path};
-</span><span class=""> 1707: 	return undef;
-</span><span class=""> 1708: }
-</span><span class=""> 1709: 
-</span><span class=""> 1710: # ---------------------------------------------------------------------------
-</span><span class=""> 1711: # Public data-access methods
+</span><span class=""> 1701: =cut
+</span><span class=""> 1702: 
+</span><span class=""> 1703: sub updated {
+</span><span class=""> 1704: 	my $self = shift;
+</span><span class=""> 1705: 	# Delegate to the D::A backend when available -- it tracks mtime internally.
+</span><span class=""> 1706: 	return $self-&gt;{_db}-&gt;updated() if $self-&gt;{_db} &amp;&amp; $self-&gt;{_db}-&gt;can(&#39;updated&#39;);
+</span><span class=""> 1707: 	# Fallback: stat the file path directly (header-less CSV and XLSX bypass D::A).
+</span><span class=""> 1708: 	return (stat($self-&gt;{_file_path}))[9] if defined $self-&gt;{_file_path} &amp;&amp; -f $self-&gt;{_file_path};
+</span><span class=""> 1709: 	return undef;
+</span><span class=""> 1710: }
+</span><span class=""> 1711: 
 </span><span class=""> 1712: # ---------------------------------------------------------------------------
-</span><span class=""> 1713: 
-</span><span class=""> 1714: =head1 METHODS
+</span><span class=""> 1713: # Public data-access methods
+</span><span class=""> 1714: # ---------------------------------------------------------------------------
 </span><span class=""> 1715: 
-</span><span class=""> 1716: =head2 fetch_all
+</span><span class=""> 1716: =head1 METHODS
 </span><span class=""> 1717: 
-</span><span class=""> 1718: Returns every record in the table as an arrayref of hashrefs (one hashref
-</span><span class=""> 1719: per row; keys are the column names).
-</span><span class=""> 1720: 
-</span><span class=""> 1721: This is the primary data-retrieval method.  It is equivalent to calling
-</span><span class=""> 1722: C&lt;selectall_arrayref&gt; with no arguments and normalising the result to an
-</span><span class=""> 1723: arrayref.  Prefer C&lt;selectall_arrayref&gt; when passing to C&lt;Database::Join&gt;
-</span><span class=""> 1724: (it is the method that C&lt;Database::Join&gt; calls internally).
-</span><span class=""> 1725: 
-</span><span class=""> 1726: Filtering (C&lt;eq&gt;, C&lt;contains&gt;, C&lt;gt&gt;, C&lt;lt&gt;, etc.) is applied at the
-</span><span class=""> 1727: controller layer by C&lt;Dashboard::_apply_filter_spec&gt; after C&lt;fetch_all&gt;
-</span><span class=""> 1728: returns.  C&lt;DataSource&gt; itself is filter-unaware.
-</span><span class=""> 1729: 
-</span><span class=""> 1730: Three fast-path shortcuts are checked before touching the DBI backend,
-</span><span class=""> 1731: in this order:
-</span><span class=""> 1732: 
-</span><span class=""> 1733: =over 4
+</span><span class=""> 1718: =head2 fetch_all
+</span><span class=""> 1719: 
+</span><span class=""> 1720: Returns every record in the table as an arrayref of hashrefs (one hashref
+</span><span class=""> 1721: per row; keys are the column names).
+</span><span class=""> 1722: 
+</span><span class=""> 1723: This is the primary data-retrieval method.  It is equivalent to calling
+</span><span class=""> 1724: C&lt;selectall_arrayref&gt; with no arguments and normalising the result to an
+</span><span class=""> 1725: arrayref.  Prefer C&lt;selectall_arrayref&gt; when passing to C&lt;Database::Join&gt;
+</span><span class=""> 1726: (it is the method that C&lt;Database::Join&gt; calls internally).
+</span><span class=""> 1727: 
+</span><span class=""> 1728: Filtering (C&lt;eq&gt;, C&lt;contains&gt;, C&lt;gt&gt;, C&lt;lt&gt;, etc.) is applied at the
+</span><span class=""> 1729: controller layer by C&lt;Dashboard::_apply_filter_spec&gt; after C&lt;fetch_all&gt;
+</span><span class=""> 1730: returns.  C&lt;DataSource&gt; itself is filter-unaware.
+</span><span class=""> 1731: 
+</span><span class=""> 1732: Three fast-path shortcuts are checked before touching the DBI backend,
+</span><span class=""> 1733: in this order:
 </span><span class=""> 1734: 
-</span><span class=""> 1735: =item 1.
+</span><span class=""> 1735: =over 4
 </span><span class=""> 1736: 
-</span><span class=""> 1737: C&lt;_file_is_empty&gt; is set (0-byte or blank-first-line file) -- returns C&lt;[]&gt;
-</span><span class=""> 1738: immediately, no DBI connection.
-</span><span class=""> 1739: 
-</span><span class=""> 1740: =item 2.
+</span><span class=""> 1737: =item 1.
+</span><span class=""> 1738: 
+</span><span class=""> 1739: C&lt;_file_is_empty&gt; is set (0-byte or blank-first-line file) -- returns C&lt;[]&gt;
+</span><span class=""> 1740: immediately, no DBI connection.
 </span><span class=""> 1741: 
-</span><span class=""> 1742: C&lt;_file_data&gt; is set (pre-parsed header-less CSV, XLSX, or BerkeleyDB data) --
-</span><span class=""> 1743: returns the in-memory arrayref directly.
-</span><span class=""> 1744: 
-</span><span class=""> 1745: =item 3.
+</span><span class=""> 1742: =item 2.
+</span><span class=""> 1743: 
+</span><span class=""> 1744: C&lt;_file_data&gt; is set (pre-parsed header-less CSV, XLSX, or BerkeleyDB data) --
+</span><span class=""> 1745: returns the in-memory arrayref directly.
 </span><span class=""> 1746: 
-</span><span class=""> 1747: A matching CHI cache entry exists -- returns the cached arrayref without
-</span><span class=""> 1748: calling C&lt;Database::Abstraction&gt;.
-</span><span class=""> 1749: 
-</span><span class=""> 1750: =back
+</span><span class=""> 1747: =item 3.
+</span><span class=""> 1748: 
+</span><span class=""> 1749: A matching CHI cache entry exists -- returns the cached arrayref without
+</span><span class=""> 1750: calling C&lt;Database::Abstraction&gt;.
 </span><span class=""> 1751: 
-</span><span class=""> 1752: =head3 API SPECIFICATION
+</span><span class=""> 1752: =back
 </span><span class=""> 1753: 
-</span><span class=""> 1754: =head4 INPUT
+</span><span class=""> 1754: =head3 API SPECIFICATION
 </span><span class=""> 1755: 
-</span><span class=""> 1756: None.  Filtering is applied at the controller layer, not inside C&lt;DataSource&gt;.
+</span><span class=""> 1756: =head4 INPUT
 </span><span class=""> 1757: 
-</span><span class=""> 1758: =head4 OUTPUT
+</span><span class=""> 1758: None.  Filtering is applied at the controller layer, not inside C&lt;DataSource&gt;.
 </span><span class=""> 1759: 
-</span><span class=""> 1760:     ARRAYREF of HASHREF   # one hashref per row; keys are column names
-</span><span class=""> 1761:     []                    # empty arrayref when the file is empty or has no data rows
-</span><span class=""> 1762: 
-</span><span class=""> 1763: Croaks (via C&lt;croak&gt;) when the backend raises an exception.  Emits a
-</span><span class=""> 1764: warning via C&lt;carp&gt; (non-fatal) when the result set is empty, so the
-</span><span class=""> 1765: caller can distinguish &quot;opened successfully, no data&quot; from a silent
-</span><span class=""> 1766: failure.
-</span><span class=""> 1767: 
-</span><span class=""> 1768: =head3 MESSAGES
+</span><span class=""> 1760: =head4 OUTPUT
+</span><span class=""> 1761: 
+</span><span class=""> 1762:     ARRAYREF of HASHREF   # one hashref per row; keys are column names
+</span><span class=""> 1763:     []                    # empty arrayref when the file is empty or has no data rows
+</span><span class=""> 1764: 
+</span><span class=""> 1765: Croaks (via C&lt;croak&gt;) when the backend raises an exception.  Emits a
+</span><span class=""> 1766: warning via C&lt;carp&gt; (non-fatal) when the result set is empty, so the
+</span><span class=""> 1767: caller can distinguish &quot;opened successfully, no data&quot; from a silent
+</span><span class=""> 1768: failure.
 </span><span class=""> 1769: 
-</span><span class=""> 1770:   error_fetch_failed     -- backend threw an exception during retrieval
-</span><span class=""> 1771:   warn_empty_result      -- query succeeded but returned zero records
-</span><span class=""> 1772:   warn_data_normalised   -- backend returned a hashref; converted to arrayref
-</span><span class=""> 1773: 
-</span><span class=""> 1774: =cut
+</span><span class=""> 1770: =head3 MESSAGES
+</span><span class=""> 1771: 
+</span><span class=""> 1772:   error_fetch_failed     -- backend threw an exception during retrieval
+</span><span class=""> 1773:   warn_empty_result      -- query succeeded but returned zero records
+</span><span class=""> 1774:   warn_data_normalised   -- backend returned a hashref; converted to arrayref
 </span><span class=""> 1775: 
-</span><span class=""> 1776: =head2 selectall_arrayref
+</span><span class=""> 1776: =cut
 </span><span class=""> 1777: 
-</span><span class=""> 1778: C&lt;Database::Abstraction&gt;-compatible alias that allows a C&lt;DataSource&gt; object
-</span><span class=""> 1779: to be passed directly to C&lt;Database::Join&gt; as a component database.
-</span><span class=""> 1780: 
-</span><span class=""> 1781: When called with no arguments (the normal path for a full-table scan),
-</span><span class=""> 1782: results are served from the CHI cache when available.  When called with
-</span><span class=""> 1783: arguments (e.g. C&lt;limit =E&lt;gt&gt; N, offset =E&lt;gt&gt; M&gt; for server-side
-</span><span class=""> 1784: pagination), the cache is bypassed -- narrowed results must not pollute
-</span><span class=""> 1785: the full-table cache entry.
-</span><span class=""> 1786: 
-</span><span class=""> 1787: Three fast-path shortcuts are checked before touching the DBI backend:
+</span><span class=""> 1778: =head2 selectall_arrayref
+</span><span class=""> 1779: 
+</span><span class=""> 1780: C&lt;Database::Abstraction&gt;-compatible alias that allows a C&lt;DataSource&gt; object
+</span><span class=""> 1781: to be passed directly to C&lt;Database::Join&gt; as a component database.
+</span><span class=""> 1782: 
+</span><span class=""> 1783: When called with no arguments (the normal path for a full-table scan),
+</span><span class=""> 1784: results are served from the CHI cache when available.  When called with
+</span><span class=""> 1785: arguments (e.g. C&lt;limit =E&lt;gt&gt; N, offset =E&lt;gt&gt; M&gt; for server-side
+</span><span class=""> 1786: pagination), the cache is bypassed -- narrowed results must not pollute
+</span><span class=""> 1787: the full-table cache entry.
 </span><span class=""> 1788: 
-</span><span class=""> 1789: =over 4
+</span><span class=""> 1789: Three fast-path shortcuts are checked before touching the DBI backend:
 </span><span class=""> 1790: 
-</span><span class=""> 1791: =item 1.
+</span><span class=""> 1791: =over 4
 </span><span class=""> 1792: 
-</span><span class=""> 1793: C&lt;_file_is_empty&gt; is set -- returns C&lt;[]&gt; immediately.
+</span><span class=""> 1793: =item 1.
 </span><span class=""> 1794: 
-</span><span class=""> 1795: =item 2.
+</span><span class=""> 1795: C&lt;_file_is_empty&gt; is set -- returns C&lt;[]&gt; immediately.
 </span><span class=""> 1796: 
-</span><span class=""> 1797: C&lt;_file_data&gt; is set (pre-parsed headerless CSV / XLSX / BerkeleyDB) -- returns
-</span><span class=""> 1798: the in-memory rows directly.
-</span><span class=""> 1799: 
-</span><span class=""> 1800: =item 3.
+</span><span class=""> 1797: =item 2.
+</span><span class=""> 1798: 
+</span><span class=""> 1799: C&lt;_file_data&gt; is set (pre-parsed headerless CSV / XLSX / BerkeleyDB) -- returns
+</span><span class=""> 1800: the in-memory rows directly.
 </span><span class=""> 1801: 
-</span><span class=""> 1802: A matching CHI cache entry exists for the full-table scan -- returns the
-</span><span class=""> 1803: cached arrayref.
-</span><span class=""> 1804: 
-</span><span class=""> 1805: =back
+</span><span class=""> 1802: =item 3.
+</span><span class=""> 1803: 
+</span><span class=""> 1804: A matching CHI cache entry exists for the full-table scan -- returns the
+</span><span class=""> 1805: cached arrayref.
 </span><span class=""> 1806: 
-</span><span class=""> 1807: =head3 API SPECIFICATION
+</span><span class=""> 1807: =back
 </span><span class=""> 1808: 
-</span><span class=""> 1809: =head4 INPUT
+</span><span class=""> 1809: =head3 API SPECIFICATION
 </span><span class=""> 1810: 
-</span><span class=""> 1811: Optional flat key/value list passed through to C&lt;Database::Abstraction&gt;:
+</span><span class=""> 1811: =head4 INPUT
 </span><span class=""> 1812: 
-</span><span class=""> 1813:     limit  =&gt; N    # return at most N rows (used by pagination)
-</span><span class=""> 1814:     offset =&gt; M    # skip the first M rows (used by pagination)
-</span><span class=""> 1815: 
-</span><span class=""> 1816: When no arguments are given, the full table is returned (and cached).
+</span><span class=""> 1813: Optional flat key/value list passed through to C&lt;Database::Abstraction&gt;:
+</span><span class=""> 1814: 
+</span><span class=""> 1815:     limit  =&gt; N    # return at most N rows (used by pagination)
+</span><span class=""> 1816:     offset =&gt; M    # skip the first M rows (used by pagination)
 </span><span class=""> 1817: 
-</span><span class=""> 1818: =head4 OUTPUT
+</span><span class=""> 1818: When no arguments are given, the full table is returned (and cached).
 </span><span class=""> 1819: 
-</span><span class=""> 1820:     ARRAYREF of HASHREF   # one hashref per row; keys are column names
-</span><span class=""> 1821:     []                    # empty arrayref when the file is empty or no rows match
-</span><span class=""> 1822: 
-</span><span class=""> 1823: =head3 MESSAGES
+</span><span class=""> 1820: =head4 OUTPUT
+</span><span class=""> 1821: 
+</span><span class=""> 1822:     ARRAYREF of HASHREF   # one hashref per row; keys are column names
+</span><span class=""> 1823:     []                    # empty arrayref when the file is empty or no rows match
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1824: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1825: None.  Errors from the DBI backend propagate as uncaught exceptions; wrap
-</span><span class=""> 1826: calls in C&lt;eval&gt; if you need to recover.
-</span><span class=""> 1827: 
-</span><span class=""> 1828: =cut
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1825: =head3 MESSAGES
+</span><span class=""> 1826: 
+</span><span class=""> 1827: None.  Errors from the DBI backend propagate as uncaught exceptions; wrap
+</span><span class=""> 1828: calls in C&lt;eval&gt; if you need to recover.
 </span><span class=""> 1829: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1830: sub selectall_arrayref {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1831 → 1839 → 1847</span></span> 1831: 	my ($self, @args) = @_;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1832: 	return [] if $self-&gt;{_file_is_empty};
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1833: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1834: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1835: 	# Cache only plain unfiltered calls -- Database::Join passes no args for the
-</span><span class=""> 1836: 	# full table scan; a non-empty @args means a narrowed query whose result must
-</span><span class=""> 1837: 	# not be mistaken for the full-table cache entry.
-</span><span class=""> 1838: 	my $cache = $self-&gt;{_cache};
-</span><span class=""> 1839: 	if ($cache &amp;&amp; !@args) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1840: 		my $key = $self-&gt;_cache_key;
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1841: 		if (defined $key) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1842: 			my $hit = $cache-&gt;get($key);
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1843: 			return $hit if defined $hit;
-</span><span class=""> 1844: 		}
-</span><span class=""> 1845: 	}
-</span><span class=""> 1846: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1847 → 1849 → 1858</span></span> 1847: 	my $data = $self-&gt;{_db}-&gt;selectall_arrayref(@args);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1830: =cut
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1831: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1832: sub selectall_arrayref {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1833 → 1841 → 1849</span></span> 1833: 	my ($self, @args) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1834: 	return [] if $self-&gt;{_file_is_empty};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1835: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
+</span><span class=""> 1836: 
+</span><span class=""> 1837: 	# Cache only plain unfiltered calls -- Database::Join passes no args for the
+</span><span class=""> 1838: 	# full table scan; a non-empty @args means a narrowed query whose result must
+</span><span class=""> 1839: 	# not be mistaken for the full-table cache entry.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1840: 	my $cache = $self-&gt;{_cache};
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1841: 	if ($cache &amp;&amp; !@args) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1842: 		my $key = $self-&gt;_cache_key;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1843: 		if (defined $key) {
+</span><span class=""> 1844: 			my $hit = $cache-&gt;get($key);
+</span><span class=""> 1845: 			return $hit if defined $hit;
+</span><span class=""> 1846: 		}
+</span><span class=""> 1847: 	}
 </span><span class=""> 1848: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1849: 	if ($cache &amp;&amp; !@args &amp;&amp; defined $data) {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1850: 		my $key = $self-&gt;_cache_key;
-</span><span class=""> 1851: 		if (defined $key) {
-</span><span class=""> 1852: 			defined $self-&gt;{_url}
-</span><span class=""> 1853: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
-</span><span class=""> 1854: 				: $cache-&gt;set($key, $data);
-</span><span class=""> 1855: 		}
-</span><span class=""> 1856: 	}
-</span><span class=""> 1857: 
-</span><span class=""> 1858: 	return $data;
-</span><span class=""> 1859: }
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1860: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1861: sub fetch_all {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1862 → 1874 → 1882</span></span> 1862: 	my $self  = shift;
-</span><span class=""> 1863: 	my $table = $self-&gt;{_table};
-</span><span class=""> 1864: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1865: 	# 0-byte file: no backend was created; nothing to fetch.
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1866: 	return [] if $self-&gt;{_file_is_empty};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1867: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1868: 	# Headerless CSV/XLSX: data was pre-parsed with synthesized column names.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1869: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1870: 
-</span><span class=""> 1871: 	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
-</span><span class=""> 1872: 	# file tables benefit from skipping disk I/O and CSV/TSV/PSV parsing.
-</span><span class=""> 1873: 	my $cache = $self-&gt;{_cache};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1874: 	if ($cache) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1875: 		my $key = $self-&gt;_cache_key;
-</span><span class=""> 1876: 		if (defined $key) {
-</span><span class=""> 1877: 			my $hit = $cache-&gt;get($key);
-</span><span class=""> 1878: 			return $hit if defined $hit;
-</span><span class=""> 1879: 		}
-</span><span class=""> 1880: 	}
-</span><span class=""> 1881: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1882 → 1883 → 1887</span></span> 1882: 	my $data = eval { $self-&gt;{_db}-&gt;selectall_hashref() };
-</span><span class=""> 1883: 	if ($@) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1884: 		croak $self-&gt;_msg(&#39;error_fetch_failed&#39;, $table, $@);
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1885: 	}
-</span><span class=""> 1886: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1887 → 1893 → 1898</span></span> 1887: 	return [] unless defined $data;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1849 → 1851 → 1860</span></span> 1849: 	my $data = $self-&gt;{_db}-&gt;selectall_arrayref(@args);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1850: 
+</span><span class=""> 1851: 	if ($cache &amp;&amp; !@args &amp;&amp; defined $data) {
+</span><span class=""> 1852: 		my $key = $self-&gt;_cache_key;
+</span><span class=""> 1853: 		if (defined $key) {
+</span><span class=""> 1854: 			defined $self-&gt;{_url}
+</span><span class=""> 1855: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
+</span><span class=""> 1856: 				: $cache-&gt;set($key, $data);
+</span><span class=""> 1857: 		}
+</span><span class=""> 1858: 	}
+</span><span class=""> 1859: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1860: 	return $data;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1861: }
+</span><span class=""> 1862: 
+</span><span class=""> 1863: sub fetch_all {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1864 → 1876 → 1884</span></span> 1864: 	my $self  = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1865: 	my $table = $self-&gt;{_table};
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1866: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1867: 	# 0-byte file: no backend was created; nothing to fetch.
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1868: 	return [] if $self-&gt;{_file_is_empty};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1869: 
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1870: 	# Headerless CSV/XLSX: data was pre-parsed with synthesized column names.
+</span><span class=""> 1871: 	return $self-&gt;{_file_data} if $self-&gt;{_file_data};
+</span><span class=""> 1872: 
+</span><span class=""> 1873: 	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1874: 	# file tables benefit from skipping disk I/O and CSV/TSV/PSV parsing.
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1875: 	my $cache = $self-&gt;{_cache};
+</span><span class=""> 1876: 	if ($cache) {
+</span><span class=""> 1877: 		my $key = $self-&gt;_cache_key;
+</span><span class=""> 1878: 		if (defined $key) {
+</span><span class=""> 1879: 			my $hit = $cache-&gt;get($key);
+</span><span class=""> 1880: 			return $hit if defined $hit;
+</span><span class=""> 1881: 		}
+</span><span class=""> 1882: 	}
+</span><span class=""> 1883: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1884 → 1885 → 1889</span></span> 1884: 	my $data = eval { $self-&gt;{_db}-&gt;selectall_hashref() };
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1885: 	if ($@) {
+</span><span class=""> 1886: 		croak $self-&gt;_msg(&#39;error_fetch_failed&#39;, $table, $@);
+</span><span class=""> 1887: 	}
 </span><span class=""> 1888: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1889: 	# Strategy: Database::Abstraction can return either an arrayref (when the
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1890: 	# underlying driver iterates rows) or a hashref keyed by primary key (when
-</span><span class=""> 1891: 	# it mirrors DBI&#39;s selectall_hashref semantics). We normalise to arrayref
-</span><span class=""> 1892: 	# here so every caller above this layer sees a uniform structure.
-</span><span class=""> 1893: 	if (ref $data eq &#39;HASH&#39;) {
-</span><span class=""> 1894: 		carp $self-&gt;_msg(&#39;warn_data_normalised&#39;, $table);
-</span><span class=""> 1895: 		$data = [ values %{$data} ];
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1896: 	}
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1897: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1898 → 1898 → 1905</span></span> 1898: 	if (!@{$data}) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1899: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
-</span><span class=""> 1900: 	}
-</span><span class=""> 1901: 
-</span><span class=""> 1902: 	# Cache store: URL tables use a TTL so stale pages expire automatically;
-</span><span class=""> 1903: 	# file tables encode mtime in the key so a changed file produces a natural
-</span><span class=""> 1904: 	# miss without any explicit invalidation.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1905 → 1905 → 1914</span></span> 1905: 	if ($cache) {
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1906: 		my $key = $self-&gt;_cache_key;
-</span><span class=""> 1907: 		if (defined $key) {
-</span><span class=""> 1908: 			defined $self-&gt;{_url}
-</span><span class=""> 1909: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
-</span><span class=""> 1910: 				: $cache-&gt;set($key, $data);
-</span><span class=""> 1911: 		}
-</span><span class=""> 1912: 	}
-</span><span class=""> 1913: 
-</span><span class=""> 1914: 	return $data;
-</span><span class=""> 1915: }
-</span><span class=""> 1916: 
-</span><span class=""> 1917: =head2 count
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1889 → 1895 → 1900</span></span> 1889: 	return [] unless defined $data;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1890: 
+</span><span class=""> 1891: 	# Strategy: Database::Abstraction can return either an arrayref (when the
+</span><span class=""> 1892: 	# underlying driver iterates rows) or a hashref keyed by primary key (when
+</span><span class=""> 1893: 	# it mirrors DBI&#39;s selectall_hashref semantics). We normalise to arrayref
+</span><span class=""> 1894: 	# here so every caller above this layer sees a uniform structure.
+</span><span class=""> 1895: 	if (ref $data eq &#39;HASH&#39;) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1896: 		carp $self-&gt;_msg(&#39;warn_data_normalised&#39;, $table);
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1897: 		$data = [ values %{$data} ];
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1898: 	}
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1899: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1900 → 1900 → 1907</span></span> 1900: 	if (!@{$data}) {
+</span><span class=""> 1901: 		carp $self-&gt;_msg(&#39;warn_empty_result&#39;, $table);
+</span><span class=""> 1902: 	}
+</span><span class=""> 1903: 
+</span><span class=""> 1904: 	# Cache store: URL tables use a TTL so stale pages expire automatically;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1905: 	# file tables encode mtime in the key so a changed file produces a natural
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1906: 	# miss without any explicit invalidation.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1907 → 1907 → 1916</span></span> 1907: 	if ($cache) {
+</span><span class=""> 1908: 		my $key = $self-&gt;_cache_key;
+</span><span class=""> 1909: 		if (defined $key) {
+</span><span class=""> 1910: 			defined $self-&gt;{_url}
+</span><span class=""> 1911: 				? $cache-&gt;set($key, $data, $self-&gt;{_cache_ttl_url})
+</span><span class=""> 1912: 				: $cache-&gt;set($key, $data);
+</span><span class=""> 1913: 		}
+</span><span class=""> 1914: 	}
+</span><span class=""> 1915: 
+</span><span class=""> 1916: 	return $data;
+</span><span class=""> 1917: }
 </span><span class=""> 1918: 
-</span><span class=""> 1919: Returns the total number of rows in the table.
+</span><span class=""> 1919: =head2 count
 </span><span class=""> 1920: 
-</span><span class=""> 1921: For pre-parsed sources (header-less CSV, XLSX, BerkeleyDB) the count comes
-</span><span class=""> 1922: from the already-loaded in-memory slice and is instant (no I/O).  For
-</span><span class=""> 1923: empty-file sentinels it returns C&lt;0&gt; immediately.  For all DBI-backed
-</span><span class=""> 1924: sources (SQLite, large CSV via DBD::CSV) it delegates to
-</span><span class=""> 1925: C&lt;Database::Abstraction::count()&gt;, which issues a
-</span><span class=""> 1926: C&lt;SELECT COUNT(*) FROM E&lt;lt&gt;tableE&lt;gt&gt;&gt; query against the file.
-</span><span class=""> 1927: 
-</span><span class=""> 1928: B&lt;Warning: do not call C&lt;count()&gt; on a very large SQLite file&gt; if you
-</span><span class=""> 1929: only need to know whether a next page exists.  The pagination controller
-</span><span class=""> 1930: uses the N+1 trick (fetch C&lt;per_page + 1&gt; rows via C&lt;limit/offset&gt;)
-</span><span class=""> 1931: specifically to avoid a C&lt;COUNT(*)&gt; on multi-gigabyte databases, which
-</span><span class=""> 1932: can block the server for minutes.
-</span><span class=""> 1933: 
-</span><span class=""> 1934: =head3 API SPECIFICATION
+</span><span class=""> 1921: Returns the total number of rows in the table.
+</span><span class=""> 1922: 
+</span><span class=""> 1923: For pre-parsed sources (header-less CSV, XLSX, BerkeleyDB) the count comes
+</span><span class=""> 1924: from the already-loaded in-memory slice and is instant (no I/O).  For
+</span><span class=""> 1925: empty-file sentinels it returns C&lt;0&gt; immediately.  For all DBI-backed
+</span><span class=""> 1926: sources (SQLite, large CSV via DBD::CSV) it delegates to
+</span><span class=""> 1927: C&lt;Database::Abstraction::count()&gt;, which issues a
+</span><span class=""> 1928: C&lt;SELECT COUNT(*) FROM E&lt;lt&gt;tableE&lt;gt&gt;&gt; query against the file.
+</span><span class=""> 1929: 
+</span><span class=""> 1930: B&lt;Warning: do not call C&lt;count()&gt; on a very large SQLite file&gt; if you
+</span><span class=""> 1931: only need to know whether a next page exists.  The pagination controller
+</span><span class=""> 1932: uses the N+1 trick (fetch C&lt;per_page + 1&gt; rows via C&lt;limit/offset&gt;)
+</span><span class=""> 1933: specifically to avoid a C&lt;COUNT(*)&gt; on multi-gigabyte databases, which
+</span><span class=""> 1934: can block the server for minutes.
 </span><span class=""> 1935: 
-</span><span class=""> 1936: =head4 INPUT
+</span><span class=""> 1936: =head3 API SPECIFICATION
 </span><span class=""> 1937: 
-</span><span class=""> 1938: None.
+</span><span class=""> 1938: =head4 INPUT
 </span><span class=""> 1939: 
-</span><span class=""> 1940: =head4 OUTPUT
+</span><span class=""> 1940: None.
 </span><span class=""> 1941: 
-</span><span class=""> 1942:     SCALAR non-negative integer   # total row count, 0 for empty files
+</span><span class=""> 1942: =head4 OUTPUT
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1943: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1944: =head3 MESSAGES
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1944:     SCALAR non-negative integer   # total row count, 0 for empty files
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1945: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1946: None.
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1946: =head3 MESSAGES
 </span><span class=""> 1947: 
-</span><span class=""> 1948: =cut
+</span><span class=""> 1948: None.
 </span><span class=""> 1949: 
-</span><span class=""> 1950: sub count {
-</span><span class=""> 1951: 	my ($self) = @_;
-</span><span class=""> 1952: 	return 0 if $self-&gt;{_file_is_empty};
-</span><span class=""> 1953: 	return scalar @{ $self-&gt;{_file_data} } if $self-&gt;{_file_data};
-</span><span class=""> 1954: 	return $self-&gt;{_db}-&gt;count();
-</span><span class=""> 1955: }
-</span><span class=""> 1956: 
-</span><span class=""> 1957: 1;
+</span><span class=""> 1950: =cut
+</span><span class=""> 1951: 
+</span><span class=""> 1952: sub count {
+</span><span class=""> 1953: 	my ($self) = @_;
+</span><span class=""> 1954: 	return 0 if $self-&gt;{_file_is_empty};
+</span><span class=""> 1955: 	return scalar @{ $self-&gt;{_file_data} } if $self-&gt;{_file_data};
+</span><span class=""> 1956: 	return $self-&gt;{_db}-&gt;count();
+</span><span class=""> 1957: }
 </span><span class=""> 1958: 
-</span><span class=""> 1959: __END__
+</span><span class=""> 1959: 1;
 </span><span class=""> 1960: 
-</span><span class=""> 1961: =head1 COMMON PITFALLS
+</span><span class=""> 1961: __END__
 </span><span class=""> 1962: 
-</span><span class=""> 1963: These are the most common mistakes when using C&lt;DataSource&gt;.
+</span><span class=""> 1963: =head1 COMMON PITFALLS
 </span><span class=""> 1964: 
-</span><span class=""> 1965: =over 4
+</span><span class=""> 1965: These are the most common mistakes when using C&lt;DataSource&gt;.
 </span><span class=""> 1966: 
-</span><span class=""> 1967: =item B&lt;SQLite databases may use .sql, .sqlite, or .sqlite3 as their file extension&gt;
+</span><span class=""> 1967: =over 4
 </span><span class=""> 1968: 
-</span><span class=""> 1969: C&lt;DataSource&gt; recognises C&lt;.sql&gt;, C&lt;.sqlite&gt;, and C&lt;.sqlite3&gt; as SQLite
-</span><span class=""> 1970: database files.  It does B&lt;not&gt; recognise C&lt;.db3&gt;.  If you have a file called
-</span><span class=""> 1971: C&lt;inventory.db3&gt;, rename it to C&lt;inventory.sql&gt; before passing it to
-</span><span class=""> 1972: C&lt;DataSource&gt;.
-</span><span class=""> 1973: 
-</span><span class=""> 1974: =item B&lt;The table name is always lowercased&gt;
+</span><span class=""> 1969: =item B&lt;SQLite databases may use .sql, .sqlite, or .sqlite3 as their file extension&gt;
+</span><span class=""> 1970: 
+</span><span class=""> 1971: C&lt;DataSource&gt; recognises C&lt;.sql&gt;, C&lt;.sqlite&gt;, and C&lt;.sqlite3&gt; as SQLite
+</span><span class=""> 1972: database files.  It does B&lt;not&gt; recognise C&lt;.db3&gt;.  If you have a file called
+</span><span class=""> 1973: C&lt;inventory.db3&gt;, rename it to C&lt;inventory.sql&gt; before passing it to
+</span><span class=""> 1974: C&lt;DataSource&gt;.
 </span><span class=""> 1975: 
-</span><span class=""> 1976: The constructor lowercases the C&lt;table&gt; argument before using it.  Passing
-</span><span class=""> 1977: C&lt;table =E&lt;gt&gt; &#39;Sales&#39;&gt; and C&lt;table =E&lt;gt&gt; &#39;sales&#39;&gt; both look for
-</span><span class=""> 1978: C&lt;sales.csv&gt; (or C&lt;sales.sql&gt;, etc.).  The matching is case-insensitive on the
-</span><span class=""> 1979: table name but B&lt;case-sensitive on the directory path&gt;.
-</span><span class=""> 1980: 
-</span><span class=""> 1981: =item B&lt;CSV files with the wrong separator appear as one giant field per row&gt;
+</span><span class=""> 1976: =item B&lt;The table name is always lowercased&gt;
+</span><span class=""> 1977: 
+</span><span class=""> 1978: The constructor lowercases the C&lt;table&gt; argument before using it.  Passing
+</span><span class=""> 1979: C&lt;table =E&lt;gt&gt; &#39;Sales&#39;&gt; and C&lt;table =E&lt;gt&gt; &#39;sales&#39;&gt; both look for
+</span><span class=""> 1980: C&lt;sales.csv&gt; (or C&lt;sales.sql&gt;, etc.).  The matching is case-insensitive on the
+</span><span class=""> 1981: table name but B&lt;case-sensitive on the directory path&gt;.
 </span><span class=""> 1982: 
-</span><span class=""> 1983: C&lt;Database::Abstraction&gt; defaults to C&lt;!&gt; (exclamation mark) as its field
-</span><span class=""> 1984: separator.  A standard comma-separated CSV file will look like one big field
-</span><span class=""> 1985: per row (for example, C&lt;1,Widget A,North,100&gt;) because the library never sees
-</span><span class=""> 1986: the commas as separators.  C&lt;DataSource&gt; fixes this automatically by reading
-</span><span class=""> 1987: the first line of the file and detecting the actual separator.  If you bypass
-</span><span class=""> 1988: C&lt;DataSource&gt; and call C&lt;Database::Abstraction&gt; directly, you B&lt;must&gt; pass
-</span><span class=""> 1989: C&lt;sep_char =E&lt;gt&gt; &#39;,&#39;&gt; yourself.
-</span><span class=""> 1990: 
-</span><span class=""> 1991: =item B&lt;A table with no &quot;entry&quot; column returns zero rows (without DataSource)&gt;
+</span><span class=""> 1983: =item B&lt;CSV files with the wrong separator appear as one giant field per row&gt;
+</span><span class=""> 1984: 
+</span><span class=""> 1985: C&lt;Database::Abstraction&gt; defaults to C&lt;!&gt; (exclamation mark) as its field
+</span><span class=""> 1986: separator.  A standard comma-separated CSV file will look like one big field
+</span><span class=""> 1987: per row (for example, C&lt;1,Widget A,North,100&gt;) because the library never sees
+</span><span class=""> 1988: the commas as separators.  C&lt;DataSource&gt; fixes this automatically by reading
+</span><span class=""> 1989: the first line of the file and detecting the actual separator.  If you bypass
+</span><span class=""> 1990: C&lt;DataSource&gt; and call C&lt;Database::Abstraction&gt; directly, you B&lt;must&gt; pass
+</span><span class=""> 1991: C&lt;sep_char =E&lt;gt&gt; &#39;,&#39;&gt; yourself.
 </span><span class=""> 1992: 
-</span><span class=""> 1993: C&lt;Database::Abstraction&gt; uses C&lt;entry&gt; as its default primary-key column name.
-</span><span class=""> 1994: When slurping a CSV, it discards any row where C&lt;$row-E&lt;gt&gt;{entry}&gt; is
-</span><span class=""> 1995: undefined.  Because most CSV files do not have an C&lt;entry&gt; column, B&lt;all rows
-</span><span class=""> 1996: are silently discarded&gt;.  C&lt;DataSource&gt; prevents this by reading the actual
-</span><span class=""> 1997: first column name from the CSV header and passing it as C&lt;id&gt;, and also by
-</span><span class=""> 1998: setting C&lt;no_entry =E&lt;gt&gt; 1&gt; so all rows are kept as an ordered array.
-</span><span class=""> 1999: 
-</span><span class=""> 2000: =item B&lt;columns() returns undef for SQLite and XML files&gt;
+</span><span class=""> 1993: =item B&lt;A table with no &quot;entry&quot; column returns zero rows (without DataSource)&gt;
+</span><span class=""> 1994: 
+</span><span class=""> 1995: C&lt;Database::Abstraction&gt; uses C&lt;entry&gt; as its default primary-key column name.
+</span><span class=""> 1996: When slurping a CSV, it discards any row where C&lt;$row-E&lt;gt&gt;{entry}&gt; is
+</span><span class=""> 1997: undefined.  Because most CSV files do not have an C&lt;entry&gt; column, B&lt;all rows
+</span><span class=""> 1998: are silently discarded&gt;.  C&lt;DataSource&gt; prevents this by reading the actual
+</span><span class=""> 1999: first column name from the CSV header and passing it as C&lt;id&gt;, and also by
+</span><span class=""> 2000: setting C&lt;no_entry =E&lt;gt&gt; 1&gt; so all rows are kept as an ordered array.
 </span><span class=""> 2001: 
-</span><span class=""> 2002: C&lt;columns()&gt; only returns an arrayref for file formats where the header order
-</span><span class=""> 2003: is visible before data is read (CSV, TSV and PSV).  For SQLite and XML files it
-</span><span class=""> 2004: returns C&lt;undef&gt;.  Always check: C&lt;if ($source-E&lt;gt&gt;columns) { ... }&gt;.  The
-</span><span class=""> 2005: controller falls back to putting C&lt;id_column&gt; first and then sorting the rest
-</span><span class=""> 2006: alphabetically when C&lt;columns()&gt; is C&lt;undef&gt;.
-</span><span class=""> 2007: 
-</span><span class=""> 2008: =item B&lt;XML elements named &quot;name&quot;, &quot;id&quot;, or &quot;key&quot; cause parse failures&gt;
+</span><span class=""> 2002: =item B&lt;columns() returns undef for SQLite and XML files&gt;
+</span><span class=""> 2003: 
+</span><span class=""> 2004: C&lt;columns()&gt; only returns an arrayref for file formats where the header order
+</span><span class=""> 2005: is visible before data is read (CSV, TSV and PSV).  For SQLite and XML files it
+</span><span class=""> 2006: returns C&lt;undef&gt;.  Always check: C&lt;if ($source-E&lt;gt&gt;columns) { ... }&gt;.  The
+</span><span class=""> 2007: controller falls back to putting C&lt;id_column&gt; first and then sorting the rest
+</span><span class=""> 2008: alphabetically when C&lt;columns()&gt; is C&lt;undef&gt;.
 </span><span class=""> 2009: 
-</span><span class=""> 2010: C&lt;XML::Simple&gt; (used by C&lt;Database::Abstraction&gt; for XML files) automatically
-</span><span class=""> 2011: turns a child element called C&lt;name&gt;, C&lt;id&gt;, or C&lt;key&gt; into a hash key instead
-</span><span class=""> 2012: of keeping it as an array element.  This breaks the expected data structure.
-</span><span class=""> 2013: Use different element names in your XML: for example, C&lt;E&lt;lt&gt;skuE&lt;gt&gt;&gt;,
-</span><span class=""> 2014: C&lt;E&lt;lt&gt;labelE&lt;gt&gt;&gt;, or C&lt;E&lt;lt&gt;codeE&lt;gt&gt;&gt; instead of C&lt;E&lt;lt&gt;idE&lt;gt&gt;&gt; and
-</span><span class=""> 2015: C&lt;E&lt;lt&gt;nameE&lt;gt&gt;&gt;.
-</span><span class=""> 2016: 
-</span><span class=""> 2017:   &lt;!-- WRONG: these element names trigger XMLin key-folding --&gt;
-</span><span class=""> 2018:   &lt;items&gt;
-</span><span class=""> 2019:     &lt;item&gt;&lt;id&gt;1&lt;/id&gt;&lt;name&gt;Widget&lt;/name&gt;&lt;/item&gt;
-</span><span class=""> 2020:   &lt;/items&gt;
-</span><span class=""> 2021: 
-</span><span class=""> 2022:   &lt;!-- CORRECT: use neutral element names --&gt;
-</span><span class=""> 2023:   &lt;items&gt;
-</span><span class=""> 2024:     &lt;item&gt;&lt;sku&gt;1&lt;/sku&gt;&lt;label&gt;Widget&lt;/label&gt;&lt;/item&gt;
-</span><span class=""> 2025:   &lt;/items&gt;
-</span><span class=""> 2026: 
-</span><span class=""> 2027: =item B&lt;fetch_all returns an empty arrayref, not undef, for an empty table&gt;
+</span><span class=""> 2010: =item B&lt;XML elements named &quot;name&quot;, &quot;id&quot;, or &quot;key&quot; cause parse failures&gt;
+</span><span class=""> 2011: 
+</span><span class=""> 2012: C&lt;XML::Simple&gt; (used by C&lt;Database::Abstraction&gt; for XML files) automatically
+</span><span class=""> 2013: turns a child element called C&lt;name&gt;, C&lt;id&gt;, or C&lt;key&gt; into a hash key instead
+</span><span class=""> 2014: of keeping it as an array element.  This breaks the expected data structure.
+</span><span class=""> 2015: Use different element names in your XML: for example, C&lt;E&lt;lt&gt;skuE&lt;gt&gt;&gt;,
+</span><span class=""> 2016: C&lt;E&lt;lt&gt;labelE&lt;gt&gt;&gt;, or C&lt;E&lt;lt&gt;codeE&lt;gt&gt;&gt; instead of C&lt;E&lt;lt&gt;idE&lt;gt&gt;&gt; and
+</span><span class=""> 2017: C&lt;E&lt;lt&gt;nameE&lt;gt&gt;&gt;.
+</span><span class=""> 2018: 
+</span><span class=""> 2019:   &lt;!-- WRONG: these element names trigger XMLin key-folding --&gt;
+</span><span class=""> 2020:   &lt;items&gt;
+</span><span class=""> 2021:     &lt;item&gt;&lt;id&gt;1&lt;/id&gt;&lt;name&gt;Widget&lt;/name&gt;&lt;/item&gt;
+</span><span class=""> 2022:   &lt;/items&gt;
+</span><span class=""> 2023: 
+</span><span class=""> 2024:   &lt;!-- CORRECT: use neutral element names --&gt;
+</span><span class=""> 2025:   &lt;items&gt;
+</span><span class=""> 2026:     &lt;item&gt;&lt;sku&gt;1&lt;/sku&gt;&lt;label&gt;Widget&lt;/label&gt;&lt;/item&gt;
+</span><span class=""> 2027:   &lt;/items&gt;
 </span><span class=""> 2028: 
-</span><span class=""> 2029: When a table exists but contains no data rows, C&lt;fetch_all&gt; returns C&lt;[]&gt; (an
-</span><span class=""> 2030: empty arrayref), not C&lt;undef&gt;.  Check with C&lt;scalar @{$records}&gt;, not with
-</span><span class=""> 2031: C&lt;defined $records&gt; or C&lt;$records&gt;.
-</span><span class=""> 2032: 
-</span><span class=""> 2033: =item B&lt;0-byte CSV/TSV/PSV files bypass Database::Abstraction entirely&gt;
+</span><span class=""> 2029: =item B&lt;fetch_all returns an empty arrayref, not undef, for an empty table&gt;
+</span><span class=""> 2030: 
+</span><span class=""> 2031: When a table exists but contains no data rows, C&lt;fetch_all&gt; returns C&lt;[]&gt; (an
+</span><span class=""> 2032: empty arrayref), not C&lt;undef&gt;.  Check with C&lt;scalar @{$records}&gt;, not with
+</span><span class=""> 2033: C&lt;defined $records&gt; or C&lt;$records&gt;.
 </span><span class=""> 2034: 
-</span><span class=""> 2035: When C&lt;_detect_file_info&gt; opens a CSV, TSV or PSV file and the first C&lt;readline&gt;
-</span><span class=""> 2036: returns C&lt;undef&gt; (the file is 0 bytes), it returns a C&lt;{ _file_is_empty =E&lt;gt&gt;
-</span><span class=""> 2037: 1 }&gt; sentinel instead of the normal C&lt;{ id, sep_char, columns, file_size }&gt;
-</span><span class=""> 2038: hashref.  C&lt;_init_backend&gt; detects this sentinel and skips
-</span><span class=""> 2039: C&lt;Database::Abstraction&gt; construction; C&lt;fetch_all&gt; returns C&lt;[]&gt; immediately.
-</span><span class=""> 2040: B&lt;No DBI connection is created for 0-byte files.&gt;  If you mock or spy on DBI
-</span><span class=""> 2041: handles and open a 0-byte CSV, the mock will never fire - this is expected
-</span><span class=""> 2042: behaviour, not a mock misconfiguration.
-</span><span class=""> 2043: 
-</span><span class=""> 2044: =item B&lt;Remote files require Net::SFTP::Foreign; one connection per open&gt;
+</span><span class=""> 2035: =item B&lt;0-byte CSV/TSV/PSV files bypass Database::Abstraction entirely&gt;
+</span><span class=""> 2036: 
+</span><span class=""> 2037: When C&lt;_detect_file_info&gt; opens a CSV, TSV or PSV file and the first C&lt;readline&gt;
+</span><span class=""> 2038: returns C&lt;undef&gt; (the file is 0 bytes), it returns a C&lt;{ _file_is_empty =E&lt;gt&gt;
+</span><span class=""> 2039: 1 }&gt; sentinel instead of the normal C&lt;{ id, sep_char, columns, file_size }&gt;
+</span><span class=""> 2040: hashref.  C&lt;_init_backend&gt; detects this sentinel and skips
+</span><span class=""> 2041: C&lt;Database::Abstraction&gt; construction; C&lt;fetch_all&gt; returns C&lt;[]&gt; immediately.
+</span><span class=""> 2042: B&lt;No DBI connection is created for 0-byte files.&gt;  If you mock or spy on DBI
+</span><span class=""> 2043: handles and open a 0-byte CSV, the mock will never fire - this is expected
+</span><span class=""> 2044: behaviour, not a mock misconfiguration.
 </span><span class=""> 2045: 
-</span><span class=""> 2046: When C&lt;host&gt; is set, C&lt;DataSource&gt; makes one SFTP connection per C&lt;new()&gt;
-</span><span class=""> 2047: call.  It tries the extension list in order (the C&lt;file_ext&gt; hint first,
-</span><span class=""> 2048: if provided, then the full standard-extension list) and downloads the first
-</span><span class=""> 2049: file it finds.  If no file is found under any tried extension, C&lt;new()&gt;
-</span><span class=""> 2050: croaks C&lt;error_backend_init&gt;.  B&lt;Connections are not pooled or reused&gt;
-</span><span class=""> 2051: between C&lt;DataSource&gt; instances.
-</span><span class=""> 2052: 
-</span><span class=""> 2053: If the remote file has a non-standard extension (e.g. C&lt;.log&gt;, C&lt;.dat&gt;),
-</span><span class=""> 2054: the content is sniffed: SQLite magic bytes map to C&lt;.db&gt;, an XML preamble
-</span><span class=""> 2055: to C&lt;.xml&gt;, a tab-delimited first line to C&lt;.tsv&gt;, a pipe-delimited line to
-</span><span class=""> 2056: C&lt;.psv&gt;, and everything else to C&lt;.csv&gt;.  The temp file is then renamed to
-</span><span class=""> 2057: the detected extension before further processing.
-</span><span class=""> 2058: 
-</span><span class=""> 2059: =item B&lt;Multi-table SQLite: opening without internal_table silently picks the first table&gt;
+</span><span class=""> 2046: =item B&lt;Remote files require Net::SFTP::Foreign; one connection per open&gt;
+</span><span class=""> 2047: 
+</span><span class=""> 2048: When C&lt;host&gt; is set, C&lt;DataSource&gt; makes one SFTP connection per C&lt;new()&gt;
+</span><span class=""> 2049: call.  It tries the extension list in order (the C&lt;file_ext&gt; hint first,
+</span><span class=""> 2050: if provided, then the full standard-extension list) and downloads the first
+</span><span class=""> 2051: file it finds.  If no file is found under any tried extension, C&lt;new()&gt;
+</span><span class=""> 2052: croaks C&lt;error_backend_init&gt;.  B&lt;Connections are not pooled or reused&gt;
+</span><span class=""> 2053: between C&lt;DataSource&gt; instances.
+</span><span class=""> 2054: 
+</span><span class=""> 2055: If the remote file has a non-standard extension (e.g. C&lt;.log&gt;, C&lt;.dat&gt;),
+</span><span class=""> 2056: the content is sniffed: SQLite magic bytes map to C&lt;.db&gt;, an XML preamble
+</span><span class=""> 2057: to C&lt;.xml&gt;, a tab-delimited first line to C&lt;.tsv&gt;, a pipe-delimited line to
+</span><span class=""> 2058: C&lt;.psv&gt;, and everything else to C&lt;.csv&gt;.  The temp file is then renamed to
+</span><span class=""> 2059: the detected extension before further processing.
 </span><span class=""> 2060: 
-</span><span class=""> 2061: When a SQLite file contains more than one user-defined table and you call
-</span><span class=""> 2062: C&lt;new()&gt; without C&lt;internal_table&gt;, C&lt;DataSource&gt; auto-selects the first
-</span><span class=""> 2063: table whose name matches the filename stem; if there is no match, it picks
-</span><span class=""> 2064: whatever C&lt;sqlite_master&gt; lists first.  This is B&lt;silent&gt; -- you get data
-</span><span class=""> 2065: from a table you may not have intended to open.
-</span><span class=""> 2066: 
-</span><span class=""> 2067: Always check C&lt;sqlite_tables()&gt; after construction if you are dealing
-</span><span class=""> 2068: with a SQLite file that might have multiple tables:
-</span><span class=""> 2069: 
-</span><span class=""> 2070:     my $tbl_list = $source-&gt;sqlite_tables;
-</span><span class=""> 2071:     if ($tbl_list &amp;&amp; @{$tbl_list} &gt; 1) {
-</span><span class=""> 2072:         # warn the user or redirect to the schema browser
-</span><span class=""> 2073:     }
-</span><span class=""> 2074: 
-</span><span class=""> 2075: =item B&lt;The symlink used for .db-extension SQLite files is named .sql, not .db&gt;
+</span><span class=""> 2061: =item B&lt;Multi-table SQLite: opening without internal_table silently picks the first table&gt;
+</span><span class=""> 2062: 
+</span><span class=""> 2063: When a SQLite file contains more than one user-defined table and you call
+</span><span class=""> 2064: C&lt;new()&gt; without C&lt;internal_table&gt;, C&lt;DataSource&gt; auto-selects the first
+</span><span class=""> 2065: table whose name matches the filename stem; if there is no match, it picks
+</span><span class=""> 2066: whatever C&lt;sqlite_master&gt; lists first.  This is B&lt;silent&gt; -- you get data
+</span><span class=""> 2067: from a table you may not have intended to open.
+</span><span class=""> 2068: 
+</span><span class=""> 2069: Always check C&lt;sqlite_tables()&gt; after construction if you are dealing
+</span><span class=""> 2070: with a SQLite file that might have multiple tables:
+</span><span class=""> 2071: 
+</span><span class=""> 2072:     my $tbl_list = $source-&gt;sqlite_tables;
+</span><span class=""> 2073:     if ($tbl_list &amp;&amp; @{$tbl_list} &gt; 1) {
+</span><span class=""> 2074:         # warn the user or redirect to the schema browser
+</span><span class=""> 2075:     }
 </span><span class=""> 2076: 
-</span><span class=""> 2077: C&lt;Database::Abstraction&gt; does not use its DBI/SQLite backend for files
-</span><span class=""> 2078: with a C&lt;.db&gt; extension -- it falls through to the CSV reader, which tries
-</span><span class=""> 2079: to read a SQLite binary file as text and fails with a parse error.
-</span><span class=""> 2080: 
-</span><span class=""> 2081: When C&lt;DataSource&gt; detects a multi-table SQLite C&lt;.db&gt; file, it creates a
-</span><span class=""> 2082: temporary symlink named C&lt;E&lt;lt&gt;tableE&lt;gt&gt;.sql&gt; (not C&lt;.db&gt;) pointing to the
-</span><span class=""> 2083: original C&lt;.db&gt; file.  SQLite follows symlinks transparently, so the data is
-</span><span class=""> 2084: read correctly.  If you ever audit temporary directories and see C&lt;*.sql&gt;
-</span><span class=""> 2085: symlinks pointing at C&lt;*.db&gt; files, this is expected and intentional.
-</span><span class=""> 2086: 
-</span><span class=""> 2087: =item B&lt;DBD::CSV silently lowercases column names for files larger than 16 KB&gt;
+</span><span class=""> 2077: =item B&lt;The symlink used for .db-extension SQLite files is named .sql, not .db&gt;
+</span><span class=""> 2078: 
+</span><span class=""> 2079: C&lt;Database::Abstraction&gt; does not use its DBI/SQLite backend for files
+</span><span class=""> 2080: with a C&lt;.db&gt; extension -- it falls through to the CSV reader, which tries
+</span><span class=""> 2081: to read a SQLite binary file as text and fails with a parse error.
+</span><span class=""> 2082: 
+</span><span class=""> 2083: When C&lt;DataSource&gt; detects a multi-table SQLite C&lt;.db&gt; file, it creates a
+</span><span class=""> 2084: temporary symlink named C&lt;E&lt;lt&gt;tableE&lt;gt&gt;.sql&gt; (not C&lt;.db&gt;) pointing to the
+</span><span class=""> 2085: original C&lt;.db&gt; file.  SQLite follows symlinks transparently, so the data is
+</span><span class=""> 2086: read correctly.  If you ever audit temporary directories and see C&lt;*.sql&gt;
+</span><span class=""> 2087: symlinks pointing at C&lt;*.db&gt; files, this is expected and intentional.
 </span><span class=""> 2088: 
-</span><span class=""> 2089: C&lt;Database::Abstraction&gt; uses C&lt;Text::xSV::Slurp&gt; for files up to 16 KB and
-</span><span class=""> 2090: DBD::CSV for larger ones.  The DBD::CSV path lowercases column names and
-</span><span class=""> 2091: replaces spaces with underscores (C&lt;Account Number&gt; becomes
-</span><span class=""> 2092: C&lt;account_number&gt;), which causes a C&lt;&quot;disallowed key&quot;&gt; error at render time
-</span><span class=""> 2093: when the template iterates the original column names.  C&lt;DataSource&gt; avoids
-</span><span class=""> 2094: this by always passing C&lt;max_slurp_size =E&lt;gt&gt; -s $path&gt; to
-</span><span class=""> 2095: C&lt;Database::Abstraction&gt;, forcing the slurp path regardless of file size.
-</span><span class=""> 2096: If you call C&lt;Database::Abstraction&gt; directly, you B&lt;must&gt; pass this option
-</span><span class=""> 2097: yourself for any file whose column names contain spaces or mixed case.
-</span><span class=""> 2098: 
-</span><span class=""> 2099: =back
+</span><span class=""> 2089: =item B&lt;DBD::CSV silently lowercases column names for files larger than 16 KB&gt;
+</span><span class=""> 2090: 
+</span><span class=""> 2091: C&lt;Database::Abstraction&gt; uses C&lt;Text::xSV::Slurp&gt; for files up to 16 KB and
+</span><span class=""> 2092: DBD::CSV for larger ones.  The DBD::CSV path lowercases column names and
+</span><span class=""> 2093: replaces spaces with underscores (C&lt;Account Number&gt; becomes
+</span><span class=""> 2094: C&lt;account_number&gt;), which causes a C&lt;&quot;disallowed key&quot;&gt; error at render time
+</span><span class=""> 2095: when the template iterates the original column names.  C&lt;DataSource&gt; avoids
+</span><span class=""> 2096: this by always passing C&lt;max_slurp_size =E&lt;gt&gt; -s $path&gt; to
+</span><span class=""> 2097: C&lt;Database::Abstraction&gt;, forcing the slurp path regardless of file size.
+</span><span class=""> 2098: If you call C&lt;Database::Abstraction&gt; directly, you B&lt;must&gt; pass this option
+</span><span class=""> 2099: yourself for any file whose column names contain spaces or mixed case.
 </span><span class=""> 2100: 
-</span><span class=""> 2101: =head1 LIMITATIONS
+</span><span class=""> 2101: =back
 </span><span class=""> 2102: 
-</span><span class=""> 2103: =over 4
+</span><span class=""> 2103: =head1 LIMITATIONS
 </span><span class=""> 2104: 
-</span><span class=""> 2105: =item *
+</span><span class=""> 2105: =over 4
 </span><span class=""> 2106: 
-</span><span class=""> 2107: Only read operations are supported.  Write-back is not in scope.
+</span><span class=""> 2107: =item *
 </span><span class=""> 2108: 
-</span><span class=""> 2109: =item *
+</span><span class=""> 2109: Only read operations are supported.  Write-back is not in scope.
 </span><span class=""> 2110: 
-</span><span class=""> 2111: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Multi-table
-</span><span class=""> 2112: joins are now delegated to C&lt;Database::Join&gt; (see L&lt;Database::Join&gt;), which
-</span><span class=""> 2113: accepts C&lt;DataSource&gt; objects directly as component databases via the
-</span><span class=""> 2114: C&lt;selectall_arrayref&gt; and C&lt;columns&gt; methods this class exposes.
-</span><span class=""> 2115: 
-</span><span class=""> 2116: =item *
+</span><span class=""> 2111: =item *
+</span><span class=""> 2112: 
+</span><span class=""> 2113: One C&lt;DataSource&gt; instance corresponds to exactly one table.  Multi-table
+</span><span class=""> 2114: joins are now delegated to C&lt;Database::Join&gt; (see L&lt;Database::Join&gt;), which
+</span><span class=""> 2115: accepts C&lt;DataSource&gt; objects directly as component databases via the
+</span><span class=""> 2116: C&lt;selectall_arrayref&gt; and C&lt;columns&gt; methods this class exposes.
 </span><span class=""> 2117: 
-</span><span class=""> 2118: The ephemeral backend class is generated into a package namespace
-</span><span class=""> 2119: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
-</span><span class=""> 2120: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
-</span><span class=""> 2121: the same ephemeral class.
-</span><span class=""> 2122: 
-</span><span class=""> 2123: =item *
+</span><span class=""> 2118: =item *
+</span><span class=""> 2119: 
+</span><span class=""> 2120: The ephemeral backend class is generated into a package namespace
+</span><span class=""> 2121: (C&lt;Database::BI::_DB::*&gt;) that persists for the lifetime of the process.
+</span><span class=""> 2122: Instantiating two C&lt;DataSource&gt; objects for the same table name reuses
+</span><span class=""> 2123: the same ephemeral class.
 </span><span class=""> 2124: 
-</span><span class=""> 2125: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
-</span><span class=""> 2126: compatible with L&lt;Locale::Maketext&gt;.
-</span><span class=""> 2127: 
-</span><span class=""> 2128: =back
+</span><span class=""> 2125: =item *
+</span><span class=""> 2126: 
+</span><span class=""> 2127: The C&lt;i18n&gt; object, if supplied, must implement C&lt;maketext($key, @args)&gt;
+</span><span class=""> 2128: compatible with L&lt;Locale::Maketext&gt;.
 </span><span class=""> 2129: 
-</span><span class=""> 2130: =head1 CONFIGURATION AND ENVIRONMENT
+</span><span class=""> 2130: =back
 </span><span class=""> 2131: 
-</span><span class=""> 2132: No environment variables are read.  All configuration is passed through
-</span><span class=""> 2133: the constructor.
-</span><span class=""> 2134: 
-</span><span class=""> 2135: =head1 DEPENDENCIES
+</span><span class=""> 2132: =head1 CONFIGURATION AND ENVIRONMENT
+</span><span class=""> 2133: 
+</span><span class=""> 2134: No environment variables are read.  All configuration is passed through
+</span><span class=""> 2135: the constructor.
 </span><span class=""> 2136: 
-</span><span class=""> 2137: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
-</span><span class=""> 2138: L&lt;Database::Abstraction&gt;.
-</span><span class=""> 2139: 
-</span><span class=""> 2140: Optional (loaded lazily):
+</span><span class=""> 2137: =head1 DEPENDENCIES
+</span><span class=""> 2138: 
+</span><span class=""> 2139: L&lt;Carp&gt;, L&lt;Readonly&gt;, L&lt;Scalar::Util&gt;, L&lt;Params::Validate::Strict&gt;, L&lt;Params::Get&gt;,
+</span><span class=""> 2140: L&lt;Database::Abstraction&gt;.
 </span><span class=""> 2141: 
-</span><span class=""> 2142: L&lt;Net::SFTP::Foreign&gt; -- required for remote file access (C&lt;host =E&lt;gt&gt; ...&gt;).
-</span><span class=""> 2143: L&lt;Spreadsheet::ParseXLSX&gt; -- required for opening C&lt;.xlsx&gt; files.
-</span><span class=""> 2144: 
-</span><span class=""> 2145: =head1 INCOMPATIBILITIES
+</span><span class=""> 2142: Optional (loaded lazily):
+</span><span class=""> 2143: 
+</span><span class=""> 2144: L&lt;Net::SFTP::Foreign&gt; -- required for remote file access (C&lt;host =E&lt;gt&gt; ...&gt;).
+</span><span class=""> 2145: L&lt;Spreadsheet::ParseXLSX&gt; -- required for opening C&lt;.xlsx&gt; files.
 </span><span class=""> 2146: 
-</span><span class=""> 2147: None known.
+</span><span class=""> 2147: =head1 INCOMPATIBILITIES
 </span><span class=""> 2148: 
-</span><span class=""> 2149: =head1 BUGS AND LIMITATIONS
+</span><span class=""> 2149: None known.
 </span><span class=""> 2150: 
-</span><span class=""> 2151: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
+</span><span class=""> 2151: =head1 BUGS AND LIMITATIONS
 </span><span class=""> 2152: 
-</span><span class=""> 2153: =head1 AUTHOR
+</span><span class=""> 2153: Please report bugs via L&lt;https://github.com/nigelhorne/Database-BI/issues&gt;.
 </span><span class=""> 2154: 
-</span><span class=""> 2155: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class=""> 2155: =head1 AUTHOR
 </span><span class=""> 2156: 
-</span><span class=""> 2157: =head1 FORMAL SPECIFICATION
+</span><span class=""> 2157: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
 </span><span class=""> 2158: 
-</span><span class=""> 2159: The following specifications use a Z-calculus notation.
-</span><span class=""> 2160: C&lt;undef&gt; represents the undefined Perl value.
-</span><span class=""> 2161: C&lt;seq T&gt; means an ordered sequence of values of type T.
-</span><span class=""> 2162: C&lt;\A...\z&gt; denotes a Perl regular expression match.
-</span><span class=""> 2163: C&lt;|S|&gt; means the cardinality (size) of set or sequence S.
-</span><span class=""> 2164: 
-</span><span class=""> 2165: =head2 new
+</span><span class=""> 2159: =head1 FORMAL SPECIFICATION
+</span><span class=""> 2160: 
+</span><span class=""> 2161: The following specifications use a Z-calculus notation.
+</span><span class=""> 2162: C&lt;undef&gt; represents the undefined Perl value.
+</span><span class=""> 2163: C&lt;seq T&gt; means an ordered sequence of values of type T.
+</span><span class=""> 2164: C&lt;\A...\z&gt; denotes a Perl regular expression match.
+</span><span class=""> 2165: C&lt;|S|&gt; means the cardinality (size) of set or sequence S.
 </span><span class=""> 2166: 
-</span><span class=""> 2167:   new == [directory : PATH; table : NAME;
-</span><span class=""> 2168:           host? : HOST_STRING; file_ext? : EXT_STRING;
-</span><span class=""> 2169:           internal_table? : STRING;
-</span><span class=""> 2170:           cache? : CHI_OBJECT; cache_ttl_url? : TTL_STRING;
-</span><span class=""> 2171:           i18n? : I18N_OBJECT]
-</span><span class=""> 2172:          pre  (host = undef =&gt; is_dir directory)
-</span><span class=""> 2173:               /\ (host /= undef =&gt; host =~ /\A(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\@)?[a-zA-Z0-9][a-zA-Z0-9._-]*\z/)
-</span><span class=""> 2174:               /\ table /= &quot;&quot;
-</span><span class=""> 2175:               /\ table =~ /[^\/\\\x00]/
-</span><span class=""> 2176:          post result.class = DataSource
-</span><span class=""> 2177:               /\ (host = undef =&gt; result._db.class = Database::Abstraction | result._file_data /= undef | result._file_is_empty)
-</span><span class=""> 2178:               /\ (host /= undef =&gt; result._remote_tmpdir /= undef)
-</span><span class=""> 2179:               /\ (internal_table /= undef =&gt; internal_table in result._sqlite_tables)
-</span><span class=""> 2180: 
-</span><span class=""> 2181: =head2 table_name
+</span><span class=""> 2167: =head2 new
+</span><span class=""> 2168: 
+</span><span class=""> 2169:   new == [directory : PATH; table : NAME;
+</span><span class=""> 2170:           host? : HOST_STRING; file_ext? : EXT_STRING;
+</span><span class=""> 2171:           internal_table? : STRING;
+</span><span class=""> 2172:           cache? : CHI_OBJECT; cache_ttl_url? : TTL_STRING;
+</span><span class=""> 2173:           i18n? : I18N_OBJECT]
+</span><span class=""> 2174:          pre  (host = undef =&gt; is_dir directory)
+</span><span class=""> 2175:               /\ (host /= undef =&gt; host =~ /\A(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\@)?[a-zA-Z0-9][a-zA-Z0-9._-]*\z/)
+</span><span class=""> 2176:               /\ table /= &quot;&quot;
+</span><span class=""> 2177:               /\ table =~ /[^\/\\\x00]/
+</span><span class=""> 2178:          post result.class = DataSource
+</span><span class=""> 2179:               /\ (host = undef =&gt; result._db.class = Database::Abstraction | result._file_data /= undef | result._file_is_empty)
+</span><span class=""> 2180:               /\ (host /= undef =&gt; result._remote_tmpdir /= undef)
+</span><span class=""> 2181:               /\ (internal_table /= undef =&gt; internal_table in result._sqlite_tables)
 </span><span class=""> 2182: 
-</span><span class=""> 2183:   table_name == lambda self . self._table
+</span><span class=""> 2183: =head2 table_name
 </span><span class=""> 2184: 
-</span><span class=""> 2185:   pre  self._table /= undef
-</span><span class=""> 2186:   post result : STRING /\ result =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/
-</span><span class=""> 2187: 
-</span><span class=""> 2188: =head2 sqlite_tables
+</span><span class=""> 2185:   table_name == lambda self . self._table
+</span><span class=""> 2186: 
+</span><span class=""> 2187:   pre  self._table /= undef
+</span><span class=""> 2188:   post result : STRING /\ result =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/
 </span><span class=""> 2189: 
-</span><span class=""> 2190:   sqlite_tables == lambda self . self._sqlite_tables
+</span><span class=""> 2190: =head2 sqlite_tables
 </span><span class=""> 2191: 
-</span><span class=""> 2192:   pre  true
-</span><span class=""> 2193:   post (result = undef /\ self._url /= undef)
-</span><span class=""> 2194:        \/ (result = undef /\ source is not SQLite)
-</span><span class=""> 2195:        \/ (result : seq STRING /\ forall t in result . t =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/)
-</span><span class=""> 2196: 
-</span><span class=""> 2197: =head2 columns
+</span><span class=""> 2192:   sqlite_tables == lambda self . self._sqlite_tables
+</span><span class=""> 2193: 
+</span><span class=""> 2194:   pre  true
+</span><span class=""> 2195:   post (result = undef /\ self._url /= undef)
+</span><span class=""> 2196:        \/ (result = undef /\ source is not SQLite)
+</span><span class=""> 2197:        \/ (result : seq STRING /\ forall t in result . t =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/)
 </span><span class=""> 2198: 
-</span><span class=""> 2199:   columns == lambda self .
-</span><span class=""> 2200:     if defined self._columns then self._columns
-</span><span class=""> 2201:     else if defined self._url then undef
-</span><span class=""> 2202:     else if defined self._db  then self._db.columns()
-</span><span class=""> 2203:     else undef
-</span><span class=""> 2204: 
-</span><span class=""> 2205:   pre  true
-</span><span class=""> 2206:   post (result : seq STRING /\ |result| &gt;= 1)
-</span><span class=""> 2207:        \/ (result = undef)
-</span><span class=""> 2208: 
-</span><span class=""> 2209: =head2 id_column
+</span><span class=""> 2199: =head2 columns
+</span><span class=""> 2200: 
+</span><span class=""> 2201:   columns == lambda self .
+</span><span class=""> 2202:     if defined self._columns then self._columns
+</span><span class=""> 2203:     else if defined self._url then undef
+</span><span class=""> 2204:     else if defined self._db  then self._db.columns()
+</span><span class=""> 2205:     else undef
+</span><span class=""> 2206: 
+</span><span class=""> 2207:   pre  true
+</span><span class=""> 2208:   post (result : seq STRING /\ |result| &gt;= 1)
+</span><span class=""> 2209:        \/ (result = undef)
 </span><span class=""> 2210: 
-</span><span class=""> 2211:   id_column == lambda self . self._id_col
+</span><span class=""> 2211: =head2 id_column
 </span><span class=""> 2212: 
-</span><span class=""> 2213:   pre  true
-</span><span class=""> 2214:   post (result : STRING /\ result =~ /\A[a-zA-Z_][a-zA-Z0-9_]*\z/)
-</span><span class=""> 2215:        \/ (result = undef)
-</span><span class=""> 2216: 
-</span><span class=""> 2217: =head2 source_url
+</span><span class=""> 2213:   id_column == lambda self . self._id_col
+</span><span class=""> 2214: 
+</span><span class=""> 2215:   pre  true
+</span><span class=""> 2216:   post (result : STRING /\ result =~ /\A[a-zA-Z_][a-zA-Z0-9_]*\z/)
+</span><span class=""> 2217:        \/ (result = undef)
 </span><span class=""> 2218: 
-</span><span class=""> 2219:   source_url == lambda self . self._url
+</span><span class=""> 2219: =head2 source_url
 </span><span class=""> 2220: 
-</span><span class=""> 2221:   pre  true
-</span><span class=""> 2222:   post (result : STRING /\ result =~ /\Ahttps?:\/\//)
-</span><span class=""> 2223:        \/ (result = undef)
-</span><span class=""> 2224: 
-</span><span class=""> 2225: =head2 updated
+</span><span class=""> 2221:   source_url == lambda self . self._url
+</span><span class=""> 2222: 
+</span><span class=""> 2223:   pre  true
+</span><span class=""> 2224:   post (result : STRING /\ result =~ /\Ahttps?:\/\//)
+</span><span class=""> 2225:        \/ (result = undef)
 </span><span class=""> 2226: 
-</span><span class=""> 2227:   updated == lambda self .
-</span><span class=""> 2228:     if defined self._db /\ can(self._db, &#39;updated&#39;)  then self._db.updated()
-</span><span class=""> 2229:     else if defined self._file_path /\ -f self._file_path then (stat self._file_path)[9]
-</span><span class=""> 2230:     else undef
-</span><span class=""> 2231: 
-</span><span class=""> 2232:   pre  true
-</span><span class=""> 2233:   post (result : N /\ result &gt; 0) \/ (result = undef)
-</span><span class=""> 2234: 
-</span><span class=""> 2235: =head2 fetch_all
+</span><span class=""> 2227: =head2 updated
+</span><span class=""> 2228: 
+</span><span class=""> 2229:   updated == lambda self .
+</span><span class=""> 2230:     if defined self._db /\ can(self._db, &#39;updated&#39;)  then self._db.updated()
+</span><span class=""> 2231:     else if defined self._file_path /\ -f self._file_path then (stat self._file_path)[9]
+</span><span class=""> 2232:     else undef
+</span><span class=""> 2233: 
+</span><span class=""> 2234:   pre  true
+</span><span class=""> 2235:   post (result : N /\ result &gt; 0) \/ (result = undef)
 </span><span class=""> 2236: 
-</span><span class=""> 2237:   fetch_all == lambda self .
-</span><span class=""> 2238:     if self._file_is_empty                     then []
-</span><span class=""> 2239:     else if defined self._file_data            then self._file_data
-</span><span class=""> 2240:     else if cache_hit(self)                    then cache_get(self)
-</span><span class=""> 2241:     else
-</span><span class=""> 2242:       let rows = self._db.selectall_hashref() in
-</span><span class=""> 2243:       normalise(rows)
-</span><span class=""> 2244: 
-</span><span class=""> 2245:   pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
-</span><span class=""> 2246:   post result : seq HASHREF
-</span><span class=""> 2247:        /\ |result| &gt;= 0
-</span><span class=""> 2248: 
-</span><span class=""> 2249: =head2 selectall_arrayref
+</span><span class=""> 2237: =head2 fetch_all
+</span><span class=""> 2238: 
+</span><span class=""> 2239:   fetch_all == lambda self .
+</span><span class=""> 2240:     if self._file_is_empty                     then []
+</span><span class=""> 2241:     else if defined self._file_data            then self._file_data
+</span><span class=""> 2242:     else if cache_hit(self)                    then cache_get(self)
+</span><span class=""> 2243:     else
+</span><span class=""> 2244:       let rows = self._db.selectall_hashref() in
+</span><span class=""> 2245:       normalise(rows)
+</span><span class=""> 2246: 
+</span><span class=""> 2247:   pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
+</span><span class=""> 2248:   post result : seq HASHREF
+</span><span class=""> 2249:        /\ |result| &gt;= 0
 </span><span class=""> 2250: 
-</span><span class=""> 2251:   selectall_arrayref == lambda self args .
-</span><span class=""> 2252:     if self._file_is_empty                         then []
-</span><span class=""> 2253:     else if defined self._file_data /\ args = ()   then self._file_data
-</span><span class=""> 2254:     else if cache_hit(self) /\ args = ()           then cache_get(self)
-</span><span class=""> 2255:     else self._db.selectall_arrayref(args)
-</span><span class=""> 2256: 
-</span><span class=""> 2257:   pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
-</span><span class=""> 2258:   post result : seq HASHREF /\ |result| &gt;= 0
-</span><span class=""> 2259: 
-</span><span class=""> 2260: =head2 count
+</span><span class=""> 2251: =head2 selectall_arrayref
+</span><span class=""> 2252: 
+</span><span class=""> 2253:   selectall_arrayref == lambda self args .
+</span><span class=""> 2254:     if self._file_is_empty                         then []
+</span><span class=""> 2255:     else if defined self._file_data /\ args = ()   then self._file_data
+</span><span class=""> 2256:     else if cache_hit(self) /\ args = ()           then cache_get(self)
+</span><span class=""> 2257:     else self._db.selectall_arrayref(args)
+</span><span class=""> 2258: 
+</span><span class=""> 2259:   pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
+</span><span class=""> 2260:   post result : seq HASHREF /\ |result| &gt;= 0
 </span><span class=""> 2261: 
-</span><span class=""> 2262:   count == lambda self .
-</span><span class=""> 2263:     if self._file_is_empty     then 0
-</span><span class=""> 2264:     else if defined self._file_data then |self._file_data|
-</span><span class=""> 2265:     else self._db.count()
-</span><span class=""> 2266: 
-</span><span class=""> 2267:   pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
-</span><span class=""> 2268:   post result : N /\ result &gt;= 0
-</span><span class=""> 2269: 
-</span><span class=""> 2270: =head1 STATE DIAGRAM
+</span><span class=""> 2262: =head2 count
+</span><span class=""> 2263: 
+</span><span class=""> 2264:   count == lambda self .
+</span><span class=""> 2265:     if self._file_is_empty     then 0
+</span><span class=""> 2266:     else if defined self._file_data then |self._file_data|
+</span><span class=""> 2267:     else self._db.count()
+</span><span class=""> 2268: 
+</span><span class=""> 2269:   pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
+</span><span class=""> 2270:   post result : N /\ result &gt;= 0
 </span><span class=""> 2271: 
-</span><span class=""> 2272: The lifecycle of a single C&lt;DataSource&gt; object from creation to destruction.
-</span><span class=""> 2273: Each state is stable until the trigger event listed to its right fires.
-</span><span class=""> 2274: 
-</span><span class=""> 2275:     +------------------+
-</span><span class=""> 2276:     |     [START]      |  -- new() called
+</span><span class=""> 2272: =head1 STATE DIAGRAM
+</span><span class=""> 2273: 
+</span><span class=""> 2274: The lifecycle of a single C&lt;DataSource&gt; object from creation to destruction.
+</span><span class=""> 2275: Each state is stable until the trigger event listed to its right fires.
+</span><span class=""> 2276: 
 </span><span class=""> 2277:     +------------------+
-</span><span class=""> 2278:              |
-</span><span class=""> 2279:              v
-</span><span class=""> 2280:     +------------------+  _detect_file_info + _init_backend run
-</span><span class=""> 2281:     |   INITIALISING   |  (SFTP download, BerkeleyDB probe, SQLite
-</span><span class=""> 2282:     |                  |   sqlite_master probe, CSV header parse,
-</span><span class=""> 2283:     |                  |   XLSX parse, or URL fetch)
-</span><span class=""> 2284:     +------------------+
-</span><span class=""> 2285:           /     \
-</span><span class=""> 2286:          /       \
-</span><span class=""> 2287:         v         v
-</span><span class=""> 2288:   +----------+  +-----------+
-</span><span class=""> 2289:   |  ERROR   |  |   READY   |
-</span><span class=""> 2290:   | (croaks) |  |           |
-</span><span class=""> 2291:   +----------+  +-----------+
-</span><span class=""> 2292:                  |         |
-</span><span class=""> 2293:                  |         |
-</span><span class=""> 2294:     fetch_all()  |         |  selectall_arrayref()
-</span><span class=""> 2295:     called       |         |  called
-</span><span class=""> 2296:                  v         v
-</span><span class=""> 2297:          +---------------+
-</span><span class=""> 2298:          |   FETCHING    |  DBI query or pre-loaded data returned;
-</span><span class=""> 2299:          |               |  result stored in CHI cache (if configured)
-</span><span class=""> 2300:          +---------------+
-</span><span class=""> 2301:                  |
-</span><span class=""> 2302:                  v
-</span><span class=""> 2303:          +---------------+
-</span><span class=""> 2304:          | DATA RETURNED |  arrayref of hashrefs delivered to caller
+</span><span class=""> 2278:     |     [START]      |  -- new() called
+</span><span class=""> 2279:     +------------------+
+</span><span class=""> 2280:              |
+</span><span class=""> 2281:              v
+</span><span class=""> 2282:     +------------------+  _detect_file_info + _init_backend run
+</span><span class=""> 2283:     |   INITIALISING   |  (SFTP download, BerkeleyDB probe, SQLite
+</span><span class=""> 2284:     |                  |   sqlite_master probe, CSV header parse,
+</span><span class=""> 2285:     |                  |   XLSX parse, or URL fetch)
+</span><span class=""> 2286:     +------------------+
+</span><span class=""> 2287:           /     \
+</span><span class=""> 2288:          /       \
+</span><span class=""> 2289:         v         v
+</span><span class=""> 2290:   +----------+  +-----------+
+</span><span class=""> 2291:   |  ERROR   |  |   READY   |
+</span><span class=""> 2292:   | (croaks) |  |           |
+</span><span class=""> 2293:   +----------+  +-----------+
+</span><span class=""> 2294:                  |         |
+</span><span class=""> 2295:                  |         |
+</span><span class=""> 2296:     fetch_all()  |         |  selectall_arrayref()
+</span><span class=""> 2297:     called       |         |  called
+</span><span class=""> 2298:                  v         v
+</span><span class=""> 2299:          +---------------+
+</span><span class=""> 2300:          |   FETCHING    |  DBI query or pre-loaded data returned;
+</span><span class=""> 2301:          |               |  result stored in CHI cache (if configured)
+</span><span class=""> 2302:          +---------------+
+</span><span class=""> 2303:                  |
+</span><span class=""> 2304:                  v
 </span><span class=""> 2305:          +---------------+
-</span><span class=""> 2306:                  |
-</span><span class=""> 2307:                  | (next call to fetch_all or selectall_arrayref)
-</span><span class=""> 2308:                  v
-</span><span class=""> 2309:          +---------------+
-</span><span class=""> 2310:          | CACHE CHECK   |  CHI cache hit? -&gt; DATA RETURNED immediately
-</span><span class=""> 2311:          |               |  CHI cache miss? -&gt; FETCHING
-</span><span class=""> 2312:          +---------------+
-</span><span class=""> 2313: 
-</span><span class=""> 2314:     Special cases branching from INITIALISING:
+</span><span class=""> 2306:          | DATA RETURNED |  arrayref of hashrefs delivered to caller
+</span><span class=""> 2307:          +---------------+
+</span><span class=""> 2308:                  |
+</span><span class=""> 2309:                  | (next call to fetch_all or selectall_arrayref)
+</span><span class=""> 2310:                  v
+</span><span class=""> 2311:          +---------------+
+</span><span class=""> 2312:          | CACHE CHECK   |  CHI cache hit? -&gt; DATA RETURNED immediately
+</span><span class=""> 2313:          |               |  CHI cache miss? -&gt; FETCHING
+</span><span class=""> 2314:          +---------------+
 </span><span class=""> 2315: 
-</span><span class=""> 2316:     1. File is 0 bytes or blank first line
-</span><span class=""> 2317:        -&gt; _file_is_empty flag set -&gt; READY (fetch_all returns [] instantly)
-</span><span class=""> 2318: 
-</span><span class=""> 2319:     2. Header-less CSV / XLSX / BerkeleyDB
-</span><span class=""> 2320:        -&gt; _file_data pre-loaded -&gt; READY (fetch_all returns pre-loaded rows)
-</span><span class=""> 2321: 
-</span><span class=""> 2322:     3. Multi-table SQLite without internal_table
-</span><span class=""> 2323:        -&gt; _sqlite_tables set -&gt; READY
-</span><span class=""> 2324:        -&gt; caller inspects sqlite_tables() and may redirect to /tables
-</span><span class=""> 2325:           before calling fetch_all (which would open the auto-selected table)
-</span><span class=""> 2326: 
-</span><span class=""> 2327:     4. Multi-table SQLite WITH internal_table
-</span><span class=""> 2328:        -&gt; symlink created for named table -&gt; READY -&gt; fetch_all opens that table
-</span><span class=""> 2329: 
-</span><span class=""> 2330:     5. SFTP remote file
-</span><span class=""> 2331:        -&gt; Net::SFTP::Foreign::get() -&gt; local tmpdir -&gt; normal init -&gt; READY
-</span><span class=""> 2332:        -&gt; tmpdir kept alive via $self-&gt;{_remote_tmpdir} until DESTROY
-</span><span class=""> 2333: 
-</span><span class=""> 2334:     Object lifetime ends when $self goes out of scope:
+</span><span class=""> 2316:     Special cases branching from INITIALISING:
+</span><span class=""> 2317: 
+</span><span class=""> 2318:     1. File is 0 bytes or blank first line
+</span><span class=""> 2319:        -&gt; _file_is_empty flag set -&gt; READY (fetch_all returns [] instantly)
+</span><span class=""> 2320: 
+</span><span class=""> 2321:     2. Header-less CSV / XLSX / BerkeleyDB
+</span><span class=""> 2322:        -&gt; _file_data pre-loaded -&gt; READY (fetch_all returns pre-loaded rows)
+</span><span class=""> 2323: 
+</span><span class=""> 2324:     3. Multi-table SQLite without internal_table
+</span><span class=""> 2325:        -&gt; _sqlite_tables set -&gt; READY
+</span><span class=""> 2326:        -&gt; caller inspects sqlite_tables() and may redirect to /tables
+</span><span class=""> 2327:           before calling fetch_all (which would open the auto-selected table)
+</span><span class=""> 2328: 
+</span><span class=""> 2329:     4. Multi-table SQLite WITH internal_table
+</span><span class=""> 2330:        -&gt; symlink created for named table -&gt; READY -&gt; fetch_all opens that table
+</span><span class=""> 2331: 
+</span><span class=""> 2332:     5. SFTP remote file
+</span><span class=""> 2333:        -&gt; Net::SFTP::Foreign::get() -&gt; local tmpdir -&gt; normal init -&gt; READY
+</span><span class=""> 2334:        -&gt; tmpdir kept alive via $self-&gt;{_remote_tmpdir} until DESTROY
 </span><span class=""> 2335: 
-</span><span class=""> 2336:     +---------------+
-</span><span class=""> 2337:     |   DESTROY     |  File::Temp tmpdirs auto-cleaned (symlinks removed,
-</span><span class=""> 2338:     |               |  SFTP tmpdir removed)
-</span><span class=""> 2339:     +---------------+
-</span><span class=""> 2340: 
-</span><span class=""> 2341:     Valid state transitions summary:
+</span><span class=""> 2336:     Object lifetime ends when $self goes out of scope:
+</span><span class=""> 2337: 
+</span><span class=""> 2338:     +---------------+
+</span><span class=""> 2339:     |   DESTROY     |  File::Temp tmpdirs auto-cleaned (symlinks removed,
+</span><span class=""> 2340:     |               |  SFTP tmpdir removed)
+</span><span class=""> 2341:     +---------------+
 </span><span class=""> 2342: 
-</span><span class=""> 2343:     [START]          -&gt; INITIALISING     (new() invoked)
-</span><span class=""> 2344:     INITIALISING     -&gt; ERROR            (croak on bad args, SFTP failure,
-</span><span class=""> 2345:                                           no safe id, no SQLite tables, etc.)
-</span><span class=""> 2346:     INITIALISING     -&gt; READY            (all checks passed)
-</span><span class=""> 2347:     READY            -&gt; FETCHING         (fetch_all / selectall_arrayref, cache miss)
-</span><span class=""> 2348:     READY            -&gt; DATA RETURNED    (fetch_all, _file_is_empty or _file_data fast-path)
-</span><span class=""> 2349:     READY            -&gt; CACHE CHECK      (fetch_all / selectall_arrayref, cache configured)
-</span><span class=""> 2350:     CACHE CHECK      -&gt; DATA RETURNED    (cache hit)
-</span><span class=""> 2351:     CACHE CHECK      -&gt; FETCHING         (cache miss)
-</span><span class=""> 2352:     FETCHING         -&gt; DATA RETURNED    (DBI query completed)
-</span><span class=""> 2353:     DATA RETURNED    -&gt; CACHE CHECK      (next call, cache configured)
-</span><span class=""> 2354:     DATA RETURNED    -&gt; FETCHING         (next call, no cache)
-</span><span class=""> 2355:     READY / DATA RETURNED -&gt; DESTROY     ($self goes out of scope)
-</span><span class=""> 2356: 
-</span><span class=""> 2357: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 2343:     Valid state transitions summary:
+</span><span class=""> 2344: 
+</span><span class=""> 2345:     [START]          -&gt; INITIALISING     (new() invoked)
+</span><span class=""> 2346:     INITIALISING     -&gt; ERROR            (croak on bad args, SFTP failure,
+</span><span class=""> 2347:                                           no safe id, no SQLite tables, etc.)
+</span><span class=""> 2348:     INITIALISING     -&gt; READY            (all checks passed)
+</span><span class=""> 2349:     READY            -&gt; FETCHING         (fetch_all / selectall_arrayref, cache miss)
+</span><span class=""> 2350:     READY            -&gt; DATA RETURNED    (fetch_all, _file_is_empty or _file_data fast-path)
+</span><span class=""> 2351:     READY            -&gt; CACHE CHECK      (fetch_all / selectall_arrayref, cache configured)
+</span><span class=""> 2352:     CACHE CHECK      -&gt; DATA RETURNED    (cache hit)
+</span><span class=""> 2353:     CACHE CHECK      -&gt; FETCHING         (cache miss)
+</span><span class=""> 2354:     FETCHING         -&gt; DATA RETURNED    (DBI query completed)
+</span><span class=""> 2355:     DATA RETURNED    -&gt; CACHE CHECK      (next call, cache configured)
+</span><span class=""> 2356:     DATA RETURNED    -&gt; FETCHING         (next call, no cache)
+</span><span class=""> 2357:     READY / DATA RETURNED -&gt; DESTROY     ($self goes out of scope)
 </span><span class=""> 2358: 
-</span><span class=""> 2359: Copyright 2026 Nigel Horne.
+</span><span class=""> 2359: =head1 LICENCE AND COPYRIGHT
 </span><span class=""> 2360: 
-</span><span class=""> 2361: Usage is subject to the GPL2 licence terms.
-</span><span class=""> 2362: If you use it,
-</span><span class=""> 2363: please let me know.
-</span><span class=""> 2364: 
-</span><span class=""> 2365: =cut
+</span><span class=""> 2361: Copyright 2026 Nigel Horne.
+</span><span class=""> 2362: 
+</span><span class=""> 2363: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 2364: If you use it,
+</span><span class=""> 2365: please let me know.
+</span><span class=""> 2366: 
+</span><span class=""> 2367: =cut
 </span></pre>
 
 <script>
