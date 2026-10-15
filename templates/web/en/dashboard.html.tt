@@ -245,7 +245,7 @@
   <button class="btn-dates" id="btn-dates" type="button"
           title="Tell the app how date columns are formatted so YEAR(), MONTH() and date sorting work correctly. Saved patterns apply automatically.">&#x1F4C5; Date format&hellip;</button>
   <button class="btn-save-analysis" id="btn-save-analysis" type="button"
-          title="Save the current view as a named analysis you can share and reopen via a short URL">&#x1F4BE; Save analysis&hellip;</button>
+          title="Create a new canvas and save the current view into it">&#x1F4BE; New canvas&hellip;</button>
   [%- END -%]
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
@@ -317,16 +317,16 @@
 
 [%- IF left_spec -%]
 <div class="save-analysis-panel panel-section" id="save-analysis-panel" hidden>
-  <h3 class="panel-title">&#x1F4BE; Save analysis</h3>
+  <h3 class="panel-title">&#x1F4BE; New canvas</h3>
   <div class="panel-row">
-    <label for="save-analysis-name-inp">Analysis name</label>
+    <label for="save-analysis-name-inp">Canvas name</label>
     <input type="text" id="save-analysis-name-inp" class="panel-text-inp"
            placeholder="My analysis" autocomplete="off" maxlength="120">
   </div>
   <div class="panel-btn-row">
     <button type="button" id="btn-do-save-analysis" class="btn-primary" disabled>Save</button>
     <button type="button" id="btn-cancel-save-analysis" class="btn-secondary">Cancel</button>
-    <a id="save-analysis-link" href="#" hidden style="margin-left:1em;font-size:0.9em">&#x1F517; Open saved analysis</a>
+    <a id="save-analysis-link" href="#" hidden style="margin-left:1em;font-size:0.9em">&#x1F517; Open canvas</a>
   </div>
   <p id="save-analysis-msg" class="export-result" hidden></p>
 </div>

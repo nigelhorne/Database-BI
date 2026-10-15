@@ -1,0 +1,177 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt'
+    page_title = title
+    back_url   = back_url
+    back_label = back_label
+-%]
+<style>
+.canvas-grid {
+	display: grid;
+	grid-template-columns: repeat(12, 1fr);
+	gap: 1rem;
+	padding: 1rem 0;
+}
+.visual-card {
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 6px;
+	overflow: hidden;
+	display: flex;
+	flex-direction: column;
+}
+.visual-card:not([style]) {
+	grid-column: span 6;
+}
+.visual-card-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	padding: 0.4rem 0.75rem;
+	background: var(--header-bg, #f8f9fa);
+	border-bottom: 1px solid var(--border, #dee2e6);
+	cursor: grab;
+}
+.visual-card-header:active { cursor: grabbing; }
+.visual-card-title {
+	font-weight: 600;
+	font-size: 0.9rem;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.visual-card-body {
+	flex: 1;
+	overflow: auto;
+	padding: 0.5rem;
+}
+.visual-card-body svg {
+	max-width: 100%;
+	height: auto;
+}
+.visual-error {
+	color: #dc3545;
+	padding: 0.5rem;
+	font-size: 0.85rem;
+}
+.visual-table-wrap {
+	overflow: auto;
+}
+.data-table {
+	border-collapse: collapse;
+	font-size: 0.8rem;
+	width: 100%;
+}
+.data-table th, .data-table td {
+	border: 1px solid var(--border, #dee2e6);
+	padding: 0.25rem 0.4rem;
+	white-space: nowrap;
+}
+.data-table th {
+	background: var(--header-bg, #f8f9fa);
+	font-weight: 600;
+}
+.canvas-toolbar {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-bottom: 0.75rem;
+}
+</style>
+
+<div class="canvas-toolbar">
+	<h2 style="margin:0;flex:1">[% title | html %]</h2>
+	<span style="color:var(--muted,#6c757d);font-size:0.85rem">
+		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
+	</span>
+</div>
+
+<div class="canvas-grid" id="canvas-grid" data-analysis-id="[% analysis_id | html %]">
+[% FOREACH v IN visuals %]
+	<div class="visual-card" id="visual-[% v.id %]"
+	     data-visual="[% v.id %]"
+	     [% IF v.style %]style="[% v.style | html %]"[% END %]
+	     draggable="true">
+		<div class="visual-card-header">
+			<span class="visual-card-title">[% v.title | html %]</span>
+			<span style="font-size:0.75rem;opacity:0.5;margin-left:0.5rem">[% v.kind | html %]</span>
+		</div>
+		<div class="visual-card-body">
+		[% IF v.error %]
+			<div class="visual-error">[% v.error | html %]</div>
+		[% ELSE %]
+			[% v.html %]
+		[% END %]
+		</div>
+	</div>
+[% END %]
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script>
+(function () {
+	'use strict';
+
+	var grid    = document.getElementById('canvas-grid');
+	var anaId   = grid ? grid.getAttribute('data-analysis-id') : '';
+	var dragSrc = null;
+
+	function onDragStart(e) {
+		dragSrc = this.closest('.visual-card');
+		e.dataTransfer.effectAllowed = 'move';
+		e.dataTransfer.setData('text/plain', dragSrc.getAttribute('data-visual'));
+	}
+
+	function onDragOver(e) {
+		e.preventDefault();
+		e.dataTransfer.dropEffect = 'move';
+	}
+
+	function onDrop(e) {
+		e.preventDefault();
+		if (!dragSrc) return;
+		var target = e.target.closest('.visual-card');
+		if (!target || target === dragSrc) return;
+		var parent = grid;
+		var cards  = Array.from(parent.children);
+		var srcIdx = cards.indexOf(dragSrc);
+		var tgtIdx = cards.indexOf(target);
+		if (srcIdx < 0 || tgtIdx < 0) return;
+		if (srcIdx < tgtIdx) {
+			parent.insertBefore(dragSrc, target.nextSibling);
+		} else {
+			parent.insertBefore(dragSrc, target);
+		}
+		saveLayout();
+	}
+
+	function saveLayout() {
+		if (!anaId) return;
+		var cards  = Array.from(grid.children);
+		var layout = cards.map(function (c, i) {
+			var vid = parseInt(c.getAttribute('data-visual'), 10);
+			var sty = c.getAttribute('style') || '';
+			var x = 1, y = i + 1, w = 6, h = 1;
+			var mCol = sty.match(/grid-column\s*:\s*(\d+)\/span\s+(\d+)/);
+			var mRow = sty.match(/grid-row\s*:\s*(\d+)\/span\s+(\d+)/);
+			if (mCol) { x = parseInt(mCol[1], 10); w = parseInt(mCol[2], 10); }
+			if (mRow) { y = parseInt(mRow[1], 10); h = parseInt(mRow[2], 10); }
+			return { visual: vid, x: x, y: y, w: w, h: h };
+		});
+		var body = JSON.stringify({ layout: layout });
+		fetch('/api/analyses/' + encodeURIComponent(anaId), {
+			method  : 'PATCH',
+			headers : { 'Content-Type': 'application/json' },
+			body    : body,
+		}).catch(function () {});
+	}
+
+	if (grid) {
+		var headers = grid.querySelectorAll('.visual-card-header');
+		headers.forEach(function (h) {
+			h.addEventListener('dragstart', onDragStart);
+		});
+		grid.addEventListener('dragover', onDragOver);
+		grid.addEventListener('drop',     onDrop);
+	}
+}());
+</script>
+[%- END -%]

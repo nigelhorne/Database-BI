@@ -1545,7 +1545,7 @@ sub _validate_analysis :Protected ($self, $doc) {
 		return sprintf($MESSAGES{error_analysis_version}, $doc->{version})
 			unless $doc->{version} =~ /\A\d+\z/ && $doc->{version} <= 1;
 	}
-	for my $key (qw( visuals joins measures combines bookmarks )) {
+	for my $key (qw( visuals joins measures combines bookmarks layout )) {
 		if (defined $doc->{$key}) {
 			return "$key must be an array"
 				unless ref $doc->{$key} eq 'ARRAY';
@@ -1786,10 +1786,465 @@ sub analyses_import ($self) {
 	$self->render(json => { id => $id, imported => 1 }, status => 201);
 }
 
+# ---------------------------------------------------------------------------
+# Phase 3.2 -- canvas pipeline and per-visual rendering helpers
+# ---------------------------------------------------------------------------
+
+# _build_canvas_pipeline($self, \%analysis) -> ($src, $records, \@cols) or ()
+#
+# Opens the first dataset from a saved analysis and chains any declared joins.
+# Returns the base pipeline triple for _render_visual_html.
+# Returns an empty list on any error so analysis_render can respond 422.
+sub _build_canvas_pipeline :Protected ($self, $analysis) {
+	my @datasets = @{ $analysis->{datasets} // [] };
+	return () unless @datasets;
+
+	my $left_spec = $datasets[0]{spec} or return ();
+	my ($left_src) = $self->_open_spec($left_spec);
+	return () unless $left_src;
+
+	my $max_rows = $self->app->config('join_max_rows') // $DEFAULT_JOIN_MAX_ROWS;
+	my $src = $left_src;
+
+	# Build alias -> spec lookup for join resolution.
+	my %spec_by_alias;
+	for my $ds (@datasets) {
+		$spec_by_alias{ $ds->{alias} // '' } = $ds->{spec} // '';
+	}
+
+	for my $j (@{ $analysis->{joins} // [] }) {
+		my $right_spec = $spec_by_alias{ $j->{right} // '' } // '';
+		next unless length $right_spec;
+		my $left_key  = $j->{left_key}  // '';
+		my $right_key = $j->{right_key} // $left_key;
+		next unless length $left_key;
+
+		my ($right_src) = $self->_open_spec($right_spec);
+		next unless $right_src;
+
+		require Database::Join;
+		$src = Database::Join->new(
+			databases      => [$src, $right_src],
+			join_column    => $left_key,
+			backend        => 'auto',
+			max_array_rows => $max_rows,
+			($left_key ne $right_key ? (join_map => {1 => $right_key}) : ()),
+		);
+	}
+
+	my $records = eval { $src->selectall_arrayref };
+	return () if $@;
+	$records //= [];
+	my @columns = _get_columns($src, $records);
+
+	return ($src, $records, \@columns);
+}
+
+# _render_visual_html($self, \%vis, $records, \@columns, $src)
+#     -> { html => Str, title => Str } | { error => Str }
+#
+# Renders one canvas visual spec to an HTML snippet without touching
+# $self->render().  Applies any per-visual filters, then dispatches by
+# kind to the appropriate HTML::D3 renderer.
+sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src) {
+	my $kind    = $vis->{kind}    // '';
+	my $encode  = $vis->{encode}  // {};
+	my $options = $vis->{options} // {};
+	my $filters = $vis->{filters} // [];
+	my $title   = $vis->{title}   // '';
+
+	# Apply per-visual filters on top of the base pipeline records.
+	my $vis_recs = $records;
+	for my $f (@$filters) {
+		$vis_recs = _apply_filter_spec($vis_recs, $f);
+	}
+
+	my %col_set = map { $_ => 1 } @$columns;
+
+	require HTML::D3;
+
+	# ------------------------------------------------------------------ bar --
+	if ($kind eq 'bar') {
+		my $cat_col   = $encode->{cat}   // '';
+		my $val_col   = $encode->{value} // '';
+		return { error => 'Missing cat column for bar visual' } unless length $cat_col;
+		return { error => "Column not found: $cat_col" }        unless $col_set{$cat_col};
+		my $count_mode = ($val_col eq '__count__' || !length $val_col);
+		return { error => "Column not found: $val_col" }
+			unless $count_mode || $col_set{$val_col};
+
+		my $agg = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by => [$cat_col], fn => $count_mode ? 'count' : 'sum',
+			  val => $count_mode ? undef : $val_col, as => 'value' },
+		);
+		return { error => 'No plottable data' } unless @$agg;
+
+		$title ||= $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
+		my @bars   = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
+		my $orient = (($options->{orient} // '') eq 'h') ? 'horizontal' : 'vertical';
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_bar_chart_snippet(\@bars, {
+				orientation => $orient,
+				x_label     => $cat_col,
+			});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# ------------------------------------------------------------------ pie --
+	if ($kind eq 'pie') {
+		my $cat_col = $encode->{cat}   // '';
+		my $val_col = $encode->{value} // '';
+		return { error => 'Missing cat or val column for pie visual' }
+			unless length($cat_col) && length($val_col);
+		return { error => "Column not found: $cat_col" } unless $col_set{$cat_col};
+		my $count_mode = ($val_col eq '__count__');
+		return { error => "Column not found: $val_col" }
+			unless $count_mode || $col_set{$val_col};
+
+		my $agg = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by => [$cat_col], fn => $count_mode ? 'count' : 'sum',
+			  val => $count_mode ? undef : $val_col, as => 'value' },
+		);
+		return { error => 'No plottable data' } unless @$agg;
+
+		$title ||= $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
+		my @slices = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
+		my $scheme = $options->{scheme} // 'tableau10';
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_pie_chart_snippet(\@slices, {
+				donut        => $options->{donut} ? 1 : 0,
+				legend       => 1,
+				color_scheme => $scheme,
+			});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# -------------------------------------------------------------- line/graph --
+	if ($kind eq 'line' || $kind eq 'graph') {
+		my $x_col = $encode->{x} // '';
+		my $y_col = $encode->{y} // '';
+		return { error => 'Missing x or y column for line visual' }
+			unless length($x_col) && length($y_col);
+		return { error => "Column not found: $x_col" } unless $col_set{$x_col};
+		return { error => "Column not found: $y_col" } unless $col_set{$y_col};
+
+		my @pairs;
+		for my $row (@$vis_recs) {
+			my $xv = $row->{$x_col} // ''; next unless length $xv;
+			my $yn = _numeric_cell($row->{$y_col} // ''); next unless defined $yn;
+			push @pairs, [_decode_cell($xv), $yn];
+		}
+		return { error => 'No plottable data' } unless @pairs;
+
+		$title ||= "$y_col vs $x_col";
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_zoomable_line_chart_snippet(\@pairs, {});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# --------------------------------------------------------------- scatter --
+	if ($kind eq 'scatter') {
+		my $x_col = $encode->{x} // '';
+		my $y_col = $encode->{y} // '';
+		return { error => 'Missing x or y column for scatter visual' }
+			unless length($x_col) && length($y_col);
+		return { error => "Column not found: $x_col" } unless $col_set{$x_col};
+		return { error => "Column not found: $y_col" } unless $col_set{$y_col};
+
+		my @points;
+		for my $row (@$vis_recs) {
+			my $xv = _numeric_cell($row->{$x_col} // ''); next unless defined $xv;
+			my $yv = _numeric_cell($row->{$y_col} // ''); next unless defined $yv;
+			push @points, [$xv, $yv];
+		}
+		return { error => 'No plottable data' } unless @points;
+
+		$title ||= "$y_col vs $x_col";
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_scatter_chart_snippet(\@points, {
+				x_label => $x_col,
+				y_label => $y_col,
+			});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# -------------------------------------------------------------- heatmap --
+	if ($kind eq 'heatmap') {
+		my $x_col   = $encode->{x}     // '';
+		my $y_col   = $encode->{y}     // '';
+		my $val_col = $encode->{value} // '';
+		return { error => 'Missing x or y column for heatmap visual' }
+			unless length($x_col) && length($y_col);
+		return { error => "Column not found: $x_col" } unless $col_set{$x_col};
+		return { error => "Column not found: $y_col" } unless $col_set{$y_col};
+		return { error => "Column not found: $val_col" }
+			if length($val_col) && !$col_set{$val_col};
+
+		my (@x_order, @y_order, %seen_x, %seen_y);
+		for my $row (@$vis_recs) {
+			my $xv = $row->{$x_col} // ''; next unless length $xv;
+			my $yv = $row->{$y_col} // ''; next unless length $yv;
+			push @x_order, $xv unless $seen_x{$xv}++;
+			push @y_order, $yv unless $seen_y{$yv}++;
+		}
+		my $agg = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by  => [$x_col, $y_col],
+			  fn  => length($val_col) ? 'sum' : 'count',
+			  val => length($val_col) ? $val_col : undef,
+			  as  => 'value' },
+		);
+		my %grid;
+		for my $r (@$agg) {
+			$grid{$r->{$x_col}}{$r->{$y_col}} = $r->{value};
+		}
+		my @triples = map {
+			my ($raw_x, $xv) = ($_, _decode_cell($_));
+			map { [$xv, _decode_cell($_), $grid{$raw_x}{$_} // 0] } @y_order
+		} @x_order;
+		return { error => 'No plottable data' } unless @triples;
+
+		$title ||= length($val_col) ? "$val_col by $x_col and $y_col"
+		                            : "Count by $x_col and $y_col";
+		my $scheme = $options->{scheme} // 'YlOrRd';
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_heatmap_snippet(\@triples, {
+				x_label      => $x_col,
+				y_label      => $y_col,
+				val_label    => (length($val_col) ? $val_col : 'Count'),
+				color_scheme => $scheme,
+			});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# --------------------------------------------------------------- stacked --
+	if ($kind eq 'stacked') {
+		my $cat_col = $encode->{cat}    // '';
+		my $seg_col = $encode->{series} // '';
+		my $val_col = $encode->{value}  // '';
+		return { error => 'Missing cat or series column for stacked visual' }
+			unless length($cat_col) && length($seg_col);
+		return { error => "Column not found: $cat_col" } unless $col_set{$cat_col};
+		return { error => "Column not found: $seg_col" } unless $col_set{$seg_col};
+		my $count_mode = (!length $val_col || $val_col eq '__count__');
+		return { error => "Column not found: $val_col" }
+			unless $count_mode || $col_set{$val_col};
+
+		my $agg = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by  => [$cat_col, $seg_col],
+			  fn  => $count_mode ? 'count' : 'sum',
+			  val => $count_mode ? undef   : $val_col,
+			  as  => 'value' },
+		);
+		my @data = map {
+			my ($c, $s) = ($_->{$cat_col}//'', $_->{$seg_col}//'');
+			(length $c && length $s)
+				? { cat => $c, seg => $s, val => $_->{value} }
+				: ()
+		} @$agg;
+		return { error => 'No plottable data' } unless @data;
+
+		$title ||= $count_mode ? "Count by $cat_col and $seg_col"
+		                       : "$val_col by $cat_col and $seg_col";
+		my $scheme = $options->{scheme} // 'tableau10';
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_stacked_bar_snippet(\@data, {
+				scheme  => $scheme,
+				x_label => $cat_col,
+			});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# ---------------------------------------------------------------- combo --
+	if ($kind eq 'combo') {
+		my $x_col    = $encode->{cat}      // $encode->{x}    // '';
+		my $bar_col  = $encode->{bar_val}  // $encode->{bar}  // '';
+		my $line_col = $encode->{line_val} // $encode->{line} // '';
+		return { error => 'Missing cat, bar_val, or line_val for combo visual' }
+			unless length($x_col) && length($bar_col) && length($line_col);
+		return { error => "Column not found: $x_col"    } unless $col_set{$x_col};
+		return { error => "Column not found: $bar_col"  } unless $col_set{$bar_col};
+		return { error => "Column not found: $line_col" } unless $col_set{$line_col};
+
+		my $bar_rows = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by => [$x_col], fn => 'sum', val => $bar_col,  as => 'bar_val' },
+		);
+		my $line_rows = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by => [$x_col], fn => 'sum', val => $line_col, as => 'line_val' },
+		);
+		my (%bar_map, %line_map, @x_order, %x_seen);
+		for my $r (@$bar_rows) {
+			my $xv = _decode_cell($r->{$x_col} // ''); next unless length $xv;
+			push @x_order, $xv unless $x_seen{$xv}++;
+			$bar_map{$xv} = $r->{bar_val};
+		}
+		for my $r (@$line_rows) {
+			my $xv = _decode_cell($r->{$x_col} // ''); next unless length $xv;
+			push @x_order, $xv unless $x_seen{$xv}++;
+			$line_map{$xv} = $r->{line_val};
+		}
+		return { error => 'No plottable data' } unless @x_order;
+
+		my @data = map { { x => $_, bar_val => $bar_map{$_}, line_val => $line_map{$_} } }
+		           @x_order;
+		$title ||= "$bar_col and $line_col by $x_col";
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_combo_snippet(\@data, {
+				bar_label  => $bar_col,
+				line_label => $line_col,
+			});
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# --------------------------------------------------------------- treemap --
+	if ($kind eq 'treemap') {
+		my $cat_col = $encode->{group} // $encode->{cat}   // '';
+		my $val_col = $encode->{size}  // $encode->{value} // '';
+		return { error => 'Missing group column for treemap visual' } unless length $cat_col;
+		return { error => "Column not found: $cat_col" } unless $col_set{$cat_col};
+		my $count_mode = (!length $val_col || $val_col eq '__count__');
+		return { error => "Column not found: $val_col" }
+			unless $count_mode || $col_set{$val_col};
+
+		my $agg = $self->_grouped_totals(
+			{ source => $src, records => $vis_recs },
+			{ by  => [$cat_col],
+			  fn  => $count_mode ? 'count' : 'sum',
+			  val => $count_mode ? undef   : $val_col,
+			  as  => 'value' },
+		);
+		return { error => 'No plottable data' } unless @$agg;
+
+		$title ||= $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
+		my $scheme = $options->{scheme} // 'tableau10';
+		my @tiles  = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_treemap_snippet(\@tiles, { scheme => $scheme });
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# ------------------------------------------------------------ histogram --
+	if ($kind eq 'histogram') {
+		my $col = $encode->{value} // $encode->{col} // '';
+		return { error => 'Missing col for histogram visual' } unless length $col;
+		return { error => "Column not found: $col" }           unless $col_set{$col};
+
+		my @values;
+		for my $row (@$vis_recs) {
+			my $v = _numeric_cell($row->{$col} // '');
+			push @values, $v if defined $v;
+		}
+		return { error => 'No plottable data' } unless @values;
+
+		my $bins = int($options->{bins} // 10);
+		$bins = 1   if $bins < 1;
+		$bins = 200 if $bins > 200;
+		my $min_v = min(@values);
+		my $max_v = max(@values);
+		my @bin_data;
+		if ($min_v == $max_v) {
+			push @bin_data, { label => "$min_v", count => scalar @values,
+			                  lo => $min_v, hi => $min_v };
+		} else {
+			my $raw_w = ($max_v - $min_v) / $bins;
+			my $width = sprintf('%.10g', $raw_w) + 0;
+			$width = $raw_w if $width <= 0;
+			my $fmt = ($width == int($width)) ? '%d' : '%g';
+			my (@bin_counts, @bin_los);
+			for my $i (0 .. $bins - 1) {
+				push @bin_los,    $min_v + $i * $width;
+				push @bin_counts, 0;
+			}
+			for my $v (@values) {
+				my $idx = POSIX::floor(sprintf('%.10g', ($v - $min_v) / $width) + 0);
+				$idx = $bins - 1 if $idx >= $bins;
+				$idx = 0         if $idx < 0;
+				$bin_counts[$idx]++;
+			}
+			for my $i (0 .. $bins - 1) {
+				next unless $bin_counts[$i];
+				my $lo  = $bin_los[$i];
+				my $hi  = $lo + $width;
+				push @bin_data, {
+					label => sprintf("[${fmt},${fmt})", $lo, $hi),
+					count => $bin_counts[$i],
+					lo    => $lo,
+					hi    => $hi,
+				};
+			}
+		}
+
+		$title ||= "Distribution of $col";
+		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			->render_histogram_snippet(\@bin_data, { binned => 1, x_label => $col });
+		my $html = $sn->{html};
+		utf8::decode($html) unless utf8::is_utf8($html);
+		return { html => $html, title => $title };
+	}
+
+	# ----------------------------------------------------------------- table --
+	if ($kind eq 'table') {
+		return { error => 'No data to display' } unless @$vis_recs;
+		my @cols = @$columns;
+		@cols = @{ $encode->{columns} }
+			if ref $encode->{columns} eq 'ARRAY' && @{ $encode->{columns} };
+
+		$title ||= 'Table';
+		my $max_rows_t = int($options->{rows} // 50);
+		$max_rows_t = 200 if $max_rows_t > 200;
+		$max_rows_t = 1   if $max_rows_t < 1;
+
+		my $html = '<div class="visual-table-wrap"><table class="data-table">'
+		         . '<thead><tr>';
+		for my $c (@cols) {
+			(my $ch = $c) =~ s/&/&amp;/g; $ch =~ s/</&lt;/g; $ch =~ s/>/&gt;/g;
+			$html .= "<th>$ch</th>";
+		}
+		$html .= '</tr></thead><tbody>';
+		my $count = 0;
+		for my $row (@$vis_recs) {
+			last if $count++ >= $max_rows_t;
+			$html .= '<tr>';
+			for my $c (@cols) {
+				my $v = $row->{$c} // '';
+				$v =~ s/&/&amp;/g; $v =~ s/</&lt;/g; $v =~ s/>/&gt;/g;
+				$html .= "<td>$v</td>";
+			}
+			$html .= '</tr>';
+		}
+		$html .= '</tbody></table></div>';
+		return { html => $html, title => $title };
+	}
+
+	return { error => "Unknown visual kind: $kind" };
+}
+
 # GET /a/:id  -- render a saved analysis
 #
-# Phase 3.1: reconstructs the data-view URL from the analysis spec and redirects.
-# Full multi-visual canvas rendering is deferred to Phase 3.2.
+# Phase 3.1 bridge: redirects to the reconstructed data-view URL when the
+# analysis has no visuals array.
+# Phase 3.2 canvas: renders N visuals in a CSS grid when visuals are present.
 sub analysis_render ($self) {
 	my $id = $self->stash('id') // '';
 	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
@@ -1798,8 +2253,56 @@ sub analysis_render ($self) {
 	my $analyses = $self->_read_analyses;
 	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
 		unless exists $analyses->{$id};
+	my $a = $analyses->{$id};
 
-	my $url = $self->_analysis_to_url($analyses->{$id});
+	# Phase 3.2: if visuals array is non-empty, render the dashboard canvas.
+	my @visuals = @{ $a->{visuals} // [] };
+	if (@visuals) {
+		my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
+		return $self->render(
+			text   => 'Cannot open data source for this analysis',
+			status => 422,
+		) unless defined $records;
+
+		# Pre-build CSS grid position strings to avoid TT hash-key lookups.
+		my %layout_pos;
+		for my $lp (@{ $a->{layout} // [] }) {
+			my ($x, $y, $w, $h) = @{$lp}{qw(x y w h)};
+			next unless defined $x && defined $y && defined $w && defined $h;
+			$layout_pos{ $lp->{visual} // '' } =
+				"grid-column:${x}/span ${w};grid-row:${y}/span ${h}";
+		}
+
+		my @rendered;
+		for my $i (0 .. $#visuals) {
+			my $vis    = $visuals[$i];
+			my $result = $self->_render_visual_html($vis, $records, $columns, $src);
+			push @rendered, {
+				id    => $i,
+				title => ($vis->{title} // $result->{title} // ('Visual ' . ($i + 1))),
+				html  => $result->{html}  // '',
+				error => $result->{error} // '',
+				kind  => $vis->{kind}     // '',
+				style => $layout_pos{$i}  // '',
+			};
+		}
+
+		my ($platform, $language) = $self->_resolve_template;
+		return $self->render(
+			handler       => 'tt',
+			template      => "$platform/$language/analysis",
+			format        => 'html',
+			title         => $a->{name},
+			analysis_id   => $id,
+			analysis_name => $a->{name},
+			visuals       => \@rendered,
+			back_url      => '/',
+			back_label    => 'Home',
+		);
+	}
+
+	# Phase 3.1 bridge: reconstruct the data-view URL from the analysis spec.
+	my $url = $self->_analysis_to_url($a);
 	return $self->render(text => 'Cannot reconstruct URL from this analysis', status => 422)
 		unless defined $url;
 

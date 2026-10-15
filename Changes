@@ -12,7 +12,32 @@ Revision history for Database-BI
     - GET /api/analyses/:id/export -- download the analysis as a JSON file.
     - POST /api/analyses/import -- create from an uploaded or posted JSON doc.
     - GET /a/:id -- render a saved analysis (Phase 3.1: redirects to the
-      reconstructed data-view URL; full canvas rendering deferred to 3.2).
+      reconstructed data-view URL when no visuals are present; Phase 3.2
+      canvas rendering when visuals are present).
+    [ New Features -- Phase 3.2: Dashboard Canvas ]
+    - GET /a/:id now renders a full multi-visual CSS 12-column grid canvas
+      when the analysis has a non-empty visuals array; falls back to the
+      Phase 3.1 redirect for analyses without visuals.
+    - _build_canvas_pipeline opens the analysis datasets and chains joins
+      from the analysis spec, returning the base pipeline for per-visual
+      rendering.
+    - _render_visual_html renders any single visual spec (kinds: bar, pie,
+      line/graph, scatter, heatmap, stacked, combo, treemap, histogram,
+      table) to an HTML snippet via HTML::D3 (responsive 480x320).
+    - Per-visual filters (stored in vis.filters) are applied on top of the
+      shared base pipeline records before rendering each visual.
+    - Layout positions from the analysis layout array are pre-computed to
+      CSS grid-column/grid-row style strings in Perl and passed to the
+      template as vis.style, avoiding TT hash-key complexity.
+    - templates/web/en/analysis.html.tt: CSS grid canvas page with draggable
+      visual cards; drag-to-reorder PATCHes /api/analyses/:id to persist
+      the new layout order.
+    - _validate_analysis now accepts layout as a valid array key.
+    - All chart pages (bar, pie, line, graph, scatter, heatmap, stacked,
+      combo, treemap, histogram) show a fixed "+ Canvas" button when
+      chart stash var is set (via the [% IF chart %] guard in
+      default.html.tt) that lets the user append the current visual to
+      any saved analysis via PATCH /api/analyses/:id.
     - Storage: model_dir/analyses.json (atomic write via temp+rename);
       degrades gracefully to 503 when model_dir is read-only.
     - Dashboard toolbar: "Save analysis..." button posts the current view as

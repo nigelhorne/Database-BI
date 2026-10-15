@@ -1984,7 +1984,7 @@ subtest 'Transaction 31 -- SQLite file with mismatched internal table name opens
 # Phase 6   GET /join endpoint returns 200 with merged data
 #           (backend => 'auto' is active via Dashboard.pm)
 # Phase 7   Source-code guard: Dashboard.pm passes backend => 'auto'
-#           in exactly 2 Database::Join->new() call sites
+#           in all 3 Database::Join->new() call sites
 # ======================================================================
 
 subtest 'Transaction 32 -- Database::Join backend => auto in join pipeline' => sub {
@@ -2081,8 +2081,8 @@ subtest 'Transaction 32 -- Database::Join backend => auto in join pipeline' => s
 		$t->app->home->child('lib/Database/BI/Controller/Dashboard.pm')
 	)->slurp;
 	my $auto_count = () = $dash =~ /backend\s*=>\s*'auto'/g;
-	is $auto_count, 2,
-		'Phase 7: Dashboard.pm passes backend => auto at both join call sites';	# 10
+	is $auto_count, 3,
+		'Phase 7: Dashboard.pm passes backend => auto at all join call sites';	# 10
 };
 
 # ======================================================================
