@@ -14,7 +14,7 @@ requires 'Excel::Writer::XLSX', '1.07';
 requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
-requires 'HTML::D3', '0.19';
+requires 'HTML::D3', '0.20';
 requires 'HTML::TableExtract';
 requires 'IPC::System::Simple';   # For autodie (:all) in DataSource.pm at runtime
 requires 'LWP::UserAgent';   # Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path

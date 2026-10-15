@@ -35,7 +35,7 @@ WriteMakefile(
 		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
 		'Mojo::Base' => 0,
 		'Mojo::JSON' => 0,
-		'HTML::D3' => 0.19,
+		'HTML::D3' => 0.20,
 		'HTML::TableExtract'	=> 0,
 		'LWP::UserAgent'		=> 0,		# Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path
 		'LWP::UserAgent::Cached'	=> 0,		# Used by Database::Abstraction for URL-backed tables (import_url)
