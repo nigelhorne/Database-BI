@@ -841,4 +841,94 @@ subtest '3.7: print CSS hides toolbar controls and keeps title' => sub {
 		'print CSS sets canvas-grid to 2 columns';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 3.2 -- canvas grid spans: resize handles and layout persistence
+# ---------------------------------------------------------------------------
+
+subtest '3.2: resize handles render and layout spans are validated and persisted' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'ResizeCanvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Left'  },
+			{ kind => 'table', encode => {}, title => 'Right' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# One handle per visual card, and the wiring that makes it resize.
+	my $handles = () = $b =~ /class="visual-resize-handle"/g;
+	is $handles, 2, 'one resize handle per visual';
+	like $b, qr/initResizeHandles/,            'resize handles are wired up';
+	like $b, qr/onResizeStart/,                'resize drag handler defined';
+	like $b, qr/onResizeMove/,                 'resize drag moves the span';
+	like $b, qr/nwse-resize/,                  'resize cursor affordance in CSS';
+	like $b, qr/touch-action\s*:\s*none/,      'handle opts out of touch panning';
+	like $b, qr/grid-auto-rows\s*:\s*minmax/,  'row span is a real height, not just a number';
+	like $b, qr/\@media print.*?visual-resize-handle[^{]*\{[^}]*display\s*:\s*none/s,
+		'print CSS hides the resize handles';
+
+	# Persist a layout: visual 0 full width, visual 1 half width and two rows.
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ layout => [
+			{ visual => 0, x => 1, y => 1, w => 12, h => 1 },
+			{ visual => 1, x => 1, y => 2, w => 6,  h => 2 },
+		] })
+	)->status_is(200, 'layout PATCH accepted');
+
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	my $stored = $t->tx->res->json->{layout};
+	is scalar(@$stored), 2, 'both layout entries stored';
+	is $stored->[0]{w}, 12, 'visual 0 stored full width';
+	is $stored->[1]{h}, 2,  'visual 1 stored two rows tall';
+
+	# ... and the canvas renders those spans server-side, with no JavaScript.
+	$t->get_ok("/a/$cid")->status_is(200);
+	$b = $t->tx->res->body;
+	like $b, qr/id="visual-0"[^>]*style="[^"]*grid-column:1\/span 12/,
+		'visual 0 rendered full width';
+	like $b, qr/id="visual-1"[^>]*style="[^"]*grid-column:1\/span 6/,
+		'visual 1 rendered half width';
+	like $b, qr/id="visual-1"[^>]*style="[^"]*grid-row:2\/span 2/,
+		'visual 1 rendered two rows tall';
+
+	# Spans outside the grid are rejected rather than stored: a drag can only
+	# produce whole columns and rows inside 12 columns, so anything else means
+	# the document (not the drag) is wrong.
+	my @bad = (
+		[ { visual => 0, x => 1,  y => 1, w => 13,   h => 1 }, 'w wider than the grid' ],
+		[ { visual => 0, x => 8,  y => 1, w => 6,    h => 1 }, 'x + w - 1 past column 12' ],
+		[ { visual => 0, x => 1,  y => 1, w => 0,    h => 1 }, 'zero-width span' ],
+		[ { visual => 0, x => 1,  y => 1, w => 6,    h => 0 }, 'zero-height span' ],
+		[ { visual => 0, x => 1,  y => 1, w => 6,    h => 7 }, 'taller than the row cap' ],
+		[ { visual => 0, x => 0,  y => 1, w => 6,    h => 1 }, 'x before column 1' ],
+		[ { visual => 0, x => 13, y => 1, w => 1,    h => 1 }, 'x past the last column' ],
+		[ { visual => 0, x => 1,  y => 0, w => 6,    h => 1 }, 'y before row 1' ],
+		[ { visual => 0, x => 1,  y => 1, w => 'wide', h => 1 }, 'non-numeric span' ],
+		[ { visual => 0, x => 1,  y => 1, w => 6.5,  h => 1 }, 'fractional span' ],
+		[ { visual => 0, x => 1,  y => 1, w => 6 },            'entry missing h' ],
+	);
+	for my $case (@bad) {
+		$t->patch_ok("/api/analyses/$cid",
+			{ 'Content-Type' => 'application/json' },
+			encode_json({ layout => [ $case->[0] ] })
+		)->status_is(400, "rejected: $case->[1]");
+	}
+
+	# A rejected layout must not have reached the store.
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	is_deeply $t->tx->res->json->{layout}, $stored,
+		'rejected layouts were not stored';
+};
+
 done_testing;

@@ -37,6 +37,7 @@ requires 'Sub::Protected';
 on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'Encode';
+	requires 'Test::DescribeMe';	# Author tests declare themselves with this
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';
 	requires 'Test::Mojo';
@@ -52,6 +53,8 @@ on 'test' => sub {
 on 'develop' => sub {
 	requires 'Devel::Cover';
 	requires 'Perl::Critic';
-	requires 'Test::Pod';
+	requires 'Test::CheckManifest';   # t/manifest.t
+	requires 'Test::Pod';             # t/pod.t
 	requires 'Test::Pod::Coverage';
+	requires 'Test::Version';         # t/version.t
 };

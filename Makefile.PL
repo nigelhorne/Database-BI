@@ -54,6 +54,7 @@ WriteMakefile(
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
 		'Encode' => 0,
+		'Test::DescribeMe' => 0,	# Author tests (t/pod.t, t/manifest.t, t/version.t) declare themselves with this; the tools they need are optional and skipped without them
 		'Test::Memory::Cycle' => 0,
 		'Test::Mockingbird' => 0,
 		'Test::Most' => 0,

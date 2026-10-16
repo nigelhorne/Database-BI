@@ -1547,7 +1547,56 @@ sub _gen_analysis_id :Protected ($self) {
 	return $id;
 }
 
+# The canvas is a 12-column CSS grid; a layout entry addresses cells in it.
+# Shared by _validate_layout and by the layout precompute in canvas_render.
+Readonly my $GRID_COLUMNS => 12;
+
+# How many grid rows one visual may span.  A row is at least 15rem tall (see
+# grid-auto-rows in templates/web/en/canvas.html.tt), so this is also a cap on
+# how tall a single visual can be made from the canvas.
+Readonly my $MAX_ROW_SPAN => 6;
+
+# _validate_layout($self, $layout_or_undef) -> $error_string_or_undef
+#
+# A layout entry is { visual, x, y, w, h } -- the grid position of one visual
+# on the canvas.  The canvas PATCHes these straight out of a drag, so they are
+# untrusted input like every other field: reject anything that is not a whole
+# number of columns or rows inside the grid, rather than store a position that
+# renders as "span 0" or runs off the right-hand edge.
+sub _validate_layout :Protected ($self, $layout) {
+	return undef unless defined $layout;
+	return 'layout must be an array' unless ref $layout eq 'ARRAY';
+
+	my $n = 0;
+	for my $lp (@$layout) {
+		$n++;
+		return "layout entry $n must be a hash" unless ref $lp eq 'HASH';
+		for my $f (qw( visual x y w h )) {
+			return "layout entry $n is missing $f" unless defined $lp->{$f};
+			return "layout entry $n: $f must be a whole number"
+				if ref $lp->{$f} || $lp->{$f} !~ /\A\d+\z/;
+		}
+		return "layout entry $n: x must be between 1 and $GRID_COLUMNS"
+			unless $lp->{x} >= 1 && $lp->{x} <= $GRID_COLUMNS;
+		return "layout entry $n: y must be at least 1"
+			unless $lp->{y} >= 1;
+		return "layout entry $n: w must be between 1 and $GRID_COLUMNS"
+			unless $lp->{w} >= 1 && $lp->{w} <= $GRID_COLUMNS;
+		return "layout entry $n: h must be between 1 and $MAX_ROW_SPAN"
+			unless $lp->{h} >= 1 && $lp->{h} <= $MAX_ROW_SPAN;
+		return "layout entry $n: x + w - 1 must not exceed $GRID_COLUMNS"
+			if $lp->{x} + $lp->{w} - 1 > $GRID_COLUMNS;
+	}
+
+	return undef;
+}
+
 # _validate_analysis($self, \%doc) -> $error_string_or_undef
+#
+# Structural validation of a saved-analysis document.  Called on create, on
+# replace and on import; analyses_patch validates the keys it is given instead,
+# so that a PATCH of one field cannot fail because of another field it never
+# read.
 sub _validate_analysis :Protected ($self, $doc) {
 	return 'Missing required field: name'
 		unless defined $doc->{name} && length $doc->{name};
@@ -1569,6 +1618,8 @@ sub _validate_analysis :Protected ($self, $doc) {
 				unless ref $doc->{$key} eq 'ARRAY';
 		}
 	}
+	my $lerr = $self->_validate_layout($doc->{layout});
+	return $lerr if $lerr;
 	if (defined $doc->{fields}) {
 		return 'fields must be a hash'
 			unless ref $doc->{fields} eq 'HASH';
@@ -1720,6 +1771,15 @@ sub analyses_patch ($self) {
 	my $body = eval { decode_json($self->req->body) };
 	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
 		unless ref $body eq 'HASH';
+
+	# Only the keys actually supplied are validated here: the canvas PATCHes
+	# nothing but the layout (a drag) or the bookmarks, and a document that
+	# fails on some other field it never mentioned is not this request's fault.
+	if (exists $body->{layout}) {
+		my $lerr = $self->_validate_layout($body->{layout});
+		return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $lerr) }, status => 400)
+			if $lerr;
+	}
 
 	my $existing = { %{ $analyses->{$id} } };
 	for my $key (keys %$body) {
@@ -2702,6 +2762,8 @@ sub _render_json :Protected ($self, $records, $columns, $name) {
 # ---------------------------------------------------------------------------
 # Public actions
 # ---------------------------------------------------------------------------
+
+=encoding utf8
 
 =head1 ACTIONS
 

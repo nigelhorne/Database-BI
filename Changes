@@ -32,6 +32,26 @@ Revision history for Database-BI
     - templates/web/en/analysis.html.tt: CSS grid canvas page with draggable
       visual cards; drag-to-reorder PATCHes /api/analyses/:id to persist
       the new layout order.
+    - Each visual card now carries a resize handle in its bottom-right corner.
+      Dragging it changes the card's grid-column span (w) and grid-row span
+      (h), snapped to whole columns and rows, and the whole layout is PATCHed
+      to /api/analyses/:id on release -- so a resize is a drag on the visual
+      itself, not an edit of the analysis JSON.  A reload renders the same
+      geometry server-side, with no JavaScript involved.  The span is read
+      back from the computed style rather than the style attribute, because
+      WebKit re-serialises the two longhands as the grid-area shorthand once
+      anything writes them.
+    - The canvas grid sets grid-auto-rows: minmax(15rem, auto), so a card's
+      row span is a real height rather than just a number in the layout.
+    - saveLayout() packs the layout in DOM order now (x and y from the flow,
+      w and h from each card's own span) instead of reusing stored
+      coordinates, so drag-to-reorder and drag-to-resize compose and a card
+      cannot end up stacked on a neighbour.
+    - _validate_layout rejects a layout that is not a whole number of columns
+      or rows inside the 12-column grid: x and y in range, w between 1 and
+      12, x + w - 1 within the grid, h between 1 and 6.  analyses_patch
+      validates the keys a PATCH actually supplies, so a layout-only PATCH
+      from the canvas cannot fail on a field it never mentioned.
     - _validate_analysis now accepts layout as a valid array key.
     - All chart pages (bar, pie, line, graph, scatter, heatmap, stacked,
       combo, treemap, histogram) show a fixed "+ Canvas" button when
@@ -63,6 +83,28 @@ Revision history for Database-BI
       returns an arrayref and the grep iterated over the ref rather than its
       elements.  Fixed by dereferencing: @{ $self->every_param('cf') // [] }.
     [ Tests ]
+    - Add the author-only packaging tests the sibling distributions carry,
+      declared with Test::DescribeMe so that an installing user never runs
+      them and a missing tool skips rather than fails (Test::Needs): t/pod.t
+      (every POD parses), t/manifest.t (MANIFEST lists exactly the files in
+      the distribution, honouring MANIFEST.SKIP) and t/version.t (every
+      module carries a $VERSION).  Run them with AUTHOR_TESTING=1 prove -l t.
+      Two deliberate differences from the sibling files: each reads lib/ and
+      script/ explicitly instead of letting the tool prefer a possibly stale
+      blib/, and t/version.t ends with done_testing() because
+      version_all_ok() reports its tests without ever declaring a plan, which
+      the harness otherwise reports as a failure for a healthy dist.
+    - Add t/data-dir-invariant.t: holds the app to BI-Phase-3.md section 11
+      item 4 and the BI-ROADMAP section 5 invariant that the user's data
+      directory is read-only to the application.  It snapshots every entry
+      under a data_dir of its own (path, size, mtime and digest -- an
+      integer-seconds mtime cannot see a same-second rewrite), runs a full
+      create/render/export cycle through Test::Mojo, and fails if any file
+      under data_dir appears, changes or disappears.  The cycle includes
+      /calc/save and POST /api/analyses, which do write, and the test asserts
+      those writes landed in model_dir, so a cycle that wrote nothing cannot
+      pass it; a final block proves the comparison itself detects a new file
+      and a same-length rewrite.
     - Add t/model.t: 28 subtests covering CRUD, validation rejection table,
       export/import round-trip, /a/:id redirect, atomic write verification,
       and read-only model_dir degradation.
@@ -160,6 +202,11 @@ Revision history for Database-BI
       and all Phase 3.1 API helpers are unchanged.
     - "Save analysis..." toolbar button renamed to "New canvas...";
       "+ Canvas" chart-page button renamed to "+ Add to Existing Canvas".
+    [ POD ]
+    - Controller/Dashboard.pm now declares =encoding utf8.  The formal
+      specifications use Unicode mathematics (x-shaped multiply, arrow,
+      element-of, not-equal, bottom), which podchecker reported as a syntax
+      error and perldoc rendered as mojibake.
 
 0.012.1	Thu Oct 15 12:00:00 PM EDT 2026
     [ Bug Fixes ]
