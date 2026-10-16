@@ -260,16 +260,34 @@
 	position: absolute;
 	right: 0;
 	bottom: 0;
-	width: 18px;
-	height: 18px;
+	width: 26px;
+	height: 26px;
 	cursor: nwse-resize;
-	background: linear-gradient(135deg, transparent 45%, var(--border, #dee2e6) 45%);
-	border-bottom-right-radius: 5px;
-	opacity: 0.7;
 	/* Pointer events only: without this a touch drag scrolls the page. */
 	touch-action: none;
 }
-.visual-resize-handle:hover { opacity: 1; background: #e2e6ea; }
+/* The grip is painted by a pseudo-element so the hit area stays the whole
+ * 26x26 corner while the visible mark is a triangle of diagonal ridges -- the
+ * conventional "drag me to resize" grip.  A bare corner is easy to miss
+ * entirely, which is what a first attempt at this looked like. */
+.visual-resize-handle::after {
+	content: '';
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+	width: 16px;
+	height: 16px;
+	border-bottom-right-radius: 3px;
+	background-image: repeating-linear-gradient(135deg,
+		transparent 0 4px, var(--muted, #6c757d) 4px 5px);
+	clip-path: polygon(100% 0, 100% 100%, 0 100%);
+	opacity: 0.5;
+}
+/* Bright enough to find as soon as the pointer is over the card, quiet enough
+ * not to compete with the data the rest of the time. */
+.visual-card:hover .visual-resize-handle::after,
+.visual-resize-handle:hover::after { opacity: 1; }
+.visual-resize-handle:hover::after { background-color: #e2e6ea; }
 .visual-card.resizing { outline: 2px solid var(--link, #0d6efd); }
 .visual-card.resizing .visual-card-body {
 	/* Keep the drag from selecting chart text or hitting chart marks. */

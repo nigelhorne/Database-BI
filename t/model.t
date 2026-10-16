@@ -873,6 +873,13 @@ subtest '3.2: resize handles render and layout spans are validated and persisted
 	like $b, qr/onResizeMove/,                 'resize drag moves the span';
 	like $b, qr/nwse-resize/,                  'resize cursor affordance in CSS';
 	like $b, qr/touch-action\s*:\s*none/,      'handle opts out of touch panning';
+	# The grip has to be visible, not just present: a bare 18px corner is easy
+	# to miss entirely, so the ridge triangle and its hover reveal matter.
+	like $b, qr/\.visual-resize-handle::after/,              'the grip is drawn, not just the hit area';
+	like $b, qr/\.visual-resize-handle::after\s*\{[^}]*repeating-linear-gradient/s,
+		'the grip is marked with the conventional diagonal ridges';
+	like $b, qr/\.visual-card:hover\s+\.visual-resize-handle/,
+		'the grip comes up to full strength when the card is hovered';
 	like $b, qr/grid-auto-rows\s*:\s*minmax/,  'row span is a real height, not just a number';
 	like $b, qr/\@media print.*?visual-resize-handle[^{]*\{[^}]*display\s*:\s*none/s,
 		'print CSS hides the resize handles';

@@ -49,6 +49,15 @@ min/avg/max), a pie chart (`render_pie_chart_snippet`; animated,
 sorted by value, capped at 12 slices, click-a-slice to filter the table),
 and a heatmap (`render_heatmap_snippet`; two categorical axes, optional
 value column or row count, configurable sequential colour scheme).
+- **Saved canvases (dashboards)** -- several charts and tables can be saved
+together as a named canvas and reopened on its own URL.  A canvas (`/a/:id`)
+lays the visuals out on a 12-column grid: drag a card by its header to reorder
+it, and drag the grip in the card's bottom-right corner to resize it --
+horizontally in whole columns, vertically in whole rows.  The arrangement is
+part of the saved analysis, so the same URL renders the same layout for
+everyone who opens it.  Create a canvas with "New canvas" in the toolbar of
+any data view, or add the current chart to an existing one with "+ Add to
+Existing Canvas"; saved canvases are listed on the home page.
 - **Drag-and-drop upload** -- any supported data file can be dropped directly
 onto the application.  The file is opened immediately; when the "Combine
 data" panel is open the dropped file populates the right-table path field.
@@ -333,6 +342,23 @@ perl Makefile.PL
 
     Deletes every file from the `.uploads/` staging directory.  Returns JSON
     `{ "freed": <bytes`, "count": &lt;n> }>.  No request body is needed.
+
+- `GET /a/:id`
+
+    Renders a saved canvas: the analysis's visuals laid out on a 12-column CSS
+    grid.  Each card carries a resize grip in its bottom-right corner, and
+    dragging it -- or dragging the card by its header to reorder it -- writes
+    the new `layout` back to the analysis, so the geometry is server-rendered
+    on the next request rather than held in the browser.  The page also accepts
+    `?cf=` (cross-filter), `?cv=`, `?dd=`/`?dl=` (drill-down) and `?p.<name>=`
+    (parameters).
+
+- `GET|POST /api/analyses`, `GET|PUT|PATCH|DELETE /api/analyses/:id`
+
+    JSON CRUD for saved canvases, including the `layout` array of
+    `{ visual, x, y, w, h }` grid positions.  `GET /api/analyses/:id/export`
+    downloads one as a JSON file, and `POST /api/analyses/import` creates one
+    from a posted or uploaded document.
 
 ## Configuration
 

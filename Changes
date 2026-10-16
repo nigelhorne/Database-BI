@@ -40,7 +40,12 @@ Revision history for Database-BI
       geometry server-side, with no JavaScript involved.  The span is read
       back from the computed style rather than the style attribute, because
       WebKit re-serialises the two longhands as the grid-area shorthand once
-      anything writes them.
+      anything writes them.  The grip is drawn as diagonal ridges in the
+      corner and comes up to full strength when the card is hovered -- a bare
+      18px corner does not read as an affordance -- and it is a pointer-only
+      control (no keyboard equivalent), so it is hidden from assistive
+      technology rather than advertised.  README.md documents how to reach a
+      canvas and what dragging the grip does.
     - The canvas grid sets grid-auto-rows: minmax(15rem, auto), so a card's
       row span is a real height rather than just a number in the layout.
     - saveLayout() packs the layout in DOM order now (x and y from the flow,
