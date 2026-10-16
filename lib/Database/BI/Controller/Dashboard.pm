@@ -2526,6 +2526,12 @@ sub canvas_render ($self) {
 			};
 		}
 
+		# Phase 3.6 -- bookmarks list for the toolbar panel.
+		my @canvas_bookmarks = @{ $a->{bookmarks} // [] };
+		# Pre-encode as JSON for the JS canvasBookmarks variable.
+		# Escape </ so the array literal cannot prematurely close a <script> tag.
+		(my $bm_json = encode_json(\@canvas_bookmarks)) =~ s{</}{<\\/}g;
+
 		my ($platform, $language) = $self->_resolve_template;
 		return $self->render(
 			handler      => 'tt',
@@ -2536,6 +2542,8 @@ sub canvas_render ($self) {
 			canvas_name  => $a->{name},
 			visuals      => \@rendered,
 			canvas_params    => \@canvas_params,
+			canvas_bookmarks => \@canvas_bookmarks,
+			canvas_bookmarks_json => $bm_json,
 			cf_active        => $cf_active    ? 1 : 0,
 			cf_display       => $cf_display,
 			cf_clear_url     => $cf_clear_url,

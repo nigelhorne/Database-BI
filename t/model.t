@@ -659,4 +659,121 @@ subtest '3.5: param-column clash returns 400' => sub {
 	like $t->tx->res->body, qr/amount/, 'error names the clashing identifier';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 3.6 -- Bookmarks and Undo/Redo
+# ---------------------------------------------------------------------------
+
+subtest '3.6: canvas renders undo/redo buttons' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'UndoRedo',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+	like $b, qr/id="btn-undo"/, 'undo button present';
+	like $b, qr/id="btn-redo"/, 'redo button present';
+	like $b, qr/btn-undo.*disabled/s, 'undo button initially disabled';
+	like $b, qr/btn-redo.*disabled/s, 'redo button initially disabled';
+	like $b, qr/pushUndo/, 'pushUndo function defined in JS';
+	like $b, qr/initUndoRedo/, 'initUndoRedo called in JS';
+};
+
+subtest '3.6: bookmark panel present in canvas' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'BmCanvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+	like $b, qr/id="btn-bm"/, 'bookmark toggle button present';
+	like $b, qr/id="bm-panel"/, 'bookmark panel present';
+	like $b, qr/bm-empty/, 'empty bookmark message shown (no bookmarks yet)';
+	like $b, qr/canvasBookmarks/, 'canvasBookmarks JS variable present';
+	unlike $b, qr/class="bm-item"/, 'no bookmark items shown before any are saved';
+};
+
+subtest '3.6: save bookmark via PATCH then verify on canvas' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'BmSave',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	# Save a bookmark by PATCHing the analyses endpoint directly
+	# (mirrors what the JS patchBookmarks() function does).
+	my $bm = { name => 'My view', state => '?f=region:eq:North', created => 1234567890 };
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ bookmarks => [$bm] })
+	)->status_is(200);
+
+	# Verify the bookmark is persisted in the stored analysis.
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	my $stored = $t->tx->res->json;
+	is ref($stored->{bookmarks}), 'ARRAY', 'bookmarks key is array';
+	is scalar @{ $stored->{bookmarks} }, 1, 'one bookmark stored';
+	is $stored->{bookmarks}[0]{name},    'My view', 'bookmark name correct';
+	is $stored->{bookmarks}[0]{state},   '?f=region:eq:North', 'bookmark state correct';
+	is $stored->{bookmarks}[0]{created}, 1234567890, 'bookmark created timestamp preserved';
+
+	# Verify the canvas renders the bookmark link.
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+	like $b, qr/class="bm-item"/, 'saved bookmark item rendered';
+	like $b, qr/My view/, 'bookmark name visible';
+	like $b, qr{/a/[^"]+\?f=region}, 'bookmark href contains state';
+	like $b, qr/class="bm-del-btn"/, 'delete button rendered on bookmark';
+	unlike $b, qr/id="bm-empty"/, 'empty-state message absent when bookmarks exist';
+};
+
+subtest '3.6: undo/redo JS stack key scoped to canvas id' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'StackKey',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# The localStorage key must contain the canvas id so stacks from
+	# different analyses do not collide.
+	like $b, qr/bi:undo:/, 'localStorage key prefix present';
+	# The key includes the canvas id (either literal in JS or via anaId var).
+	like $b, qr/UNDO_KEY\s*=\s*'bi:undo:'\s*\+\s*anaId/, 'stack key uses anaId';
+	like $b, qr/MAX_STACK\s*=\s*50/, 'max stack size is 50';
+};
+
 done_testing;

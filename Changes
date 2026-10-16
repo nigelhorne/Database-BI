@@ -69,6 +69,10 @@ Revision history for Database-BI
     - t/model.t subtests 33-36: parameter bar with defaults, URL-value override,
       out-of-range/non-numeric returns 400, param flows into ?c= calc expression,
       param-column clash returns 400.
+    - t/model.t subtests 37-40: undo/redo buttons present and initially disabled,
+      pushUndo/initUndoRedo defined in JS; bookmark panel present with empty
+      state, canvasBookmarks variable; save bookmark via PATCH then verify link
+      and delete button rendered; localStorage stack key scoped to canvas id.
     - t/model.t subtests 29-32: cross-filter chip rendering (chip absent when
       no ?cf=, chip shown with description when ?cf= set, source visual
       highlighted with cf-source class, non-source filtered); drill-through
@@ -94,6 +98,26 @@ Revision history for Database-BI
     - _apply_calc_fields() accepts an optional \%extra hashref (keys: params, spec_key)
       to pass bound parameters and override the ?l= spec key (for canvas context
       where no ?l= param is present in the URL).
+    [ New Features -- Phase 3.6: Bookmarks and Undo/Redo ]
+    - The canvas toolbar now shows Undo (<- Undo) and Redo (Redo ->) buttons.
+      State is stored per-analysis in localStorage under the key
+      bi:undo:<canvas-id> as { undo: [...], redo: [...] } arrays of
+      window.location.search snapshots (max 50 entries each).
+    - pushUndo(search) is called before every canvas navigation (cross-filter
+      click, parameter change, drill-down click), clearing the redo stack.
+    - Clicking Undo pops the most recent search from the undo stack, pushes
+      the current search onto the redo stack, and navigates to the previous
+      state; Redo reverses the operation.
+    - Both buttons start disabled; Undo is enabled immediately after the first
+      pushUndo() call; Redo is enabled only after an undo operation.
+    - The canvas toolbar now includes a Bookmarks toggle button (id="btn-bm")
+      that opens a panel with a name input and a Save button for creating
+      named snapshots of the current URL state.
+    - Bookmarks are stored in the analysis object (bookmarks array of
+      { name, state, created } entries) via PATCH /api/analyses/:id.
+    - Each saved bookmark renders as a link (/a/:id + state) and a delete
+      button in the panel; confirming deletion PATCHes the updated array.
+    - _validate_analysis now accepts bookmarks as a valid analysis key.
     [ New Features -- Phase 3.4: Drill-Through and Drill-Down ]
     - Drill-through: when a cross-filter is active on the canvas, a "View rows
       rightarrow" link appears in the cross-filter chip pointing to the primary

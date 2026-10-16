@@ -161,6 +161,71 @@
 	white-space: nowrap;
 }
 .drill-through-link:hover, .cf-drillthrough:hover { text-decoration: underline; }
+/* Bookmark button/panel (3.6) */
+.bm-wrap { position: relative; }
+.bm-panel {
+	position: absolute;
+	top: calc(100% + 4px);
+	right: 0;
+	z-index: 300;
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 6px;
+	padding: 0.5rem;
+	min-width: 220px;
+	max-width: 320px;
+	box-shadow: 0 4px 12px rgba(0,0,0,0.12);
+}
+.bm-save-row {
+	display: flex;
+	gap: 0.35rem;
+	margin-bottom: 0.4rem;
+}
+.bm-save-row input {
+	flex: 1;
+	font-size: 0.82rem;
+	padding: 0.2rem 0.4rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 4px;
+}
+.bm-save-btn, .bm-del-btn {
+	font-size: 0.78rem;
+	padding: 0.2rem 0.5rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 4px;
+	background: var(--header-bg, #f8f9fa);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.bm-item {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.2rem 0;
+	border-top: 1px solid var(--border, #dee2e6);
+	font-size: 0.82rem;
+}
+.bm-item a {
+	flex: 1;
+	color: var(--link, #0d6efd);
+	text-decoration: none;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.bm-item a:hover { text-decoration: underline; }
+.bm-empty { font-size: 0.82rem; color: var(--muted, #6c757d); padding: 0.25rem 0; margin: 0; }
+/* Undo / redo buttons (3.6) */
+.btn-undo, .btn-redo {
+	font-size: 0.8rem;
+	padding: 0.2rem 0.5rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 4px;
+	background: var(--header-bg, #f8f9fa);
+	cursor: pointer;
+	white-space: nowrap;
+}
+.btn-undo:disabled, .btn-redo:disabled { opacity: 0.35; cursor: not-allowed; }
 </style>
 
 <div class="canvas-toolbar">
@@ -188,6 +253,27 @@
 		<a href="[% cf_clear_url | html %]" title="Clear cross-filter">&times; Clear</a>
 	</div>
 	[% END %]
+	<button id="btn-undo" class="btn-undo" type="button" title="Undo last action" disabled>&larr; Undo</button>
+	<button id="btn-redo" class="btn-redo" type="button" title="Redo" disabled>Redo &rarr;</button>
+	<div class="bm-wrap">
+		<button id="btn-bm" type="button" title="Save or restore a view bookmark">&#9733; Bookmarks</button>
+		<div id="bm-panel" class="bm-panel" hidden>
+			<div class="bm-save-row">
+				<input id="bm-name-inp" type="text" placeholder="Bookmark name" maxlength="80" autocomplete="off">
+				<button id="bm-save-btn" class="bm-save-btn" type="button">Save</button>
+			</div>
+			[% IF canvas_bookmarks.size %]
+			[% FOREACH bm IN canvas_bookmarks %]
+			<div class="bm-item" data-created="[% bm.created %]">
+				<a href="/a/[% canvas_id | html %][% bm.state | html %]" title="[% bm.name | html %]">[% bm.name | html %]</a>
+				<button class="bm-del-btn" data-created="[% bm.created %]" title="Remove this bookmark">&#x1F5D1;</button>
+			</div>
+			[% END %]
+			[% ELSE %]
+			<p class="bm-empty" id="bm-empty">No bookmarks saved yet.</p>
+			[% END %]
+		</div>
+	</div>
 	<span style="color:var(--muted,#6c757d);font-size:0.85rem">
 		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
 	</span>
@@ -366,13 +452,14 @@
 						 * drill-through URL to see the raw matching rows. */
 						if (drillLevel >= drillMax) {
 							var dtLink = document.querySelector('a.drill-through-link');
-							if (dtLink) { window.location.href = dtLink.href; }
+							if (dtLink) { pushUndo(window.location.search); window.location.href = dtLink.href; }
 							return;
 						}
 						u.searchParams.delete('cv');
 						u.searchParams.delete('dl');
 						u.searchParams.set('dl', drillLevel + 1);
 						u.searchParams.append('cf', drillCol + ':eq:' + encodeURIComponent(val));
+						pushUndo(window.location.search);
 						window.location.href = u.toString();
 					} else if (!drillName) {
 						/* Normal cross-filter mode: replace any existing filter. */
@@ -380,6 +467,7 @@
 						u.searchParams.delete('cv');
 						u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
 						u.searchParams.set('cv', visId);
+						pushUndo(window.location.search);
 						window.location.href = u.toString();
 					}
 					/* drillName set but cfCol !== drillCol: ignore click. */
@@ -404,9 +492,146 @@
 			if (!key) return;
 			var u = new URL(window.location.href);
 			u.searchParams.set(key, this.value);
+			pushUndo(window.location.search);
 			window.location.href = u.toString();
 		});
 	});
+
+	/* ---- undo / redo (3.6) ---- */
+	var UNDO_KEY  = 'bi:undo:' + anaId;
+	var MAX_STACK = 50;
+
+	function readBfStack() {
+		try {
+			var raw = localStorage.getItem(UNDO_KEY);
+			if (raw) {
+				var s = JSON.parse(raw);
+				if (s && Array.isArray(s.undo) && Array.isArray(s.redo)) return s;
+			}
+		} catch (e) {}
+		return { undo: [], redo: [] };
+	}
+
+	function saveBfStack(s) {
+		try { localStorage.setItem(UNDO_KEY, JSON.stringify(s)); } catch (e) {}
+	}
+
+	function pushUndo(search) {
+		if (!anaId) return;
+		var s = readBfStack();
+		s.undo.push(search);
+		if (s.undo.length > MAX_STACK) s.undo = s.undo.slice(-MAX_STACK);
+		s.redo = [];
+		saveBfStack(s);
+		var btnUndo = document.getElementById('btn-undo');
+		var btnRedo = document.getElementById('btn-redo');
+		if (btnUndo) btnUndo.disabled = false;
+		if (btnRedo) btnRedo.disabled = true;
+	}
+
+	function initUndoRedo() {
+		var btnUndo = document.getElementById('btn-undo');
+		var btnRedo = document.getElementById('btn-redo');
+		if (!btnUndo || !btnRedo || !anaId) return;
+		var s = readBfStack();
+		btnUndo.disabled = s.undo.length === 0;
+		btnRedo.disabled = s.redo.length === 0;
+		btnUndo.addEventListener('click', function () {
+			var s2 = readBfStack();
+			if (!s2.undo.length) return;
+			var prev = s2.undo.pop();
+			s2.redo.push(window.location.search);
+			if (s2.redo.length > MAX_STACK) s2.redo = s2.redo.slice(-MAX_STACK);
+			saveBfStack(s2);
+			window.location.href = '/a/' + encodeURIComponent(anaId) + (prev || '');
+		});
+		btnRedo.addEventListener('click', function () {
+			var s2 = readBfStack();
+			if (!s2.redo.length) return;
+			var nxt = s2.redo.pop();
+			s2.undo.push(window.location.search);
+			if (s2.undo.length > MAX_STACK) s2.undo = s2.undo.slice(-MAX_STACK);
+			saveBfStack(s2);
+			window.location.href = '/a/' + encodeURIComponent(anaId) + (nxt || '');
+		});
+	}
+
+	initUndoRedo();
+
+	/* ---- bookmarks (3.6) ---- */
+	var canvasBookmarks = [% canvas_bookmarks_json %];
+
+	(function () {
+		var btnBm   = document.getElementById('btn-bm');
+		var bmPanel = document.getElementById('bm-panel');
+		var bmInp   = document.getElementById('bm-name-inp');
+		var bmSave  = document.getElementById('bm-save-btn');
+		if (!btnBm || !bmPanel) return;
+
+		btnBm.addEventListener('click', function () {
+			bmPanel.hidden = !bmPanel.hidden;
+			if (!bmPanel.hidden && bmInp) bmInp.focus();
+		});
+
+		document.addEventListener('click', function (e) {
+			if (!bmPanel.hidden &&
+					!bmPanel.contains(e.target) &&
+					e.target !== btnBm) {
+				bmPanel.hidden = true;
+			}
+		});
+
+		if (bmSave) {
+			bmSave.addEventListener('click', function () {
+				if (!bmInp) return;
+				var name = bmInp.value.trim();
+				if (!name) { bmInp.focus(); return; }
+				var bm = { name: name, state: window.location.search, created: Date.now() };
+				var updated = canvasBookmarks.slice();
+				updated.push(bm);
+				patchBookmarks(updated, function () { window.location.reload(); });
+			});
+			if (bmInp) {
+				bmInp.addEventListener('keydown', function (e) {
+					if (e.key === 'Enter') bmSave.click();
+				});
+			}
+		}
+
+		bmPanel.querySelectorAll('.bm-del-btn').forEach(function (btn) {
+			btn.addEventListener('click', function (e) {
+				e.stopPropagation();
+				var created = parseInt(this.getAttribute('data-created'), 10);
+				if (!confirm('Remove this bookmark?')) return;
+				var updated = canvasBookmarks.filter(function (b) {
+					return b.created !== created;
+				});
+				var item = this.closest('.bm-item');
+				patchBookmarks(updated, function () {
+					canvasBookmarks = updated;
+					if (item) item.remove();
+					var empty = document.getElementById('bm-empty');
+					if (updated.length === 0 && !empty && bmPanel) {
+						var p = document.createElement('p');
+						p.className = 'bm-empty';
+						p.id = 'bm-empty';
+						p.textContent = 'No bookmarks saved yet.';
+						bmPanel.appendChild(p);
+					}
+				});
+			});
+		});
+
+		function patchBookmarks(bms, onSuccess) {
+			fetch('/api/analyses/' + encodeURIComponent(anaId), {
+				method  : 'PATCH',
+				headers : { 'Content-Type': 'application/json' },
+				body    : JSON.stringify({ bookmarks: bms }),
+			}).then(function (r) {
+				if (r.ok) { onSuccess(); }
+			}).catch(function () {});
+		}
+	}());
 
 }());
 </script>
