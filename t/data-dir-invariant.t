@@ -84,11 +84,20 @@ my $t = Test::Mojo->new('Database::BI', {
 # ---------------------------------------------------------------------------
 
 subtest 'the fixture is the directory the application actually reads' => sub {
-	is $t->app->home->to_abs->to_string, $home,
+	# Normalize path separators: realpath on Windows returns forward slashes
+	# while to_abs->to_string returns backslashes -- both name the same path.
+	my $app_home_str = $t->app->home->to_abs->to_string;
+	$app_home_str =~ s{\\}{/}g;
+	(my $exp_home_str = $home) =~ s{\\}{/}g;
+	is $app_home_str, $exp_home_str,
 		'the application home is the directory this test is watching';
 
 	my $resolved = $t->app->home->child($t->app->config->{data_dir});
-	is $resolved->to_abs->to_string, Mojo::File->new($data_dir)->to_abs->to_string,
+	my $resolved_str = $resolved->to_abs->to_string;
+	my $fixture_str  = Mojo::File->new($data_dir)->to_abs->to_string;
+	$resolved_str =~ s{\\}{/}g;
+	$fixture_str  =~ s{\\}{/}g;
+	is $resolved_str, $fixture_str,
 		'data_dir resolves to the fixture';
 
 	# Proof it is read, not merely configured: the home page scans data_dir.
