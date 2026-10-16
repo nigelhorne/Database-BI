@@ -1614,8 +1614,12 @@
       var svg = container.querySelector('svg');
       if (!svg || container.querySelector('.chart-resize-handle')) continue;
       ensureViewBox(svg);
+      var svgW = parseFloat(svg.getAttribute('width'))  || svg.getBoundingClientRect().width;
+      var svgH = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height;
       var wrap = document.createElement('div');
       wrap.className = 'chart-svg-wrap';
+      if (svgW) wrap.style.width  = svgW + 'px';
+      if (svgH) wrap.style.height = svgH + 'px';
       container.insertBefore(wrap, svg);
       wrap.appendChild(svg);
       var handle = document.createElement('div');
