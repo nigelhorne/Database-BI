@@ -226,6 +226,77 @@
 	white-space: nowrap;
 }
 .btn-undo:disabled, .btn-redo:disabled { opacity: 0.35; cursor: not-allowed; }
+/* "Add visual" button in canvas toolbar (P3) */
+.btn-add-visual {
+	font-size: 0.82rem;
+	padding: 0.2rem 0.55rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 4px;
+	background: var(--header-bg, #f8f9fa);
+	color: var(--body-color, #212529);
+	text-decoration: none;
+	white-space: nowrap;
+	cursor: pointer;
+}
+.btn-add-visual:hover { background: #e2e6ea; text-decoration: none; }
+/* Drag handle affordance on visual card headers (P7) */
+.drag-handle {
+	color: var(--muted, #6c757d);
+	font-size: 0.75rem;
+	letter-spacing: -1px;
+	padding-right: 0.35rem;
+	cursor: grab;
+	user-select: none;
+	flex-shrink: 0;
+}
+.drag-handle:active { cursor: grabbing; }
+/* Per-visual PNG download button (3.7) */
+.visual-dl-btn {
+	font-size: 0.7rem;
+	padding: 0.1rem 0.35rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 3px;
+	background: var(--header-bg, #f8f9fa);
+	cursor: pointer;
+	white-space: nowrap;
+	flex-shrink: 0;
+	margin-left: 0.3rem;
+}
+.visual-dl-btn:hover { background: #e2e6ea; }
+/* Print styles (3.7) */
+@media print {
+	@page { size: landscape; margin: 1.5cm; }
+	.canvas-toolbar button,
+	.canvas-toolbar .bm-wrap,
+	.param-bar,
+	#bm-panel { display: none !important; }
+	.canvas-toolbar {
+		flex-wrap: nowrap;
+		margin-bottom: 0.5rem;
+		gap: 0.75rem;
+	}
+	.canvas-toolbar h2 { font-size: 1.1rem; }
+	.cf-chip, .drill-crumb { font-size: 0.75rem; }
+	.canvas-grid {
+		display: grid;
+		grid-template-columns: 1fr 1fr;
+		gap: 0.5rem;
+		padding: 0.25rem 0;
+	}
+	.visual-card {
+		break-inside: avoid;
+		box-shadow: none;
+		border: 1px solid #aaa;
+		border-radius: 3px;
+	}
+	.visual-card-header { cursor: default; }
+	.visual-dl-btn { display: none; }
+	.visual-card-body {
+		overflow: visible;
+		padding: 0.25rem;
+	}
+	.visual-card-body svg { max-width: 100% !important; height: auto !important; }
+}
 </style>
 
 <div class="canvas-toolbar">
@@ -274,9 +345,15 @@
 			[% END %]
 		</div>
 	</div>
+	[% IF canvas_data_url.length %]
+	<a href="[% canvas_data_url | html %]" class="btn-add-visual" id="btn-add-visual"
+	   title="Go to the data source to add another chart to this canvas">&#x2295; Add visual&hellip;</a>
+	[% END %]
 	<span style="color:var(--muted,#6c757d);font-size:0.85rem">
 		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
 	</span>
+	<button id="btn-copy-link" type="button" title="Copy a shareable link to this canvas view" style="margin-left:auto">&#x1F517; Copy link</button>
+	<button id="btn-print" type="button" title="Print or save as PDF (Ctrl+P)">&#x1F5A8; Print</button>
 </div>
 
 [% IF canvas_params.size %]
@@ -307,8 +384,11 @@
 	     [% IF v.style %]style="[% v.style | html %]"[% END %]
 	     draggable="true">
 		<div class="visual-card-header">
+			<span class="drag-handle" aria-hidden="true">::</span>
+			<span class="sr-only">Drag to reorder</span>
 			<span class="visual-card-title">[% v.title | html %]</span>
 			<span style="font-size:0.75rem;opacity:0.5;margin-left:0.5rem">[% v.kind | html %]</span>
+			<button class="visual-dl-btn" data-title="[% v.title | html %]" title="Download as PNG" hidden>&#x2B07; Save image</button>
 		</div>
 		<div class="visual-card-body">
 		[% IF v.error %]
@@ -477,7 +557,7 @@
 
 	/* Run after a short delay so D3 chart init (which is synchronous but
 	 * may queue microtasks) has fully bound data to the SVG elements. */
-	setTimeout(initCrossFilters, 50);
+	setTimeout(function () { initCrossFilters(); initDownloadButtons(); }, 50);
 
 	/* ---- parameter bar (3.5 what-if controls) ----
 	 *
@@ -496,6 +576,85 @@
 			window.location.href = u.toString();
 		});
 	});
+
+	/* ---- copy-link button (P4) ---- */
+	var btnCopyLink = document.getElementById('btn-copy-link');
+	if (btnCopyLink) {
+		btnCopyLink.addEventListener('click', function () {
+			var btn = this;
+			navigator.clipboard.writeText(window.location.href)
+				.then(function () {
+					var orig = btn.textContent;
+					btn.textContent = 'Copied!';
+					setTimeout(function () { btn.textContent = orig; }, 1500);
+				})
+				.catch(function () {});
+		});
+	}
+
+	/* ---- print button (3.7) ---- */
+	var btnPrint = document.getElementById('btn-print');
+	if (btnPrint) {
+		btnPrint.addEventListener('click', function () { window.print(); });
+	}
+
+	/* ---- per-visual PNG download (3.7) ----
+	 *
+	 * For SVG-based chart visuals: serialise the SVG with XMLSerializer, paint it
+	 * onto a hidden <canvas> element, then trigger a PNG download.  Table visuals
+	 * have no SVG so their button stays hidden.
+	 *
+	 * Run inside the same setTimeout as initCrossFilters so D3 has finished
+	 * drawing before we probe for SVG elements.
+	 */
+	function initDownloadButtons() {
+		var cards = document.querySelectorAll('.visual-card');
+		cards.forEach(function (card) {
+			var svg = card.querySelector('svg');
+			var btn = card.querySelector('.visual-dl-btn');
+			if (!svg || !btn) return;
+			btn.hidden = false;
+			btn.addEventListener('click', function (e) {
+				e.stopPropagation();
+				downloadCardPng(card, svg, btn.getAttribute('data-title') || 'visual');
+			});
+		});
+	}
+
+	function downloadCardPng(card, svg, title) {
+		/* Clone and inline computed styles so the PNG looks like the screen. */
+		var bbox = svg.getBoundingClientRect();
+		var w = Math.round(bbox.width)  || 800;
+		var h = Math.round(bbox.height) || 400;
+
+		/* Embed the SVG width/height so the image element sizes correctly. */
+		var clone = svg.cloneNode(true);
+		clone.setAttribute('width',  w);
+		clone.setAttribute('height', h);
+		clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+
+		var svgStr  = new XMLSerializer().serializeToString(clone);
+		var svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+		var url     = URL.createObjectURL(svgBlob);
+
+		var img = new Image();
+		img.onload = function () {
+			var canv = document.createElement('canvas');
+			canv.width  = w;
+			canv.height = h;
+			var ctx = canv.getContext('2d');
+			ctx.fillStyle = '#ffffff';
+			ctx.fillRect(0, 0, w, h);
+			ctx.drawImage(img, 0, 0);
+			URL.revokeObjectURL(url);
+			var a = document.createElement('a');
+			a.download = title.replace(/[^A-Za-z0-9_\- ]/g, '_') + '.png';
+			a.href = canv.toDataURL('image/png');
+			a.click();
+		};
+		img.onerror = function () { URL.revokeObjectURL(url); };
+		img.src = url;
+	}
 
 	/* ---- undo / redo (3.6) ---- */
 	var UNDO_KEY  = 'bi:undo:' + anaId;

@@ -98,6 +98,24 @@ Revision history for Database-BI
     - _apply_calc_fields() accepts an optional \%extra hashref (keys: params, spec_key)
       to pass bound parameters and override the ?l= spec key (for canvas context
       where no ?l= param is present in the URL).
+    [ New Features -- Phase 3.7: Print / PDF / PNG ]
+    - A "Print" button (id="btn-print") appears in the canvas toolbar; clicking it
+      calls window.print() so the user can print the canvas or save it as PDF via
+      the browser's built-in print-to-PDF feature.
+    - @media print stylesheet hides toolbar buttons (undo, redo, bookmarks, print),
+      the parameter bar, and the bookmark panel while keeping the canvas title,
+      cross-filter chip, and drill breadcrumb visible.  @page rule sets landscape
+      orientation with 1.5 cm margins.  The canvas-grid collapses to a two-column
+      layout with break-inside: avoid on each visual card so charts are not split
+      across pages.
+    - Each visual card header now has a "PNG" download button (class visual-dl-btn),
+      initially hidden.  After D3 finishes rendering, initDownloadButtons() probes
+      each card for an <svg> element; cards with one get the button shown.  Clicking
+      it serialises the SVG with XMLSerializer, draws it onto a hidden <canvas> with
+      a white background, and triggers a .png download named after the visual title.
+      Table visuals (no SVG) keep the button hidden.  No new CDN dependency.
+    - t/model.t subtests 41-42: print button and PNG download infrastructure;
+      print CSS hides toolbar controls and uses 2-column grid.
     [ New Features -- Phase 3.6: Bookmarks and Undo/Redo ]
     - The canvas toolbar now shows Undo (<- Undo) and Redo (Redo ->) buttons.
       State is stored per-analysis in localStorage under the key

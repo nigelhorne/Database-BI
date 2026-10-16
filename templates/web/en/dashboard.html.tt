@@ -214,6 +214,7 @@
           title="Reload the data from disc - use this after the source file has changed">&#x21BB; Refresh</button>
   <button class="btn-delete-sel" id="btn-delete-sel" type="button" hidden
           title="Remove the selected rows and/or columns from this view">&#x1F5D1; Delete selected</button>
+  <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <button class="btn-graph" id="btn-graph" type="button"
           title="Plot the current data as a line chart - choose the X and Y axes">&#x1F4C8; Line graph&hellip;</button>
   <button class="btn-pie" id="btn-pie" type="button"
@@ -232,27 +233,31 @@
           title="Plot the current data as a treemap - choose a category column and an optional value column">&#x25A0; Treemap&hellip;</button>
   <button class="btn-histogram" id="btn-histogram" type="button"
           title="Plot the distribution of a numeric column as a histogram">&#x1F4CA; Histogram&hellip;</button>
+  <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <button class="btn-folder" id="btn-folder" type="button"
           title="Browse records grouped by the letter prefix of a code column (e.g. Order # A10, B3, CT4)">&#x1F4C1; Folder view&hellip;</button>
   <button class="btn-pivot" id="btn-pivot" type="button"
           title="Summarise the data as a pivot table - group by row and column dimensions and compute aggregates">&#x25A6; Pivot table&hellip;</button>
   <button class="btn-stats" id="btn-stats" type="button"
           title="Show column statistics: row count, nulls, distinct values, numeric min, max, mean and median">&#x03A3; Column stats</button>
+  <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <button class="btn-calc" id="btn-calc" type="button"
           title="Add virtual columns computed from expressions (e.g. revenue-cost). Saved fields are applied automatically whenever this data source is opened.">&fnof;(x) Calc fields&hellip;</button>
   <button class="btn-groups" id="btn-groups" type="button"
           title="Map column values to group labels (e.g. North+East = Northern). The virtual col_group column can then be used in charts and pivots.">&#x25BC; Group values&hellip;</button>
   <button class="btn-dates" id="btn-dates" type="button"
           title="Tell the app how date columns are formatted so YEAR(), MONTH() and date sorting work correctly. Saved patterns apply automatically.">&#x1F4C5; Date format&hellip;</button>
+  <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <button class="btn-save-analysis" id="btn-save-analysis" type="button"
           title="Create a new canvas and save the current view into it">&#x1F4BE; New canvas&hellip;</button>
   [%- END -%]
+  <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <button class="btn-dedup[% IF dedup %] btn-dedup--active[% END %]" id="btn-dedup" type="button"
           title="Remove duplicate rows from the view and from any export">[% IF dedup %]Show duplicates[% ELSE %]Hide duplicates[% END %]</button>
   <label class="lbl-totals" id="lbl-totals" title="Show a totals row at the bottom of the table &mdash; sums any numeric column">
     <input type="checkbox" id="chk-totals"> Totals
   </label>
-  <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge data&hellip;</button>
+  <button class="btn-add-db" id="btn-add-db" type="button" title="Combine this table with another data file, or narrow down the rows you see by applying conditions">&#x2295; Merge / Filter&hellip;</button>
   <button class="btn-combine" id="btn-combine" type="button" title="Stack rows from another data file beneath these rows, using a unified set of columns and leaving blanks where a column does not exist in a given file">&#x229E; Combine data&hellip;</button>
 </div>
 

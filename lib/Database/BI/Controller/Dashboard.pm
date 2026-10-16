@@ -2540,6 +2540,7 @@ sub canvas_render ($self) {
 			title        => $a->{name},
 			canvas_id    => $id,
 			canvas_name  => $a->{name},
+			canvas_data_url  => ($self->_analysis_to_url($a) // ''),
 			visuals      => \@rendered,
 			canvas_params    => \@canvas_params,
 			canvas_bookmarks => \@canvas_bookmarks,

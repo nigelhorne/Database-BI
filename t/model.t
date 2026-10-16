@@ -776,4 +776,69 @@ subtest '3.6: undo/redo JS stack key scoped to canvas id' => sub {
 	like $b, qr/MAX_STACK\s*=\s*50/, 'max stack size is 50';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 3.7 -- Print / PDF / PNG
+# ---------------------------------------------------------------------------
+
+subtest '3.7: print button and PNG download infrastructure present' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'PrintExport',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'bar', encode => { cat => 'product', val => 'amount' }, title => 'T' } ],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# Print button
+	like $b, qr/id="btn-print"/, 'Print button present in toolbar';
+	like $b, qr/window\.print\(\)/, 'Print button calls window.print()';
+
+	# Per-visual download button injected in card header
+	like $b, qr/class="visual-dl-btn"/, 'PNG download button rendered on visual card';
+	like $b, qr/downloadCardPng/, 'downloadCardPng JS function defined';
+	like $b, qr/initDownloadButtons/, 'initDownloadButtons called';
+	like $b, qr/XMLSerializer/, 'SVG serialiser used for PNG export';
+
+	# Print CSS
+	like $b, qr/\@media print/, '@media print block present';
+	like $b, qr/\@page/, '@page rule present in print CSS';
+	like $b, qr/break-inside\s*:\s*avoid/, 'break-inside:avoid on visual cards';
+};
+
+subtest '3.7: print CSS hides toolbar controls and keeps title' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'PrintCss',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# The print block must hide toolbar buttons but NOT the h2 title.
+	# We check that the print block targets .canvas-toolbar button
+	# (hides controls) without targeting h2 (which would hide the title).
+	like $b, qr/canvas-toolbar button[^{]*\{[^}]*display\s*:\s*none/s,
+		'print CSS hides toolbar buttons';
+
+	# The canvas-grid should use a 2-column layout in print.
+	like $b, qr/\@media print[^}]*\{[^@]*canvas-grid[^{]*\{[^}]*grid-template-columns\s*:\s*1fr 1fr/s,
+		'print CSS sets canvas-grid to 2 columns';
+};
+
 done_testing;
