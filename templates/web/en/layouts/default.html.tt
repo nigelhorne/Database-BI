@@ -1405,6 +1405,7 @@
   font-size: 0.9rem;
   cursor: pointer;
   box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+  display: none;
 }
 #add-to-canvas-btn:hover { background: #0b5ed7; }
 #add-to-canvas-panel {
@@ -1444,6 +1445,12 @@
   var cancel = document.getElementById('atc-cancel-btn');
   var status = document.getElementById('atc-status');
   var loaded = false;
+
+  /* Show the button only when at least one saved analysis exists. */
+  fetch('/api/analyses').then(function (r) { return r.json(); }).then(function (data) {
+    var list = (data && data.analyses) ? data.analyses : [];
+    if (list.length) btn.style.display = '';
+  }).catch(function () {});
 
   function buildVisualSpec() {
     var p   = new URLSearchParams(window.location.search);
