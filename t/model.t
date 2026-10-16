@@ -539,4 +539,124 @@ subtest '3.3: _vis_cf_col selects correct dimension per kind' => sub {
 	unlike $b, qr/data-cf-col=""/, 'empty cf_col produces no data-cf-col attribute';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 3.5 -- parameters and what-if
+# ---------------------------------------------------------------------------
+
+subtest '3.5: parameter bar renders with defaults and URL values' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'Param Canvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+		params   => {
+			target   => { type => 'number', default => 100, min => 0, max => 1000 },
+			label    => { type => 'string', default => 'All' },
+		},
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid = $res->{id};
+
+	# Default values: no ?p.* in URL.
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+	like $b, qr/id="param-bar"/,              'param-bar rendered';
+	like $b, qr/data-param="p\.target"/,      'target input present';
+	like $b, qr/data-param="p\.label"/,       'label input present';
+	like $b, qr/value="100"/,                 'target default value 100';
+	like $b, qr/value="All"/,                 'label default value All';
+	like $b, qr/type="number"/,               'target rendered as number input';
+	like $b, qr/min="0"/,                     'min attribute present';
+	like $b, qr/max="1000"/,                  'max attribute present';
+
+	# URL-supplied value overrides default.
+	require Mojo::Util;
+	$t->get_ok("/a/$cid?p.target=50")->status_is(200);
+	$b = $t->tx->res->body;
+	like $b, qr/value="50"/, 'URL-supplied param value shown in input';
+};
+
+subtest '3.5: out-of-range parameter returns 400' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'Range Check',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+		params   => {
+			rate => { type => 'number', default => 5, min => 0, max => 100 },
+		},
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid = $res->{id};
+
+	$t->get_ok("/a/$cid?p.rate=200")->status_is(400, '200 > max 100 returns 400');
+	$t->get_ok("/a/$cid?p.rate=-5")->status_is(400, '-5 < min 0 returns 400');
+	$t->get_ok("/a/$cid?p.rate=abc")->status_is(400, 'non-numeric for number param returns 400');
+	$t->get_ok("/a/$cid?p.rate=50")->status_is(200, 'in-range value renders normally');
+};
+
+subtest '3.5: parameter flows into calc expression' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'Calc Param',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+		params   => {
+			factor => { type => 'number', default => 1 },
+		},
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid = $res->{id};
+
+	require Mojo::Util;
+	# ?c= inline calc that references the parameter by name.
+	my $c_spec = Mojo::Util::url_escape('scaled:amount * factor');
+	$t->get_ok("/a/$cid?c=$c_spec&p.factor=2")->status_is(200,
+		'canvas with calc referencing param renders');
+	my $b = $t->tx->res->body;
+	like $b, qr/scaled/, 'calc column name appears in rendered output';
+};
+
+subtest '3.5: param-column clash returns 400' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	# A parameter named the same as an existing column ('amount') is rejected
+	# at compile time when a calc field references it.
+	my $spec = {
+		name     => 'Clash Test',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [ { kind => 'table', encode => {}, title => 'T' } ],
+		params   => {
+			amount => { type => 'number', default => 0 },
+		},
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json;
+	my $cid = $res->{id};
+
+	require Mojo::Util;
+	my $c_spec = Mojo::Util::url_escape('doubled:amount * 2');
+	$t->get_ok("/a/$cid?c=$c_spec")->status_is(400,
+		'param-column clash in calc expression returns 400');
+	like $t->tx->res->body, qr/amount/, 'error names the clashing identifier';
+};
+
 done_testing;

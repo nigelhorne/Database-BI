@@ -66,12 +66,34 @@ Revision history for Database-BI
     - Add t/model.t: 28 subtests covering CRUD, validation rejection table,
       export/import round-trip, /a/:id redirect, atomic write verification,
       and read-only model_dir degradation.
+    - t/model.t subtests 33-36: parameter bar with defaults, URL-value override,
+      out-of-range/non-numeric returns 400, param flows into ?c= calc expression,
+      param-column clash returns 400.
     - t/model.t subtests 29-32: cross-filter chip rendering (chip absent when
       no ?cf=, chip shown with description when ?cf= set, source visual
       highlighted with cf-source class, non-source filtered); drill-through
       link absent without ?cf= and present with ?cf= pointing to /open with
       ?f=; drill-down breadcrumb at dl=0/1/2 for a two-level hierarchy;
       _vis_cf_col column selection per encode spec.
+    [ New Features -- Phase 3.5: Parameters and What-If ]
+    - Analysis specs may now declare a params hash: each entry names a parameter
+      with type ('number' or 'string'), default, and optional min/max.
+    - GET /a/:id reads ?p.<name>=<value> URL params, coerces numeric types, and
+      validates ranges (out-of-range or non-numeric for a number param returns 400).
+    - Bound parameter values are injected into the Calc evaluation context
+      before the canvas pipeline runs, so ?c= inline calc fields and stored
+      calc fields may reference parameters by name alongside column names.
+    - A name that is both a column and a parameter is a compile-time error (400)
+      to prevent silent ambiguity in expressions.
+    - The canvas renders a parameter bar (class .param-bar) above the grid when
+      the analysis has parameters; each control is an <input> whose 'change'
+      event updates the ?p.<name>= URL param and reloads the canvas, preserving
+      cross-filter and drill state in the URL.
+    - Database::BI::Calc::new() accepts params => \%hash; Calc::evaluate() merges
+      bound parameter values into the row context before executing the expression.
+    - _apply_calc_fields() accepts an optional \%extra hashref (keys: params, spec_key)
+      to pass bound parameters and override the ?l= spec key (for canvas context
+      where no ?l= param is present in the URL).
     [ New Features -- Phase 3.4: Drill-Through and Drill-Down ]
     - Drill-through: when a cross-filter is active on the canvas, a "View rows
       rightarrow" link appears in the cross-filter chip pointing to the primary

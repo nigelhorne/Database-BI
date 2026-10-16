@@ -113,6 +113,34 @@
 .visual-card[data-cf-col] svg circle {
 	cursor: pointer;
 }
+/* Parameter bar */
+.param-bar {
+	display: flex;
+	align-items: center;
+	gap: 0.75rem;
+	flex-wrap: wrap;
+	margin-bottom: 0.75rem;
+	padding: 0.5rem 0.75rem;
+	background: var(--card-bg, #fff);
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 6px;
+}
+.param-bar label {
+	display: flex;
+	align-items: center;
+	gap: 0.35rem;
+	font-size: 0.85rem;
+	font-weight: 600;
+	white-space: nowrap;
+}
+.param-bar input {
+	font-size: 0.85rem;
+	padding: 0.2rem 0.4rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 4px;
+	width: 8rem;
+}
+.param-bar input[type="number"] { width: 6rem; }
 /* Drill-down breadcrumb */
 .drill-crumb {
 	display: inline-flex;
@@ -164,6 +192,24 @@
 		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
 	</span>
 </div>
+
+[% IF canvas_params.size %]
+<div class="param-bar" id="param-bar">
+	[% FOREACH p IN canvas_params %]
+	<label for="param-[% p.name | html %]">[% p.name | html %]:
+		<input
+			class="param-input"
+			id="param-[% p.name | html %]"
+			type="[% p.type == 'number' ? 'number' : 'text' %]"
+			value="[% p.value | html %]"
+			[% IF p.min.length %]min="[% p.min | html %]"[% END %]
+			[% IF p.max.length %]max="[% p.max | html %]"[% END %]
+			data-param="p.[% p.name | html %]"
+			autocomplete="off">
+	</label>
+	[% END %]
+</div>
+[% END %]
 
 <div class="canvas-grid" id="canvas-grid" data-canvas-id="[% canvas_id | html %]"
 [% IF drill_name.length %]     data-drill-name="[% drill_name | html %]" data-drill-level="[% drill_level %]" data-drill-max="[% drill_max %]" data-drill-col="[% drill_col | html %]"[% END %]>
@@ -344,6 +390,23 @@
 	/* Run after a short delay so D3 chart init (which is synchronous but
 	 * may queue microtasks) has fully bound data to the SVG elements. */
 	setTimeout(initCrossFilters, 50);
+
+	/* ---- parameter bar (3.5 what-if controls) ----
+	 *
+	 * Each .param-input carries data-param="p.<name>".  On 'change', update
+	 * that URL param and reload.  Other URL state (cross-filter, drill path)
+	 * is preserved because we clone the current URL and only set/replace the
+	 * one changed parameter.
+	 */
+	document.querySelectorAll('.param-input').forEach(function (inp) {
+		inp.addEventListener('change', function () {
+			var key = this.getAttribute('data-param');
+			if (!key) return;
+			var u = new URL(window.location.href);
+			u.searchParams.set(key, this.value);
+			window.location.href = u.toString();
+		});
+	});
 
 }());
 </script>

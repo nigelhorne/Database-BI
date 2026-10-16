@@ -102,6 +102,8 @@ Readonly my %MESSAGES => (
 	error_analysis_storage      => 'Analysis storage is not writable; use import/export instead',
 	error_analysis_json         => 'Invalid JSON body: %s',
 	error_analysis_id_invalid   => 'Invalid analysis id',
+	error_param_range           => "Parameter '%s' is out of range (min %s, max %s)",
+	error_param_type            => "Parameter '%s' must be a number",
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -1282,25 +1284,37 @@ sub _apply_date_normalization :Protected ($self, $records, $columns, $spec_key) 
 	}
 }
 
-# _apply_calc_fields($self, $records, \@columns) -> ($records, \@columns)
+# _apply_calc_fields($self, $records, \@columns, \%extra) -> ($records, \@columns)
 #
 # Reads ?c=<name>:<expression> params (those NOT matching a path:/table:/url:/redis:
 # source spec) and compiles each via Database::BI::Calc.  Evaluates per row,
 # appending the virtual column to each row hashref.  Croaks on compile error
 # (caller renders 400); runtime undef values are logged at warn level.
 # Later ?c= specs may reference names defined by earlier ones (evaluated in order).
-sub _apply_calc_fields :Protected ($self, $records, $columns) {
+#
+# Optional \%extra keys:
+#   params   => \%hash  -- named parameter values bound from the URL (?p.name=val)
+#                          passed to Calc->new so expressions may reference them.
+#   spec_key => $str    -- override the l= spec key used to look up stored calc
+#                          fields (canvas context where ?l= is absent).
+sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
+	my $bound_params     = ($extra // {})->{params}   // {};
+	my $spec_key_override = ($extra // {})->{spec_key};
+
 	# Normalise date columns before evaluating expressions so that date
 	# functions (YEAR, MONTH, etc.) see ISO-8601 values even when the source
 	# file uses a non-ISO format (e.g. M/D/YYYY).
-	$self->_apply_date_normalization($records, $columns, $self->param('l'));
+	my $date_spec = defined $spec_key_override
+		? $spec_key_override : ($self->param('l') // '');
+	$self->_apply_date_normalization($records, $columns, $date_spec);
 
 	# Build calc spec list: stored fields from models.json first (lower priority),
 	# then URL ?c= params (higher priority — they override stored fields of the
 	# same name so the user can test a new expression without permanently saving).
 	my (@calc_specs, %seen_calc);
 	{
-		my $sk = $self->param('l') // '';
+		my $sk = defined $spec_key_override
+			? $spec_key_override : ($self->param('l') // '');
 		if (length $sk) {
 			my $stored = ($self->_read_models)->{fields}{$sk} // {};
 			for my $n (sort keys %{$stored}) {
@@ -1328,7 +1342,11 @@ sub _apply_calc_fields :Protected ($self, $records, $columns) {
 		require Database::BI::Calc;
 		for my $cs (@calc_specs) {
 			my $name = $cs->{name};
-			my $calc = Database::BI::Calc->new(expr => $cs->{expr}, columns => \@cols);
+			my $calc = Database::BI::Calc->new(
+				expr    => $cs->{expr},
+				columns => \@cols,
+				params  => $bound_params,
+			);
 			croak $self->_i18n('error_calc_compile', $name, $calc->error)
 				if $calc->has_error;
 
@@ -2273,11 +2291,82 @@ sub canvas_render ($self) {
 	# Phase 3.2 / 3.3: if visuals array is non-empty, render the canvas.
 	my @visuals = @{ $a->{visuals} // [] };
 	if (@visuals) {
+
+		# Phase 3.5 -- bound parameters from URL ?p.<name>=<value>.
+		# Parameter definitions live in the analysis: params => { name => { type, default, min, max } }.
+		# URL values are type-coerced and range-checked; out-of-range returns 400.
+		my %param_defs   = %{ $a->{params} // {} };
+		my %bound_params;
+		{
+			my @p_errors;
+			for my $pname (sort keys %param_defs) {
+				my $def     = $param_defs{$pname};
+				my $type    = $def->{type}    // 'string';
+				my $default = $def->{default} // '';
+				my $raw     = $self->param("p.$pname");
+				my $val     = defined $raw ? $raw : $default;
+
+				if ($type eq 'number') {
+					require Scalar::Util;
+					unless (Scalar::Util::looks_like_number($val)) {
+						push @p_errors,
+							sprintf($MESSAGES{error_param_type}, $pname);
+						next;
+					}
+					$val = $val + 0;
+					my ($lo, $hi) = ($def->{min}, $def->{max});
+					if (defined $lo && $val < $lo) {
+						push @p_errors, sprintf($MESSAGES{error_param_range},
+							$pname, $lo, defined $hi ? $hi : '+inf');
+						next;
+					}
+					if (defined $hi && $val > $hi) {
+						push @p_errors, sprintf($MESSAGES{error_param_range},
+							$pname, defined $lo ? $lo : '-inf', $hi);
+						next;
+					}
+				}
+				$bound_params{$pname} = $val;
+			}
+			if (@p_errors) {
+				return $self->render(
+					text   => join('; ', @p_errors),
+					status => 400,
+				);
+			}
+		}
+
+		# Build stash list for parameter bar: sorted by name.
+		my @canvas_params = map {
+			my $def = $param_defs{$_};
+			{
+				name    => $_,
+				type    => ($def->{type}    // 'string'),
+				value   => $bound_params{$_},
+				default => ($def->{default} // ''),
+				min     => (defined $def->{min} ? $def->{min} : ''),
+				max     => (defined $def->{max} ? $def->{max} : ''),
+			}
+		} sort keys %param_defs;
+
 		my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
 		return $self->render(
 			text   => 'Cannot open data source for this canvas',
 			status => 422,
 		) unless defined $records;
+
+		# Apply calc fields with bound params so expressions may reference them.
+		my $canvas_spec_key = ($a->{datasets}[0]{spec} // '');
+		eval {
+			($records, $columns) = $self->_apply_calc_fields(
+				$records, $columns,
+				{ params => \%bound_params, spec_key => $canvas_spec_key }
+			);
+		};
+		if ($@) {
+			(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+			return $self->render(text => $e, status => 400);
+		}
 
 		# Phase 3.3 -- cross-filter state from URL params.
 		# ?cf=col:op:val (repeatable) filters all visuals except the source.
@@ -2446,6 +2535,7 @@ sub canvas_render ($self) {
 			canvas_id    => $id,
 			canvas_name  => $a->{name},
 			visuals      => \@rendered,
+			canvas_params    => \@canvas_params,
 			cf_active        => $cf_active    ? 1 : 0,
 			cf_display       => $cf_display,
 			cf_clear_url     => $cf_clear_url,
