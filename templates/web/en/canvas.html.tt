@@ -288,6 +288,18 @@
 .visual-card:hover .visual-resize-handle::after,
 .visual-resize-handle:hover::after { opacity: 1; }
 .visual-resize-handle:hover::after { background-color: #e2e6ea; }
+/* Keyboard focus.  The handle is the only way to resize without a pointer, so
+ * once it has focus it has to be findable, and the card it belongs to has to be
+ * obvious: the arrow keys resize the focused card.  :focus-visible rather than
+ * :focus, so a pointer drag does not leave a ring behind -- the .resizing
+ * outline below is what a drag shows. */
+.visual-resize-handle:focus-visible {
+	outline: 2px solid var(--link, #0d6efd);
+	outline-offset: 2px;
+	border-radius: 3px;
+}
+.visual-resize-handle:focus-visible::after { opacity: 1; }
+.visual-card:focus-within { outline: 2px solid var(--link, #0d6efd); }
 .visual-card.resizing { outline: 2px solid var(--link, #0d6efd); }
 .visual-card.resizing .visual-card-body {
 	/* Keep the drag from selecting chart text or hitting chart marks. */
@@ -431,7 +443,7 @@
 		<div class="visual-card-header">
 			<span class="drag-handle" aria-hidden="true">::</span>
 			<span class="sr-only">Drag to reorder</span>
-			<span class="visual-card-title">[% v.title | html %]</span>
+			<span class="visual-card-title" id="visual-title-[% v.id %]">[% v.title | html %]</span>
 			<span style="font-size:0.75rem;opacity:0.5;margin-left:0.5rem">[% v.kind | html %]</span>
 			<button class="visual-dl-btn" data-title="[% v.title | html %]" title="Download as PNG" hidden>&#x2B07; Save image</button>
 		</div>
@@ -444,11 +456,23 @@
 		</div>
 		[% IF canvas_id.length %]
 		<span class="visual-resize-handle" data-resize-handle="1"
-		      aria-hidden="true" title="Drag to resize this visual"></span>
+		      role="slider" tabindex="0"
+		      aria-labelledby="visual-title-[% v.id %]"
+		      aria-describedby="resize-help"
+		      aria-orientation="horizontal"
+		      aria-valuemin="1"
+		      title="Drag, or focus and use the arrow keys, to resize this visual"></span>
 		[% END %]
 	</div>
 [% END %]
 </div>
+
+[% IF canvas_id.length %]
+<p class="sr-only" id="resize-help">Resize a visual: focus its handle at the bottom right of
+the card, then use the left and right arrow keys to change its width in grid columns and the
+up and down arrow keys to change its height in rows.  Home and End go to the narrowest and
+widest the card can be.  The new size is saved as you go.</p>
+[% END %]
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script>
@@ -617,22 +641,101 @@
 
 	/* ---- resize handles (3.2 grid span) ----
 	 *
-	 * Each card's bottom-right handle drags its grid-column span (w) and
+	 * Each card's bottom-right handle resizes its grid-column span (w) and
 	 * grid-row span (h), snapped to whole columns and rows.  The spans are
-	 * written to the card's inline style as the drag happens, so the cards
+	 * written to the card's inline style as the size changes, so the cards
 	 * reflow live, and the complete layout is PATCHed to
-	 * /api/analyses/:id on release by saveLayout().  A reload renders the
-	 * same geometry server-side, with no JavaScript involved.
+	 * /api/analyses/:id by saveLayout().  A reload renders the same geometry
+	 * server-side, with no JavaScript involved.
 	 *
-	 * x is never dragged (the canvas has no drag-to-position), so the widest a
+	 * x is never changed (the canvas has no drag-to-position), so the widest a
 	 * card can be is the columns left of it: 1 <= w <= 13 - x.
 	 *
 	 * Pointer events cover mouse, pen and touch; the handle sets
 	 * touch-action: none so a touch drag resizes instead of scrolling.  The
-	 * handle is deliberately hidden from assistive technology -- there is no
-	 * keyboard equivalent, and advertising a control that cannot be operated
-	 * is worse than omitting it.
+	 * handle is also a focusable control (role="slider", tabindex="0"), so the
+	 * same resize can be done from the keyboard and is announced: the arrow keys
+	 * move one column or one row at a time.
+	 *
+	 * A 2-D resize has no ARIA role of its own.  slider is the nearest one -- a
+	 * focusable control with a numeric value the arrow keys change -- and the
+	 * value it carries is the width in columns, the axis left and right move.
+	 * The height has no value attribute to live in, so both dimensions go into
+	 * aria-valuetext ("6 columns wide, 2 rows high"), which is what a screen
+	 * reader announces when either changes, and the keys themselves are
+	 * described by #resize-help.
 	 */
+	function resizeState(card) {
+		var sp = spanOf(card);
+		return {
+			x    : sp.x,
+			y    : sp.y,
+			w    : clampSpan(sp.w, 1, GRID_COLS - sp.x + 1),
+			h    : clampSpan(sp.h, 1, MAX_ROW_SPAN),
+			maxW : GRID_COLS - sp.x + 1,
+		};
+	}
+
+	/* The handle's value attributes, from the measured span.  They cannot be
+	 * written server-side: a card with no saved position is placed by the
+	 * browser, so its width is only known once it has been rendered. */
+	function updateResizeAria(handle, card, state) {
+		var st = state || resizeState(card);
+		handle.setAttribute('aria-valuenow', String(st.w));
+		handle.setAttribute('aria-valuemax', String(st.maxW));
+		handle.setAttribute('aria-valuetext',
+			st.w + (st.w === 1 ? ' column wide, ' : ' columns wide, ') +
+			st.h + (st.h === 1 ? ' row high' : ' rows high'));
+	}
+
+	/* One PATCH per burst of key presses rather than one per press: a held arrow
+	 * key would otherwise send a request per column.  Focus leaving the handle
+	 * writes the last change immediately. */
+	var saveTimer = null;
+
+	function scheduleSave() {
+		if (saveTimer) clearTimeout(saveTimer);
+		saveTimer = setTimeout(function () {
+			saveTimer = null;
+			saveLayout();
+		}, 400);
+	}
+
+	function flushSave() {
+		if (!saveTimer) return;
+		clearTimeout(saveTimer);
+		saveTimer = null;
+		saveLayout();
+	}
+
+	/* The keyboard equivalent of the drag: the same writes, the same save, the
+	 * same limits, one unit at a time.  preventDefault() runs even at a limit, so
+	 * an arrow key on the handle never scrolls the page out from under the card
+	 * being resized. */
+	function onResizeKey(e) {
+		var card = e.target.closest('.visual-card');
+		if (!card) return;
+
+		var st = resizeState(card);
+		var w  = st.w;
+		var h  = st.h;
+
+		if      (e.key === 'ArrowRight') w = clampSpan(w + 1, 1, st.maxW);
+		else if (e.key === 'ArrowLeft')  w = clampSpan(w - 1, 1, st.maxW);
+		else if (e.key === 'ArrowDown')  h = clampSpan(h + 1, 1, MAX_ROW_SPAN);
+		else if (e.key === 'ArrowUp')    h = clampSpan(h - 1, 1, MAX_ROW_SPAN);
+		else if (e.key === 'Home')       w = 1;
+		else if (e.key === 'End')        w = st.maxW;
+		else return;
+
+		e.preventDefault();
+		if (w === st.w && h === st.h) return;
+
+		applySpan(card, st.x, w, st.y, h);
+		updateResizeAria(e.target, card, { w: w, h: h, maxW: st.maxW });
+		scheduleSave();
+	}
+
 	function onResizeStart(e) {
 		if (e.button) return;
 		var card = e.target.closest('.visual-card');
@@ -663,6 +766,9 @@
 			card.classList.remove('resizing');
 			card.setAttribute('draggable', 'true');
 			document.body.style.userSelect = '';
+			/* A drag changes the same value the keyboard does. */
+			var handle = card.querySelector('.visual-resize-handle');
+			if (handle) updateResizeAria(handle, card);
 			saveLayout();
 		}
 
@@ -674,6 +780,10 @@
 		if (!grid || !anaId) return;
 		grid.querySelectorAll('.visual-resize-handle').forEach(function (handle) {
 			handle.addEventListener('pointerdown', onResizeStart);
+			handle.addEventListener('keydown',     onResizeKey);
+			handle.addEventListener('blur',        flushSave);
+			var card = handle.closest('.visual-card');
+			if (card) updateResizeAria(handle, card);
 		});
 	}
 

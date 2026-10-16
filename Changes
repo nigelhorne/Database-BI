@@ -1,5 +1,21 @@
 Revision history for Database-BI
 
+0.014.0
+	[ New Features ]
+	- Location-column geocoding groundwork (Phase 6.2):
+	  Database::BI::Model::Geocode resolves the distinct values of a place
+	  column with Geo::Coder::Free - one lookup per value however often the
+	  column repeats it - and skips rather than fails on the blanks, bare
+	  numbers and references a real column holds.  Each value is put to the
+	  geocoder's valid_location() before it reaches a backend, and the batch is
+	  made with on_error => 'undef', so one dirty value cannot end the request.
+	  Answers are remembered in the model store (.bi/models.json), a
+	  looked-up-and-not-found place is remembered as tried so it is not
+	  retried every request, and new lookups are capped per request
+	  (map_geocode_max).  Geo::Coder::Free 0.47 or later is an optional
+	  dependency: without it the location option is reported as unavailable
+	  and the places already resolved are still plotted.
+
 0.013.0 Fri Oct 16 04:08:48 PM EDT 2026
 	[ New Features ]
 	- Saved canvases: multi-visual workspace pages (/a/:id) that combine

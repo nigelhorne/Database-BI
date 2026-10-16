@@ -938,4 +938,72 @@ subtest '3.2: resize handles render and layout spans are validated and persisted
 		'rejected layouts were not stored';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 3.2 -- the resize handles are operable without a pointer
+# ---------------------------------------------------------------------------
+
+subtest '3.2: resize handles take focus, answer the arrow keys and are announced' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'ResizeKeyboard',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Left'  },
+			{ kind => 'table', encode => {}, title => 'Right' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# The handle is a control, not a decoration: in the tab order, with the value
+	# semantics of a slider, and no longer hidden from assistive technology.
+	like $b, qr/<span class="visual-resize-handle"[^>]*role="slider"/s,
+		'the handle is exposed as a slider';
+	like $b, qr/<span class="visual-resize-handle"[^>]*tabindex="0"/s,
+		'the handle is in the tab order';
+	like $b, qr/<span class="visual-resize-handle"[^>]*aria-valuemin="1"/s,
+		'the slider declares its minimum';
+	like $b, qr/<span class="visual-resize-handle"[^>]*aria-orientation="horizontal"/s,
+		'the width is the axis the value tracks';
+	unlike $b, qr/<span class="visual-resize-handle"[^>]*aria-hidden/s,
+		'the handle is no longer hidden from assistive technology';
+
+	# A name and a description that resolve: a dangling aria-labelledby or
+	# aria-describedby is worse than no reference at all.
+	my @labelled = $b =~ /class="visual-resize-handle"[^>]*aria-labelledby="([^"]+)"/gs;
+	is scalar(@labelled), 2, 'both handles are named by something';
+	for my $ref (@labelled) {
+		like $b, qr/id="\Q$ref\E"/, "the label $ref exists on the page";
+	}
+	like $b, qr/class="visual-resize-handle"[^>]*aria-describedby="resize-help"/s,
+		'both handles point at the instructions';
+	like $b, qr/id="resize-help"[^>]*>[^<]*arrow keys/s,
+		'the instructions name the arrow keys';
+
+	# The keys, and the announcement of what they did.
+	like $b, qr/function onResizeKey/,           'keyboard resize handler defined';
+	like $b, qr/addEventListener\('keydown'/,    'handler wired to the handle';
+	like $b, qr/ArrowRight/,                     'right widens the card';
+	like $b, qr/ArrowLeft/,                      'left narrows it';
+	like $b, qr/ArrowDown/,                      'down makes it taller';
+	like $b, qr/ArrowUp/,                        'up makes it shorter';
+	like $b, qr/setAttribute\('aria-valuenow'/,  'the width is announced as the value';
+	like $b, qr/setAttribute\('aria-valuetext'/, 'both dimensions are announced';
+	like $b, qr/updateResizeAria/,               'the announcement is refreshed after a drag too';
+	like $b, qr/scheduleSave/,                   'keyboard resizes are persisted';
+	like $b, qr/addEventListener\('blur'/,       'leaving the handle writes the pending size';
+	like $b, qr/e\.preventDefault\(\)/,        'the arrow keys do not scroll the page';
+
+	# ... and the focus affordance that makes the control findable by eye.
+	like $b, qr/\.visual-resize-handle:focus-visible/, 'the focused handle is visible';
+	like $b, qr/\.visual-card:focus-within/,           'the focused card is visible';
+};
+
 done_testing;
