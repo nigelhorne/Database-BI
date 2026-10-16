@@ -4439,7 +4439,7 @@ sub graph_view ($self) {
 
 		require HTML::D3;
 		my $title   = "$y_col vs $x_col by $series_col";
-		my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580, responsive => 1)
+		my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
 			->render_multi_series_line_chart_snippet(\@series_data, { animated => 1 });
 
 		my $chart_html = $snippet->{html};
@@ -4523,7 +4523,7 @@ sub graph_view ($self) {
 
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
 		->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 });
 
 	my $chart_html = $snippet->{html};
@@ -4645,7 +4645,7 @@ sub pie_view ($self) {
 	require HTML::D3;
 	my $scheme  = $self->param('scheme') // 'tableau10';
 	my $title   = $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
-	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
 		->render_pie_chart_snippet(\@slices, {
 			animated     => 1,
 			donut        => $donut,
@@ -4816,7 +4816,7 @@ sub heatmap_view ($self) {
 	require HTML::D3;
 	my $title   = length($val_col) ? "$val_col by $x_col and $y_col"
 	                                : "Count by $x_col and $y_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
 		->render_heatmap_snippet(\@triples, {
 			x_label      => $x_col,
 			y_label      => $y_col,
@@ -4987,7 +4987,7 @@ sub bar_view ($self) {
 	require HTML::D3;
 	my $title   = $count_mode ? "Count by $cat_col"
 	                          : "$val_col by $cat_col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
 		->render_bar_chart_snippet(\@bars, {
 			animated     => 1,
 			orientation  => $orientation,
@@ -6127,7 +6127,7 @@ sub scatter_view ($self) {
 
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
 		->render_scatter_chart_snippet(\@points, {
 			animated           => 1,
 			x_label            => $x_col,
@@ -6236,7 +6236,7 @@ sub stacked_view ($self) {
 	require HTML::D3;
 	my $title   = $count_mode ? "Count by $cat_col and $seg_col"
 	                          : "$val_col by $cat_col and $seg_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
 		->render_stacked_bar_snippet(\@data, {
 			orient  => ($orient eq 'h') ? 'h' : 'v',
 			x_label => $cat_col,
@@ -6347,7 +6347,7 @@ sub combo_view ($self) {
 	my $eff_bar_lbl  = $bar_label  || $bar_col;
 	my $eff_line_lbl = $line_label || $line_col;
 	my $title        = "$eff_bar_lbl and $eff_line_lbl by $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
 		->render_combo_snippet(\@data, {
 			bar_label  => $eff_bar_lbl,
 			line_label => $eff_line_lbl,
@@ -6458,7 +6458,7 @@ sub treemap_view ($self) {
 
 	require HTML::D3;
 	my $title   = $count_mode ? "Treemap of $cat_col by count" : "Treemap of $cat_col by $val_col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 500, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 500)
 		->render_treemap_snippet(\@data, {
 			scheme => $scheme,
 		});
@@ -6580,7 +6580,7 @@ sub histogram_view ($self) {
 
 	require HTML::D3;
 	my $title   = "Distribution of $col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480, responsive => 1)
+	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
 		->render_histogram_snippet(\@bin_data, {
 			binned  => 1,
 			x_label => $col,
