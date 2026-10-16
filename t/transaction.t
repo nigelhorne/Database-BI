@@ -1367,6 +1367,8 @@ subtest 'Transaction 20: Graph UI polish, date-sort JS, and numeric Y-axis filte
 				'Phase 2: back link text is "Back to table"')
 			->content_like(qr/graph-container/,
 				'Phase 2: graph-container div present')
+			->content_like(qr/chart-resize-handle/,
+				'Phase 2: resize handle JS injected for chart pages')
 			->content_like(qr/d3\.v7/,
 				'Phase 2: D3.js v7 loaded via CDN script tag')
 			->content_like(qr/biExportSVG|Export SVG/,
