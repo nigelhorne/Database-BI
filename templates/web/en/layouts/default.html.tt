@@ -1441,6 +1441,38 @@
 #add-to-canvas-panel h4 { margin: 0 0 0.75rem; font-size: 0.95rem; }
 #atc-analysis-sel { width: 100%; margin-bottom: 0.6rem; }
 #atc-status { font-size: 0.8rem; color: #6c757d; margin-top: 0.4rem; min-height: 1.2em; }
+/* Resize handle for chart SVGs */
+.chart-svg-wrap {
+  position: relative;
+  display: inline-block;
+  margin: 0 auto;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.chart-resize-handle {
+  position: absolute;
+  bottom: 0;
+  right: 0;
+  width: 20px;
+  height: 20px;
+  cursor: nwse-resize;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.chart-resize-handle::after {
+  content: '';
+  display: block;
+  width: 0;
+  height: 0;
+  position: absolute;
+  bottom: 3px;
+  right: 3px;
+  border-style: solid;
+  border-width: 0 0 14px 14px;
+  border-color: transparent transparent #666 transparent;
+}
+.chart-resize-handle:hover,
+.chart-svg-wrap:hover .chart-resize-handle { opacity: 0.85; }
 </style>
 <button id="add-to-canvas-btn" title="Add this chart to an existing canvas">+ Add to Existing Canvas</button>
 <div id="add-to-canvas-panel">
@@ -1557,6 +1589,74 @@
       })
       .catch(function () { status.textContent = 'Network error.'; });
   });
+}());
+</script>
+<script>
+/* Chart resize handle -- injected after D3 and the viewBox-widening JS
+   (graph.html.tt setTimeout 0) have both run.  Wraps each chart SVG in a
+   relative-positioned div and appends a draggable triangle grip at the
+   bottom-right corner.  Dragging updates the SVG width/height while keeping
+   the viewBox fixed so D3 content scales proportionally. */
+(function () {
+  var MIN_W = 200, MIN_H = 120;
+
+  function ensureViewBox(svg) {
+    if (svg.getAttribute('viewBox')) return;
+    var w = parseFloat(svg.getAttribute('width'))  || svg.getBoundingClientRect().width;
+    var h = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height;
+    if (w && h) svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+  }
+
+  function initChartResize() {
+    var containers = document.querySelectorAll('.graph-container');
+    for (var ci = 0; ci < containers.length; ci++) {
+      var container = containers[ci];
+      var svg = container.querySelector('svg');
+      if (!svg || container.querySelector('.chart-resize-handle')) continue;
+      ensureViewBox(svg);
+      var wrap = document.createElement('div');
+      wrap.className = 'chart-svg-wrap';
+      container.insertBefore(wrap, svg);
+      wrap.appendChild(svg);
+      var handle = document.createElement('div');
+      handle.className = 'chart-resize-handle';
+      handle.setAttribute('title', 'Drag to resize chart');
+      wrap.appendChild(handle);
+      (function (svg, handle) {
+        var startX, startY, startW, startH;
+        function onDown(e) {
+          e.preventDefault();
+          var touch = e.touches && e.touches[0];
+          startX = touch ? touch.clientX : e.clientX;
+          startY = touch ? touch.clientY : e.clientY;
+          startW = parseFloat(svg.getAttribute('width'))  || svg.getBoundingClientRect().width;
+          startH = parseFloat(svg.getAttribute('height')) || svg.getBoundingClientRect().height;
+          document.addEventListener('mousemove', onMove);
+          document.addEventListener('mouseup',   onUp);
+          document.addEventListener('touchmove', onMove, { passive: false });
+          document.addEventListener('touchend',  onUp);
+        }
+        function onMove(e) {
+          e.preventDefault();
+          var touch = e.touches && e.touches[0];
+          var cx = touch ? touch.clientX : e.clientX;
+          var cy = touch ? touch.clientY : e.clientY;
+          svg.setAttribute('width',  Math.max(MIN_W, startW + cx - startX));
+          svg.setAttribute('height', Math.max(MIN_H, startH + cy - startY));
+        }
+        function onUp() {
+          document.removeEventListener('mousemove', onMove);
+          document.removeEventListener('mouseup',   onUp);
+          document.removeEventListener('touchmove', onMove);
+          document.removeEventListener('touchend',  onUp);
+        }
+        handle.addEventListener('mousedown',  onDown);
+        handle.addEventListener('touchstart', onDown, { passive: false });
+      }(svg, handle));
+    }
+  }
+
+  setTimeout(initChartResize, 100);
 }());
 </script>
 [% END %]
