@@ -1626,7 +1626,7 @@
       handle.className = 'chart-resize-handle';
       handle.setAttribute('title', 'Drag to resize chart');
       wrap.appendChild(handle);
-      (function (svg, handle) {
+      (function (svg, handle, wrap) {
         var startX, startY, startW, startH;
         function onDown(e) {
           e.preventDefault();
@@ -1645,8 +1645,12 @@
           var touch = e.touches && e.touches[0];
           var cx = touch ? touch.clientX : e.clientX;
           var cy = touch ? touch.clientY : e.clientY;
-          svg.setAttribute('width',  Math.max(MIN_W, startW + cx - startX));
-          svg.setAttribute('height', Math.max(MIN_H, startH + cy - startY));
+          var newW = Math.max(MIN_W, startW + cx - startX);
+          var newH = Math.max(MIN_H, startH + cy - startY);
+          svg.setAttribute('width',  newW);
+          svg.setAttribute('height', newH);
+          wrap.style.width  = newW + 'px';
+          wrap.style.height = newH + 'px';
         }
         function onUp() {
           document.removeEventListener('mousemove', onMove);
@@ -1656,7 +1660,7 @@
         }
         handle.addEventListener('mousedown',  onDown);
         handle.addEventListener('touchstart', onDown, { passive: false });
-      }(svg, handle));
+      }(svg, handle, wrap));
     }
   }
 
