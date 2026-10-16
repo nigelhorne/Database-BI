@@ -34,6 +34,8 @@ requires 'Socket', '2.010';
 requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected';
 
+recommends 'Geo::Coder::Free', '0.47';   # Geocoding a location column (Phase 6.2).  Optional: loaded with a runtime require, and the app works without it - 0.46 added valid_location(), 0.47 added geocode_many()
+
 on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'Encode';
