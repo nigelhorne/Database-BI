@@ -67,10 +67,14 @@ support arithmetic, comparison, `IF`, string, numeric, and date
 functions, plus `bin(value,width)` for histogram grouping.  Calc fields
 are applied before aggregation on all chart and pivot routes.
 - **Saved canvases** -- the "Save as Canvas" panel saves the current data
-configuration as a named multi-visual canvas (`/a/:id`).  Canvases
-support cross-filtering, drill-through hierarchies, parameterisation,
-bookmarks with undo/redo, per-visual PNG download, and print to
-PDF/paper.
+configuration as a named multi-visual canvas (`/a/:id`).  Visuals are
+arranged on a 12-column grid: drag a card by its header to any free cell
+(the header also takes focus, and the arrow keys move the card a cell at a
+time, Shift going to the edge), and resize it from the corner handle.  The
+whole position and size is saved with the canvas, so a card put in row 4
+stays in row 4 rather than being packed up the page.  Canvases support
+cross-filtering, drill-through hierarchies, parameterisation, bookmarks
+with undo/redo, per-visual PNG download, and print to PDF/paper.
 - **Drag-and-drop upload** -- any supported data file can be dropped directly
 onto the application.  The file is opened immediately; when the "Combine
 data" panel is open the dropped file populates the right-table path field.
@@ -480,7 +484,14 @@ perl Makefile.PL
 - `PATCH /api/analyses/:id`
 
     Partial update; merges the supplied top-level keys.  `id` and `created`
-    are immutable.
+    are immutable.  The `layout` key places the visuals on the canvas grid:
+    an array of `{ visual, x, y, w, h }`, where `visual` indexes the
+    `visuals` array and `x`, `y`, `w` and `h` are 1-based grid columns and
+    rows (the grid is 12 columns wide, `x + w - 1` cannot exceed 12, and one
+    visual may span at most 6 rows).
+    Positions are stored as given - a gap is a gap - but two visuals may not
+    share a cell, so an overlapping set is rejected with `400` and the stored
+    layout is left alone.
 
 - `DELETE /api/analyses/:id`
 

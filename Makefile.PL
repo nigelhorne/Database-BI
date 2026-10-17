@@ -21,6 +21,7 @@ WriteMakefile(
 	EXE_FILES	=> ['script/database-bi'],
 	PREREQ_PM => {
 		'Carp'		=> 0,
+		'Cwd'		=> 0,		# For realpath() in the data_dir guard (Dashboard.pm)
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',

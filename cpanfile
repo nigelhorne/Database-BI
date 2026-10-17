@@ -6,6 +6,7 @@ requires 'CGI::Info';
 requires 'CGI::Lingua', '0.85';
 requires 'CHI';
 requires 'Carp';
+requires 'Cwd';   # For realpath() in the data_dir guard (Dashboard.pm)
 requires 'DBI';
 requires 'DB_File';   # Used in DataSource.pm for Berkeley DB magic-byte detection
 requires 'Database::Abstraction', '0.51';   # 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref

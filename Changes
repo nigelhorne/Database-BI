@@ -2,7 +2,7 @@ Revision history for Database-BI
 
 0.014.0
 	[ New Features ]
-	- Location-column geocoding groundwork (Phase 6.2):
+	- Location-column geocoding groundwork:
 	  Database::BI::Model::Geocode resolves the distinct values of a place
 	  column with Geo::Coder::Free - one lookup per value however often the
 	  column repeats it - and skips rather than fails on the blanks, bare
@@ -15,6 +15,66 @@ Revision history for Database-BI
 	  (map_geocode_max).  Geo::Coder::Free 0.47 or later is an optional
 	  dependency: without it the location option is reported as unavailable
 	  and the places already resolved are still plotted.
+	[ Enhancements ]
+	- Canvas resize handles are keyboard operable and exposed to assistive
+	  technology).  Each card's handle is now in the tab order and
+	  carries slider semantics: left and right change the width in grid
+	  columns, up and down change the height in rows, and Home and End jump to
+	  the narrowest and widest the card can be.  The size is announced as it
+	  changes ("6 columns wide, 2 rows high"), the focused card is outlined so
+	  it is clear which visual the keys will resize, and a keyboard resize is
+  saved exactly like a drag - once, after the last key press, and at once
+  if focus leaves the handle first.
+	- Canvas visuals are dragged to a chosen grid cell, not just resized and
+	  reordered).  A card's header is the grab area: the card snaps
+	  to the cell the pointer is over, a ghost cell shows where it will land,
+	  and on release the card is placed there while anything sharing that cell
+	  is pushed down out of the way - only cards that collide move, so a card
+	  in row 4 stays in row 4 with a gap above it, because a canvas is a place
+	  and not a list.  The header is also a control: it takes focus, the arrow
+	  keys move the card a cell at a time, Shift with an arrow key goes to that
+	  edge of the canvas, and each move is announced.  The whole layout - x, y,
+	  width and height - is persisted, and PATCH /api/analyses/:id rejects a
+	  layout in which two visuals share a cell, leaving the saved one alone.
+	- A card's width can be set from a menu on the card rather than by dragging
+	  its corner).  Every card on a canvas carries a Size menu whose
+	  options are widths in grid columns - full width, half, a third, a quarter -
+	  so a visual can be sized from the keyboard alone; it is a native select,
+	  because that is operable and announced on every platform without any code
+	  from us, and because a card clips its own contents and a panel built in the
+	  header would be cut off at the card's edge.  The size that is chosen is the
+	  size that lands: a card in column 9 slides left to be twelve columns wide
+	  rather than being quietly cut to four, and whatever it grows over is pushed
+	  down, so what is saved is a layout the server accepts - an overlapping
+	  layout is refused, which a drag widening over a neighbour could produce
+	  until now, so the drag and the arrow keys resolve it the same way as the
+	  menu does.  The menu shows the width the card actually is, giving a width
+	  that is no preset an option of its own, focus stays on it after a choice,
+	  and the new size is saved and announced as it is made.
+	- A canvas says what its two grips are for the first time a reader opens
+	  one, and never again).  The tip is rendered hidden and
+	  uncovered by the script, so a reader who has already dismissed it does
+	  not get a flash of it on the way in; the answer is kept in localStorage
+	  under a key of the page's own, because what the tip explains -- the
+	  header drag and the corner grip -- belongs to the canvas page and not to
+	  one analysis, so a second canvas is not a second first visit.  It closes
+	  with a "Got it" button or Escape, either of which hides the tip, writes
+	  the answer and leaves focus on the header handle it named; while it is
+	  up, the header and the grip it describes are ringed and tinted on the
+	  first card, because a name in a sentence is not a thing on the screen.
+	  A canvas with no cards says nothing, a browser that cannot store the
+	  answer shows the tip and forgets it at the end of the visit, and the tip
+	  does not reach paper.
+	[ Bug Fixes ]
+	- The data_dir guard on the app-owned stores could be walked around with a
+	  symlink: a model_dir that reached data_dir through a link -- or a data_dir
+	  that was itself a link, with the store naming the directory it resolved to
+	  -- was compared as a string and allowed through, so models.json and
+	  analyses.json were written beside the user's data.  Both store paths now
+	  compare symlink-resolved paths, resolving the deepest existing ancestor
+	  when the store does not exist yet, and ask the file system what the
+	  relationship between the two is rather than testing a textual prefix; a
+	  store inside data_dir is refused however it is spelled.
 
 0.013.0 Fri Oct 16 04:08:48 PM EDT 2026
 	[ New Features ]

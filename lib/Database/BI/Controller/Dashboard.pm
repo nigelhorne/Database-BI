@@ -8,6 +8,7 @@ our $VERSION = '0.013.0';
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
 use Carp		qw(croak carp);
+use Cwd			qw(realpath);
 use List::Util		qw(min max sum);
 use CGI::Info;
 use CGI::Lingua;
@@ -15,6 +16,7 @@ use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json);
 use Mojo::Util		qw(url_escape encode);
 use File::Path		qw(remove_tree);
+use File::Spec;
 use File::Temp		qw(tempfile tempdir);
 use Readonly;
 use Socket		qw(inet_aton);
@@ -1412,6 +1414,59 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 # Calculated-field model storage  (.bi/models.json)
 # ---------------------------------------------------------------------------
 
+# _canonical_path($path) -> $string
+#
+# The absolute, symlink-resolved form of a path, for the data_dir guard.  Two
+# spellings of one directory have to compare equal, or the guard can be walked
+# around: a model_dir reached through a symlink is still inside the directory it
+# points at, and a data_dir that is itself a symlink is still where the user
+# keeps their data.  Cwd::realpath resolves the whole path when it exists; a
+# store directory usually does not exist yet -- deciding whether to create it is
+# what the guard is for -- so the deepest ancestor that does exist is resolved
+# and the names below it are re-attached.
+sub _canonical_path {
+	my ($path) = @_;
+
+	my $abs = eval { $path->to_abs } // $path;
+	my @tail;
+	my $probe = $abs;
+	while (1) {
+		my $string = $probe->to_string;
+		my $real   = -e $string ? realpath($string) : undef;
+		if (defined $real && length $real) {
+			return File::Spec->canonpath(
+				@tail ? Mojo::File->new($real, @tail)->to_string : $real
+			);
+		}
+		my $parent = $probe->dirname;
+		last if $parent->to_string eq $string;   # the root: nothing left to resolve
+		unshift @tail, $probe->basename;
+		$probe = $parent;
+	}
+
+	# Nothing on the path exists at all, so the lexical absolute form is all
+	# there is to compare.
+	return File::Spec->canonpath($abs->to_string);
+}
+
+# _inside_dir($path, $dir) -> $bool
+#
+# True when $path names $dir itself or something below it.  abs2rel asks the
+# file system what the relationship between the two is, so a textual prefix
+# cannot make ".../data-archive" look like it is inside ".../data", and the
+# comparison is made with the platform's separator rather than a hard-coded
+# slash.
+sub _inside_dir {
+	my ($path, $dir) = @_;
+	return 0 unless length $path && length $dir;
+	return 1 if $path eq $dir;
+
+	my $rel = eval { File::Spec->abs2rel($path, $dir) };
+	return 0 unless defined $rel && length $rel;
+	return 0 if File::Spec->file_name_is_absolute($rel);
+	return $rel eq '..' || $rel =~ m{\A\.\.[\\/]} ? 0 : 1;
+}
+
 # _calc_models_path($self) -> $path_string_or_undef
 #
 # Returns the path to .bi/models.json (creating .bi/ on first call), or undef
@@ -1426,13 +1481,11 @@ sub _calc_models_path :Protected ($self) {
 	                : $home->child($cfg_dir);
 	my $data_dir = $home->child($app->config('data_dir') // 'data');
 
-	# Use canonical absolute paths so that relative variants (e.g. 'data/.bi') are
-	# caught even when they are not equal to data_dir as strings.  Refuse when the
-	# model directory is equal to OR inside data_dir (prefix + separator).
-	my $bi_abs   = eval { $bi_dir->to_abs->to_string }   // $bi_dir->to_string;
-	my $data_abs = eval { $data_dir->to_abs->to_string } // $data_dir->to_string;
-	my $sep      = '/';
-	if ($bi_abs eq $data_abs || index($bi_abs, $data_abs . $sep) == 0) {
+	# A store inside data_dir is refused, not created: the file would sit beside
+	# the user's data, in a directory they chose for something else.  The test is
+	# on canonical paths, so it holds however the two are spelled -- an absolute
+	# path, a relative one, or either of them reached through a symlink.
+	if (_inside_dir(_canonical_path($bi_dir), _canonical_path($data_dir))) {
 		carp 'model_dir is inside data_dir; skipping model file write';
 		return undef;
 	}
@@ -1485,10 +1538,9 @@ sub _analyses_path :Protected ($self) {
 	                : $home->child($cfg_dir);
 	my $data_dir = $home->child($app->config('data_dir') // 'data');
 
-	my $bi_abs   = eval { $bi_dir->to_abs->to_string }   // $bi_dir->to_string;
-	my $data_abs = eval { $data_dir->to_abs->to_string } // $data_dir->to_string;
-	my $sep      = '/';
-	if ($bi_abs eq $data_abs || index($bi_abs, $data_abs . $sep) == 0) {
+	# The same refusal as the model store, with its own message: see
+	# _canonical_path for why the comparison is on resolved paths.
+	if (_inside_dir(_canonical_path($bi_dir), _canonical_path($data_dir))) {
 		carp 'model_dir is inside data_dir; skipping analyses file write';
 		return undef;
 	}
@@ -1568,6 +1620,7 @@ sub _validate_layout :Protected ($self, $layout) {
 	return 'layout must be an array' unless ref $layout eq 'ARRAY';
 
 	my $n = 0;
+	my @placed;   # the cells already spoken for, to reject an overlap
 	for my $lp (@$layout) {
 		$n++;
 		return "layout entry $n must be a hash" unless ref $lp eq 'HASH';
@@ -1586,6 +1639,17 @@ sub _validate_layout :Protected ($self, $layout) {
 			unless $lp->{h} >= 1 && $lp->{h} <= $MAX_ROW_SPAN;
 		return "layout entry $n: x + w - 1 must not exceed $GRID_COLUMNS"
 			if $lp->{x} + $lp->{w} - 1 > $GRID_COLUMNS;
+
+		# Two visuals cannot hold the same cell: the canvas is a grid of positions,
+		# and an overlapping layout renders one visual on top of another.  The
+		# canvas pushes the cards a drop lands on out of the way before it PATCHes,
+		# so this rejects a hand-written or stale layout rather than a drag.
+		for my $p (@placed) {
+			next unless $p->{x} < $lp->{x} + $lp->{w} && $lp->{x} < $p->{x} + $p->{w};
+			return "layout entry $n overlaps an earlier entry"
+				if $p->{y} < $lp->{y} + $lp->{h} && $lp->{y} < $p->{y} + $p->{h};
+		}
+		push @placed, { x => $lp->{x}, y => $lp->{y}, w => $lp->{w}, h => $lp->{h} };
 	}
 
 	return undef;

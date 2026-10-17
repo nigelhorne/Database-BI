@@ -1006,4 +1006,301 @@ subtest '3.2: resize handles take focus, answer the arrow keys and are announced
 	like $b, qr/\.visual-card:focus-within/,           'the focused card is visible';
 };
 
+subtest '3.2: a visual can be put in a chosen cell, not the next free one' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'PositionedCanvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Left'  },
+			{ kind => 'table', encode => {}, title => 'Right' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	# Not the next free cell in either case: the first visual is in row 5 with four
+	# empty rows above it, the second in the right-hand half of row 1.
+	my $positioned = [
+		{ visual => 0, x => 1, y => 5, w => 6, h => 2 },
+		{ visual => 1, x => 7, y => 1, w => 6, h => 1 },
+	];
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ layout => $positioned })
+	)->status_is(200, 'a layout with gaps is accepted');
+
+	# What was saved is what is there: no packing, no closing of the gap.
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	is_deeply $t->tx->res->json->{layout}, $positioned,
+		'the chosen cells are stored as they were given';
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+	like $b, qr/id="visual-0"[^>]*style="grid-column:1\/span 6;grid-row:5\/span 2"/,
+		'visual 0 renders in the cell it was put in';
+	like $b, qr/id="visual-1"[^>]*style="grid-column:7\/span 6;grid-row:1\/span 1"/,
+		'visual 1 renders where it was put';
+
+	# Two visuals cannot hold the same cell: overlapping entries share columns and
+	# rows here, which would draw one visual on top of the other.
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ layout => [
+			{ visual => 0, x => 1, y => 1, w => 6, h => 2 },
+			{ visual => 1, x => 4, y => 2, w => 6, h => 1 },
+		] })
+	)->status_is(400, 'an overlapping layout is rejected');
+
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	is_deeply $t->tx->res->json->{layout}, $positioned,
+		'the rejected overlap was not stored';
+};
+
+subtest '3.2: cards are dragged to a cell, and moved with the arrow keys' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'MoveCanvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Left'  },
+			{ kind => 'table', encode => {}, title => 'Right' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# The header handle is a control that moves the card, named for the visual it
+	# moves, and no longer an aria-hidden decoration that says "reorder".
+	like $b, qr/<span class="drag-handle"[^>]*role="button"[^>]*tabindex="0"/s,
+		'the header handle is a focusable control';
+	like $b, qr/aria-label="Move Left"/,  'the handle is named for its visual';
+	like $b, qr/aria-label="Move Right"/, 'and so is the other one';
+	like $b, qr/class="drag-handle"[^>]*aria-describedby="move-help"/s,
+		'the handle is described by the instructions';
+	like $b, qr/id="move-help"[^>]*>[^<]*arrow keys/s, 'the instructions name the arrow keys';
+	like $b, qr/id="canvas-live"[^>]*role="status"/,  'there is a polite announcer for a move';
+
+	# Dropping a cell and dropping on a card are the same gesture now, so the
+	# native drag machinery is gone: the card is not a drag source and nothing
+	# listens for a native drop.
+	unlike $b, qr/<div class="visual-card[^"]*"[^>]*draggable/s,
+		'the card is no longer a native drag source';
+	# The template itself has no native drag machinery left.  The page as a whole
+	# still has both, for the file-drop upload overlay in the shared layout, so
+	# this is checked against the canvas template rather than the rendered page.
+	my $src = $t->app->home->child('templates/web/en/canvas.html.tt')->to_string;
+	open my $fh, '<', $src or die "Cannot read $src: $!";
+	my $tt = do { local $/; <$fh> };
+	close $fh;
+	unlike $tt, qr/dataTransfer/, 'no native drag payload is read';
+	unlike $tt, qr/\bdraggable\b/, 'nothing in the canvas is a native drag source';
+
+	# The drag: pointer events, a ghost showing the landing cell, and the cards it
+	# lands on pushed out of the way.
+	like $b, qr/function onMoveStart/,      'the move handler is defined';
+	like $b, qr/addEventListener\('pointermove'/, 'the drag tracks the pointer';
+	like $b, qr/function placeGhost/,       'the landing cell is drawn while dragging';
+	like $b, qr/function pushApart/,        'cards in the way are pushed down';
+	like $b, qr/function commitMove/,       'the drop places the card and saves';
+	like $b, qr/function overlaps/,         'overlap is what decides who moves';
+	like $b, qr/\.visual-drop-ghost\s*\{[^}]*dashed/s, 'the ghost is outlined';
+	like $b, qr/\.visual-card\.moving/,    'the card being dragged is marked';
+
+	# The keyboard equivalent, and the announcement of where the card went.
+	like $b, qr/function onMoveKey/,        'the keyboard move handler is defined';
+	like $b, qr/e\.shiftKey/,              'Shift jumps to the edge of the canvas';
+	like $b, qr/function gridBottom/,       'the bottom of the canvas is computed';
+	like $b, qr/function announce/,         'each move is announced';
+	like $b, qr/\.drag-handle:focus-visible/, 'the focused handle is visible';
+};
+
+# ---------------------------------------------------------------------------
+# Phase 3.2 -- the size menu: a preset width per card, chosen without a drag
+# ---------------------------------------------------------------------------
+
+subtest '3.2: each card has a size menu that sets its width without a drag' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'SizeMenu',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Left'  },
+			{ kind => 'table', encode => {}, title => 'Right' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# One menu per card, in the card's own header, named for the card it sizes.
+	my $menus = () = $b =~ /class="visual-size-select"/g;
+	is $menus, 2, 'one size menu per visual';
+	like $b, qr/<select class="visual-size-select" id="visual-size-0"/,
+		'the menu belongs to its own card';
+	like $b, qr/visual-card-header">[\s\S]*?visual-size-select[\s\S]*?visual-card-body">/,
+		'and sits in the card header';
+	like $b, qr/id="visual-size-0"[^>]*aria-label="Size of Left"/s,
+		'it is named for the visual it sizes';
+	like $b, qr/id="visual-size-0"[^>]*aria-describedby="size-help"/s,
+		'with the way to use it described for anyone who needs telling';
+	like $b, qr/<p class="sr-only" id="size-help">Size a visual without dragging/,
+		'the help is on the page, and takes no room on it';
+
+	# The presets, as widths in grid columns: full, half, a third and a quarter.
+	like $b, qr/<option value="12">Full width<\/option>/,   'full width is a preset';
+	like $b, qr/<option value="6">Half width<\/option>/,    'half width is a preset';
+	like $b, qr/<option value="4">Third width<\/option>/,   'third width is a preset';
+	like $b, qr/<option value="3">Quarter width<\/option>/, 'quarter width is a preset';
+	like $b, qr/GRID_COLS\s*=\s*12/, 'and full width is the whole twelve-column grid';
+
+	# The menu and the corner grip are two ways to the same write.
+	like $b, qr/function commitSize/,  'a chosen width is applied by commitSize';
+	like $b, qr/function initSizeMenus/,
+		'each menu is wired up';
+	like $b, qr/^\s*initSizeMenus\(\);$/m, 'at load';
+	like $b, qr/function updateSizeSelect/,
+		'the menu shows the size the card actually is';
+	like $b, qr/option\[data-current="1"\]/,
+		'and a width that is no preset gets an option of its own';
+	like $b, qr/updateSizeSelect\(card, st\)/,
+		'so a drag, which leaves any width, is reflected in the menu';
+	like $b, qr/if \(w === spanOf\(card\)\.w\) return;/,
+		'choosing the size it already is does nothing at all';
+	like $b, qr/announce\(titleOf\(card\) \+ ' is now ' \+ \(label \?/,
+		'the new size is announced, not just drawn';
+	like $b, qr/closest\('\.visual-resize-handle, button, a, select'\)/,
+		'a press on the menu does not start a card drag';
+	like $b, qr/\@media print.*?\.visual-size-select[^{]*\{[^}]*display\s*:\s*none/s,
+		'the menu is not printed';
+	like $b, qr/Size menu in its header to set its width without a drag/,
+		'and the first-visit tip names it too';
+
+	# A card that has to move to be the width that was chosen is moved, and what
+	# it grew over is pushed down - the same fix the resize paths now make.
+	my $pushes = () = $b =~ /pushApart\(card\);/g;
+	is $pushes, 4,
+		'growing over a neighbour is resolved in the menu, both resize paths and a drop';
+
+	# That push is not decoration: without it the grown layout is two cards
+	# sharing cells 7-12, which the server refuses, so the width would be lost at
+	# the next reload.  With it, the layout the menu produces is accepted.
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ layout => [
+			{ visual => 0, x => 1, y => 1, w => 12, h => 1 },
+			{ visual => 1, x => 1, y => 2, w => 12, h => 1 },
+		] })
+	)->status_is(200, 'a full-width card, and the neighbour pushed below it, is accepted');
+
+	my $accepted = [
+		{ visual => 0, x => 1, y => 1, w => 12, h => 1 },
+		{ visual => 1, x => 1, y => 2, w => 12, h => 1 },
+	];
+
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ layout => [
+			{ visual => 0, x => 1, y => 1, w => 12, h => 1 },
+			{ visual => 1, x => 7, y => 1, w => 6,  h => 1 },
+		] })
+	)->status_is(400,
+		'the same growth without the push is refused, which is why commitSize pushes');
+
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	is_deeply $t->tx->res->json->{layout}, $accepted,
+		'and the refused layout left the saved one alone';
+};
+
+subtest '3.2: the first-visit tip names both grips and is dismissed for good' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name     => 'TipCanvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', encode => {}, title => 'Left'  },
+			{ kind => 'table', encode => {}, title => 'Right' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# The tip is in the page but hidden, and it is the script that uncovers it
+	# for a reader who has not dismissed it: someone who has turned it off does
+	# not get a flash of it while the page loads.
+	like $b, qr{<div class="canvas-hint" id="canvas-hint" hidden>},
+		'the tip is rendered hidden';
+	like $b, qr{<button type="button" class="canvas-hint-close" id="canvas-hint-close"},
+		'and it has a dismiss button';
+	like $b, qr{id="canvas-hint-close"[^>]*>[^<]*Got it}s, 'which says what it does';
+	like $b, qr{id="canvas-hint-close"[^>]*aria-describedby="canvas-hint-text"}s,
+		'and is described by the tip, so what is being dismissed is not guesswork';
+
+	# What it points at: the header drag and the corner grip, in the words the
+	# reader can see on the card, and the keyboard route to both of them.
+	like $b, qr/handle in its header to move it/, 'the tip names the header drag';
+	like $b, qr/grip in the card's bottom right corner to resize it/,
+		'the tip names the corner grip';
+	like $b, qr/Both\s+work from the keyboard as well/, 'and says both answer the keyboard';
+	like $b, qr/focus the header to move the visual/,
+		'including what to focus to use them without a pointer';
+
+	# Once dismissed, never again: one flag, written where the page can read it
+	# on the next visit, and read before the tip is uncovered.
+	like $b, qr/HINT_KEY = 'bi:canvas:hint'/,
+		'the tip keeps its answer under a key of its own';
+	like $b, qr/localStorage\.getItem\(HINT_KEY\) === '1'/,
+		'which is read before the tip is shown';
+	like $b, qr/localStorage\.setItem\(HINT_KEY, '1'\)/,
+		'and written when it is dismissed';
+	like $b, qr/if \(!card \|\| hintSeen\(\)\) return;/,
+		'a canvas with nothing to point at says nothing';
+
+	# Dismissing hides the tip, unmarks the card it named, leaves focus on the
+	# control it named rather than on a button that has gone, and says so where a
+	# screen reader will hear it.
+	like $b, qr/card\.classList\.add\('pointing'\)/, 'the card the tip names is marked while it is up';
+	like $b, qr/card\.classList\.remove\('pointing'\)/, 'and unmarked when it goes';
+	like $b, qr/hint\.hidden = true/, 'dismissing hides the tip';
+	like $b, qr/announce\('Canvas tip dismissed'\)/, 'and announces that it has gone';
+	like $b, qr/e\.key === 'Escape'/, 'Escape dismisses it as well';
+	like $b, qr{drag-handle\[role="button"\]'\)[\s\S]*?\.focus\(\)},
+		'and focus lands on the header handle the tip named';
+
+	# The two things it points at are drawn on that card while it is up, so the
+	# sentence and the screen are talking about the same thing; the tip itself
+	# never reaches paper, and takes no room while it is hidden.
+	like $b, qr/\.visual-card\.pointing \.visual-card-header/, 'the marked header is ringed';
+	like $b, qr/\.visual-card\.pointing \.visual-resize-handle/, 'and the marked grip is tinted';
+	like $b, qr/\.canvas-hint\[hidden\] \{ display: none; \}/, 'the hidden tip takes no room';
+
+	my ($print_css) = $b =~ m{\@media print \{(.*?)\n\}}s;
+	ok $print_css, 'the page has a print stylesheet' or return;
+	like $print_css, qr/\.canvas-hint/, 'the tip is not printed';
+};
+
 done_testing;
