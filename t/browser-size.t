@@ -217,6 +217,9 @@ my $setup = $ua->patch(
 			{ visual => 0, x => 1, y => 1, w => 6, h => 1 },
 			{ visual => 1, x => 1, y => 2, w => 6, h => 1 },
 		],
+		# A hierarchy, so the same canvas can also be visited as a drill path
+		# below: the sizes have to survive that visit too.
+		hierarchies => [ { name => 'Geo', levels => [qw(region product)] } ],
 	})
 );
 is $setup->res->code, 200, 'initial half-width layout stored';
@@ -415,6 +418,40 @@ is $reloaded->{summary}, 'Full width, 1 row high', 'a reload reads the saved siz
 
 is scalar(read_patches($RECORD)), 2,
 	'rendering the saved layout does not PATCH it back';
+
+# ---------------------------------------------------------------------------
+# The same canvas opened as a filtered visit: cross-filtered, and then drilled
+# one level.  Both have to lay the card out at the size the canvas was given,
+# and neither may write a layout of its own: a page that saved the arrangement
+# it can see would be recording the filtered render's arrangement, which is not
+# the one the canvas was given.
+# ---------------------------------------------------------------------------
+require Mojo::Util;
+
+for my $visit (
+	[ 'cross-filter' => '?cf=' . Mojo::Util::url_escape('region:eq:North') . '&cv=0' ],
+	[ 'drill-through' => '?dd=Geo&dl=1&cf=' . Mojo::Util::url_escape('region:eq:North') ],
+) {
+	my ($label, $query) = @$visit;
+
+	$CLIENT->cmd('WebDriver:Navigate', { url => "$BASE/a/$cid$query" });
+
+	my $seen;
+	for (1 .. 100) {
+		$seen = eval { decode_json(js_value($STATE)) };
+		last if $seen && ($seen->{summary} // '') eq 'Full width, 1 row high';
+		sleep 0.1;
+	}
+
+	$seen ||= {};
+	is($seen->{colEnd}, 'span 12', "a $label visit renders the saved width")
+		or diag 'recorded PATCHes: ' . read_text($RECORD);
+	is $seen->{summary}, 'Full width, 1 row high',
+		"a $label visit shows the saved size in the menu";
+
+	is scalar(read_patches($RECORD)), 2,
+		"a $label visit does not PATCH a layout of its own";
+}
 
 done_testing();
 

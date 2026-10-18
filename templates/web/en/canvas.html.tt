@@ -688,7 +688,14 @@ the width and height it was left at.</p>
 	 * something is dropped in row 1, because a canvas is a place and not a list.
 	 * It returns the cards it had to move down, so a move can be announced in
 	 * full: a reader who hears about only the card they moved loses track of
-	 * the rest, and the next key press starts from a canvas they do not have. */
+	 * the rest, and the next key press starts from a canvas they do not have.
+	 *
+	 * A card that is not in the way is left alone, style attribute and all: only
+	 * a card that actually moves is written, so a card the canvas placed for
+	 * itself stays placed by the canvas.  Writing a span to every card would
+	 * turn the browser's placement of the cards it laid out into a fixed
+	 * arrangement measured from whichever render - filtered or not - was on
+	 * screen at the time. */
 	function pushApart(placed) {
 		var used  = [spanOf(placed)];
 		var moved = [];
@@ -699,8 +706,10 @@ the width and height it was left at.</p>
 			while (used.some(function (u) { return overlaps(sp, u); })) {
 				sp.y++;
 			}
-			applySpan(card, sp.x, sp.w, sp.y, sp.h);
-			if (sp.y !== from) moved.push({ card: card, to: sp.y });
+			if (sp.y !== from) {
+				applySpan(card, sp.x, sp.w, sp.y, sp.h);
+				moved.push({ card: card, to: sp.y });
+			}
 			used.push(sp);
 		});
 		return moved;
@@ -850,11 +859,22 @@ the width and height it was left at.</p>
 		 * they dragged its corner to.  Nothing is packed or re-derived here - a card
 		 * put in row 4 stays in row 4, with a gap above it if that is where it was
 		 * put - and nothing is written that the server would reject (see
-		 * _validate_layout: inside the grid, and no two cards sharing a cell). */
+		 * _validate_layout: inside the grid, and no two cards sharing a cell).
+		 *
+		 * Only a card carrying a span of its own is written: one the canvas
+		 * placed from the saved layout, or one a move, a resize or a push has
+		 * just placed.  A card with no style attribute is placed by the browser,
+		 * and the same way on every visit, so it is left out of the layout
+		 * rather than measured into it - measuring it would freeze whatever the
+		 * render in hand happens to show, which on a cross-filtered or drilled
+		 * canvas is the filtered arrangement and not the one the canvas was
+		 * given.  Its position is the browser's to decide until the reader moves
+		 * it themselves. */
 		var layout = [];
 		Array.from(grid.querySelectorAll('.visual-card')).forEach(function (c) {
 			var vid = parseInt(c.getAttribute('data-visual'), 10);
 			if (isNaN(vid)) return;
+			if (!c.getAttribute('style')) return;
 			var sp = spanOf(c);
 			var x  = clampSpan(sp.x, 1, GRID_COLS);
 			layout.push({
@@ -870,7 +890,18 @@ the width and height it was left at.</p>
 			method  : 'PATCH',
 			headers : { 'Content-Type': 'application/json' },
 			body    : body,
-		}).catch(function () {});
+		}).then(function (r) {
+			/* The server refuses a layout in which two cards share a cell (see
+			 * _validate_layout), leaving the saved one alone.  Saying so is the
+			 * difference between a size that is lost and a size the reader knows
+			 * has to be redone: the change is on screen either way, and only the
+			 * saved arrangement was refused. */
+			if (!r.ok) {
+				announce('The layout was not saved: the server refused it (' + r.status + ')');
+			}
+		}).catch(function () {
+			announce('The layout was not saved: the server could not be reached');
+		});
 	}
 
 	/* ---- grid span helpers (3.2 canvas layout) ---- */
@@ -1152,9 +1183,16 @@ the width and height it was left at.</p>
 		card.classList.add('resizing');
 		document.body.style.userSelect = 'none';
 
+		/* Whether the corner was actually dragged anywhere.  A press on the grip
+		 * that never moves it is not a resize - the grip is 26px of the card's
+		 * corner and a click can land on it - and a save from that press would
+		 * rewrite the arrangement from the render in hand. */
+		var changed = false;
+
 		function onResizeMove(ev) {
 			var w = clampSpan(sp.w + Math.round((ev.clientX - startX) / colPitch), 1, GRID_COLS - sp.x + 1);
 			var h = clampSpan(sp.h + Math.round((ev.clientY - startY) / rPitch),   1, MAX_ROW_SPAN);
+			changed = (w !== sp.w || h !== sp.h) || changed;
 			applySpan(card, sp.x, w, sp.y, h);
 		}
 
@@ -1163,6 +1201,9 @@ the width and height it was left at.</p>
 			document.removeEventListener('pointerup',   onResizeEnd);
 			card.classList.remove('resizing');
 			document.body.style.userSelect = '';
+			/* A press that left the size where it was has nothing to save, and
+			 * saving it anyway would write a layout no one asked for. */
+			if (!changed) return;
 			/* The same tidy-up the keyboard does: what the card grew over is pushed
 			 * down, so the layout that is saved is one the server will take. */
 			pushApart(card);

@@ -539,6 +539,68 @@ subtest '3.3: _vis_cf_col selects correct dimension per kind' => sub {
 	unlike $b, qr/data-cf-col=""/, 'empty cf_col produces no data-cf-col attribute';
 };
 
+subtest '3.2: card sizes survive a cross-filter and a drill-through visit' => sub {
+	# The arrangement a canvas was given is the layout in the analysis.  A visit
+	# that filters the data - a cross-filter, or a drill path - shows the same
+	# cards in the same cells: the layout is applied to whatever the filter
+	# leaves, and a card that has nothing to show keeps its size like any other.
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $spec = {
+		name        => 'Sized canvas',
+		datasets    => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals     => [
+			{ kind => 'table', encode => { columns => ['region', 'amount'] }, title => 'Wide' },
+			{ kind => 'table', encode => { columns => ['region', 'amount'] }, title => 'Tall' },
+		],
+		layout      => [
+			{ visual => 0, x => 1, y => 1, w => 8, h => 2 },
+			{ visual => 1, x => 9, y => 1, w => 4, h => 4 },
+		],
+		hierarchies => [ { name => 'Geo', levels => [qw(region product)] } ],
+	};
+	my $res = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201, 'sized canvas created')->tx->res->json;
+	my $cid = $res->{id};
+
+	# The style the server writes for a card, read out of the rendered page.
+	my $cell_of = sub {
+		my ($body, $visual) = @_;
+		$body =~ /id="visual-$visual"[^>]*style="([^"]*)"/;
+		return $1 // '';
+	};
+
+	my $want = {
+		0 => 'grid-column:1/span 8;grid-row:1/span 2',
+		1 => 'grid-column:9/span 4;grid-row:1/span 4',
+	};
+
+	require Mojo::Util;
+	my %visit = (
+		'no filter'     => "/a/$cid",
+		'cross-filter'  => '/a/' . $cid . '?cf=' . Mojo::Util::url_escape('region:eq:North') . '&cv=0',
+		'drill-through' => '/a/' . $cid . '?dd=Geo&dl=1&cf=' . Mojo::Util::url_escape('region:eq:North'),
+	);
+
+	for my $label (sort keys %visit) {
+		$t->get_ok($visit{$label})->status_is(200, "the $label visit renders");
+		my $body = $t->tx->res->body;
+
+		for my $visual (sort keys %$want) {
+			is $cell_of->($body, $visual), $want->{$visual},
+				"the $label visit puts card $visual in the cell it was given";
+		}
+	}
+
+	# And the visit read the layout rather than rewriting it.
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	is_deeply $t->tx->res->json->{layout}, $spec->{layout},
+		'the saved layout is unchanged by the visits';
+};
+
 # ---------------------------------------------------------------------------
 # Phase 3.5 -- parameters and what-if
 # ---------------------------------------------------------------------------

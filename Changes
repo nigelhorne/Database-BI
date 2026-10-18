@@ -115,7 +115,32 @@ Revision history for Database-BI
 	  A canvas with no cards says nothing, a browser that cannot store the
 	  answer shows the tip and forgets it at the end of the visit, and the tip
 	  does not reach paper.
+	- The arrangement a canvas was given now survives a cross-filter and a
+	  drill-through visit.  A visit renders the layout in the analysis, so the
+	  cards come back in the cells they were left in whatever the filter leaves
+	  them to show, and a card the canvas has not placed itself is left to the
+	  browser instead of being measured into the layout: writing every card's
+	  position from the render in hand is what would freeze the filtered
+	  arrangement as if it were the one the canvas was given, and a card
+	  measured on a narrow filtered render could land on a cell another card
+	  already had.  Nothing is saved by a visit either -- the layout is written
+	  only when a reader moves or resizes a card -- and a press on the corner
+	  grip that does not move it is no longer a resize that rewrites every
+	  position.  A layout the server refuses (two cards in one cell) is
+	  announced rather than swallowed, so a size that did not save is a size
+	  the reader knows to set again.
+	- t/browser-size.t opens the same canvas as a cross-filtered visit and as a
+	  drill path, and reads back the span the browser laid out and the size the
+	  menu reports for each, so both are shown to be the saved ones; neither
+	  visit may PATCH a layout of its own, which is asserted from the requests
+	  the app recorded.  t/model.t asserts the same server-side: the rendered
+	  grid position of every card is unchanged by a cross-filter or a drill
+	  visit, and the stored layout is not rewritten by either.
 	[ Bug Fixes ]
+	- A canvas card's size could be lost with nothing said: saveLayout() only
+	  handled a transport failure, so a layout the server refused (400, two
+	  cards in one cell) left the size on screen and nowhere else, silently.
+	  The refused and unreachable cases are both announced now.
 	- The data_dir guard on the app-owned stores could be walked around with a
 	  symlink: a model_dir that reached data_dir through a link -- or a data_dir
 	  that was itself a link, with the store naming the directory it resolved to
