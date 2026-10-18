@@ -383,6 +383,8 @@ subtest '3.3: cross-filter filters non-source visuals and highlights source' => 
 	is scalar(() = $body =~ /North/g) >= 2, 1,
 		'North appears in both visuals (no cross-filter)';
 	unlike $body, qr/id="cf-chip"/, 'no cross-filter chip element when cf= absent';
+	like $body, qr{class="back-link".*<a href="/">&larr; Home</a>}s,
+		'canvas has a breadcrumb back to the home page';
 
 	# -- Phase 2: cross-filter with cv=0 (source) --
 	# visual 0 is source: unfiltered, gets cf-source class
