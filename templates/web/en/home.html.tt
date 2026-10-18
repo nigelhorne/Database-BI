@@ -349,11 +349,27 @@
 </script>
 
 <script>
-/* Saved canvases section -- fetches /api/analyses and renders links.
+/* Saved canvases section -- fetches /api/analyses and renders db-card tiles.
  * Only shown when at least one saved analysis exists. */
 (function () {
   var container = document.getElementById('bi-canvases');
   if (!container) return;
+
+  function fmtDate(iso) {
+    try {
+      return new Date(iso).toLocaleString(undefined, {
+        year: 'numeric', month: 'short', day: 'numeric',
+        hour: '2-digit', minute: '2-digit',
+      });
+    } catch (e) { return iso; }
+  }
+
+  function txt(s) {
+    var d = document.createElement('span');
+    d.textContent = String(s || '');
+    return d.innerHTML;
+  }
+
   fetch('/api/analyses')
     .then(function (r) { return r.json(); })
     .then(function (data) {
@@ -366,29 +382,53 @@
       h2.innerHTML = '&#x1F5BC; Saved canvases';
       section.appendChild(h2);
       var ul = document.createElement('ul');
-      ul.className = 'recent-list';
+      ul.className = 'db-list';
       list.forEach(function (a) {
         var li = document.createElement('li');
-        li.className = 'recent-item';
-        var link = document.createElement('a');
-        link.href = '/a/' + encodeURIComponent(a.id);
-        link.className = 'recent-link';
-        var icon = document.createElement('span');
-        icon.setAttribute('aria-hidden', 'true');
-        icon.textContent = '🖼';   /* framed picture */
-        var name = document.createElement('span');
-        name.className = 'recent-name';
-        name.textContent = a.name || a.id;
-        link.appendChild(icon);
-        link.appendChild(name);
-        if (a.datasets && a.datasets.length) {
-          var meta = document.createElement('span');
-          meta.className = 'recent-meta';
-          meta.textContent = a.datasets.length + ' dataset'
-            + (a.datasets.length !== 1 ? 's' : '');
-          link.appendChild(meta);
-        }
-        li.appendChild(link);
+        li.style.position = 'relative';
+
+        var card = document.createElement('a');
+        card.href      = '/a/' + encodeURIComponent(a.id);
+        card.className = 'db-card';
+
+        var nDatasets = (a.datasets && a.datasets.length) ? a.datasets.length : 0;
+        var fileLine  = nDatasets + ' dataset' + (nDatasets !== 1 ? 's' : '');
+        card.innerHTML = '<span class="db-icon" aria-hidden="true">&#x1F5BC;</span>'
+                       + '<span class="db-name">' + txt(a.name || a.id) + '</span>'
+                       + '<span class="db-file">' + txt(fileLine) + '</span>';
+        li.appendChild(card);
+
+        /* hover tooltip */
+        var tip = document.createElement('div');
+        tip.className    = 'file-tooltip tip-below';
+        tip.style.display = 'none';
+
+        var updLine = a.updated ? '&#x1F4C5; Updated: ' + txt(fmtDate(a.updated)) : '';
+        var crtLine = a.created ? '&#x1F551; Created: ' + txt(fmtDate(a.created)) : '';
+        var idLine  = '<div class="tip-muted">ID: ' + txt(a.id) + '</div>';
+        var dsLine  = nDatasets
+          ? '<div>' + txt(nDatasets + ' dataset' + (nDatasets !== 1 ? 's' : '')) + '</div>'
+          : '';
+        tip.innerHTML = '<div class="tip-name">' + txt(a.name || a.id) + '</div>'
+          + dsLine
+          + (updLine ? '<div>' + updLine + '</div>' : '')
+          + (crtLine ? '<div>' + crtLine + '</div>' : '')
+          + idLine;
+
+        li.appendChild(tip);
+
+        card.addEventListener('mouseenter', function () {
+          tip.style.display = 'block';
+          /* flip above when near the bottom of the viewport */
+          var rect = tip.getBoundingClientRect();
+          if (rect.bottom > window.innerHeight) {
+            tip.classList.remove('tip-below');
+          } else {
+            tip.classList.add('tip-below');
+          }
+        });
+        card.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
+
         ul.appendChild(li);
       });
       section.appendChild(ul);
