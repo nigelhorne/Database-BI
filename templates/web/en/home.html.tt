@@ -429,6 +429,30 @@
         });
         card.addEventListener('mouseleave', function () { tip.style.display = 'none'; });
 
+        /* trash-can delete button -- hidden until card is hovered (CSS .recent-remove) */
+        var delBtn = document.createElement('button');
+        delBtn.type      = 'button';
+        delBtn.className = 'recent-remove';
+        delBtn.title     = 'Delete this canvas';
+        delBtn.setAttribute('aria-label', 'Delete canvas ' + txt(a.name || a.id));
+        delBtn.innerHTML = '&#x1F5D1;';
+        delBtn.addEventListener('click', function (e) {
+          e.stopPropagation();
+          e.preventDefault();
+          if (!confirm('Delete canvas "' + (a.name || a.id) + '"?\n\nThis cannot be undone.')) return;
+          fetch('/api/analyses/' + encodeURIComponent(a.id), { method: 'DELETE' })
+            .then(function (r) {
+              if (r.ok) {
+                li.remove();
+                if (!ul.querySelector('li')) section.remove();
+              } else {
+                alert('Could not delete canvas (server error).');
+              }
+            })
+            .catch(function () { alert('Could not delete canvas (network error).'); });
+        });
+        li.appendChild(delBtn);
+
         ul.appendChild(li);
       });
       section.appendChild(ul);

@@ -529,6 +529,12 @@
 	</span>
 	<button id="btn-copy-link" type="button" title="Copy a shareable link to this canvas view" style="margin-left:auto">&#x1F517; Copy link</button>
 	<button id="btn-print" type="button" title="Print or save as PDF (Ctrl+P)">&#x1F5A8; Print</button>
+	[% IF canvas_id.length %]
+	<button id="btn-delete-canvas" type="button"
+	        data-canvas-name="[% canvas_name | html %]"
+	        title="Permanently delete this canvas"
+	        style="margin-left:0.5rem;color:var(--danger-fg,#c0392b)">&#x1F5D1; Delete canvas</button>
+	[% END %]
 </div>
 
 [% IF canvas_params.size %]
@@ -1474,6 +1480,32 @@ menu, so it reads without the menu being opened.</p>
 	var btnPrint = document.getElementById('btn-print');
 	if (btnPrint) {
 		btnPrint.addEventListener('click', function () { window.print(); });
+	}
+
+	/* ---- delete canvas button ---- */
+	var btnDeleteCanvas = document.getElementById('btn-delete-canvas');
+	if (btnDeleteCanvas) {
+		btnDeleteCanvas.addEventListener('click', function () {
+			var name = btnDeleteCanvas.getAttribute('data-canvas-name') || 'this canvas';
+			if (!confirm('Delete canvas "' + name + '"?\n\nThis cannot be undone.')) return;
+			btnDeleteCanvas.disabled = true;
+			btnDeleteCanvas.textContent = 'Deleting…';
+			fetch('/api/analyses/[% canvas_id | uri %]', { method: 'DELETE' })
+				.then(function (r) {
+					if (r.ok) {
+						window.location.href = '/';
+					} else {
+						alert('Could not delete canvas (server error).');
+						btnDeleteCanvas.disabled = false;
+						btnDeleteCanvas.innerHTML = '&#x1F5D1; Delete canvas';
+					}
+				})
+				.catch(function () {
+					alert('Could not delete canvas (network error).');
+					btnDeleteCanvas.disabled = false;
+					btnDeleteCanvas.innerHTML = '&#x1F5D1; Delete canvas';
+				});
+		});
 	}
 
 	/* ---- per-visual PNG download (3.7) ----

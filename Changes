@@ -95,12 +95,32 @@ Revision history for Database-BI
 	  back to the top.  Focus stays on the menu after a choice, and the new size
 	  is saved and announced as it is made.  A card the new size has to push down
 	  is named in that announcement as well.
-	- t/browser-size.t drives a canvas in a headless Firefox: one key press on a
-	  card's Size menu is shown to change the card's computed grid-column span
-	  and to send the layout PATCH, which the app records before the request is
-	  routed, so the test sees the browser's request rather than one of its own.
-	  The app runs on an ephemeral port with a throwaway model_dir, and the test
-	  skips when no Firefox is available.
+	- The browser tests share a fixture and run as one suite.  t/lib/BI/Test/Browser.pm
+	  starts the app on an ephemeral port with a throwaway model_dir, a headless
+	  Firefox with its own profile and a Marionette connection, and presses keys
+	  through the browser's input stack; t/lib/BI/Test/Marionette.pm is the
+	  protocol client it speaks.  t/browser-size.t, the Size menu test the
+	  fixture grew out of, still shows one key press changing the card's
+	  computed grid-column span and sending the layout PATCH, which the app
+	  records before the request is routed, so the test sees the browser's
+	  request rather than one of its own.  The suite runs as
+	  `prove -l t/browser-*.t` and skips when no Firefox is available.
+	- t/browser-canvas-keys.t drives the canvas's three keyboard controls with
+	  real key presses: the header handle's arrow keys and Shift+arrow edges,
+	  the corner grip's width, height, Home and End, and the Size menu's
+	  typeahead and arrow keys.  Each press is read back from the browser - the
+	  computed grid position and span, the size on the card, the menu's summary,
+	  the grip's slider attributes and the live region - and the layout the app
+	  stored is asserted after each burst of keys, so a move that is shown but
+	  not saved fails.
+	- t/browser-chart-keys.t follows a chart from the table view's toolbar to
+	  its export bar with the keyboard alone: Enter opens the Bar chart panel,
+	  native typeahead picks the category and enables Plot, Tab walks the
+	  panel's controls, Enter opens the chart, the arrow keys resize it through
+	  its grip (Shift, Home and End included), and Tab then Enter export it as
+	  SVG and PNG, with Space copying its link.  The exports are observed
+	  through the page's own Blob and anchor, and the SVG's text is read back,
+	  so each control is shown to have produced the file it names.
 	- A canvas says what its two grips are for the first time a reader opens
 	  one, and never again).  The tip is rendered hidden and
 	  uncovered by the script, so a reader who has already dismissed it does
@@ -144,10 +164,10 @@ Revision history for Database-BI
 	  shrinks when the card is narrow.  The number on the card is columns and
 	  rows in full, with the menu's own words for the size ("Half width, 2 rows
 	  high") as its title, and it is written by the template from the saved
-	  spans, so a reload
-	  shows it with no JavaScript involved.  The script writes it at load for a
-	  card the browser placed rather than the canvas, on every resize - a drag
-	  updates it as the grip moves, not only when it is let go - and whenever the
+	  spans, so a reload shows it with no JavaScript involved.  The script
+	  writes it at load for a card the browser placed rather than the canvas, on
+	  every resize - a drag updates it as the grip moves, not only when it is let
+	  go - and whenever the
 	  menu sets a size: the menu's first option and the number on the card are
 	  written through one function, so no path can leave one of them claiming a
 	  size the other disagrees with.  A card with no size yet - one the browser

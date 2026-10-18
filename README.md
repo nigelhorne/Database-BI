@@ -686,6 +686,35 @@ defaults:
     Opening `redis:players|redis://localhost:6379` then displays a two-row table
     with columns `entry`, `name`, and `score`.
 
+## Testing
+
+The ordinary suite runs from the distribution root:
+
+```
+prove -l
+```
+
+The browser suite drives the real pages in a headless Firefox, through
+Marionette and with real key presses:
+
+```
+prove -l t/browser-*.t
+```
+
+It covers the canvas Size menu (`t/browser-size.t`), the canvas's move handle,
+corner grip and Size menu from the keyboard (`t/browser-canvas-keys.t`), and
+the chart panel, chart resize grip and export bar (`t/browser-chart-keys.t`).
+Each file starts its own application on an ephemeral port with a throwaway
+`model_dir`, and its own Firefox with a throwaway profile, so the files can run
+in parallel and leave nothing behind.
+
+Set `BI_FIREFOX=/path/to/firefox` when Firefox is not on `PATH`; the tests skip
+when no Firefox is found.  `BI_SKIP_BROWSER_TESTS=1` skips them deliberately.
+
+The pages load D3 from a CDN.  The test profile blocks all non-loopback
+traffic, so the SVG elements in a test are the server-rendered ones: the tests
+assert what the controls do, not what D3 would have drawn.
+
 ## Limitations
 
 - Only read operations on data files are supported.  Write-back (editing
