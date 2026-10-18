@@ -15,7 +15,30 @@ Revision history for Database-BI
 	  (map_geocode_max).  Geo::Coder::Free 0.47 or later is an optional
 	  dependency: without it the location option is reported as unavailable
 	  and the places already resolved are still plotted.
+	- GET /map renders the filtered view on an OpenStreetMap map.  With
+	  loc=<column> a dataset that has places but no coordinates is mapped by
+	  resolving the column's distinct values with
+	  Database::BI::Model::Geocode: one lookup per value however often the
+	  column repeats it, answers remembered in the dataset's model store so a
+	  second visit asks nothing, and new lookups capped per request.  With
+	  lat= and lon= the coordinate columns already in the data are plotted
+	  instead.  Rows sharing a position become one marker whose popup counts
+	  them, rows with no usable coordinate are skipped and reported rather
+	  than plotted at (0,0), and a coordinate column wholly out of range is a
+	  400 naming it.  Markers are capped per request (map_max_markers), popup
+	  columns are chosen with popup=, and HTML::OSM and Geo::Coder::Free are
+	  both optional: without the renderer the page says so, and without the
+	  geocoder the places already remembered are still plotted.
 	[ Enhancements ]
+	- The "geocoder unavailable" message shown on a map page is no longer
+	  printed twice: geocoder_available() returns the finished sentence and
+	  the result reuses it instead of formatting it again.
+	- The location counts follow Geo::Coder::Free 0.48: its geocode_many()
+	  lookups is now the number of reads the backends made, so a value one of
+	  their process-level caches answered is not counted.  counts->lookups
+	  therefore reports work avoided as well as work done, and is never more
+	  than the values attempted.  The count is still the geocoder's own
+	  rather than the app's; only its meaning for a warm process is finer.
 	- Canvas resize handles are keyboard operable and exposed to assistive
 	  technology).  Each card's handle is now in the tab order and
 	  carries slider semantics: left and right change the width in grid
@@ -25,32 +48,59 @@ Revision history for Database-BI
 	  it is clear which visual the keys will resize, and a keyboard resize is
   saved exactly like a drag - once, after the last key press, and at once
   if focus leaves the handle first.
+	- Chart resize handles get the same treatment as the canvas ones.  The
+	  corner grip on every chart page (line, pie, bar, heatmap, scatter,
+	  stacked, combo, treemap, histogram) is in the tab order and carries
+	  slider semantics: left and right change the width, up and down the
+	  height, Shift takes bigger steps and Home and End go to the narrowest and
+	  widest the chart can be, which is now the width of the window so the grip
+	  itself cannot be dragged off screen.  The size is announced as it changes
+	  ("640 pixels wide, 480 pixels high"), the focused grip is drawn at full
+	  strength with the chart outlined so it is clear which one the keys resize,
+	  and #chart-resize-help describes the keys.  Unlike a canvas the size is
+	  not saved: it lasts until the page is reloaded.
 	- Canvas visuals are dragged to a chosen grid cell, not just resized and
 	  reordered).  A card's header is the grab area: the card snaps
 	  to the cell the pointer is over, a ghost cell shows where it will land,
 	  and on release the card is placed there while anything sharing that cell
 	  is pushed down out of the way - only cards that collide move, so a card
 	  in row 4 stays in row 4 with a gap above it, because a canvas is a place
-	  and not a list.  The header is also a control: it takes focus, the arrow
+	  and  not a list.  The header is also a control: it takes focus, the arrow
 	  keys move the card a cell at a time, Shift with an arrow key goes to that
-	  edge of the canvas, and each move is announced.  The whole layout - x, y,
-	  width and height - is persisted, and PATCH /api/analyses/:id rejects a
-	  layout in which two visuals share a cell, leaving the saved one alone.
-	- A card's width can be set from a menu on the card rather than by dragging
-	  its corner).  Every card on a canvas carries a Size menu whose
-	  options are widths in grid columns - full width, half, a third, a quarter -
-	  so a visual can be sized from the keyboard alone; it is a native select,
+	  edge of the canvas, and each move is announced - the cell the card landed
+	  in, and by name any card the move pushed down, so a reader who is told
+	  only about the card they moved does not lose track of the rest.  The whole
+	  layout - x, y, width and height - is persisted, and PATCH
+	  /api/analyses/:id rejects a layout in which two visuals share a cell,
+	  leaving the saved one alone.
+	- A card's width and height can be set from a menu on the card rather than
+	  by dragging its corner).  Every card on a canvas carries a Size menu whose
+	  entries are widths in grid columns - full width, half, a third, a quarter -
+	  and heights in grid rows - one, two, three or six - so a visual can be
+	  sized in both dimensions from the keyboard alone; it is a native select,
 	  because that is operable and announced on every platform without any code
 	  from us, and because a card clips its own contents and a panel built in the
 	  header would be cut off at the card's edge.  The size that is chosen is the
 	  size that lands: a card in column 9 slides left to be twelve columns wide
-	  rather than being quietly cut to four, and whatever it grows over is pushed
-	  down, so what is saved is a layout the server accepts - an overlapping
-	  layout is refused, which a drag widening over a neighbour could produce
-	  until now, so the drag and the arrow keys resolve it the same way as the
-	  menu does.  The menu shows the width the card actually is, giving a width
-	  that is no preset an option of its own, focus stays on it after a choice,
-	  and the new size is saved and announced as it is made.
+	  rather than being quietly cut to four, a height keeps the width that was
+	  there just as a width keeps the height, and whatever it grows over is
+	  pushed down, so what is saved is a layout the server accepts - an
+	  overlapping layout is refused, which a drag widening over a neighbour could
+	  produce until now, so the drag and the arrow keys resolve it the same way
+	  as the menu does.  The menu's first option says the size the card actually
+	  is - "Half width, 2 rows high", or "7 columns wide, 3 rows high" after a
+	  drag - and is what the menu shows whenever the size came from a drag, an
+	  arrow key or a reload; a choice made in the menu itself stays selected, so
+	  the arrow keys walk the entries one after another instead of being pulled
+	  back to the top.  Focus stays on the menu after a choice, and the new size
+	  is saved and announced as it is made.  A card the new size has to push down
+	  is named in that announcement as well.
+	- t/browser-size.t drives a canvas in a headless Firefox: one key press on a
+	  card's Size menu is shown to change the card's computed grid-column span
+	  and to send the layout PATCH, which the app records before the request is
+	  routed, so the test sees the browser's request rather than one of its own.
+	  The app runs on an ephemeral port with a throwaway model_dir, and the test
+	  skips when no Firefox is available.
 	- A canvas says what its two grips are for the first time a reader opens
 	  one, and never again).  The tip is rendered hidden and
 	  uncovered by the script, so a reader who has already dismissed it does

@@ -375,23 +375,27 @@
 	pointer-events: none;
 	user-select: none;
 }
-/* Size menu (3.2): a preset width per card, so a visual can be sized without
- * the corner grip and without a pointer at all.  A native select rather than a
- * panel of our own, for two reasons: it is keyboard operable and announced
- * everywhere without a line of code from us, and a card clips its own contents
- * (overflow: hidden), so a panel positioned inside the header would be cut off
- * at the card's edge. */
+/* Size menu (3.2): preset widths and heights per card, so a visual can be sized
+ * without the corner grip and without a pointer at all.  A native select rather
+ * than a panel of our own, for two reasons: it is keyboard operable and
+ * announced everywhere without a line of code from us, and a card clips its own
+ * contents (overflow: hidden), so a panel positioned inside the header would be
+ * cut off at the card's edge.  Wide enough for the longest size it can report
+ * ("11 columns wide, 3 rows high"); on a card too narrow for that it shrinks and
+ * the text clips, which is the one place the size can be missed - the option is
+ * still announced in full. */
 .visual-size-select {
 	font-size: 0.7rem;
 	padding: 0.05rem 0.2rem;
 	margin-left: 0.3rem;
-	max-width: 7rem;
+	max-width: 11.5rem;
+	min-width: 5rem;
 	border: 1px solid var(--border, #dee2e6);
 	border-radius: 3px;
 	background: var(--header-bg, #f8f9fa);
 	color: var(--body-color, #212529);
 	cursor: pointer;
-	flex-shrink: 0;
+	flex-shrink: 1;
 }
 .visual-size-select:focus-visible {
 	outline: 2px solid var(--link, #0d6efd);
@@ -531,7 +535,7 @@
 		<span class="canvas-hint-grip" aria-hidden="true">::</span> handle in its header to move it
 		to another cell, and drag the grip in the card's bottom right corner to resize it.  Both
 		work from the keyboard as well: focus the header to move the visual, the corner grip
-		to resize it, and the Size menu in its header to set its width without a drag.
+		to resize it, and the Size menu in its header to set its width and height without a drag.
 	</p>
 	<button type="button" class="canvas-hint-close" id="canvas-hint-close"
 	        aria-describedby="canvas-hint-text">&#x2715; Got it</button>
@@ -561,18 +565,29 @@
 			<span class="visual-card-title" id="visual-title-[% v.id %]">[% v.title | html %]</span>
 			<span style="font-size:0.75rem;opacity:0.5;margin-left:0.5rem">[% v.kind | html %]</span>
 			[% IF canvas_id.length %]
-			<!-- A card's width is part of its canvas layout, and this is the same
+			<!-- A card's size is part of its canvas layout, and this is the same
 			     write as the corner grip without the drag: one menu per card, named
-			     for the card it sizes, whose options are widths in grid columns.  The
-			     option for the width a card actually is gets added and dropped by the
-			     script, because a drag can leave any width at all. -->
+			     for the card it sizes, whose entries are widths in grid columns and
+			     heights in grid rows.  The first option is written by the script and
+			     says the size the card actually is, because a drag can leave any
+			     width and any height at all; the two groups below it are the sizes
+			     that can be chosen. -->
 			<select class="visual-size-select" id="visual-size-[% v.id %]"
 			        aria-label="Size of [% v.title | html %]"
 			        aria-describedby="size-help">
-				<option value="12">Full width</option>
-				<option value="6">Half width</option>
-				<option value="4">Third width</option>
-				<option value="3">Quarter width</option>
+				<option value="" data-current="1">Size</option>
+				<optgroup label="Width">
+					<option value="12">Full width</option>
+					<option value="6">Half width</option>
+					<option value="4">Third width</option>
+					<option value="3">Quarter width</option>
+				</optgroup>
+				<optgroup label="Height">
+					<option value="h1">1 row high</option>
+					<option value="h2">2 rows high</option>
+					<option value="h3">3 rows high</option>
+					<option value="h6">6 rows high</option>
+				</optgroup>
 			</select>
 			[% END %]
 			<button class="visual-dl-btn" data-title="[% v.title | html %]" title="Download as PNG" hidden>&#x2B07; Save image</button>
@@ -601,7 +616,7 @@
 <p class="sr-only" id="move-help">Move a visual: drag its header, or focus the header and use
 the arrow keys to move it one grid cell at a time.  Hold Shift with an arrow key to jump to the
 edge of the canvas in that direction.  The new position is saved as you go, and reads out as
-the column and row it was moved to.</p>
+the column and row it was moved to, along with any visual the move pushed down.</p>
 <p class="sr-only" id="canvas-live" role="status"></p>
 [% END %]
 
@@ -614,9 +629,11 @@ widest the card can be.  The new size is saved as you go.</p>
 
 [% IF canvas_id.length %]
 <p class="sr-only" id="size-help">Size a visual without dragging: the Size menu in the card's
-header sets its width to the full width of the canvas, a half, a third or a quarter.  A card
-that has to move to be that wide is moved, anything it grows over moves down out of the way,
-and the choice is saved as soon as it is made.</p>
+header sets its width to the full width of the canvas, a half, a third or a quarter, and its
+height to one, two, three or six rows.  A card that has to move to be that wide is moved,
+anything it grows over moves down out of the way, and the choice is saved as soon as it is
+made.  The option the menu shows is the size the card is, so a card sized by dragging reads as
+the width and height it was left at.</p>
 [% END %]
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
@@ -668,18 +685,34 @@ and the choice is saved as soon as it is made.</p>
 	/* The card that was moved keeps the cell it was put in; every other card that
 	 * shares a cell with it - or with a card already placed - moves down until it
 	 * does not.  Only cards that collide move: a card in row 3 stays in row 3 when
-	 * something is dropped in row 1, because a canvas is a place and not a list. */
+	 * something is dropped in row 1, because a canvas is a place and not a list.
+	 * It returns the cards it had to move down, so a move can be announced in
+	 * full: a reader who hears about only the card they moved loses track of
+	 * the rest, and the next key press starts from a canvas they do not have. */
 	function pushApart(placed) {
-		var used = [spanOf(placed)];
+		var used  = [spanOf(placed)];
+		var moved = [];
 		Array.from(grid.querySelectorAll('.visual-card')).forEach(function (card) {
 			if (card === placed) return;
-			var sp = spanOf(card);
+			var sp   = spanOf(card);
+			var from = sp.y;
 			while (used.some(function (u) { return overlaps(sp, u); })) {
 				sp.y++;
 			}
 			applySpan(card, sp.x, sp.w, sp.y, sp.h);
+			if (sp.y !== from) moved.push({ card: card, to: sp.y });
 			used.push(sp);
 		});
+		return moved;
+	}
+
+	/* What a move or a resize did to the cards it got in the way of, as a clause
+	 * the announcement can carry; empty when nothing was in the way. */
+	function displacedText(moved) {
+		if (!moved.length) return '';
+		return '. ' + moved.map(function (m) {
+			return titleOf(m.card) + ' moved down to row ' + m.to;
+		}).join(', ');
 	}
 
 	function placeGhost(ghost, at) {
@@ -738,7 +771,7 @@ and the choice is saved as soon as it is made.</p>
 	 * arrow keys, so both end in the same writes. */
 	function commitMove(card, at, defer) {
 		applySpan(card, at.x, at.w, at.y, at.h);
-		pushApart(card);
+		var moved = pushApart(card);
 		/* The width a card may be resized to depends on the column it starts in,
 		 * which this has just changed. */
 		var handle = card.querySelector('.visual-resize-handle');
@@ -748,7 +781,7 @@ and the choice is saved as soon as it is made.</p>
 
 		announce(titleOf(card) + ' moved to column ' + at.x + ', row ' + at.y + ': ' +
 			at.w + (at.w === 1 ? ' column' : ' columns') + ' wide and ' +
-			at.h + (at.h === 1 ? ' row' : ' rows') + ' tall');
+			at.h + (at.h === 1 ? ' row' : ' rows') + ' tall' + displacedText(moved));
 	}
 
 	function announce(message) {
@@ -983,34 +1016,45 @@ and the choice is saved as soon as it is made.</p>
 		updateSizeSelect(card, st);
 	}
 
+	/* The label of a preset, taken from the menu itself so the option list is the
+	 * only place a preset's words are written. */
+	function presetLabel(sel, value) {
+		var opt = sel.querySelector('option[value="' + value + '"]');
+		return opt ? opt.textContent.trim() : '';
+	}
+
+	/* A size in the words the menu uses: a preset's own words when the card is on
+	 * one, the count when it is not - a card 7 columns wide must not claim to be
+	 * half - and the height in rows either way. */
+	function sizeSummary(sel, w, h) {
+		var width  = presetLabel(sel, String(w)) ||
+			(w + (w === 1 ? ' column wide' : ' columns wide'));
+		var height = presetLabel(sel, 'h' + h) ||
+			(h + (h === 1 ? ' row high' : ' rows high'));
+		return width + ', ' + height;
+	}
+
+	/* The summary is written to be read as a menu entry, so it starts with a
+	 * capital; a sentence needs it lower case. */
+	function lowerFirst(text) {
+		return text.charAt(0).toLowerCase() + text.slice(1);
+	}
+
 	/* The menu shows the size the card is, not the size it was last set to: a drag
-	 * can leave any width at all, and a card 7 columns wide must not claim to be
-	 * half.  A width with no preset of its own gets an option of its own, which is
-	 * dropped again once the card is back on a preset.  It runs at load too, so the
-	 * menu shows the width the browser laid out rather than the width the template
-	 * guessed - a card with no saved position is placed by the browser. */
+	 * can leave any width and any height at all, and a card 7 columns wide must
+	 * not claim to be half.  It runs at load too, so the menu shows the size the
+	 * browser laid out rather than the size the template guessed - a card with no
+	 * saved position is placed by the browser. */
 	function updateSizeSelect(card, state) {
 		var sel = card.querySelector('.visual-size-select');
 		if (!sel) return;
 
 		var st      = state || resizeState(card);
-		var w       = String(st.w);
 		var current = sel.querySelector('option[data-current="1"]');
+		if (!current) return;
 
-		if (sel.querySelector('option[value="' + w + '"]')) {
-			if (current) current.parentNode.removeChild(current);
-		} else if (current) {
-			current.value       = w;
-			current.textContent = w + ' columns';
-		} else {
-			current = document.createElement('option');
-			current.setAttribute('data-current', '1');
-			current.value       = w;
-			current.textContent = w + ' columns';
-			sel.insertBefore(current, sel.firstChild);
-		}
-
-		sel.value = w;
+		current.textContent = sizeSummary(sel, st.w, st.h);
+		sel.value = current.value;
 	}
 
 	/* Size a card from the menu.  The same writes the corner grip makes, with the
@@ -1020,21 +1064,24 @@ and the choice is saved as soon as it is made.</p>
 	 * over is pushed down (pushApart), which is what keeps the PATCH acceptable:
 	 * the server rejects a layout in which two cards share a cell, and a rejected
 	 * layout is a size that is lost at the next reload. */
-	function commitSize(card, w, label) {
+	function commitSize(card, w, h) {
 		var sp = spanOf(card);
 		w = clampSpan(w, 1, GRID_COLS);
+		h = clampSpan(h, 1, MAX_ROW_SPAN);
 		var x = clampSpan(sp.x, 1, GRID_COLS - w + 1);
 
-		applySpan(card, x, w, sp.y, sp.h);
-		pushApart(card);
+		applySpan(card, x, w, sp.y, h);
+		var moved = pushApart(card);
 
 		var handle = card.querySelector('.visual-resize-handle');
 		if (handle) updateResizeAria(handle, card);
 
 		scheduleSave();
 
-		announce(titleOf(card) + ' is now ' + (label ? label.toLowerCase() + ': ' : '') +
-			w + (w === 1 ? ' column' : ' columns') + ' wide in column ' + x);
+		var sel = card.querySelector('.visual-size-select');
+		announce(titleOf(card) + ' is now ' +
+			lowerFirst(sel ? sizeSummary(sel, w, h) : w + ' columns wide, ' + h + ' rows high') +
+			' in column ' + x + displacedText(moved));
 	}
 
 	/* One PATCH per burst of key presses rather than one per press: a held arrow
@@ -1142,13 +1189,17 @@ and the choice is saved as soon as it is made.</p>
 
 	initResizeHandles();
 
-	/* ---- the size menu (3.2): a width without a drag ----
+	/* ---- the size menu (3.2): width and height without a drag ----
 	 *
-	 * Each option is a width in grid columns, applied through commitSize, so the
-	 * menu and the corner grip end in the same layout and the same PATCH.  Focus
-	 * stays on the menu after a choice, which is where the reader already is: the
-	 * width can be changed again, or tabbed away from, without hunting for the
-	 * card again.
+	 * Each entry is a width in grid columns or a height in grid rows, applied
+	 * through commitSize, so the menu and the corner grip end in the same layout
+	 * and the same PATCH.  Focus stays on the menu after a choice, which is where
+	 * the reader already is: the size can be changed again, or tabbed away from,
+	 * without hunting for the card again.  The first option is not a choice but
+	 * the size the card is; it is what the menu shows when the size came from
+	 * somewhere else (a drag, an arrow key, a reload), while a choice made here
+	 * stays selected, so the arrow keys walk the entries one after another
+	 * instead of being pulled back to the top after every one.
 	 */
 	function initSizeMenus() {
 		if (!grid || !anaId) return;
@@ -1159,16 +1210,29 @@ and the choice is saved as soon as it is made.</p>
 			updateSizeSelect(card);
 
 			sel.addEventListener('change', function () {
-				var w   = parseInt(sel.value, 10);
-				if (isNaN(w)) return;
+				var raw   = sel.value;
+				var index = sel.selectedIndex;
 
-				/* The option list carries the size the card is, so choosing it again
-				 * lands here and should do nothing rather than re-announce itself. */
-				if (w === spanOf(card).w) return;
+				/* The first option says what the card is, not what it should
+				 * become: choosing it again is not a choice. */
+				if (!raw) return;
 
-				var opt = sel.options[sel.selectedIndex];
-				var preset = opt && !opt.getAttribute('data-current');
-				commitSize(card, w, preset ? opt.textContent.trim() : '');
+				var st      = resizeState(card);
+				var isRow   = raw.charAt(0) === 'h';
+				var value   = parseInt(isRow ? raw.slice(1) : raw, 10);
+
+				/* Choosing the size the card already is should do nothing rather
+				 * than re-announce itself, and leave the entry selected so the next
+				 * arrow key carries on down the list. */
+				if (isNaN(value) || value === (isRow ? st.h : st.w)) return;
+
+				if (isRow) commitSize(card, st.w, value);
+				else       commitSize(card, value, st.h);
+
+				/* The entry that was chosen stays chosen: the commit re-selects the
+				 * summary, and a reader stepping down the list with the arrow keys
+				 * would otherwise be pulled back to the top after every change. */
+				sel.selectedIndex = index;
 			});
 		});
 	}

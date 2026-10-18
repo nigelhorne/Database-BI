@@ -1006,6 +1006,69 @@ subtest '3.2: resize handles take focus, answer the arrow keys and are announced
 	like $b, qr/\.visual-card:focus-within/,           'the focused card is visible';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 2 -- chart pages: the corner grip is operable without a pointer, the
+# same treatment the canvas card handles get
+# ---------------------------------------------------------------------------
+
+subtest '2: chart resize handles take focus, answer the arrow keys and are announced' => sub {
+	plan skip_all => 'HTML::D3 not available' unless eval { require HTML::D3; 1 };
+
+	$t->get_ok('/bar?l=table:sales&cat=region&val=amount')
+		->status_is(200, 'bar chart page loads');
+	my $b = $t->tx->res->body;
+
+	# The grip is created by the chart-page script, so these are the writes that
+	# make it a control rather than a decoration.
+	like $b, qr/handle\.setAttribute\('role', 'slider'\)/,
+		'the grip is exposed as a slider';
+	like $b, qr/handle\.setAttribute\('tabindex', '0'\)/,
+		'the grip is in the tab order';
+	like $b, qr/'aria-label', 'Resize ' \+ title/,
+		'the grip is named for the chart it resizes';
+	like $b, qr/'aria-describedby', 'chart-resize-help'/,
+		'the grip points at the instructions';
+	like $b, qr/'aria-orientation', 'horizontal'/,
+		'the width is the axis the value tracks';
+	like $b, qr/'aria-valuemin', String\(MIN_W\)/,
+		'the slider declares its minimum';
+
+	# A name and a description that resolve: the instructions are on the page,
+	# not left to the script to invent, so a reader without JavaScript is told
+	# what the grip would do.
+	like $b, qr/<p class="sr-only" id="chart-resize-help">/,
+		'the instructions are on the page';
+	like $b, qr/id="chart-resize-help"[^>]*>[^<]*arrow keys/s,
+		'the instructions name the arrow keys';
+	like $b, qr/id="chart-resize-help"[^>]*>[^<]*Home and End/s,
+		'the instructions name the two ends';
+	like $b, qr/id="chart-resize-help"[^>]*>[^<]*Shift/s,
+		'the instructions name the faster step';
+
+	# The keys, and the announcement of what they did.
+	like $b, qr/function onChartResizeKey/,      'keyboard resize handler defined';
+	like $b, qr/'keydown',\s+onChartResizeKey/,  'handler wired to the grip';
+	like $b, qr/ArrowRight/,                     'right widens the chart';
+	like $b, qr/ArrowLeft/,                      'left narrows it';
+	like $b, qr/ArrowDown/,                      'down makes it taller';
+	like $b, qr/ArrowUp/,                        'up makes it shorter';
+	like $b, qr/e\.key === 'Home'/,              'Home goes to the narrowest width';
+	like $b, qr/e\.key === 'End'/,               'End goes to the widest width';
+	like $b, qr/e\.preventDefault\(\)/,
+		'the arrow keys do not scroll the page';
+	like $b, qr/setAttribute\('aria-valuenow'/,  'the width is announced as the value';
+	like $b, qr/setAttribute\('aria-valuetext'/, 'both dimensions are announced';
+	like $b, qr/function onUp[\s\S]*?updateChartAria\(handle, svg, wrap\)/,
+		'the announcement is refreshed after a drag too';
+
+	# ... and the focus affordance that makes the control findable by eye, and
+	# says which chart the keys will resize.
+	like $b, qr/\.chart-resize-handle:focus-visible/, 'the focused grip is visible';
+	like $b, qr/\.chart-resize-handle:focus-visible\s*\{[^}]*opacity\s*:\s*1/s,
+		'the focused grip is drawn at full strength, not at its resting 35%';
+	like $b, qr/\.chart-svg-wrap:focus-within/,       'the focused chart is visible';
+};
+
 subtest '3.2: a visual can be put in a chosen cell, not the next free one' => sub {
 	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
 	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
@@ -1124,6 +1187,18 @@ subtest '3.2: cards are dragged to a cell, and moved with the arrow keys' => sub
 	like $b, qr/function gridBottom/,       'the bottom of the canvas is computed';
 	like $b, qr/function announce/,         'each move is announced';
 	like $b, qr/\.drag-handle:focus-visible/, 'the focused handle is visible';
+
+	# The announcement covers the arrangement the move leaves behind, not just
+	# the card that was moved: a reader who is told only about their own card
+	# loses track of the one that was pushed out of its cell, and the next key
+	# press starts from a canvas they do not have.
+	like $b, qr/return moved;/, 'pushApart reports the cards it had to move down';
+	like $b, qr/function displacedText/, 'the announcement has one place to name them';
+	like $b, qr/titleOf\(m\.card\) \+ ' moved down to row ' \+ m\.to/,
+		'each named with the row it was pushed to';
+	my $displaced = () = $b =~ /displacedText\(moved\)/g;
+	is $displaced, 3,
+		'and both a move and a size change say what they pushed aside (one definition, two calls)';
 };
 
 # ---------------------------------------------------------------------------
@@ -1170,27 +1245,62 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 	like $b, qr/<option value="4">Third width<\/option>/,   'third width is a preset';
 	like $b, qr/<option value="3">Quarter width<\/option>/, 'quarter width is a preset';
 	like $b, qr/GRID_COLS\s*=\s*12/, 'and full width is the whole twelve-column grid';
+	like $b, qr/<optgroup label="Width">/, 'the widths are grouped under their name';
+
+	# Height presets in the same menu, so the second dimension needs no drag
+	# either.  The values are prefixed, because a select carries one value and
+	# "2" would be read as a width.
+	like $b, qr/<optgroup label="Height">/, 'the heights are grouped too';
+	like $b, qr/<option value="h1">1 row high<\/option>/, 'one row is a preset';
+	like $b, qr/<option value="h2">2 rows high<\/option>/, 'two rows is a preset';
+	like $b, qr/<option value="h3">3 rows high<\/option>/, 'three rows is a preset';
+	like $b, qr/<option value="h6">6 rows high<\/option>/,  'and six, the tallest a card can be';
+	like $b, qr/MAX_ROW_SPAN\s*=\s*6/, 'which is the row span limit';
+
+	# One option is not a choice but the size the card is, written by the script
+	# from the measured span so a drag cannot leave the menu lying.
+	like $b, qr/<option value="" data-current="1">Size<\/option>/,
+		'the first option is the size the card actually is';
+	like $b, qr/function sizeSummary/,
+		'which is written from both dimensions';
+	like $b, qr/function presetLabel/, 'in the preset words, where the card is on one';
+	like $b, qr/current\.textContent = sizeSummary\(sel, st\.w, st\.h\);/,
+		'width and height together';
 
 	# The menu and the corner grip are two ways to the same write.
-	like $b, qr/function commitSize/,  'a chosen width is applied by commitSize';
+	like $b, qr/function commitSize\(card, w, h\)/,
+		'a chosen width and height are applied by commitSize';
+	like $b, qr/h = clampSpan\(h, 1, MAX_ROW_SPAN\);/, 'the height within the row limit';
+	like $b, qr/var isRow   = raw\.charAt\(0\) === 'h';/,
+		'a prefixed value is a height, a bare one a width';
+	like $b, qr/if \(isRow\) commitSize\(card, st\.w, value\);/, 'a height keeps the width';
+	like $b, qr/else       commitSize\(card, value, st\.h\);/, 'a width keeps the height';
 	like $b, qr/function initSizeMenus/,
 		'each menu is wired up';
 	like $b, qr/^\s*initSizeMenus\(\);$/m, 'at load';
 	like $b, qr/function updateSizeSelect/,
 		'the menu shows the size the card actually is';
 	like $b, qr/option\[data-current="1"\]/,
-		'and a width that is no preset gets an option of its own';
+		'and the option that says what the card is is found by its own marker';
+	like $b, qr/id="size-help"[^>]*>[^<]*height to one, two, three or six rows/s,
+		'the help says the menu sets the height as well';
 	like $b, qr/updateSizeSelect\(card, st\)/,
 		'so a drag, which leaves any width, is reflected in the menu';
-	like $b, qr/if \(w === spanOf\(card\)\.w\) return;/,
+	like $b, qr/if \(isNaN\(value\) \|\| value === \(isRow \? st\.h : st\.w\)\) return;/,
 		'choosing the size it already is does nothing at all';
-	like $b, qr/announce\(titleOf\(card\) \+ ' is now ' \+ \(label \?/,
-		'the new size is announced, not just drawn';
+	like $b, qr/var index = sel\.selectedIndex;/, 'the entry that was chosen is remembered';
+	like $b, qr/sel\.selectedIndex = index;/,
+		'and stays selected, so the arrow keys walk the list rather than being pulled back';
+	like $b, qr/announce\(titleOf\(card\) \+ ' is now ' \+/, 'the new size is announced';
+	like $b, qr/lowerFirst\(sel \? sizeSummary\(sel, w, h\)/,
+		'both dimensions of it, in the menu words, not just drawn';
 	like $b, qr/closest\('\.visual-resize-handle, button, a, select'\)/,
 		'a press on the menu does not start a card drag';
 	like $b, qr/\@media print.*?\.visual-size-select[^{]*\{[^}]*display\s*:\s*none/s,
 		'the menu is not printed';
-	like $b, qr/Size menu in its header to set its width without a drag/,
+	like $b, qr/\.visual-size-select \{[^}]*max-width:\s*11\.5rem/s,
+		'and is wide enough to read the longest size it can report';
+	like $b, qr/Size menu in its header to set its width and height without a drag/,
 		'and the first-visit tip names it too';
 
 	# A card that has to move to be the width that was chosen is moved, and what

@@ -1243,6 +1243,9 @@
       word-break: break-all;
     }
   </style>
+  [%- IF extra_head %]
+  [% extra_head %]
+  [%- END %]
 </head>
 <body>
   <header>
@@ -1473,6 +1476,21 @@
 }
 .chart-resize-handle:hover,
 .chart-svg-wrap:hover .chart-resize-handle { opacity: 0.85; }
+/* Keyboard focus.  The grip is the only way to resize a chart without a
+   pointer, so once it has focus it has to be findable, and the chart it
+   belongs to has to be obvious: the arrow keys resize the focused chart.
+   :focus-visible rather than :focus, so a pointer drag does not leave a ring
+   behind. */
+.chart-resize-handle:focus-visible {
+  outline: 2px solid #0d6efd;
+  outline-offset: 2px;
+  border-radius: 3px;
+  /* The grip rests at 35% so it does not compete with the data; a focused
+     control has to be the opposite of that. */
+  opacity: 1;
+}
+.chart-resize-handle:focus-visible::after { opacity: 1; }
+.chart-svg-wrap:focus-within { outline: 2px solid #0d6efd; outline-offset: 4px; }
 </style>
 <button id="add-to-canvas-btn" title="Add this chart to an existing canvas">+ Add to Existing Canvas</button>
 <div id="add-to-canvas-panel">
@@ -1591,14 +1609,27 @@
   });
 }());
 </script>
+<p class="sr-only" id="chart-resize-help">Resize a chart: focus its handle at the bottom right
+of the chart, then use the left and right arrow keys to change its width and the up and down
+arrow keys to change its height.  Hold Shift for bigger steps, and Home and End to go to the
+narrowest and widest the chart can be.  The new size is announced as it changes and lasts until
+the page is reloaded.</p>
 <script>
 /* Chart resize handle -- injected after D3 and the viewBox-widening JS
    (graph.html.tt setTimeout 0) have both run.  Wraps each chart SVG in a
    relative-positioned div and appends a draggable triangle grip at the
    bottom-right corner.  Dragging updates the SVG width/height while keeping
-   the viewBox fixed so D3 content scales proportionally. */
+   the viewBox fixed so D3 content scales proportionally.
+
+   The grip is a control as well as a grab area, the same as the canvas card
+   handles: it takes focus, the arrow keys resize the chart, and the size is
+   announced.  A 2-D resize has no ARIA role of its own, so it carries slider
+   semantics -- the value is the width in pixels, the axis left and right move --
+   and the height goes into aria-valuetext ("640 pixels wide, 480 pixels
+   high"), which is what a screen reader announces when either dimension
+   changes.  The keys themselves are described by #chart-resize-help. */
 (function () {
-  var MIN_W = 200, MIN_H = 120;
+  var MIN_W = 200, MIN_H = 120, STEP = 10, BIG_STEP = 50;
 
   function ensureViewBox(svg) {
     if (svg.getAttribute('viewBox')) return;
@@ -1607,8 +1638,54 @@
     if (w && h) svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
   }
 
+  /* The chart's name, for the handle's label: the page's visible title, which
+     is what tells a reader which chart this handle sizes. */
+  function chartTitle() {
+    var heading = document.querySelector('.graph-title');
+    var text = heading && heading.textContent ? heading.textContent.replace(/\s+/g, ' ').trim() : '';
+    return text || 'this chart';
+  }
+
+  function chartSize(svg, wrap) {
+    var w = parseFloat(svg.getAttribute('width'))  || wrap.getBoundingClientRect().width  || MIN_W;
+    var h = parseFloat(svg.getAttribute('height')) || wrap.getBoundingClientRect().height || MIN_H;
+    return { w: clampWidth(w), h: clampHeight(h) };
+  }
+
+  /* The widest the chart can be and still keep its own grip on screen. */
+  function maxWidth() {
+    return Math.max(MIN_W, Math.round(document.documentElement.clientWidth));
+  }
+
+  function clampWidth(w)  { return Math.max(MIN_W, Math.min(Math.round(w), maxWidth())); }
+  function clampHeight(h) { return Math.max(MIN_H, Math.round(h)); }
+
+  /* The handle's value attributes, from the size the SVG is drawn at.  They
+     cannot be written in the markup: the handle is created here, once the
+     chart exists and its size is known. */
+  function updateChartAria(handle, svg, wrap, size) {
+    var st = size || chartSize(svg, wrap);
+    handle.setAttribute('aria-valuenow', String(st.w));
+    handle.setAttribute('aria-valuemax', String(maxWidth()));
+    handle.setAttribute('aria-valuetext',
+      st.w + ' pixels wide, ' + st.h + ' pixels high');
+  }
+
+  /* The one write both the drag and the keyboard make. */
+  function applyChartSize(svg, wrap, w, h, handle) {
+    w = clampWidth(w);
+    h = clampHeight(h);
+    svg.setAttribute('width',  w);
+    svg.setAttribute('height', h);
+    wrap.style.width  = w + 'px';
+    wrap.style.height = h + 'px';
+    if (handle) updateChartAria(handle, svg, wrap, { w: w, h: h });
+    return { w: w, h: h };
+  }
+
   function initChartResize() {
     var containers = document.querySelectorAll('.graph-container, .pie-container, .bar-container, .heatmap-container, .scatter-container, .stacked-container, .combo-container, .treemap-container, .histogram-container');
+    var title = chartTitle();
     for (var ci = 0; ci < containers.length; ci++) {
       var container = containers[ci];
       var svg = container.querySelector('svg');
@@ -1624,8 +1701,15 @@
       wrap.appendChild(svg);
       var handle = document.createElement('div');
       handle.className = 'chart-resize-handle';
-      handle.setAttribute('title', 'Drag to resize chart');
+      handle.setAttribute('role', 'slider');
+      handle.setAttribute('tabindex', '0');
+      handle.setAttribute('aria-label', 'Resize ' + title);
+      handle.setAttribute('aria-describedby', 'chart-resize-help');
+      handle.setAttribute('aria-orientation', 'horizontal');
+      handle.setAttribute('aria-valuemin', String(MIN_W));
+      handle.setAttribute('title', 'Drag, or focus and use the arrow keys, to resize this chart');
       wrap.appendChild(handle);
+      updateChartAria(handle, svg, wrap);
       (function (svg, handle, wrap) {
         var startX, startY, startW, startH;
         function onDown(e) {
@@ -1645,21 +1729,41 @@
           var touch = e.touches && e.touches[0];
           var cx = touch ? touch.clientX : e.clientX;
           var cy = touch ? touch.clientY : e.clientY;
-          var newW = Math.max(MIN_W, startW + cx - startX);
-          var newH = Math.max(MIN_H, startH + cy - startY);
-          svg.setAttribute('width',  newW);
-          svg.setAttribute('height', newH);
-          wrap.style.width  = newW + 'px';
-          wrap.style.height = newH + 'px';
+          applyChartSize(svg, wrap, startW + cx - startX, startH + cy - startY);
         }
         function onUp() {
           document.removeEventListener('mousemove', onMove);
           document.removeEventListener('mouseup',   onUp);
           document.removeEventListener('touchmove', onMove);
           document.removeEventListener('touchend',  onUp);
+          /* A drag changes the same value the keyboard does. */
+          updateChartAria(handle, svg, wrap);
+        }
+        /* The keyboard equivalent of the drag: the same write, the same limits,
+           one step at a time.  preventDefault() runs even at a limit, so an
+           arrow key on the handle never scrolls the page out from under the
+           chart being resized. */
+        function onChartResizeKey(e) {
+          var st   = chartSize(svg, wrap);
+          var step = e.shiftKey ? BIG_STEP : STEP;
+          var w    = st.w;
+          var h    = st.h;
+
+          if      (e.key === 'ArrowRight') w = clampWidth(w + step);
+          else if (e.key === 'ArrowLeft')  w = clampWidth(w - step);
+          else if (e.key === 'ArrowDown')  h = clampHeight(h + step);
+          else if (e.key === 'ArrowUp')    h = clampHeight(h - step);
+          else if (e.key === 'Home')       w = MIN_W;
+          else if (e.key === 'End')        w = maxWidth();
+          else return;
+
+          e.preventDefault();
+          if (w === st.w && h === st.h) return;
+          applyChartSize(svg, wrap, w, h, handle);
         }
         handle.addEventListener('mousedown',  onDown);
         handle.addEventListener('touchstart', onDown, { passive: false });
+        handle.addEventListener('keydown',     onChartResizeKey);
       }(svg, handle, wrap));
     }
   }

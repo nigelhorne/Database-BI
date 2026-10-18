@@ -14,7 +14,7 @@ use CGI::Info;
 use CGI::Lingua;
 use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json);
-use Mojo::Util		qw(url_escape encode);
+use Mojo::Util		qw(url_escape encode xml_escape);
 use File::Path		qw(remove_tree);
 use File::Spec;
 use File::Temp		qw(tempfile tempdir);
@@ -106,6 +106,16 @@ Readonly my %MESSAGES => (
 	error_analysis_id_invalid   => 'Invalid analysis id',
 	error_param_range           => "Parameter '%s' is out of range (min %s, max %s)",
 	error_param_type            => "Parameter '%s' must be a number",
+	error_map_source            => 'A map needs loc=<column> to geocode, or both lat= and lon= coordinate columns',
+	error_map_coordinates       => 'A map with lat= needs lon= as well, and a map with lon= needs lat=',
+	error_map_loc_column        => 'Column "%s" is not in this view, so there is nothing to geocode',
+	error_map_coordinate_range  => 'Column "%s" holds only values outside the range of %s; check that lat= and lon= are not swapped',
+	error_map_coordinate_numeric => 'Columns "%s" and "%s" hold no numeric coordinate pairs; a map needs numbers, or loc=<column> to geocode places',
+	error_map_no_markers        => 'No row has a location that could be plotted',
+	error_map_renderer_missing  => 'Drawing a map needs HTML::OSM 0.10 or later, and it could not be loaded',
+	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
+	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
+	warn_map_cache_unwritten    => 'The resolved places could not be remembered in the model store, so the next request will look them up again',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -114,6 +124,8 @@ Readonly my %MESSAGES => (
 Readonly my $MAX_UPLOAD_MIB      => 50;
 Readonly my $MAX_UPLOAD_BYTES    => $MAX_UPLOAD_MIB * 1_048_576;
 Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
+Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_geocode_max)
+Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
 Readonly my $MAX_PER_PAGE          => 2_000;
@@ -1513,12 +1525,18 @@ sub _read_models :Protected ($self) {
 	return $data;
 }
 
-# _write_models($self, \%models) -- persists models to .bi/models.json
+# _write_models($self, \%models) -> $bool
+#
+# Persists models to .bi/models.json.  Returns false when the store could not be
+# written - because the data_dir guard refused it, or because the write failed -
+# so a caller whose result is only an optimisation (the geocode cache: it
+# degrades to a per-request cache) can say so rather than pretend.
 sub _write_models :Protected ($self, $models) {
 	my $path = $self->_calc_models_path;
-	return unless defined $path;
-	eval { Mojo::File->new($path)->spurt(encode_json($models)) };
-	$self->app->log->warn("Cannot write $path: $@") if $@;
+	return 0 unless defined $path;
+	my $ok = eval { Mojo::File->new($path)->spurt(encode_json($models)); 1 };
+	$self->app->log->warn("Cannot write $path: $@") if !$ok && $@;
+	return $ok ? 1 : 0;
 }
 
 # ---------------------------------------------------------------------------
@@ -6677,6 +6695,287 @@ sub histogram_view ($self) {
 	);
 }
 
+# ---------------------------------------------------------------------------
+# Map  (GET /map)
+#
+# Phase 6.1/6.2: one route, one template, two ways for a row to get a
+# position.  With lat= and lon= the columns already hold coordinates; with
+# loc=<column> every distinct value of that column is geocoded once, by
+# Database::BI::Model::Geocode, and the resolved places are remembered in the
+# model store so a second visit asks nothing.  Everything before that - the
+# pipeline, calculated fields and f= filters - is the same as every other
+# visual, so a map shows the filtered, calculated view and not the raw table.
+# ---------------------------------------------------------------------------
+
+sub map_view ($self) {
+	my $loc_col   = $self->param('loc') // '';
+	my $lat_col   = $self->param('lat') // '';
+	my $lon_col   = $self->param('lon') // '';
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	my $by_location = length $loc_col;
+
+	return $self->render(text => $self->_i18n('error_map_source'), status => 400)
+		unless $by_location || (length($lat_col) && length($lon_col));
+	return $self->render(text => $self->_i18n('error_map_coordinates'), status => 400)
+		if !$by_location && (!length($lat_col) || !length($lon_col));
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) {
+		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+		return $self->render(text => $e, status => 400);
+	}
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my %col_set = map { $_ => 1 } @{ $columns };
+	my $cfg     = $self->app->config;
+
+	# popup= names the columns shown in a marker's popup; without it a marker
+	# says what it is and how many rows it stands for, which is the whole of what
+	# an aggregated point knows.
+	my @popup = grep { length($_) && $_ ne $loc_col && $col_set{$_} }
+		@{ $self->every_param('popup') };
+
+	my ($backend, $plotted_rows) = (undef, 0);
+	my (@markers, @messages);
+
+	if ($by_location) {
+		return $self->render(text => $self->_i18n('error_map_loc_column', $loc_col), status => 400)
+			unless $col_set{$loc_col};
+
+		require Database::BI::Model::Geocode;
+
+		# The geocoder is a config seam first and a recommended dependency
+		# second: a deployment may hand in an object, and a test does exactly
+		# that.  With neither, the model reports the module as unavailable and
+		# the map is still the map.
+		my $injected = $cfg->{geocoder};
+		my $geocode  = Database::BI::Model::Geocode->new(
+			(defined($injected) && ref($injected) && $injected->can('geocode_many')
+				? (geocoder => $injected) : ()),
+			(defined($cfg->{openaddr}) && length($cfg->{openaddr})
+				? (openaddr => $cfg->{openaddr}) : ()),
+		);
+
+		my $spec   = join('|', $self->param('l') // '', 'loc=' . $loc_col);
+		my $models = $self->_read_models;
+		my $region = $cfg->{map_region};
+
+		my $result = $geocode->resolve_column(
+			$records, $loc_col,
+			cache => Database::BI::Model::Geocode->cache_from_models($models, $spec),
+			((defined($region) && $region =~ /\A[A-Za-z]{2}\z/) ? (region => $region) : ()),
+			max   => _map_limit($cfg->{map_geocode_max}, $DEFAULT_MAP_GEOCODE_MAX),
+		);
+
+		push @messages, @{ $result->{messages} };
+		$backend      = $result->{backend};
+		$plotted_rows = $result->{counts}{plotted};
+
+		# Only a request that asked something new has something new to remember:
+		# rewriting the store for a page answered entirely from the cache would be
+		# a write per view.
+		if ($result->{counts}{attempted}) {
+			my $updated = Database::BI::Model::Geocode->models_with_cache(
+				$models, $spec, $result->{cache},
+				(defined($backend) ? (backend => $backend) : ()),
+				built => _iso8601_utc(),
+			);
+			push @messages, {
+				key  => 'warn_map_cache_unwritten',
+				text => $self->_i18n('warn_map_cache_unwritten'),
+			} unless $self->_write_models($updated);
+		}
+
+		for my $marker (@{ $result->{markers} }) {
+			my $row = ($marker->{first_row} <= $#$records)
+				? $records->[ $marker->{first_row} ] : {};
+			push @markers, {
+				%{ $marker },
+				'label' => _map_popup(
+					$marker->{value}, $marker->{rows},
+					[ map { [ $_, $row->{$_} ] } @popup ],
+				),
+			};
+		}
+
+	} else {
+		return $self->render(text => "Column not found: $lat_col", status => 400)
+			unless $col_set{$lat_col};
+		return $self->render(text => "Column not found: $lon_col", status => 400)
+			unless $col_set{$lon_col};
+
+		my (%by_key, $out_of_lat, $out_of_lon, $unusable);
+
+		for my $index (0 .. $#$records) {
+			my $row = $records->[$index];
+			my $lat = _numeric_cell($row->{$lat_col} // '');
+			my $lon = _numeric_cell($row->{$lon_col} // '');
+
+			# A row is never plotted at (0,0): a fake point in the Gulf of
+			# Guinea is worse than a missing one.  A whole column outside its
+			# range is named instead, because a transposed pair is the error a
+			# user makes here.
+			if (defined($lat) && ($lat < -90 || $lat > 90)) { $out_of_lat++; next }
+			if (defined($lon) && ($lon < -180 || $lon > 180)) { $out_of_lon++; next }
+			unless (defined($lat) && defined($lon)) { $unusable++; next }
+
+			# Rows at one coordinate are one marker: that is what makes a large
+			# file renderable, and "how many are here?" is the question a map
+			# answers.
+			my $key   = sprintf('%.6f,%.6f', $lat, $lon);
+			my $point = $by_key{$key};
+			if ($point) { $point->{rows}++; next }
+
+			$point = $by_key{$key} = {
+				'lat' => $lat, 'lon' => $lon, 'rows' => 1, 'first_row' => $index,
+			};
+			push @markers, $point;
+		}
+
+		return $self->render(
+			text   => $self->_i18n('error_map_coordinate_range', $lat_col, 'latitude'),
+			status => 400,
+		) if !@markers && $out_of_lat;
+		return $self->render(
+			text   => $self->_i18n('error_map_coordinate_range', $lon_col, 'longitude'),
+			status => 400,
+		) if !@markers && $out_of_lon;
+		return $self->render(
+			text   => $self->_i18n('error_map_coordinate_numeric', $lat_col, $lon_col),
+			status => 400,
+		) if !@markers && @{ $records };
+
+		$plotted_rows += $_->{rows} for @markers;
+
+		push @messages, {
+			key  => 'warn_map_coordinate_rows',
+			text => $self->_i18n('warn_map_coordinate_rows', $plotted_rows,
+				scalar(@{ $records }), scalar(@{ $records }) - $plotted_rows),
+		} if $plotted_rows < scalar @{ $records };
+
+		for my $marker (@markers) {
+			my $row = $records->[ $marker->{first_row} ];
+			$marker->{label} = _map_popup(
+				sprintf('%.6f, %.6f', $marker->{lat}, $marker->{lon}),
+				$marker->{rows},
+				[ map { [ $_, $row->{$_} ] } @popup ],
+			);
+		}
+	}
+
+	my $title = $by_location ? "Map of $loc_col" : "$lat_col and $lon_col";
+	my $cap   = _map_limit($self->param('max'),
+		_map_limit($cfg->{map_max_markers}, $DEFAULT_MAP_MAX_MARKERS));
+
+	if (@markers > $cap) {
+		push @messages, {
+			key  => 'warn_map_markers_capped',
+			text => $self->_i18n('warn_map_markers_capped', $cap, scalar @markers),
+		};
+		@markers = @markers[0 .. $cap - 1];
+	}
+
+	push @messages, {
+		key  => 'error_map_no_markers',
+		text => $self->_i18n('error_map_no_markers'),
+	} unless @markers;
+
+	# Leaflet's CSS and JS belong in the head, which the layout owns; the rest of
+	# the map - the search box, the buttons, the div and its script - goes in the
+	# body where the map should appear.
+	my ($map_head, $map_body);
+	if (@markers) {
+		# HTML::OSM is a recommended dependency, so its absence is a state the
+		# page reports and survives: the markers are still counted, nothing is
+		# drawn, and the rest of the application is untouched.
+		if (eval { require HTML::OSM; 1 }) {
+			my $map = HTML::OSM->new(height => '560px', width => '100%');
+			for my $marker (@markers) {
+				$map->add_marker([ $marker->{lat}, $marker->{lon} ], html => $marker->{label});
+			}
+			($map_head, $map_body) = $map->onload_render();
+		} else {
+			push @messages, {
+				key  => 'error_map_renderer_missing',
+				text => $self->_i18n('error_map_renderer_missing'),
+			};
+		}
+	}
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+	my ($platform, $language) = $self->_resolve_template;
+
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/map",
+		format          => 'html',
+		title           => $title,
+		extra_head      => $map_head,
+		map_body        => $map_body,
+		messages        => \@messages,
+		marker_count    => scalar @markers,
+		row_count       => $plotted_rows,
+		source_rows     => scalar @{ $records },
+		loc_col         => ($by_location ? $loc_col : undef),
+		lat_col         => ($by_location ? undef    : $lat_col),
+		lon_col         => ($by_location ? undef    : $lon_col),
+		backend         => $backend,
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+	);
+}
+
+# _map_popup($heading, $rows, \@extras) -> $html
+#
+# The popup for one marker: what it is, how many rows it stands for, and the
+# columns the request asked for.  Leaflet treats a popup string as HTML, and a
+# place name out of a user's file is not markup, so every value is escaped here.
+sub _map_popup {
+	my ($heading, $rows, $extras) = @_;
+
+	my @lines = '<strong>' . xml_escape($heading // '') . '</strong>';
+	push @lines, $rows . ($rows == 1 ? ' row' : ' rows');
+	push @lines, map { xml_escape($_->[0]) . ': ' . xml_escape($_->[1]) }
+		grep { defined($_->[1]) && length($_->[1]) } @{ $extras // [] };
+
+	return join('<br>', @lines);
+}
+
+# _map_limit($value, $default) -> $integer
+#
+# A positive integer from a config value or request parameter, or the default.
+# An absent, empty or nonsensical map setting is an operator's typo, not a data
+# error, so the page falls back instead of refusing.
+sub _map_limit {
+	my ($value, $default) = @_;
+
+	return $default unless defined($value) && ($value =~ /\A\d+\z/) && ($value > 0);
+
+	return $value + 0;
+}
+
+# _iso8601_utc() -> $string
+#
+# When a geocode cache was built, in the form the model store records.
+sub _iso8601_utc {
+	require POSIX;
+
+	return POSIX::strftime('%Y-%m-%dT%H:%M:%SZ', gmtime());
+}
+
 1;
 
 __END__
@@ -7211,6 +7510,60 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 
   GET /histogram?l=table:sales&col=amount&bins=20
     -> 200 HTML page containing D3 histogram SVG
+
+=cut
+
+=head2 map_view
+
+C<GET /map> -- Render an OpenStreetMap map of the view.
+
+A row gets a position one of two ways.  With C<loc=E<lt>columnE<gt>> the column
+holds places, and each distinct value is geocoded once by
+L<Database::BI::Model::Geocode> (one lookup per value however often the column
+repeats it); the answers are remembered in the dataset's model store, so a
+second visit asks nothing.  With C<lat=> and C<lon=> the columns already hold
+coordinates.  Rows sharing a position become one marker whose popup says how
+many rows it stands for.
+
+Accepts the same C<l=>, C<j=>, C<c=> and C<f=> pipeline params as every other
+visual, so the map shows the filtered, calculated view.
+
+  loc=<col>      Location column to geocode (required unless lat= and lon= are given)
+  lat=<col>      Latitude column (numeric, -90..90)
+  lon=<col>      Longitude column (numeric, -180..180)
+  popup=<col>    Column shown in the marker popup (repeatable; default: none)
+  max=N          Markers to draw (default: map_max_markers, 2000)
+  back=<url>     URL for the "Back to table" breadcrumb link
+
+Config values: C<map_geocode_max> (new lookups per request, default 500),
+C<map_max_markers> (markers per request, default 2000), C<map_region> (a
+two-letter country hint for ambiguous place names) and C<geocoder> (an object to
+use instead of loading L<Geo::Coder::Free>; the seam the tests use).
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l        spec    Required.  Left table spec (table:name or path:/abs/path).
+  loc      string  Optional.  Column of places to geocode.
+  lat      string  Optional.  Numeric latitude column.
+  lon      string  Optional.  Numeric longitude column.
+  popup    string  Optional, repeatable.  Columns shown in the popup.
+  max      int     Optional.  Positive marker cap for this request.
+  back     url     Optional.  Safe back-link URL (sanitised by _safe_back_url).
+
+=head4 OUTPUT
+
+  200 text/html    Rendered map page.
+  400 text/plain   No loc=, or lat= without lon=.
+  400 text/plain   Column not found: <col>  (or the geocode message naming it).
+  400 text/plain   Coordinate column wholly out of range, naming it.
+  404 text/plain   "Could not open data source" when l= is absent/invalid.
+
+=head3 EXAMPLE
+
+  GET /map?l=table:sales&loc=place
+    -> 200 HTML page containing Leaflet markers for the places that resolved
 
 =cut
 

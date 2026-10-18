@@ -85,7 +85,10 @@ WriteMakefile(
 					# valid_location() and 0.47 added geocode_many(), and the app
 					# installs, starts and tests without the module, hiding the
 					# location option and saying which version is needed.
-					'Geo::Coder::Free' => '0.47'
+					'Geo::Coder::Free' => '0.47',
+					# Rendering the map itself (Phase 6.1).  Also runtime-required: the
+					# rest of the application installs, starts and tests without it.
+					'HTML::OSM' => '0.10'
 				}
 			},
 			test => {

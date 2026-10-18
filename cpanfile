@@ -36,6 +36,7 @@ requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected';
 
 recommends 'Geo::Coder::Free', '0.47';   # Geocoding a location column (Phase 6.2).  Optional: loaded with a runtime require, and the app works without it - 0.46 added valid_location(), 0.47 added geocode_many()
+recommends 'HTML::OSM', '0.10';          # Rendering /map (Phase 6.1).  Optional, loaded with a runtime require: the rest of the app works without it
 
 on 'test' => sub {
 	requires 'DBD::CSV';

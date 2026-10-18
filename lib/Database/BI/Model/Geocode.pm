@@ -185,7 +185,12 @@ nothing here is wrapped in an C<eval>.
 The counts add up, in every path through the module: C<skipped + cached +
 attempted + not_attempted == distinct>, and C<resolved + unresolved == cached +
 attempted>.  C<lookups> is the count the geocoder itself reports for the batch,
-which is C<attempted> unless the geocoder knows something finer.
+which is C<attempted> unless the geocoder knows something finer.  With
+C<Geo::Coder::Free> 0.48 and later it is finer: the geocoder counts the reads
+its backends made, so a value they answered from a cache is not counted, and a
+second batch over a process whose caches are warm reports fewer lookups than
+values.  That is work avoided, which is what the caller caps, and it never
+exceeds C<attempted>.
 
 =head2 The cache
 
@@ -645,8 +650,12 @@ sub _resolve {
 	# column in a personal dataset is personal data (section 7).
 	my @messages;
 
-	push @messages, $self->_message('error_map_geocoder_missing', $self->{'min_version'}, $reason)
-		unless $available;
+	# geocoder_available() already returns the finished sentence, so it is used as
+	# the text; formatting it again repeated the whole message.
+	push @messages, {
+		'key'  => 'error_map_geocoder_missing',
+		'text' => defined($reason) ? $reason : $self->_msg('error_map_geocoder_missing', $self->{'min_version'}, 'it is not installed'),
+	} unless $available;
 
 	push @messages, $self->_message('warn_map_geocode_capped', scalar @attempt, $wanted)
 		if $capped;

@@ -503,6 +503,11 @@ subtest 'without the module there is a sentence, not an exception' => sub {
 	is_deeply([ map { $_->{'key'} } @{ $result->{'messages'} } ],
 		['error_map_geocoder_missing', 'warn_map_rows_skipped'],
 		'and the page is told why, before it is told about the rows');
+
+	my ($missing) = grep { $_->{'key'} eq 'error_map_geocoder_missing' } @{ $result->{'messages'} };
+	my @mentions = ($missing->{'text'} =~ /Geo::Coder::Free/g);
+	is(scalar @mentions, 1,
+		'and says it once: the finished sentence is not formatted a second time');
 };
 
 subtest 'an installed module older than the floor is the same state' => sub {
