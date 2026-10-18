@@ -129,7 +129,10 @@ sub dirty_column {
 
 subtest 'a dirty column is skipped end to end' => sub {
 	my $geocoder = stub();
-	my $geocode  = Database::BI::Model::Geocode->new(geocoder => $geocoder);
+	# openaddr suppresses warn_map_geocoder_unavailable_data, which fires when
+	# OPENADDR_HOME is not set in the environment (common in CI); the stub
+	# geocoder ignores the path, so any truthy string is fine here.
+	my $geocode  = Database::BI::Model::Geocode->new(geocoder => $geocoder, openaddr => 'test');
 
 	my $cache  = {};
 	my $result = $geocode->resolve_column(dirty_column(), 'place', cache => $cache, region => 'GB');
@@ -278,7 +281,7 @@ subtest 'a backend exception is still an exception' => sub {
 
 subtest 'the cap counts new lookups, and holds the rest back for the next request' => sub {
 	my $geocoder = stub();
-	my $geocode  = Database::BI::Model::Geocode->new(geocoder => $geocoder);
+	my $geocode  = Database::BI::Model::Geocode->new(geocoder => $geocoder, openaddr => 'test');
 
 	my @column = map { { 'place' => $_ } }
 		('Ramsgate, Kent', 'Sittingbourne', 'Canterbury', 'Dover', 'Margate');

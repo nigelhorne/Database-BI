@@ -24,10 +24,6 @@ jobs:
   test:
     runs-on: ubuntu-latest
     if: ${{ github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success' }}
-    env:
-      # Browser tests belong to browser.yml; skip them here so a missing or
-      # snap-packaged Firefox does not turn a coverage run into exit 255.
-      BI_SKIP_BROWSER_TESTS: 1
     strategy:
       matrix:
         perl: ["5.40"]
