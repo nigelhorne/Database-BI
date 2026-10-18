@@ -145,7 +145,9 @@ arranged on a 12-column grid: drag a card by its header to any free cell
 time, Shift going to the edge), and resize it from the corner handle.  A
 card's width and height can also be set without a drag from the Size menu in
 its header: full, half, a third or a quarter of the width, and one, two,
-three or six rows high.  Each move is announced -- the column and row the
+three or six rows high.  The size the card is sits on the card itself, beside
+that menu, so a width the corner grip left it at reads without the menu being
+opened.  Each move is announced -- the column and row the
 card landed in, and any card the move pushed down -- and saved as you go.  The whole position and size is
 saved with the canvas, so a card put in row 4 stays in row 4 rather than
 being packed up the page.  Canvases support

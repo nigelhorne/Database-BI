@@ -2634,13 +2634,17 @@ sub canvas_render ($self) {
 			}
 		}
 
-		# Pre-build CSS grid position strings to avoid TT hash-key lookups.
+		# Pre-build CSS grid position strings to avoid TT hash-key lookups, and
+		# keep the two spans of a saved card so the page can print the card's size
+		# on the card before the script has measured anything.
 		my %layout_pos;
+		my %layout_size;
 		for my $lp (@{ $a->{layout} // [] }) {
 			my ($x, $y, $w, $h) = @{$lp}{qw(x y w h)};
 			next unless defined $x && defined $y && defined $w && defined $h;
 			$layout_pos{ $lp->{visual} // '' } =
 				"grid-column:${x}/span ${w};grid-row:${y}/span ${h}";
+			$layout_size{ $lp->{visual} // '' } = [$w, $h];
 		}
 
 		my @rendered;
@@ -2663,6 +2667,10 @@ sub canvas_render ($self) {
 				error     => $result->{error} // '',
 				kind      => $vis->{kind}     // '',
 				style     => $layout_pos{$i}  // '',
+				# The saved spans, or nothing: a card with no saved position is
+				# placed by the browser, and only the script can measure that.
+				w         => (defined $layout_size{$i} ? $layout_size{$i}[0] : undef),
+				h         => (defined $layout_size{$i} ? $layout_size{$i}[1] : undef),
 				cf_col    => (_vis_cf_col($vis) // ''),
 				cf_source => ($i == $cf_source ? 1 : 0),
 			};

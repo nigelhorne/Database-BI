@@ -314,24 +314,48 @@ like js_value('return navigator.userAgent;'), qr/Firefox/,
 # option the menu is showing.  The browser resolves the saved style attribute
 # and the auto-placement, so this is what the user sees, not what the
 # template wrote.
-my $STATE = <<'JS';
-var card = document.getElementById('visual-0');
-var sel  = document.getElementById('visual-size-0');
-var cs   = getComputedStyle(card);
-return JSON.stringify({
-	colStart : cs.gridColumnStart,
-	colEnd   : cs.gridColumnEnd,
-	rowStart : cs.gridRowStart,
-	value    : sel.value,
-	summary  : sel.options[sel.selectedIndex].textContent,
-	focused  : document.activeElement ? document.activeElement.id : '',
-});
+# The multiplication sign the size on the card is written with, spelled with
+# chr() rather than as a literal in this file: it is the same character whether
+# or not the file has been read as UTF-8.
+my $TIMES = chr(0xD7);
+
+# The probes return JSON, which the test decodes.  WebDriver has already turned
+# the script's string into characters by the time it gets here - and the size on
+# the card is "6 × 1" - so the probe escapes everything outside ASCII before
+# stringifying: JSON either way, and no second UTF-8 decoding of a string that
+# is already decoded.
+my $ASCII_SAFE = <<'JS';
+function asciiSafe(text) {
+	return String(text).replace(/[^\x20-\x7e]/g, function (c) {
+		return '\\u' + ('0000' + c.charCodeAt(0).toString(16)).slice(-4);
+	});
+}
+JS
+
+my $STATE = $ASCII_SAFE . <<'JS';
+var card  = document.getElementById('visual-0');
+var sel   = document.getElementById('visual-size-0');
+var cs    = getComputedStyle(card);
+var badge = card.querySelector('[data-size-badge="1"]');
+return asciiSafe(JSON.stringify({
+	colStart  : cs.gridColumnStart,
+	colEnd    : cs.gridColumnEnd,
+	rowStart  : cs.gridRowStart,
+	value     : sel.value,
+	summary   : sel.options[sel.selectedIndex].textContent,
+	badge     : badge ? badge.textContent : '',
+	badgeTitle: badge ? badge.getAttribute('title') : '',
+	focused   : document.activeElement ? document.activeElement.id : '',
+}));
 JS
 
 my $before = decode_json(js_value($STATE));
 is $before->{colEnd},   'span 6',               'card starts half width in the grid';
 is $before->{summary},  'Half width, 1 row high', 'the summary describes that span';
 is $before->{value},    '',                     'the summary option is the one selected';
+is $before->{badge},    "6 ${TIMES} 1",        'and the size is written on the card as well';
+is $before->{badgeTitle}, 'Half width, 1 row high',
+	'with the menu words for that size';
 
 # The setup PATCH is still the only one: nothing the page does on load writes
 # a layout, so the next PATCH can only come from the choice below.
@@ -362,6 +386,8 @@ is $after->{colEnd},   'span 12',  'choosing Full width changed the computed gri
 is $after->{value},    '12',       'the menu stayed on the preset that was chosen';
 is $after->{summary},  'Full width', 'the menu reads as the preset';
 is $after->{focused},  'visual-size-0', 'focus stayed on the menu';
+is $after->{badge},    "12 ${TIMES} 1",  'the card on the page says the size it was given';
+is $after->{badgeTitle}, 'Full width, 1 row high', 'in the preset words';
 
 my $live = js_value("return document.getElementById('canvas-live').textContent;");
 like $live, qr/\QLeft is now full width, 1 row high in column 1\E/,
@@ -415,9 +441,16 @@ for (1 .. 100) {
 $reloaded ||= {};
 is $reloaded->{colEnd},  'span 12',               'a reload renders the saved width';
 is $reloaded->{summary}, 'Full width, 1 row high', 'a reload reads the saved size back';
+is $reloaded->{badge},   "12 ${TIMES} 1",         'and renders the size on the card as well';
 
 is scalar(read_patches($RECORD)), 2,
 	'rendering the saved layout does not PATCH it back';
+
+# The size on the card is in the page the server sends, not only in the one the
+# script has filled in: this is the body of a GET, with no browser involved.
+my $raw = $ua->get("$BASE/a/$cid")->res->body;
+like $raw, qr{<span class="visual-size-badge" data-size-badge="1" title="12 columns wide, 1 row high">12 &times; 1</span>},
+	'the server writes the saved size on the card, before any script runs';
 
 # ---------------------------------------------------------------------------
 # The same canvas opened as a filtered visit: cross-filtered, and then drilled
@@ -448,10 +481,122 @@ for my $visit (
 		or diag 'recorded PATCHes: ' . read_text($RECORD);
 	is $seen->{summary}, 'Full width, 1 row high',
 		"a $label visit shows the saved size in the menu";
+	is $seen->{badge}, "12 ${TIMES} 1",
+		"and writes it on the card too";
 
 	is scalar(read_patches($RECORD)), 2,
 		"a $label visit does not PATCH a layout of its own";
 }
+
+# ---------------------------------------------------------------------------
+# The size on the card, from a drag (3.2).  The corner grip is the one way to
+# leave a card at a width no preset names, and the number on the card is what
+# says so - while the grip is being dragged, not only once it is let go.  The
+# drag is dispatched from the page through the handlers the grip is wired to,
+# at the coordinates the browser reports for it: Firefox's own input stack is
+# not what is in question here, the page's answer to a drag is.
+# ---------------------------------------------------------------------------
+$CLIENT->cmd('WebDriver:Navigate', { url => "$BASE/a/$cid" });
+
+my $saved;
+for (1 .. 100) {
+	$saved = eval { decode_json(js_value($STATE)) };
+	last if $saved && ($saved->{badge} // '') eq "12 ${TIMES} 1";
+	sleep 0.1;
+}
+
+$saved ||= {};
+is $saved->{badge}, "12 ${TIMES} 1",
+	'back on the canvas, the card says the size it is saved at';
+
+my $DRAG = $ASCII_SAFE . <<'JS';
+var card   = document.getElementById('visual-0');
+var handle = card.querySelector('.visual-resize-handle');
+var badge  = card.querySelector('[data-size-badge="1"]');
+var grid   = document.getElementById('canvas-grid');
+var cs     = getComputedStyle(grid);
+var tracks = (cs.gridTemplateColumns || '').split(/\s+/).filter(function (t) { return t; });
+var pitch  = parseFloat(tracks[0]) + parseFloat(cs.columnGap || 0);
+var r      = handle.getBoundingClientRect();
+var x      = r.left + (r.width / 2);
+var y      = r.top + (r.height / 2);
+
+function pe(type, px, py) {
+	return new PointerEvent(type, {
+		button: 0, clientX: px, clientY: py, bubbles: true, cancelable: true,
+	});
+}
+
+handle.dispatchEvent(pe('pointerdown', x, y));
+document.dispatchEvent(pe('pointermove', x - (2 * pitch), y));
+var during = { badge: badge.textContent, title: badge.getAttribute('title') };
+document.dispatchEvent(pe('pointerup', x - (2 * pitch), y));
+
+return asciiSafe(JSON.stringify({
+	during    : during.badge,
+	title     : during.title,
+	after     : badge.textContent,
+	valuetext : handle.getAttribute('aria-valuetext'),
+	valuenow  : handle.getAttribute('aria-valuenow'),
+	colEnd    : getComputedStyle(card).gridColumnEnd,
+}));
+JS
+
+my $dragged = decode_json(js_value($DRAG));
+is $dragged->{during},  "10 ${TIMES} 1",
+	'the card says the width the grip left it at, mid-drag';
+is $dragged->{after},   "10 ${TIMES} 1", 'and still says it when the grip is let go';
+is $dragged->{title},   '10 columns wide, 1 row high',
+	'both dimensions in words, for a width no preset names';
+is $dragged->{colEnd},  'span 10', 'the grid span followed the drag';
+# A drag is not announced in the live region - the person dragging it is looking
+# at it - but the handle carries the same size for anyone reading the slider.
+is $dragged->{valuetext}, '10 columns wide, 1 row high',
+	'the handle reports both dimensions to a screen reader';
+is $dragged->{valuenow}, '10', 'as the value the slider carries';
+
+# The drag is a write like the menu, and it is the whole of what the card says:
+# one more PATCH, with the width the grip was left at.
+my @drag_patches;
+for (1 .. 100) {
+	@drag_patches = read_patches($RECORD);
+	last if @drag_patches > 2;
+	sleep 0.1;
+}
+
+is scalar(@drag_patches), 3, 'the drag sent one PATCH'
+	or diag 'record: ' . read_text($RECORD);
+
+my $drag_body = $drag_patches[2] && defined $drag_patches[2]{body}
+	? eval { decode_json($drag_patches[2]{body}) } : undef;
+ok ref $drag_body eq 'HASH' && ref $drag_body->{layout} eq 'ARRAY',
+	'the PATCH body is a layout' or BAIL_OUT('the recorded drag body is not a layout');
+
+my ($dv0) = grep { ($_->{visual} // '') eq '0' } @{ $drag_body->{layout} };
+$dv0 ||= {};
+is $dv0->{w}, 10, 'with the width the drag left the card at';
+is $dv0->{h}, 1,  'and the row height it did not change';
+
+my $stored_drag = $ua->get("$BASE/api/analyses/$cid")->res->json->{layout} || [];
+my ($sd0) = grep { ($_->{visual} // '') eq '0' } @$stored_drag;
+$sd0 ||= {};
+is $sd0->{w}, 10, 'the server stored the dragged width';
+
+$CLIENT->cmd('WebDriver:Navigate', { url => "$BASE/a/$cid" });
+
+my $again;
+for (1 .. 100) {
+	$again = eval { decode_json(js_value($STATE)) };
+	last if $again && ($again->{badge} // '') eq "10 ${TIMES} 1";
+	sleep 0.1;
+}
+
+$again ||= {};
+is $again->{badge},   "10 ${TIMES} 1", 'a reload shows the dragged width on the card';
+is $again->{summary}, '10 columns wide, 1 row high', 'and in the menu';
+is $again->{colEnd},  'span 10', 'at the span the drag left it at';
+is scalar(read_patches($RECORD)), 3,
+	'and rendering that width back does not PATCH it either';
 
 done_testing();
 

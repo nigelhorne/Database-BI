@@ -1294,6 +1294,22 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 		'the menu belongs to its own card';
 	like $b, qr/visual-card-header">[\s\S]*?visual-size-select[\s\S]*?visual-card-body">/,
 		'and sits in the card header';
+
+	# The size is on the card as well as in the menu (3.2): one badge per card,
+	# in the header it sizes, beside the menu it mirrors.  Neither of these cards
+	# has a saved span, so the browser places them and there is no size to print
+	# yet: the badge is rendered empty, and :empty is what keeps that from being
+	# a small blank pill of padding rather than nothing.  The script fills it in.
+	my $badges = () = $b =~ /class="visual-size-badge"/g;
+	is $badges, 2, 'one size badge per visual, on the same cards as the menus';
+	like $b, qr{<span class="visual-size-badge" data-size-badge="1"></span>},
+		'a card with no saved span is rendered with an empty badge';
+	like $b, qr{visual-size-select[\s\S]*?visual-size-badge[\s\S]*?visual-card-body">},
+		'which sits in the header beside the menu it mirrors';
+	like $b, qr/\.visual-size-badge:empty \{ display: none; \}/,
+		'and takes no room while it is empty';
+	like $b, qr/\.visual-size-badge \{[^}]*flex-shrink:\s*0/s,
+		'it does not shrink, where the menu it sits beside does';
 	like $b, qr/id="visual-size-0"[^>]*aria-label="Size of Left"/s,
 		'it is named for the visual it sizes';
 	like $b, qr/id="visual-size-0"[^>]*aria-describedby="size-help"/s,
@@ -1342,12 +1358,28 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 	like $b, qr/^\s*initSizeMenus\(\);$/m, 'at load';
 	like $b, qr/function updateSizeSelect/,
 		'the menu shows the size the card actually is';
+	like $b, qr/function updateSizeBadge\(card, state\)/,
+		'and the card shows it too, rather than only the menu';
 	like $b, qr/option\[data-current="1"\]/,
 		'and the option that says what the card is is found by its own marker';
 	like $b, qr/id="size-help"[^>]*>[^<]*height to one, two, three or six rows/s,
 		'the help says the menu sets the height as well';
-	like $b, qr/updateSizeSelect\(card, st\)/,
-		'so a drag, which leaves any width, is reflected in the menu';
+	like $b, qr/badge\.textContent = st\.w \+ ' × ' \+ st\.h;/,
+		'as the two numbers the menu spells out in words';
+	like $b, qr/\? sizeSummary\(sel, st\.w, st\.h\)/,
+		'with the menu words for the presets as the title';
+	like $b, qr/function updateSizeControls\(card, state\) \{/,
+		'both readings of the size are written through one function';
+	like $b, qr/^\t\tupdateSizeSelect\(card, state\);$/m,
+		'which writes the menu';
+	like $b, qr/^\t\tupdateSizeBadge\(card, state\);$/m,
+		'and the card, so the two cannot disagree';
+	like $b, qr/updateSizeControls\(card, st\)/,
+		'so a drag, which leaves any width, is reflected in the menu and on the card';
+	like $b, qr/updateSizeBadge\(card, \{ w: w, h: h \}\);/,
+		'and the size on the card follows the grip while it is being dragged';
+	like $b, qr/if \(w !== shownW \|\| h !== shownH\) \{/,
+		'written only when the drag crosses a column or a row';
 	like $b, qr/if \(isNaN\(value\) \|\| value === \(isRow \? st\.h : st\.w\)\) return;/,
 		'choosing the size it already is does nothing at all';
 	like $b, qr/var index = sel\.selectedIndex;/, 'the entry that was chosen is remembered';
@@ -1360,10 +1392,14 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 		'a press on the menu does not start a card drag';
 	like $b, qr/\@media print.*?\.visual-size-select[^{]*\{[^}]*display\s*:\s*none/s,
 		'the menu is not printed';
+	like $b, qr/\@media print.*?\.visual-size-badge[^{]*\{[^}]*display\s*:\s*none/s,
+		'and neither is the size on the card: the printed canvas is two columns';
 	like $b, qr/\.visual-size-select \{[^}]*max-width:\s*11\.5rem/s,
 		'and is wide enough to read the longest size it can report';
 	like $b, qr/Size menu in its header to set its width and height without a drag/,
 		'and the first-visit tip names it too';
+	like $b, qr/same size is written on the card itself, beside the\s+menu/,
+		'and the size help says where the size is written';
 
 	# A card that has to move to be the width that was chosen is moved, and what
 	# it grew over is pushed down - the same fix the resize paths now make.
@@ -1399,6 +1435,29 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 	$t->get_ok("/api/analyses/$cid")->status_is(200);
 	is_deeply $t->tx->res->json->{layout}, $accepted,
 		'and the refused layout left the saved one alone';
+
+	# The size on the card, rendered: the numbers are the card's own saved spans,
+	# written by the template, so a reload shows them with no JavaScript involved
+	# - a card a drag left at a width no preset names says which width that was.
+	$t->get_ok("/a/$cid")->status_is(200);
+	$b = $t->tx->res->body;
+	like $b, qr{<span class="visual-size-badge" data-size-badge="1" title="12 columns wide, 1 row high">12 &times; 1</span>},
+		'the saved 12 by 1 card is rendered with its own two numbers';
+
+	$t->patch_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ layout => [
+			{ visual => 0, x => 1, y => 1, w => 12, h => 1 },
+			{ visual => 1, x => 1, y => 2, w => 4,  h => 2 },
+		] })
+	)->status_is(200, 'a card two rows high and a third of the width is accepted');
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	$b = $t->tx->res->body;
+	like $b, qr{<span class="visual-size-badge" data-size-badge="1" title="12 columns wide, 1 row high">12 &times; 1</span>},
+		'the card that did not change still reports its own size';
+	like $b, qr{<span class="visual-size-badge" data-size-badge="1" title="4 columns wide, 2 rows high">4 &times; 2</span>},
+		'and the other reports the size it was given, in both dimensions';
 };
 
 subtest '3.2: the first-visit tip names both grips and is dismissed for good' => sub {

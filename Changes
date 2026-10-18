@@ -136,6 +136,26 @@ Revision history for Database-BI
 	  the app recorded.  t/model.t asserts the same server-side: the rendered
 	  grid position of every card is unchanged by a cross-filter or a drill
 	  visit, and the stored layout is not rewritten by either.
+	- A card's size is written on the card (3.2), in its header beside the Size
+	  menu: the same two numbers the menu's first option spells out in words, a
+	  card ten columns wide and two rows high reading "10 × 2".  A drag of the
+	  corner grip can leave any width at all, and that width was reported in one
+	  place only - inside the menu, whose text is the one thing on the card that
+	  shrinks when the card is narrow.  The number on the card is columns and
+	  rows in full, with the menu's own words for the size ("Half width, 2 rows
+	  high") as its title, and it is written by the template from the saved
+	  spans, so a reload
+	  shows it with no JavaScript involved.  The script writes it at load for a
+	  card the browser placed rather than the canvas, on every resize - a drag
+	  updates it as the grip moves, not only when it is let go - and whenever the
+	  menu sets a size: the menu's first option and the number on the card are
+	  written through one function, so no path can leave one of them claiming a
+	  size the other disagrees with.  A card with no size yet - one the browser
+	  has not laid out - renders an empty badge, and :empty is what keeps that
+	  from being a small blank pill of padding rather than nothing; the badge does
+	  not shrink where the menu it sits beside does, and it is not printed, since
+	  the printed canvas is two columns whatever the canvas is and the number
+	  would describe a page that is not there.
 	[ Bug Fixes ]
 	- A canvas card's size could be lost with nothing said: saveLayout() only
 	  handled a transport failure, so a layout the server refused (400, two

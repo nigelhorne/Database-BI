@@ -401,6 +401,24 @@
 	outline: 2px solid var(--link, #0d6efd);
 	outline-offset: 1px;
 }
+/* The size, on the card (3.2): the same two numbers the menu's first option
+ * reports, so the size a card was left at by a drag is readable at a glance
+ * without opening anything.  Columns first, then rows, and the title spells
+ * both out in the menu's own words.  It is five characters and does not shrink,
+ * where the menu is wide enough for the longest size it can report and shrinks
+ * on a narrow card, which is the one place the size could be missed.  Empty
+ * until there is a size to show - a card the browser places has none until it
+ * has been laid out - and the :empty rule is what keeps that from being a small
+ * blank pill of padding rather than nothing. */
+.visual-size-badge {
+	font-size: 0.7rem;
+	color: var(--muted, #6c757d);
+	white-space: nowrap;
+	flex-shrink: 0;
+	margin-left: 0.3rem;
+	font-variant-numeric: tabular-nums;
+}
+.visual-size-badge:empty { display: none; }
 /* Per-visual PNG download button (3.7) */
 .visual-dl-btn {
 	font-size: 0.7rem;
@@ -445,6 +463,9 @@
 	.visual-dl-btn { display: none; }
 	.visual-resize-handle { display: none; }
 	.visual-size-select { display: none; }
+	/* The printed canvas is two columns whatever the canvas is, so the size on
+	 * the card would be a number that does not describe the page. */
+	.visual-size-badge { display: none; }
 	.visual-card-body {
 		overflow: visible;
 		padding: 0.25rem;
@@ -589,6 +610,15 @@
 					<option value="h6">6 rows high</option>
 				</optgroup>
 			</select>
+			<!-- The size, on the card (3.2): the same two numbers the menu's first
+			     option reports, so a card left at a width by a drag says so without
+			     the menu having to be opened.  The template writes it when the card
+			     has a saved span; a card the browser places has none until it has
+			     been laid out, and the script fills that one in, as it does when a
+			     size is dragged or chosen.  The title is in words here and is
+			     replaced with the menu's words once the script runs - only the menu
+			     knows what a preset is called. -->
+			<span class="visual-size-badge" data-size-badge="1"[%- IF v.w %] title="[% v.w %] column[% v.w == 1 ? '' : 's' %] wide, [% v.h %] row[% v.h == 1 ? '' : 's' %] high"[%- END %]>[% IF v.w %][% v.w %] &times; [% v.h %][% END %]</span>
 			[% END %]
 			<button class="visual-dl-btn" data-title="[% v.title | html %]" title="Download as PNG" hidden>&#x2B07; Save image</button>
 		</div>
@@ -633,7 +663,8 @@ header sets its width to the full width of the canvas, a half, a third or a quar
 height to one, two, three or six rows.  A card that has to move to be that wide is moved,
 anything it grows over moves down out of the way, and the choice is saved as soon as it is
 made.  The option the menu shows is the size the card is, so a card sized by dragging reads as
-the width and height it was left at.</p>
+the width and height it was left at, and the same size is written on the card itself, beside the
+menu, so it reads without the menu being opened.</p>
 [% END %]
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
@@ -1042,9 +1073,9 @@ the width and height it was left at.</p>
 			st.w + (st.w === 1 ? ' column wide, ' : ' columns wide, ') +
 			st.h + (st.h === 1 ? ' row high' : ' rows high'));
 
-		/* The two controls that set this card's size are told together: a drag
-		 * outside the menu leaves the menu wrong otherwise. */
-		updateSizeSelect(card, st);
+		/* Everything that reports this card's size is told together: a drag outside
+		 * the menu leaves the menu and the badge on the card wrong otherwise. */
+		updateSizeControls(card, st);
 	}
 
 	/* The label of a preset, taken from the menu itself so the option list is the
@@ -1071,11 +1102,11 @@ the width and height it was left at.</p>
 		return text.charAt(0).toLowerCase() + text.slice(1);
 	}
 
-	/* The menu shows the size the card is, not the size it was last set to: a drag
-	 * can leave any width and any height at all, and a card 7 columns wide must
-	 * not claim to be half.  It runs at load too, so the menu shows the size the
-	 * browser laid out rather than the size the template guessed - a card with no
-	 * saved position is placed by the browser. */
+	/* The menu and the size on the card show the size the card is, not the size it
+	 * was last set to: a drag can leave any width and any height at all, and a card
+	 * 7 columns wide must not claim to be half.  Both run at load too, so they show
+	 * the size the browser laid out rather than the size the template guessed - a
+	 * card with no saved position is placed by the browser. */
 	function updateSizeSelect(card, state) {
 		var sel = card.querySelector('.visual-size-select');
 		if (!sel) return;
@@ -1086,6 +1117,33 @@ the width and height it was left at.</p>
 
 		current.textContent = sizeSummary(sel, st.w, st.h);
 		sel.value = current.value;
+	}
+
+	/* The size, on the card (3.2): the same two numbers the menu's first option
+	 * spells out in words, written in the card's header so the size a drag left the
+	 * card at is readable without opening anything.  Columns first, then rows.  A
+	 * card the browser placed has no size until it has been laid out, so this runs
+	 * at load as well as on every change, and a card with no menu - a page with no
+	 * canvas id, where nothing can be sized - has no badge either. */
+	function updateSizeBadge(card, state) {
+		var badge = card.querySelector('[data-size-badge="1"]');
+		if (!badge) return;
+
+		var st  = state || resizeState(card);
+		var sel = card.querySelector('.visual-size-select');
+
+		badge.textContent = st.w + ' × ' + st.h;
+		badge.setAttribute('title', sel
+			? sizeSummary(sel, st.w, st.h)
+			: st.w + ' columns wide, ' + st.h + ' rows high');
+	}
+
+	/* Everything that reports this card's size - the menu's first option and the
+	 * badge on the card - is written together, so no path can leave one of them
+	 * claiming a size the other disagrees with. */
+	function updateSizeControls(card, state) {
+		updateSizeSelect(card, state);
+		updateSizeBadge(card, state);
 	}
 
 	/* Size a card from the menu.  The same writes the corner grip makes, with the
@@ -1188,12 +1246,26 @@ the width and height it was left at.</p>
 		 * corner and a click can land on it - and a save from that press would
 		 * rewrite the arrangement from the render in hand. */
 		var changed = false;
+		/* What the badge on the card was last told, so a pointer move that does not
+		 * cross a column or row boundary costs nothing. */
+		var shownW  = sp.w;
+		var shownH  = sp.h;
 
 		function onResizeMove(ev) {
 			var w = clampSpan(sp.w + Math.round((ev.clientX - startX) / colPitch), 1, GRID_COLS - sp.x + 1);
 			var h = clampSpan(sp.h + Math.round((ev.clientY - startY) / rPitch),   1, MAX_ROW_SPAN);
 			changed = (w !== sp.w || h !== sp.h) || changed;
 			applySpan(card, sp.x, w, sp.y, h);
+
+			/* The size on the card follows the grip: a drag that leaves the card 7
+			 * columns wide says so while it is being dragged, not only once it is let
+			 * go.  The numbers come from the drag rather than from a measurement, so
+			 * nothing has to be read back mid-drag. */
+			if (w !== shownW || h !== shownH) {
+				shownW = w;
+				shownH = h;
+				updateSizeBadge(card, { w: w, h: h });
+			}
 		}
 
 		function onResizeEnd() {
@@ -1248,7 +1320,7 @@ the width and height it was left at.</p>
 			var card = sel.closest('.visual-card');
 			if (!card) return;
 
-			updateSizeSelect(card);
+			updateSizeControls(card);
 
 			sel.addEventListener('change', function () {
 				var raw   = sel.value;
