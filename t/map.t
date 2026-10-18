@@ -135,6 +135,11 @@ my $stub = Stub::Geocoder->new(results => {
 
 $t->app->config->{geocoder} = $stub;
 
+# HTML::OSM is a recommends dep; skip when absent so CI does not fail just
+# because the optional renderer is not installed.
+plan skip_all => 'HTML::OSM not installed; map rendering tests need it'
+	unless eval { require HTML::OSM; 1 };
+
 # ===========================================================================
 # loc=<column> -- a dataset with places but no coordinates
 # ===========================================================================

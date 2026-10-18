@@ -98,6 +98,7 @@ sub find_firefox {
 sub skip_reason {
 	my ($class, %arg) = @_;
 
+	return 'Not running Not running author tests' unless $ENV{AUTHOR_TESTING};
 	return 'BI_SKIP_BROWSER_TESTS is set' if $ENV{BI_SKIP_BROWSER_TESTS};
 	return 'no Firefox found (set BI_FIREFOX to one)' unless find_firefox();
 

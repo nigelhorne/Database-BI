@@ -480,6 +480,12 @@ subtest 'the model store keeps the answers, and this module never writes it' => 
 };
 
 subtest 'without the module there is a sentence, not an exception' => sub {
+	# Test::Without::Module cannot un-load a module already in %INC (see CLAUDE.md).
+	# If an earlier subtest loaded Geo::Coder::Free, we cannot simulate its absence.
+	if (exists $INC{'Geo/Coder/Free.pm'}) {
+		plan skip_all => 'Geo::Coder::Free already loaded; cannot simulate absence in this process';
+	}
+
 	Test::Without::Module->import('Geo::Coder::Free');
 
 	my $geocode = Database::BI::Model::Geocode->new();
