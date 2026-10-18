@@ -379,7 +379,7 @@
       section.className = 'recent-section';
       var h2 = document.createElement('h2');
       h2.className = 'section-heading';
-      h2.innerHTML = '&#x1F5BC; Saved canvases';
+      h2.textContent = 'Saved canvases';
       section.appendChild(h2);
       var ul = document.createElement('ul');
       ul.className = 'db-list';
@@ -403,8 +403,8 @@
         tip.className    = 'file-tooltip tip-below';
         tip.style.display = 'none';
 
-        var updLine = a.updated ? '&#x1F4C5; Updated: ' + txt(fmtDate(a.updated)) : '';
-        var crtLine = a.created ? '&#x1F551; Created: ' + txt(fmtDate(a.created)) : '';
+        var updLine = a.updated ? '&#x1F4C5; Updated: ' + txt(fmtDate(new Date(a.updated * 1000).toISOString())) : '';
+        var crtLine = a.created ? '&#x1F551; Created: ' + txt(fmtDate(new Date(a.created * 1000).toISOString())) : '';
         var idLine  = '<div class="tip-muted">ID: ' + txt(a.id) + '</div>';
         var dsLine  = nDatasets
           ? '<div>' + txt(nDatasets + ' dataset' + (nDatasets !== 1 ? 's' : '')) + '</div>'
