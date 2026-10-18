@@ -50,6 +50,17 @@ var a    = document.activeElement;
 var id   = g.getAttribute('aria-describedby') || '';
 var help = document.getElementById(id);
 var head = document.querySelector('.graph-title');
+
+/* The chart container's content box, which is the space the chart is drawn
+   in.  Its left edge is the chart's left offset on the page. */
+var wrap = document.querySelector('.chart-svg-wrap');
+var box  = wrap && wrap.closest ? wrap.closest('.graph-container, .pie-container, .bar-container, .heatmap-container, .scatter-container, .stacked-container, .combo-container, .treemap-container, .histogram-container') : null;
+var bs   = box ? window.getComputedStyle(box) : null;
+var br   = box ? box.getBoundingClientRect() : null;
+var boxLeft  = br ? br.left  + (parseFloat(bs.paddingLeft)  || 0) : 0;
+var boxRight = br ? br.right - (parseFloat(bs.paddingRight) || 0) : document.documentElement.clientWidth;
+boxRight = Math.min(boxRight, document.documentElement.clientWidth);
+var expectedMax = Math.max(200, Math.floor(boxRight - boxLeft));
 return JSON.stringify({
 	role        : g.getAttribute('role'),
 	tabindex    : g.getAttribute('tabindex'),
@@ -66,6 +77,10 @@ return JSON.stringify({
 	height      : parseFloat(s.getAttribute('height')),
 	title       : head && head.textContent ? head.textContent.replace(/\s+/g, ' ').trim() : '',
 	viewport    : Math.max(200, Math.round(document.documentElement.clientWidth)),
+	chartLeft   : wrap ? wrap.getBoundingClientRect().left : 0,
+	boxLeft     : boxLeft,
+	boxRight    : boxRight,
+	expectedMax : expectedMax,
 	focused     : !!a && !!a.classList && a.classList.contains('chart-resize-handle'),
 });
 JS
@@ -84,8 +99,11 @@ is $before->{orientation}, 'horizontal',
 	'it declares the axis left and right move along';
 is $before->{min}, '200', 'the narrowest width is announced as the minimum';
 
-is $before->{max}, "$before->{viewport}",
-	'and the widest is the width of the window the chart is read in';
+is $before->{max}, "$before->{expectedMax}",
+	'and the widest is the width between the chart container edges, not the window';
+cmp_ok $before->{max}, '<', $before->{viewport},
+	'which leaves room for the container offset that used to put the grip off screen';
+cmp_ok $before->{chartLeft}, '>', 0, 'the chart starts in from the window edge, as the maximum assumes';
 is $before->{now}, "$before->{width}",
 	'its value is the width the chart is drawn at';
 is $before->{text}, "$before->{width} pixels wide, $before->{height} pixels high",
@@ -192,6 +210,27 @@ resized_to($max, $h, 'End takes it to the full width of the window and announces
 
 is grip()->{now}, grip()->{max},
 	'which is the maximum the grip had already declared';
+
+# The point of the maximum: the grip at the widest size is on screen and is
+# the element a pointer would hit there, rather than being clipped by the
+# page's scroll container or sitting past the window's right edge.
+my $edge = decode_json($browser->js(<<'JS'));
+var g = document.querySelector('.chart-resize-handle');
+var r = g.getBoundingClientRect();
+var hit = document.elementFromPoint(Math.round(r.left + r.width / 2), Math.round(r.top + r.height / 2));
+return JSON.stringify({
+	left     : r.left,
+	right    : r.right,
+	viewport : document.documentElement.clientWidth,
+	hit      : hit ? (hit.getAttribute('class') || hit.tagName) : '',
+});
+JS
+
+cmp_ok $edge->{right}, '<=', $edge->{viewport},
+	'the grip is inside the viewport at the widest size';
+cmp_ok $edge->{left}, '>=', 0, 'and its left edge is on screen as well';
+like $edge->{hit}, qr/\bchart-resize-handle\b/,
+	'with nothing clipping the grip: it is what a pointer lands on there';
 
 $browser->press('ArrowRight');
 resized_to($max, $h, 'and ArrowRight at that end leaves the announced value truthful');

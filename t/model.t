@@ -1118,6 +1118,11 @@ subtest '2: chart resize handles take focus, answer the arrow keys and are annou
 	like $b, qr/ArrowUp/,                        'up makes it shorter';
 	like $b, qr/e\.key === 'Home'/,              'Home goes to the narrowest width';
 	like $b, qr/e\.key === 'End'/,               'End goes to the widest width';
+	like $b, qr/function maxWidth\(wrap\)/, 'the widest width is measured for the chart';
+	like $b, qr/wrap\.closest\(CONTAINERS\)/, 'inside the container it is drawn in';
+	like $b, qr/rect\.left\s*\+ \(parseFloat\(style\.paddingLeft\)/, 'from that container\'s left edge';
+	like $b, qr/return Math\.max\(MIN_W, Math\.floor\(right - left\)\);/,
+		'so the grip stays on screen at the widest size';
 	like $b, qr/e\.preventDefault\(\)/,
 		'the arrow keys do not scroll the page';
 	like $b, qr/setAttribute\('aria-valuenow'/,  'the width is announced as the value';
@@ -1156,11 +1161,11 @@ subtest '2: a chart page keeps the size it was left at' => sub {
 
 	# Read back at load, before the grip is created, so the grip opens saying the
 	# size the chart is drawn at rather than the size it was served at.
-	like $b, qr/var saved = savedChartSize\(\);[\s\S]*?if \(saved\) applyChartSize\(svg, wrap, saved\.w, saved\.h\);/,
+	like $b, qr/var saved = savedChartSize\(wrap\);[\s\S]*?if \(saved\) applyChartSize\(svg, wrap, saved\.w, saved\.h\);/,
 		'the saved size is applied at load';
-	like $b, qr/function savedChartSize\(\)/, 'and read from the store';
-	like $b, qr/return \{ w: clampWidth\(size\.w\), h: clampHeight\(size\.h\) \};/,
-		'clamped to what this window allows';
+	like $b, qr/function savedChartSize\(wrap\)/, 'and read from the store';
+	like $b, qr/return \{ w: clampWidth\(size\.w, wrap\), h: clampHeight\(size\.h\) \};/,
+		'clamped to what this window allows, measured from the chart';
 	like $b, qr/if \(!size \|\| typeof size\.w !== 'number' \|\| typeof size\.h !== 'number'\) return null;/,
 		'a stored value that is not two numbers is ignored rather than applied';
 	like $b, qr/catch \(e\) \{ \/\* a browser that cannot store it still resizes \*\/ \}/,
@@ -1172,6 +1177,30 @@ subtest '2: a chart page keeps the size it was left at' => sub {
 		'the help says the size is remembered';
 	like $b, qr/id="chart-resize-help"[^>]*>[^<]*same kind/s,
 		'and that it is kept per kind of chart';
+
+	# ... and it can be forgotten.  A remembered size that no longer suits the
+	# window or the reader is not something to drag back by hand, so the export
+	# bar gets a visible button: it is in the tab order and named for what it
+	# does, rather than being another key a reader has to be told about.
+	like $b, qr/var bar = document\.querySelector\('\.graph-export-bar'\);/,
+		'the reset control goes in the export bar every chart page has';
+	like $b, qr/button\.className = 'btn-graph-export chart-reset-size';/,
+		'as a button styled with the page controls';
+	like $b, qr/button\.textContent = 'Reset size';/,
+		'whose label says what it does';
+	like $b, qr/function resetChartSizes\(\)/, 'the reset is one function';
+	like $b, qr/window\.localStorage\.removeItem\(sizeKey\(\)\)/,
+		'and removes the key rather than overwriting it with the default';
+	like $b, qr/var defaults = \{[\s\S]*?w: svgW \|\| wrap\.getBoundingClientRect\(\)\.width \|\| MIN_W/,
+		'it remembers the size the server sent before a saved one is applied';
+	like $b, qr/applyChartSize\(chart\.svg, chart\.wrap, chart\.defaults\.w, chart\.defaults\.h, chart\.handle\)/,
+		'so every chart on the page goes back to the server default';
+	like $b, qr/svg\.parentNode\.insertBefore\(wrap, svg\);/,
+		'the wrap goes around the SVG where it sits, so a nested one (the pie) gets the control too';
+	like $b, qr/id="chart-resize-status" role="status" aria-live="polite"/,
+		'and the reset is announced politely';
+	like $b, qr/id="chart-resize-help"[^>]*>[^<]*Reset size button/s,
+		'while the help names the control for a reader who does not see it';
 };
 
 subtest '3.2: a visual can be put in a chosen cell, not the next free one' => sub {

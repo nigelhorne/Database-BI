@@ -65,8 +65,10 @@ Home and End go to the narrowest and widest it can be) and the size is announced
 as it changes.  The size is remembered per kind of chart - one page left at
 900x600 opens the next bar chart, or pie chart, at that size - in `localStorage`
 under `bi:chart-size:<path>`, clamped to the window it is restored in and
-written once when a drag ends or on each keyboard step.  All chart pages include
-Copy-link and Export SVG/PNG buttons.
+written once when a drag ends or on each keyboard step.  A remembered size can be
+forgotten: the **Reset size** button in a chart page's export bar removes the
+entry and puts the chart back at the size the server sent.  All chart pages
+include Copy-link and Export SVG/PNG buttons.
 - **Maps** -- `GET /map` plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded locally
 with [Geo::Coder::Free](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AFree) (one lookup per distinct place, remembered in the

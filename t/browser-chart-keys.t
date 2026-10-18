@@ -124,7 +124,7 @@ var g  = document.querySelector('.chart-resize-handle');
 return JSON.stringify({
 	w     : parseFloat(s.getAttribute('width'))  || 0,
 	h     : parseFloat(s.getAttribute('height')) || 0,
-	max   : Math.max(200, Math.round(document.documentElement.clientWidth)),
+	max   : parseFloat(g.getAttribute('aria-valuemax')),
 	now   : g.getAttribute('aria-valuenow'),
 	text  : g.getAttribute('aria-valuetext'),
 	min   : g.getAttribute('aria-valuemin'),
@@ -333,6 +333,17 @@ my $copied_label = $browser->wait_for(sub {
 }, timeout => 5);
 is $copied_label, 'Copied!', 'and the button says so';
 
+# The way to forget a remembered size is a control of its own, next to the
+# export buttons, so it is found by Tab rather than only by someone who knows a
+# key.  It is not pressed here: the size is deliberately left in place for the
+# sections below.
+$browser->press('Tab');
+is $browser->js("return (document.activeElement.textContent || '').trim();"), 'Reset size',
+	'Tab from Copy link reaches the Reset size control';
+is $browser->js("return document.activeElement.getAttribute('class') || '';"),
+	'btn-graph-export chart-reset-size',
+	'which is a visible export-bar button, not another hidden key';
+
 # ---------------------------------------------------------------------------
 # The size outlives the visit.  The keyboard is used to make a size the server
 # does not send, so a restored one cannot be the default being read again; then
@@ -398,9 +409,8 @@ is $restored->{text}, "$left->{w} pixels wide, $left->{h} pixels high",
 # mouseup handlers do the rest, and the drop is what may write.
 # ---------------------------------------------------------------------------
 
-# Start at the narrowest width, so the grip is well inside the viewport: the
-# chart is drawn from the left of its container, so a wide chart puts its own
-# grip past the right edge and a pointer cannot be moved there.
+# Start at the narrowest width, so there is room to drag the grip sixty pixels
+# to the right without reaching the widest the chart may be.
 $browser->focus('.chart-resize-handle');
 $browser->press('Home');
 my $before_drag = chart_size();
@@ -447,5 +457,125 @@ ok $browser->wait_for(sub {
 my $drag_back = chart_size();
 is $drag_back->{w}, $dragged->{w}, 'and opens at the width the drag left';
 is $drag_back->{h}, $dragged->{h}, 'and the height';
+
+# ---------------------------------------------------------------------------
+# The remembered size can be forgotten.  The Reset size button removes the key
+# - it does not store the default in it - and puts the chart back at the size
+# the server sent, which is what the first visit to this page drew before any
+# key existed ($geometry).  A fresh visit then has to ask the server again
+# rather than restore the size that was reset away.
+# ---------------------------------------------------------------------------
+
+$browser->navigate('/bar?l=table:sales&cat=region');
+ok $browser->wait_for(sub {
+	$browser->js("return !!document.querySelector('.chart-resize-handle');") ? 1 : undef;
+}, timeout => 10), 'the page with the remembered size has its grip';
+
+my $again = chart_size();
+is $again->{w}, $dragged->{w}, 'it opens at the remembered width, which is about to be forgotten';
+is $again->{h}, $dragged->{h}, 'and height';
+
+my $reset = decode_json($browser->js(<<'JS'));
+var b = document.querySelector('.chart-reset-size');
+return JSON.stringify({
+	found : !!b,
+	tag   : b ? b.tagName : '',
+	text  : b ? b.textContent.trim() : '',
+	bar   : !!(b && b.closest('.graph-export-bar')),
+	title : b ? (b.getAttribute('title') || '') : '',
+});
+JS
+
+is $reset->{found}, 1, 'the export bar has a Reset size control';
+is $reset->{tag},   'BUTTON', 'it is a button, not a hidden shortcut';
+is $reset->{text},  'Reset size', 'named for what it does';
+is $reset->{bar},   1, 'and sits with the page controls, where it can be found';
+like $reset->{title}, qr/forget/i, 'its tooltip says that it forgets the size';
+
+$browser->focus('.chart-reset-size');
+is $browser->js("return document.activeElement === document.querySelector('.chart-reset-size');"), 1,
+	'the Reset size button takes focus';
+$browser->press('Enter');
+
+ok $browser->wait_for(sub {
+	return 1 unless defined $browser->js("return localStorage.getItem('bi:chart-size:/bar');");
+	return undef;
+}, timeout => 5), 'Enter on Reset size removed the remembered size';
+
+my $reset_size = chart_size();
+is $reset_size->{w}, $geometry->{w}, 'the chart went back to the width the server sent';
+is $reset_size->{h}, $geometry->{h}, 'and to the height';
+is grip(), "$geometry->{w} pixels wide, $geometry->{h} pixels high",
+	'with the grip reporting the size the chart is drawn at';
+like $browser->js("return document.getElementById('chart-resize-status').textContent;"),
+	qr/^Chart size reset to \Q$geometry->{w}\E by \Q$geometry->{h}\E pixels\.$/,
+	'and the reset was announced';
+
+$browser->navigate('/bar?l=table:sales&cat=region');
+ok $browser->wait_for(sub {
+	$browser->js("return !!document.querySelector('.chart-resize-handle');") ? 1 : undef;
+}, timeout => 10), 'a fresh visit after the reset has its grip';
+
+my $fresh = chart_size();
+is $fresh->{w}, $geometry->{w}, 'and opens at the server default, not the size that was forgotten';
+is $fresh->{h}, $geometry->{h}, 'in both dimensions';
+
+# ---------------------------------------------------------------------------
+# The same control on a page whose SVG is not a direct child of its container.
+# HTML::D3 nests the pie inside #pie_chart_wrap, so the resize wrap has to go
+# around the SVG where it sits; inserting it into the outer .pie-container
+# would throw and leave that page with neither a grip nor a reset.
+# ---------------------------------------------------------------------------
+
+$browser->navigate('/pie?l=table:sales&cat=region&val=amount');
+ok $browser->wait_for(sub {
+	$browser->js("return !!document.querySelector('.chart-resize-handle');") ? 1 : undef;
+}, timeout => 10), 'the pie page has a grip, although its SVG is nested in a wrapper';
+
+my $pie = decode_json($browser->js(<<'JS'));
+var s = document.getElementById('pie_chart');
+return JSON.stringify({
+	w      : parseFloat(s.getAttribute('width')),
+	h      : parseFloat(s.getAttribute('height')),
+	parent : s.parentNode ? s.parentNode.getAttribute('class') || '' : '',
+	reset  : !!document.querySelector('.chart-reset-size'),
+});
+JS
+
+like $pie->{parent}, qr/\bchart-svg-wrap\b/,
+	'the resize wrap went around the SVG where it sits, not into the outer container';
+is $pie->{reset}, 1, 'and the pie page has the Reset size control too';
+
+$browser->focus('.chart-resize-handle');
+$browser->press('ArrowRight');
+$browser->press('ArrowDown');
+
+my $pie_stored = $browser->wait_for(sub {
+	my $raw = $browser->js("return localStorage.getItem('bi:chart-size:/pie');");
+	return undef unless defined $raw && length $raw;
+	return eval { decode_json($raw) };
+}, timeout => 5);
+
+ok $pie_stored, 'the pie page remembers the size it is left at';
+cmp_ok $pie_stored->{w}, '>', $pie->{w}, 'at a width the server did not send';
+
+$browser->focus('.chart-reset-size');
+$browser->press('Enter');
+
+ok $browser->wait_for(sub {
+	return 1 unless defined $browser->js("return localStorage.getItem('bi:chart-size:/pie');");
+	return undef;
+}, timeout => 5), 'Reset size forgets the pie size as well';
+
+my $pie_after = decode_json($browser->js(<<'JS'));
+var s = document.getElementById('pie_chart');
+return JSON.stringify({
+	w : parseFloat(s.getAttribute('width')),
+	h : parseFloat(s.getAttribute('height')),
+});
+JS
+
+is $pie_after->{w}, $pie->{w}, 'and the pie goes back to the width the server sent';
+is $pie_after->{h}, $pie->{h}, 'and the height';
 
 done_testing();
