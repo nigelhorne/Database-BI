@@ -41,6 +41,7 @@ recommends 'HTML::OSM', '0.10';          # Rendering /map (Phase 6.1).  Optional
 on 'test' => sub {
 	requires 'DBD::CSV';
 	requires 'Encode';
+	requires 'JSON::MaybeXS';
 	requires 'Test::DescribeMe';	# Author tests declare themselves with this
 	requires 'Test::Memory::Cycle';
 	requires 'Test::Mockingbird';

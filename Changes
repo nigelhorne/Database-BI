@@ -121,6 +121,16 @@ Revision history for Database-BI
 	  SVG and PNG, with Space copying its link.  The exports are observed
 	  through the page's own Blob and anchor, and the SVG's text is read back,
 	  so each control is shown to have produced the file it names.
+	- The keyboard suite is a CI job of its own.  .github/workflows/browser.yml
+	  installs Mozilla's Firefox ESR tarball rather than using the runner's
+	  snap (a snap's private /tmp cannot see the profile the fixture writes),
+	  and runs t/browser-*.t with real key presses.  BI_REQUIRE_BROWSER=1 makes a
+	  missing or broken browser fail the job rather than skip every test, so
+	  the workflow cannot be green with nothing run.  The Perl matrix sets
+	  BI_SKIP_BROWSER_TESTS=1 and leaves this to that job: a browser test says
+	  nothing about which Perl ran it, and one browser is the honest check.
+	  JSON::MaybeXS, which the Marionette client decodes its frames with, is a
+	  declared test prerequisite now that a clean checkout runs the client.
 	- A canvas says what its two grips are for the first time a reader opens
 	  one, and never again).  The tip is rendered hidden and
 	  uncovered by the script, so a reader who has already dismissed it does
@@ -176,6 +186,50 @@ Revision history for Database-BI
 	  not shrink where the menu it sits beside does, and it is not printed, since
 	  the printed canvas is two columns whatever the canvas is and the number
 	  would describe a page that is not there.
+	- The controls that were still reachable with a pointer only now answer the
+	  keyboard as well, audited page by page.  A pivot table's column headers
+	  sort and move: each leaf header is in the tab order, Enter and Space sort
+	  by it - the key a click already performs - Shift+Left and Shift+Right move
+	  it where a drag is offered, and a polite live region says which column was
+	  sorted and which way, or where a moved column landed, because neither
+	  gesture moves the focus.  A two-row header (a column dimension) refuses
+	  the move: shifting a measure column out from under its group label would
+	  leave the label over another group's numbers.  #pivot-head-help describes
+	  both routes, and the focused header is ringed on the dark header it sits
+	  on.
+	- A home-page card showed its file's type, size and date in a tooltip on
+	  hover, so a keyboard reader tabbing the same cards was told nothing.  All
+	  three card lists - the data files, the recently opened and saved entries,
+	  and the saved canvases - now show that tip on focus and hide it on blur,
+	  and each card is described by its own tip (role="tooltip", with a polite
+	  live region for the size the lazy /api/stat fetch adds after it is shown),
+	  so tabbing to a card says what a pointer reader is shown.  The trash-can
+	  button on those cards is a real button in the tab order but was drawn only
+	  while its list item was hovered, which left it focusable while invisible:
+	  it is now drawn at full strength when it has focus and at hover strength
+	  whenever focus is anywhere in the item.
+	- Chart legends toggle a series on click and were pointer-only.  The entries
+	  of a stacked chart's legend, and of a multi-series line chart's, are now
+	  switches: in the tab order, named "Toggle <series>", aria-pressed saying
+	  whether that series is drawn, Enter or Space sending the same click the
+	  pointer sends, and #stacked-legend-help / #line-legend-help describing the
+	  keys.  The focused entry is ringed on its swatch, because a <g> has no box
+	  of its own.  A single-series line chart has no legend and is given no
+	  instructions for one.
+	- A treemap tile's value - the area the tile is drawn at - cannot be read
+	  out, so the value is now part of the tile's name ("Filter table to
+	  Widget A (1250)") and the tooltip D3 shows on hover is shown on focus too,
+	  positioned from the tile rather than from a pointer.
+	- t/model.t covers each of those controls server-side: the pivot headers'
+	  keys, refusal and announcements; the three card lists' focus handlers and
+	  descriptions; the legends' switches; and the treemap's named value.  Two
+	  browser tests press real keys for the parts a source check cannot reach:
+	  t/browser-pivot-keys.t sorts a column with Enter, reverses it, sorts by
+	  another with Space, moves a column with Shift+Left/Right and asserts that
+	  the same keys leave a two-row header where it was; t/browser-home-keys.t
+	  checks that focusing a card shows its tip with the fetched modified date,
+	  that Tab hides it again, and that the hover-only remove button is drawn
+	  when focus is inside its list item.
 	[ Bug Fixes ]
 	- A canvas card's size could be lost with nothing said: saveLayout() only
 	  handled a transport failure, so a layout the server refused (400, two

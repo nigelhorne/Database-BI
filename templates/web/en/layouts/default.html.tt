@@ -61,6 +61,13 @@
       user-select: none;
     }
 
+    /* A column header is a control: it sorts, selects and moves its column from
+       the keyboard, so a focused one has to be findable on the dark header. */
+    thead th:focus-visible {
+      outline: 2px solid #ffffff;
+      outline-offset: -3px;
+    }
+
     thead th.dragging {
       opacity: 0.4;
     }
@@ -565,8 +572,18 @@
       z-index: 2;
       transition: opacity 0.1s, background 0.1s, color 0.1s;
     }
-    .db-list li:hover .recent-remove {
+    /* Hover and focus are the same reveal.  The button is in the tab order as
+       soon as it exists, so it must not be focusable while it is invisible. */
+    .db-list li:hover .recent-remove,
+    .db-list li:focus-within .recent-remove {
       opacity: 0.5;
+    }
+    .recent-remove:focus-visible {
+      opacity: 1;
+      background: rgba(192, 57, 43, 0.12);
+      color: #c0392b;
+      outline: 2px solid #c0392b;
+      outline-offset: 1px;
     }
     .recent-remove:hover {
       opacity: 1 !important;

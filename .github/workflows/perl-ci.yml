@@ -43,6 +43,12 @@ jobs:
       AUTOMATED_TESTING: 1
       NO_NETWORK_TESTING: 1
       NONINTERACTIVE_TESTING: 1
+      # The browser keyboard tests need a Firefox with a profile the browser
+      # can see, which a snap cannot provide, and a browser test says nothing
+      # about which Perl ran it.  They are run by browser.yml instead; here
+      # they are skipped deliberately rather than failing on a runner whose
+      # Firefox cannot be started this way.
+      BI_SKIP_BROWSER_TESTS: 1
     steps:
       - uses: actions/checkout@v7
 

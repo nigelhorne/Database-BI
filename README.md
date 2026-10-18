@@ -51,7 +51,10 @@ top-N, donut mode, configurable colour scheme), heatmap (two categorical
 axes, count or sum mode), bar chart (horizontal or vertical, sort,
 top-N), scatter/bubble plot (optional categorical colour and numeric
 size dimensions), stacked bar chart, combo bar+line chart, treemap, and
-histogram (server-side binning, `?bins=N`).  All charts can be resized
+histogram (server-side binning, `?bins=N`).  A legend entry that hides or
+shows its series (stacked, multi-series line) is a keyboard switch as well
+as a click target: Tab to it, press Enter or Space, and it reports its
+state with `aria-pressed`.  All charts can be resized
 by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
@@ -64,6 +67,12 @@ dataset's model store).  Rows sharing a position become one marker.
 combination of row dimensions, column dimensions, and measures
 (`sum|avg|min|max|count|count_distinct`).  Supports subtotals, HAVING
 filters, top-N row groups, and direct export to CSV, SQLite, JSON, or XLSX.
+Its headers are controls: click one to sort by it, or focus it and press
+Enter or Space; drag one to reorder the columns, or focus it and press
+Shift+Left/Right (offered where the header has a single row, since moving a
+measure column out from under a column-dimension group label would misfile
+it).  Both are announced in a live region, and `#pivot-head-help` describes
+them.
 - **Column statistics** -- the column-stats button runs `GET /stats`, which
 returns one row per column: row count, null count, distinct count, and
 (for numeric columns) min, max, mean, and median.
@@ -702,8 +711,11 @@ prove -l t/browser-*.t
 ```
 
 It covers the canvas Size menu (`t/browser-size.t`), the canvas's move handle,
-corner grip and Size menu from the keyboard (`t/browser-canvas-keys.t`), and
-the chart panel, chart resize grip and export bar (`t/browser-chart-keys.t`).
+corner grip and Size menu from the keyboard (`t/browser-canvas-keys.t`), the
+chart panel, chart resize grip and export bar (`t/browser-chart-keys.t`), the
+pivot table's sortable and movable headers (`t/browser-pivot-keys.t`), and the
+home page's focus-shown card details and remove button
+(`t/browser-home-keys.t`).
 Each file starts its own application on an ephemeral port with a throwaway
 `model_dir`, and its own Firefox with a throwaway profile, so the files can run
 in parallel and leave nothing behind.
@@ -714,6 +726,13 @@ when no Firefox is found.  `BI_SKIP_BROWSER_TESTS=1` skips them deliberately.
 The pages load D3 from a CDN.  The test profile blocks all non-loopback
 traffic, so the SVG elements in a test are the server-rendered ones: the tests
 assert what the controls do, not what D3 would have drawn.
+
+GitHub Actions runs this suite in its own workflow
+(`.github/workflows/browser.yml`), with Firefox ESR installed from Mozilla's
+tarball and `BI_REQUIRE_BROWSER=1`: a missing or broken browser fails the job
+instead of skipping everything green.  The Perl matrix sets
+`BI_SKIP_BROWSER_TESTS=1`, so the suite is run once, against the browser it is
+about, rather than once per Perl version.
 
 ## Limitations
 

@@ -1534,4 +1534,183 @@ subtest '3.2: the first-visit tip names both grips and is dismissed for good' =>
 	like $print_css, qr/\.canvas-hint/, 'the tip is not printed';
 };
 
+# ---------------------------------------------------------------------------
+# The remaining custom controls: a pivot header, a home-page card and a treemap
+# tile were all reachable with a pointer only.  Each is given the same
+# treatment: a name, a description that resolves, a way in from the tab order,
+# and a live region for what a key press changed.
+# ---------------------------------------------------------------------------
+
+subtest 'pivot: a column header sorts and moves from the keyboard' => sub {
+	require Mojo::Util;
+
+	my $url = '/pivot?l=' . Mojo::Util::url_escape('table:sales')
+		. '&rows=region&m=' . Mojo::Util::url_escape(':count:rows');
+	$t->get_ok($url)->status_is(200, 'the pivot page renders');
+	my $b = $t->tx->res->body;
+
+	# The instructions are on the page, not left to the title attribute: a
+	# header with a keyboard route nobody can discover is not much of one.
+	like $b, qr/<p class="sr-only" id="pivot-head-help">/,
+		'the instructions are on the page';
+	like $b, qr/id="pivot-head-help"[^>]*>[^<]*Enter or\s+Space/s,
+		'and name the keys that sort';
+	like $b, qr/id="pivot-head-help"[^>]*>[^<]*Shift\+Left or Shift\+Right/s,
+		'and the pair that moves the column';
+	like $b, qr/<p class="sr-only" id="pivot-live" role="status" aria-live="polite">/,
+		'and there is a polite announcer for a sort or a move';
+
+	# The header is made a control by the script that gives it the behaviour:
+	# without it the table cannot be sorted at all, so a focusable header
+	# declared in the markup would be a control that does nothing.
+	like $b, qr/th\.setAttribute\('tabindex', '0'\)/,
+		'the header is put in the tab order';
+	like $b, qr/th\.setAttribute\('aria-describedby', 'pivot-head-help'\)/,
+		'and points at the instructions';
+	like $b, qr/th\.setAttribute\('aria-sort', 'none'\)/, 'it declares that it is unsorted';
+	like $b, qr/Enter to sort \| Shift\+Left\/Right to move column/,
+		'and its title says what the keys do, not only what a pointer does';
+
+	# The keys, and what each of them does.
+	like $b, qr/th\.addEventListener\('keydown'/,
+		'the header has a keyboard handler';
+	like $b, qr/e\.key === 'Enter' \|\| e\.key === ' '/,
+		'Enter and Space sort, because that is what a click does';
+	like $b, qr/if \(HASTWO \|\| !e\.shiftKey\) return;/,
+		'Shift+Left/Right moves a column, where a drag is offered';
+	like $b, qr/e\.key === 'ArrowLeft'/,  'left moves the column one place left';
+	like $b, qr/e\.key === 'ArrowRight'/, 'and right one place right';
+	like $b, qr/if \(from < 0 \|\| to < 0 \|\| to >= leafHeaders\.length\) return;/,
+		'a column at the edge is not moved off it';
+	like $b, qr/e\.preventDefault\(\)/, 'the keys do not scroll the page instead';
+
+	# What happened is said, since neither gesture moves the focus.
+	like $b, qr/function announce\(text\)/, 'there is one place that announces';
+	like $b, qr/announce\('Sorted by ' \+ headerName\(leafIdx\)/,
+		'a sort names the column and the direction';
+	like $b, qr/announce\('Moved ' \+ headerName\(to\) \+ ' to column '/,
+		'a move names where the column went';
+	like $b, qr/th\.focus\(\);/, 'and focus stays on the column that was moved';
+
+	# ... and the focus affordance, on the dark header the ring has to show on.
+	like $b, qr/\.pivot-table thead th:focus-visible/, 'the focused header is visible';
+	like $b, qr/\.pivot-table thead th:focus-visible \{[^}]*outline\s*:/s,
+		'with a ring drawn, not only a colour change';
+};
+
+subtest 'home: a card shows on focus what a pointer is shown on hover' => sub {
+	$t->get_ok('/')->status_is(200, 'the home page renders');
+	my $b = $t->tx->res->body;
+
+	# The details of a file - its type, size and date - were hover-only.  They
+	# are now the card's description as well, so tabbing to the card says them;
+	# a fetched size arrives after focus, hence the polite live region.
+	like $b, qr/tip\.setAttribute\('role', 'tooltip'\)/, 'the tip is a tooltip';
+	like $b, qr/tip\.setAttribute\('aria-live', 'polite'\)/,
+		'and announces a size it fetched after it was shown';
+
+	my $described = () = $b =~ /card\.setAttribute\('aria-describedby', tip\.id\)/g;
+	is $described, 3,
+		'all three card lists describe a card by its tip (files, recent entries, canvases)';
+
+	my $focused = () = $b =~ /card\.addEventListener\('focus',\s+showTip\)/g;
+	is $focused, 3, 'and all three show it when the card takes focus';
+	my $blurred = () = $b =~ /card\.addEventListener\('blur',\s+hideTip\)/g;
+	is $blurred, 3, 'and hide it when focus leaves, as a mouse does';
+	like $b, qr/function showTip\(\)/, 'hover and focus share one show';
+	like $b, qr/function hideTip\(\)/, 'and one hide, so they cannot disagree';
+
+	# The remove button that sits on a card is in the tab order as soon as it
+	# exists, and was revealed by hovering the list item only: a keyboard reader
+	# could focus a button that was invisible.  Focus now reveals it too.
+	like $b, qr/\.db-list li:focus-within \.recent-remove/, 'focus reveals the remove button';
+	like $b, qr/\.recent-remove:focus-visible \{[^}]*opacity\s*:\s*1/s,
+		'and the focused button is drawn at full strength';
+	like $b, qr/\.recent-remove:focus-visible \{[^}]*outline\s*:/s,
+		'with a ring, so it is not only a colour change';
+};
+
+subtest 'treemap: a tile says its value, and shows it on focus' => sub {
+	plan skip_all => 'HTML::D3 not available' unless eval { require HTML::D3; 1 };
+
+	$t->get_ok('/treemap?l=table:sales&cat=product&val=amount')
+		->status_is(200, 'the treemap page renders');
+	my $b = $t->tx->res->body;
+
+	# The area a tile is drawn at encodes its value, and area is not read out:
+	# the value goes in the name the tile is announced by.
+	like $b, qr/var value = \(d\.value == null\) \? '' : d\.value;/,
+		'the tile reads its value, empty where there is none';
+	like $b, qr/g\.setAttribute\('aria-label', 'Filter table to ' \+ label \+ ' \(' \+ value \+ '\)'\)/,
+		'and announces the name and the value together';
+	like $b, qr/g\.setAttribute\('title', 'Filter table to: ' \+ label \+ ' \(' \+ value \+ '\)'\)/,
+		'as the pointer tip does too';
+
+	# The tooltip D3 shows on hover is shown on focus, from the tile's own
+	# position, since a focused tile has no pointer to take one from.
+	like $b, qr/function showTileTip\(g, label, value\)/, 'the tip can be shown without a pointer';
+	like $b, qr/g\.addEventListener\('focus', function \(\) \{ showTileTip\(g, label, value\); \}\)/,
+		'focus shows it';
+	like $b, qr/g\.addEventListener\('blur',\s+hideTileTip\)/, 'and blur hides it';
+	like $b, qr/var r = g\.getBoundingClientRect\(\);/,
+		'positioned from the tile rather than from a pointer';
+	like $b, qr/tip\.appendChild\(name\);/, 'with the name in bold, as D3 writes it';
+	like $b, qr/function hideTileTip\(\)/, 'and one place that hides it';
+};
+
+subtest 'chart legends: a series is hidden from the keyboard too' => sub {
+	plan skip_all => 'HTML::D3 not available' unless eval { require HTML::D3; 1 };
+
+	# A stacked legend entry toggles its series on click.  The entry is now a
+	# switch as well: focusable, named, and saying whether the series is drawn.
+	$t->get_ok('/stacked?l=table:sales&cat=region&seg=product&val=amount')
+		->status_is(200, 'the stacked page renders');
+	my $b = $t->tx->res->body;
+
+	like $b, qr/<p class="sr-only" id="stacked-legend-help">/,
+		'the instructions are on the page';
+	like $b, qr/id="stacked-legend-help"[^>]*>[^<]*Enter or\s+Space/s,
+		'and name the keys that toggle';
+	like $b, qr/document\.querySelectorAll\('#stacked_bar \.sb-legend-item'\)/,
+		'each legend entry is found by the class D3 gives it';
+	like $b, qr/item\.setAttribute\('tabindex', '0'\)/, 'and put in the tab order';
+	like $b, qr/item\.setAttribute\('role', 'button'\)/, 'as a button';
+	like $b, qr/item\.setAttribute\('aria-label', 'Toggle ' \+ name\)/,
+		'named for the series it toggles';
+	like $b, qr/item\.setAttribute\('aria-pressed', 'true'\)/,
+		'with the state of that series';
+	like $b, qr/item\.addEventListener\('click', function \(\) \{/,
+		'which follows a pointer click as well';
+	like $b, qr/item\.setAttribute\('aria-pressed',[\s\S]*?=== 'true' \? 'false' : 'true'\)/,
+		'and is reversed with the series';
+	like $b, qr/item\.addEventListener\('keydown'/, 'the entry has a keyboard handler';
+	like $b, qr/e\.key === 'Enter' \|\| e\.key === ' '/,
+		'Enter and Space toggle it';
+	like $b, qr/item\.dispatchEvent\(new MouseEvent\('click'/,
+		'by sending the click D3 listens for';
+	like $b, qr/#stacked_bar \.sb-legend-item:focus-visible rect/,
+		'and the focused entry is drawn, on the swatch it toggles';
+
+	# The multi-series line chart has a legend of its own; a single-series
+	# chart has none, and must not be given instructions for one.
+	$t->get_ok('/graph?l=table:sales&x=sale_date&y=amount&series=region')
+		->status_is(200, 'the multi-series page renders');
+	$b = $t->tx->res->body;
+	like $b, qr/<p class="sr-only" id="line-legend-help">/,
+		'its instructions are on the page';
+	like $b, qr/document\.querySelectorAll\('#chart \.msl-leg-item'\)/,
+		'each legend entry is found';
+	like $b, qr/item\.setAttribute\('aria-label', 'Toggle ' \+ name\)/,
+		'and named for its series';
+	like $b, qr/item\.addEventListener\('keydown'/, 'and answers the keyboard';
+	like $b, qr/item\.dispatchEvent\(new MouseEvent\('click'/,
+		'by sending the click the legend listens for';
+	like $b, qr/#chart \.msl-leg-item:focus-visible rect/, 'and the focused entry is drawn';
+
+	$t->get_ok('/graph?l=table:sales&x=sale_date&y=amount')
+		->status_is(200, 'a single-series chart renders');
+	unlike $t->tx->res->body, qr/id="line-legend-help"/,
+		'and is given no instructions for a legend it does not have';
+};
+
 done_testing;

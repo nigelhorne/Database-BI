@@ -55,6 +55,7 @@ WriteMakefile(
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
 		'Encode' => 0,
+		'JSON::MaybeXS' => 0,	# The browser tests speak Marionette and decode its frames
 		'Test::DescribeMe' => 0,	# Author tests (t/pod.t, t/manifest.t, t/version.t) declare themselves with this; the tools they need are optional and skipped without them
 		'Test::Memory::Cycle' => 0,
 		'Test::Mockingbird' => 0,

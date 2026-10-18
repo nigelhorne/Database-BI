@@ -108,6 +108,24 @@ sub skip_reason {
 	return undef;
 }
 
+# Plan a browser test file: skip it when there is no usable browser, or die
+# when this run is the one that is supposed to be checking the browser.  A CI
+# job that skipped every test would otherwise report success without testing
+# anything, so BI_REQUIRE_BROWSER turns a missing browser into a failure.  The
+# test file calls this after Test::Most has loaded Test::More.
+sub plan_browser_tests {
+	my ($class, %arg) = @_;
+
+	my $why = $class->skip_reason(%arg);
+	return 1 unless defined $why;
+
+	die "BI_REQUIRE_BROWSER is set but the browser tests cannot run: $why\n"
+		if $ENV{BI_REQUIRE_BROWSER};
+
+	Test::More::plan(skip_all => $why);
+	return 0;
+}
+
 sub new {
 	my ($class, %arg) = @_;
 

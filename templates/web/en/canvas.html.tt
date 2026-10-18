@@ -52,6 +52,14 @@
 	max-width: 100%;
 	height: auto;
 }
+/* A cross-filter mark is a control: it filters the canvas by its value from
+ * the keyboard too, so a focused one is stroked.  A fill cannot say which
+ * mark has focus, because the fill is the value it encodes. */
+.visual-card-body svg [role="button"]:focus-visible {
+	stroke: #0d6efd;
+	stroke-width: 2px;
+	outline: none;
+}
 .visual-error {
 	color: #dc3545;
 	padding: 0.5rem;
@@ -654,6 +662,8 @@ the arrow keys to move it one grid cell at a time.  Hold Shift with an arrow key
 edge of the canvas in that direction.  The new position is saved as you go, and reads out as
 the column and row it was moved to, along with any visual the move pushed down.</p>
 <p class="sr-only" id="canvas-live" role="status"></p>
+<p class="sr-only" id="cf-help">Filter by a chart mark: focus a bar, slice or point with
+Tab, then press Enter or Space to filter the canvas by its value.</p>
 [% END %]
 
 [% IF canvas_id.length %]
@@ -1402,39 +1412,72 @@ menu, so it reads without the menu being opened.</p>
 			if (!cfCol || visId === null) return;
 			var svg = card.querySelector('svg');
 			if (!svg) return;
-			d3.select(svg)
-				.selectAll('rect, path.arc, path.slice, circle.dot, g.bar > rect')
-				.on('click.cf', function (event, d) {
-					event.stopPropagation();
-					var val = extractCfValue(d);
-					if (val === null || val === '') return;
-					var u = new URL(window.location.href);
+			/* What a mark does, in the words the state it is in calls for: filter
+			 * normally, drill down when this is the drill column, and show the rows
+			 * at the deepest level. */
+			function cfLabel(d) {
+				var val = extractCfValue(d);
+				if (val === null || val === '') return null;
+				if (drillName && cfCol === drillCol && drillLevel >= drillMax) {
+					return 'Show rows for ' + cfCol + ': ' + val;
+				}
+				return (drillName ? 'Drill into ' : 'Filter by ') + cfCol + ': ' + val;
+			}
 
-					if (drillName && cfCol === drillCol) {
-						/* Drill-down mode: clicking the current-level column
-						 * advances one level.  At the deepest level, open the
-						 * drill-through URL to see the raw matching rows. */
-						if (drillLevel >= drillMax) {
-							var dtLink = document.querySelector('a.drill-through-link');
-							if (dtLink) { pushUndo(window.location.search); window.location.href = dtLink.href; }
-							return;
-						}
-						u.searchParams.delete('cv');
-						u.searchParams.delete('dl');
-						u.searchParams.set('dl', drillLevel + 1);
-						u.searchParams.append('cf', drillCol + ':eq:' + encodeURIComponent(val));
-						pushUndo(window.location.search);
-						window.location.href = u.toString();
-					} else if (!drillName) {
-						/* Normal cross-filter mode: replace any existing filter. */
-						u.searchParams.delete('cf');
-						u.searchParams.delete('cv');
-						u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
-						u.searchParams.set('cv', visId);
-						pushUndo(window.location.search);
-						window.location.href = u.toString();
+			function applyCf(event, d) {
+				event.stopPropagation();
+				var val = extractCfValue(d);
+				if (val === null || val === '') return;
+				var u = new URL(window.location.href);
+
+				if (drillName && cfCol === drillCol) {
+					/* Drill-down mode: choosing the current-level column
+					 * advances one level.  At the deepest level, open the
+					 * drill-through URL to see the raw matching rows. */
+					if (drillLevel >= drillMax) {
+						var dtLink = document.querySelector('a.drill-through-link');
+						if (dtLink) { pushUndo(window.location.search); window.location.href = dtLink.href; }
+						return;
 					}
-					/* drillName set but cfCol !== drillCol: ignore click. */
+					u.searchParams.delete('cv');
+					u.searchParams.delete('dl');
+					u.searchParams.set('dl', drillLevel + 1);
+					u.searchParams.append('cf', drillCol + ':eq:' + encodeURIComponent(val));
+					pushUndo(window.location.search);
+					window.location.href = u.toString();
+				} else if (!drillName) {
+					/* Normal cross-filter mode: replace any existing filter. */
+					u.searchParams.delete('cf');
+					u.searchParams.delete('cv');
+					u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
+					u.searchParams.set('cv', visId);
+					pushUndo(window.location.search);
+					window.location.href = u.toString();
+				}
+				/* drillName set but cfCol !== drillCol: ignore the choice. */
+			}
+
+			/* The marks are the controls, so they are in the tab order and say what
+			 * they do.  A mark with no value to filter by is not a control and is
+			 * left out of both the tab order and the accessibility tree's buttons. */
+			var marks = d3.select(svg)
+				.selectAll('rect, path.arc, path.slice, circle.dot, g.bar > rect');
+			marks
+				.attr('tabindex', function (event, d) {
+					return cfLabel(d) === null ? null : 0;
+				})
+				.attr('role', function (event, d) {
+					return cfLabel(d) === null ? null : 'button';
+				})
+				.attr('aria-label', function (event, d) { return cfLabel(d); })
+				.attr('aria-describedby', function (event, d) {
+					return cfLabel(d) === null ? null : 'cf-help';
+				})
+				.on('click.cf', applyCf)
+				.on('keydown.cf', function (event, d) {
+					if (event.key !== 'Enter' && event.key !== ' ') return;
+					event.preventDefault();
+					applyCf(event, d);
 				});
 		});
 	}

@@ -46,8 +46,7 @@ use JSON::MaybeXS qw(encode_json decode_json);
 
 use BI::Test::Browser ();
 
-my $skip = BI::Test::Browser->skip_reason(required_files => ['data/sales.csv']);
-plan skip_all => $skip if $skip;
+BI::Test::Browser->plan_browser_tests(required_files => ['data/sales.csv']);
 
 my $SALES = File::Spec->rel2abs('data/sales.csv');
 
