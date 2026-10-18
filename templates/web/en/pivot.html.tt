@@ -311,8 +311,8 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
   leafHeaders.forEach(function (th) {
     th.setAttribute('aria-sort', 'none');
     th.style.cursor = 'pointer';
-    th.title = 'Click to sort' + (!HASTWO ? ' | Drag to reorder' : '')
-             + ' | Enter to sort | Shift+Left/Right to move column';
+    th.title = 'Click to sort | Enter to sort'
+             + (!HASTWO ? ' | Drag to reorder | Shift+Left/Right to move column' : '');
 
     // A <th> is not a button, so the browser does not put it in the tab order
     // or activate it by itself: it says here that it is a control, which

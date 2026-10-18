@@ -53,12 +53,18 @@ Revision history for Database-BI
 	  stacked, combo, treemap, histogram) is in the tab order and carries
 	  slider semantics: left and right change the width, up and down the
 	  height, Shift takes bigger steps and Home and End go to the narrowest and
-	  widest the chart can be, which is now the width of the window so the grip
-	  itself cannot be dragged off screen.  The size is announced as it changes
-	  ("640 pixels wide, 480 pixels high"), the focused grip is drawn at full
-	  strength with the chart outlined so it is clear which one the keys resize,
-	  and #chart-resize-help describes the keys.  Unlike a canvas the size is
-	  not saved: it lasts until the page is reloaded.
+	  widest the chart can be - the width of the window.  The size is announced as
+	  it changes ("640 pixels wide, 480 pixels high"), the focused grip is drawn at
+	  full strength with the chart outlined so it is clear which one the keys resize,
+	  and #chart-resize-help describes the keys.  The size is remembered: one key
+	  per kind of chart (bi:chart-size:<path>), so changing a filter does not
+	  lose it and a shared link opens at the recipient's own size rather than
+	  the sender's.  It is written when a keyboard press lands and once when a
+	  drag is let go - not on every pointer move - and read back before the grip
+	  is created, so the grip opens reporting the size the chart is drawn at.
+	  A stored size is clamped to the window it is restored in, and a value that
+	  is not two numbers is ignored rather than applied; storage that throws
+	  leaves the grip working, it just forgets the size.
 	- Canvas visuals are dragged to a chosen grid cell, not just resized and
 	  reordered).  A card's header is the grab area: the card snaps
 	  to the cell the pointer is over, a ghost cell shows where it will land,
@@ -120,7 +126,11 @@ Revision history for Database-BI
 	  its grip (Shift, Home and End included), and Tab then Enter export it as
 	  SVG and PNG, with Space copying its link.  The exports are observed
 	  through the page's own Blob and anchor, and the SVG's text is read back,
-	  so each control is shown to have produced the file it names.
+	  so each control is shown to have produced the file it names.  It then
+	  leaves the chart at a size the server does not send - first with the
+	  keyboard, then by dragging the grip with real pointer actions - opens the
+	  page again under a different query, and asserts that the SVG, the grip's
+	  value and the text a screen reader is given all report the restored size.
 	- The keyboard suite is a CI job of its own.  .github/workflows/browser.yml
 	  installs Mozilla's Firefox ESR tarball rather than using the runner's
 	  snap (a snap's private /tmp cannot see the profile the fixture writes),
@@ -213,9 +223,11 @@ Revision history for Database-BI
 	  switches: in the tab order, named "Toggle <series>", aria-pressed saying
 	  whether that series is drawn, Enter or Space sending the same click the
 	  pointer sends, and #stacked-legend-help / #line-legend-help describing the
-	  keys.  The focused entry is ringed on its swatch, because a <g> has no box
-	  of its own.  A single-series line chart has no legend and is given no
-	  instructions for one.
+	  keys.  The series appearing or going is announced by a live region as
+	  well, since a pressed state on the entry is not heard by every screen
+	  reader, and the focused entry is ringed on its swatch, because a <g> has
+	  no box of its own.  A single-series line chart has no legend and is given
+	  no instructions for one.
 	- A treemap tile's value - the area the tile is drawn at - cannot be read
 	  out, so the value is now part of the tile's name ("Filter table to
 	  Widget A (1250)") and the tooltip D3 shows on hover is shown on focus too,
@@ -229,7 +241,12 @@ Revision history for Database-BI
 	  the same keys leave a two-row header where it was; t/browser-home-keys.t
 	  checks that focusing a card shows its tip with the fetched modified date,
 	  that Tab hides it again, and that the hover-only remove button is drawn
-	  when focus is inside its list item.
+	  when focus is inside its list item.  The audit's two remaining
+	  pointer-only gestures are documented in the README: brushing a line chart
+	  to zoom (its Reset zoom button is a keyboard control) and dropping a file
+	  on the window to upload it (typing the path, or Browse, is the keyboard
+	  route).  Every other element that behaves as a control is now in the tab
+	  order and answers the keyboard.
 	[ Bug Fixes ]
 	- A canvas card's size could be lost with nothing said: saveLayout() only
 	  handled a transport failure, so a layout the server refused (400, two

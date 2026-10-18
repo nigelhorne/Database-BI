@@ -32,6 +32,7 @@
 
 <p class="sr-only" id="stacked-legend-help">Show or hide a series: press Tab until a legend
 entry has focus, then press Enter or Space to toggle it.</p>
+<p class="sr-only" id="stacked-live" role="status" aria-live="polite"></p>
 
 <div class="stacked-container">
   <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -45,6 +46,18 @@ entry has focus, then press Enter or Space to toggle it.</p>
 // whether that series is drawn, and Enter or Space sending the same click the
 // pointer sends.
 (function () {
+  var live = document.getElementById('stacked-live');
+
+  // A button's pressed state is announced by a screen reader that is on it;
+  // the series appearing or disappearing is not, so it is said here too.
+  function say(name, pressed) {
+    if (!live) return;
+    live.textContent = '';
+    setTimeout(function () {
+      live.textContent = name + (pressed ? ' shown' : ' hidden');
+    }, 30);
+  }
+
   setTimeout(function () {
     document.querySelectorAll('#stacked_bar .sb-legend-item').forEach(function (item) {
       var textEl = item.querySelector('text');
@@ -58,8 +71,9 @@ entry has focus, then press Enter or Space to toggle it.</p>
       item.setAttribute('aria-describedby', 'stacked-legend-help');
 
       item.addEventListener('click', function () {
-        item.setAttribute('aria-pressed',
-          item.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+        var pressed = item.getAttribute('aria-pressed') !== 'true';
+        item.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        say(name, pressed);
       });
       item.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') {

@@ -77,6 +77,7 @@
 [% IF chart && chart.encode && chart.encode.series %]
 <p class="sr-only" id="line-legend-help">Show or hide a series: press Tab until a legend entry
 has focus, then press Enter or Space to toggle it.</p>
+<p class="sr-only" id="line-live" role="status" aria-live="polite"></p>
 [% END %]
 
 <div class="graph-container">
@@ -92,6 +93,18 @@ has focus, then press Enter or Space to toggle it.</p>
 // the same click the pointer sends.  A single-series chart has no legend, and
 // this finds nothing.
 (function () {
+  var live = document.getElementById('line-live');
+
+  // The pressed state is announced by a screen reader that is on the entry;
+  // the line coming and going is not, so it is said here as well.
+  function say(name, pressed) {
+    if (!live) return;
+    live.textContent = '';
+    setTimeout(function () {
+      live.textContent = name + (pressed ? ' shown' : ' hidden');
+    }, 30);
+  }
+
   function wireLegend() {
     document.querySelectorAll('#chart .msl-leg-item').forEach(function (item) {
       var textEl = item.querySelector('text');
@@ -107,8 +120,9 @@ has focus, then press Enter or Space to toggle it.</p>
       }
 
       item.addEventListener('click', function () {
-        item.setAttribute('aria-pressed',
-          item.getAttribute('aria-pressed') === 'true' ? 'false' : 'true');
+        var pressed = item.getAttribute('aria-pressed') !== 'true';
+        item.setAttribute('aria-pressed', pressed ? 'true' : 'false');
+        say(name, pressed);
       });
       item.addEventListener('keydown', function (e) {
         if (e.key === 'Enter' || e.key === ' ') {

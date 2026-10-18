@@ -25,7 +25,11 @@ Key features:
 
 - **File picker** -- the home page scans `data_dir` and shows a card for
 every supported file.  Recently opened filesystem files appear in a
-"Recently opened" section powered by `localStorage`.
+"Recently opened" section powered by `localStorage`.  A card's details (type,
+size, modified date) are shown on hover and on focus, and are what the card is
+described by, so they are available to a keyboard or screen-reader user as well.
+The remove button on a card in those lists is drawn when it has focus, not only
+when its row is hovered.
 - **Filesystem browser** -- `/browse` lets the user navigate the entire
 filesystem and open any supported data file, not just files in `data_dir`.
 - **Column sort and reorder** -- clicking a header sorts the table; headers
@@ -58,7 +62,11 @@ state with `aria-pressed`.  All charts can be resized
 by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
-as it changes.  All chart pages include Copy-link and Export SVG/PNG buttons.
+as it changes.  The size is remembered per kind of chart - one page left at
+900x600 opens the next bar chart, or pie chart, at that size - in `localStorage`
+under `bi:chart-size:<path>`, clamped to the window it is restored in and
+written once when a drag ends or on each keyboard step.  All chart pages include
+Copy-link and Export SVG/PNG buttons.
 - **Maps** -- `GET /map` plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded locally
 with [Geo::Coder::Free](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AFree) (one lookup per distinct place, remembered in the
@@ -712,10 +720,10 @@ prove -l t/browser-*.t
 
 It covers the canvas Size menu (`t/browser-size.t`), the canvas's move handle,
 corner grip and Size menu from the keyboard (`t/browser-canvas-keys.t`), the
-chart panel, chart resize grip and export bar (`t/browser-chart-keys.t`), the
-pivot table's sortable and movable headers (`t/browser-pivot-keys.t`), and the
-home page's focus-shown card details and remove button
-(`t/browser-home-keys.t`).
+chart panel, chart resize grip, export bar and the size the grip keeps across a
+reload (`t/browser-chart-keys.t`), the pivot table's sortable and movable
+headers (`t/browser-pivot-keys.t`), and the home page's focus-shown card
+details and remove button (`t/browser-home-keys.t`).
 Each file starts its own application on an ephemeral port with a throwaway
 `model_dir`, and its own Firefox with a throwaway profile, so the files can run
 in parallel and leave nothing behind.
@@ -736,6 +744,14 @@ about, rather than once per Perl version.
 
 ## Limitations
 
+- Not every gesture has a keyboard equivalent.  Brushing across a line chart
+to zoom is a pointer gesture - the chart's Reset zoom button undoes it from the
+keyboard, and the whole series is drawn before any zoom - and dropping a file
+on the window to upload it is a pointer gesture, with typing the path on the
+home page or opening it from Browse as the keyboard route.  Everything else
+that behaves as a control (table and pivot headers, chart legends, drill-down
+marks, the canvas's move and resize handles, the chart resize grips, the Size
+menu) is reachable and operable from the keyboard.
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.

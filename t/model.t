@@ -1131,6 +1131,47 @@ subtest '2: chart resize handles take focus, answer the arrow keys and are annou
 	like $b, qr/\.chart-svg-wrap:focus-within/,       'the focused chart is visible';
 };
 
+subtest '2: a chart page keeps the size it was left at' => sub {
+	plan skip_all => 'HTML::D3 not available' unless eval { require HTML::D3; 1 };
+
+	$t->get_ok('/bar?l=table:sales&cat=region&val=amount')->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# One key per kind of chart, not per URL: the size is how this reader wants
+	# to look at a bar chart, so changing the filter does not lose it.
+	like $b, qr/SIZE_KEY = 'bi:chart-size:'/, 'the size is kept under a key of its own';
+	like $b, qr/function sizeKey\(\) \{ return SIZE_KEY \+ location\.pathname; \}/,
+		'one key per chart page, whatever its query string';
+
+	# Written by both routes to the size: a keyboard press, and a drag when the
+	# grip is let go rather than on every pointer move.
+	like $b, qr/function saveChartSize\(w, h\)/, 'there is one place that saves';
+	like $b, qr/saveChartSize\(applied\.w, applied\.h\);/, 'the keyboard resize saves';
+	like $b, qr/function onUp\(\)[\s\S]*?saveChartSize\(st\.w, st\.h\);/, 
+		'and the drag saves when the grip is let go';
+	like $b, qr/window\.localStorage\.setItem\(sizeKey\(\), JSON\.stringify\(\{ w: w, h: h \}\)\)/,
+		'as the two numbers the grip announces';
+
+	# Read back at load, before the grip is created, so the grip opens saying the
+	# size the chart is drawn at rather than the size it was served at.
+	like $b, qr/var saved = savedChartSize\(\);[\s\S]*?if \(saved\) applyChartSize\(svg, wrap, saved\.w, saved\.h\);/,
+		'the saved size is applied at load';
+	like $b, qr/function savedChartSize\(\)/, 'and read from the store';
+	like $b, qr/return \{ w: clampWidth\(size\.w\), h: clampHeight\(size\.h\) \};/,
+		'clamped to what this window allows';
+	like $b, qr/if \(!size \|\| typeof size\.w !== 'number' \|\| typeof size\.h !== 'number'\) return null;/,
+		'a stored value that is not two numbers is ignored rather than applied';
+	like $b, qr/catch \(e\) \{ \/\* a browser that cannot store it still resizes \*\/ \}/,
+		'and storage that fails does not break the grip';
+
+	# The instructions say what happens to the size, since it now outlives the
+	# visit.
+	like $b, qr/id="chart-resize-help"[^>]*>[^<]*remembered/s, 
+		'the help says the size is remembered';
+	like $b, qr/id="chart-resize-help"[^>]*>[^<]*same kind/s,
+		'and that it is kept per kind of chart';
+};
+
 subtest '3.2: a visual can be put in a chosen cell, not the next free one' => sub {
 	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
 	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
@@ -1568,8 +1609,10 @@ subtest 'pivot: a column header sorts and moves from the keyboard' => sub {
 	like $b, qr/th\.setAttribute\('aria-describedby', 'pivot-head-help'\)/,
 		'and points at the instructions';
 	like $b, qr/th\.setAttribute\('aria-sort', 'none'\)/, 'it declares that it is unsorted';
-	like $b, qr/Enter to sort \| Shift\+Left\/Right to move column/,
+	like $b, qr/Click to sort \| Enter to sort/,
 		'and its title says what the keys do, not only what a pointer does';
+	like $b, qr/\(\!HASTWO \? ' \| Drag to reorder \| Shift\+Left\/Right to move column' : ''\)/,
+		'with the move offered only where a drag is offered';
 
 	# The keys, and what each of them does.
 	like $b, qr/th\.addEventListener\('keydown'/,
@@ -1681,8 +1724,14 @@ subtest 'chart legends: a series is hidden from the keyboard too' => sub {
 		'with the state of that series';
 	like $b, qr/item\.addEventListener\('click', function \(\) \{/,
 		'which follows a pointer click as well';
-	like $b, qr/item\.setAttribute\('aria-pressed',[\s\S]*?=== 'true' \? 'false' : 'true'\)/,
+	like $b, qr/var pressed = item\.getAttribute\('aria-pressed'\) !== 'true';/,
 		'and is reversed with the series';
+	like $b, qr/item\.setAttribute\('aria-pressed', pressed \? 'true' : 'false'\);/,
+		'which is written back on the entry';
+	like $b, qr/<p class="sr-only" id="stacked-live" role="status" aria-live="polite">/,
+		'and there is a polite announcer for the series appearing or going';
+	like $b, qr/live\.textContent = name \+ \(pressed \? ' shown' : ' hidden'\);/,
+		'which says which series was shown or hidden';
 	like $b, qr/item\.addEventListener\('keydown'/, 'the entry has a keyboard handler';
 	like $b, qr/e\.key === 'Enter' \|\| e\.key === ' '/,
 		'Enter and Space toggle it';
@@ -1703,6 +1752,10 @@ subtest 'chart legends: a series is hidden from the keyboard too' => sub {
 	like $b, qr/item\.setAttribute\('aria-label', 'Toggle ' \+ name\)/,
 		'and named for its series';
 	like $b, qr/item\.addEventListener\('keydown'/, 'and answers the keyboard';
+	like $b, qr/<p class="sr-only" id="line-live" role="status" aria-live="polite">/,
+		'with an announcer of its own';
+	like $b, qr/live\.textContent = name \+ \(pressed \? ' shown' : ' hidden'\);/,
+		'which says which line was shown or hidden';
 	like $b, qr/item\.dispatchEvent\(new MouseEvent\('click'/,
 		'by sending the click the legend listens for';
 	like $b, qr/#chart \.msl-leg-item:focus-visible rect/, 'and the focused entry is drawn';

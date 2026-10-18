@@ -333,4 +333,119 @@ my $copied_label = $browser->wait_for(sub {
 }, timeout => 5);
 is $copied_label, 'Copied!', 'and the button says so';
 
+# ---------------------------------------------------------------------------
+# The size outlives the visit.  The keyboard is used to make a size the server
+# does not send, so a restored one cannot be the default being read again; then
+# the page is opened afresh and the size is read back from the SVG and the grip.
+# ---------------------------------------------------------------------------
+
+sub chart_size {
+	return decode_json($browser->js(<<'JS'));
+var s = document.getElementById('bar_chart');
+return JSON.stringify({
+	w : parseFloat(s.getAttribute('width')),
+	h : parseFloat(s.getAttribute('height')),
+});
+JS
+}
+
+$browser->focus('.chart-resize-handle');
+$browser->press('End');
+$browser->press('ArrowDown') for 1 .. 3;
+
+my $left = chart_size();
+
+my $stored = $browser->wait_for(sub {
+	my $raw = $browser->js("return localStorage.getItem('bi:chart-size:/bar');");
+	return undef unless defined $raw && length $raw;
+	my $size = eval { decode_json($raw) };
+	return undef unless $size && defined $size->{w} && defined $size->{h};
+	return $size;
+}, timeout => 5);
+
+is_deeply $stored, { w => $left->{w}, h => $left->{h} },
+	'the size the keyboard left the page at is written under its own key';
+ok !defined $browser->js("return localStorage.getItem('bi:chart-size:/pie');"),
+	'and no other kind of chart was given it';
+
+# A fresh visit with a different query string: the size belongs to the kind of
+# chart, so changing the filter does not lose it.
+$browser->navigate('/bar?l=table:sales&cat=region&val=amount');
+ok $browser->wait_for(sub {
+	$browser->js("return !!document.querySelector('.chart-resize-handle');") ? 1 : undef;
+}, timeout => 10), 'the fresh visit has its grip';
+
+my $restored = decode_json($browser->js(<<'JS'));
+var s = document.getElementById('bar_chart');
+var g = document.querySelector('.chart-resize-handle');
+return JSON.stringify({
+	w    : parseFloat(s.getAttribute('width')),
+	h    : parseFloat(s.getAttribute('height')),
+	now  : g.getAttribute('aria-valuenow'),
+	text : g.getAttribute('aria-valuetext'),
+});
+JS
+
+is $restored->{w}, $left->{w}, 'a fresh visit opens at the width it was left at';
+is $restored->{h}, $left->{h}, 'and at the height';
+is $restored->{now}, "$left->{w}", 'the grip reports the restored width as its value';
+is $restored->{text}, "$left->{w} pixels wide, $left->{h} pixels high",
+	'and both restored dimensions are what a screen reader is told';
+
+# ---------------------------------------------------------------------------
+# The drag writes the same size.  Real pointer actions, through the browser:
+# press on the grip, move it, let go - the page's own mousedown/mousemove/
+# mouseup handlers do the rest, and the drop is what may write.
+# ---------------------------------------------------------------------------
+
+# Start at the narrowest width, so the grip is well inside the viewport: the
+# chart is drawn from the left of its container, so a wide chart puts its own
+# grip past the right edge and a pointer cannot be moved there.
+$browser->focus('.chart-resize-handle');
+$browser->press('Home');
+my $before_drag = chart_size();
+is $before_drag->{w}, 200, 'Home put the chart at the narrowest width';
+
+my $grip_at = decode_json($browser->js(<<'JS'));
+var r = document.querySelector('.chart-resize-handle').getBoundingClientRect();
+return JSON.stringify({ x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2) });
+JS
+
+$browser->client->cmd('WebDriver:PerformActions' => {
+	actions => [ {
+		type       => 'pointer',
+		id         => 'mouse',
+		parameters => { pointerType => 'mouse' },
+		actions    => [
+			{ type => 'pointerMove', duration => 0,   x => $grip_at->{x},       y => $grip_at->{y},       origin => 'viewport' },
+			{ type => 'pointerDown', button => 0 },
+			{ type => 'pointerMove', duration => 100, x => $grip_at->{x} + 60,  y => $grip_at->{y} + 40,  origin => 'viewport' },
+			{ type => 'pointerUp',   button => 0 },
+		],
+	} ],
+});
+$browser->client->cmd('WebDriver:ReleaseActions' => {});
+
+my $dragged = chart_size();
+is $dragged->{w}, $before_drag->{w} + 60, 'dragging the grip 60px right widened the chart';
+is $dragged->{h}, $before_drag->{h} + 40, 'and 40px down made it taller';
+
+my $drag_stored = $browser->wait_for(sub {
+	my $raw = $browser->js("return localStorage.getItem('bi:chart-size:/bar');");
+	return undef unless defined $raw && length $raw;
+	return eval { decode_json($raw) };
+}, timeout => 5);
+
+is_deeply $drag_stored, { w => $dragged->{w}, h => $dragged->{h} },
+	'letting go of the grip wrote the size it left';
+
+$browser->navigate('/bar?l=table:sales&cat=region&val=amount');
+ok $browser->wait_for(sub {
+	$browser->js("return !!document.querySelector('.chart-resize-handle');") ? 1 : undef;
+}, timeout => 10), 'the page reloads with its grip';
+
+my $drag_back = chart_size();
+is $drag_back->{w}, $dragged->{w}, 'and opens at the width the drag left';
+is $drag_back->{h}, $dragged->{h}, 'and the height';
+
 done_testing();
