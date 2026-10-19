@@ -62,6 +62,7 @@ WriteMakefile(
 		'Test::Most' => 0,
 		'Test::Mojo' => 0,
 		'Test::Needs' => 0,
+		'Test::Permissions' => 0,
 		'Test::Returns' => 0,
 		'Test::Without::Module' => 0,
 		'Text::xSV::Slurp' => 0,
