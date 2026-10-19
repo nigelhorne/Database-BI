@@ -2,297 +2,36 @@ Revision history for Database-BI
 
 0.014.0	Mon Oct 20 12:00:00 AM EDT 2026
 	[ New Features ]
-	- Location-column geocoding groundwork:
-	  Database::BI::Model::Geocode resolves the distinct values of a place
-	  column with Geo::Coder::Free - one lookup per value however often the
-	  column repeats it - and skips rather than fails on the blanks, bare
-	  numbers and references a real column holds.  Each value is put to the
-	  geocoder's valid_location() before it reaches a backend, and the batch is
-	  made with on_error => 'undef', so one dirty value cannot end the request.
-	  Answers are remembered in the model store (.bi/models.json), a
-	  looked-up-and-not-found place is remembered as tried so it is not
-	  retried every request, and new lookups are capped per request
-	  (map_geocode_max).  Geo::Coder::Free 0.47 or later is an optional
-	  dependency: without it the location option is reported as unavailable
-	  and the places already resolved are still plotted.
-	- GET /map renders the filtered view on an OpenStreetMap map.  With
-	  loc=<column> a dataset that has places but no coordinates is mapped by
-	  resolving the column's distinct values with
-	  Database::BI::Model::Geocode: one lookup per value however often the
-	  column repeats it, answers remembered in the dataset's model store so a
-	  second visit asks nothing, and new lookups capped per request.  With
-	  lat= and lon= the coordinate columns already in the data are plotted
-	  instead.  Rows sharing a position become one marker whose popup counts
-	  them, rows with no usable coordinate are skipped and reported rather
-	  than plotted at (0,0), and a coordinate column wholly out of range is a
-	  400 naming it.  Markers are capped per request (map_max_markers), popup
-	  columns are chosen with popup=, and HTML::OSM and Geo::Coder::Free are
-	  both optional: without the renderer the page says so, and without the
-	  geocoder the places already remembered are still plotted.
+	- GET /map renders the filtered dataset on an OpenStreetMap map via
+	  HTML::OSM (optional).  Use lat=/lon= for coordinate columns already in
+	  the data, or loc=<column> to geocode a place-name column.  Rows sharing
+	  a position are collapsed to one marker; out-of-range coordinate columns
+	  return 400; markers and popup columns are configurable.
+	- Database::BI::Model::Geocode resolves place-name columns via
+	  Geo::Coder::Free (optional, >= 0.47).  Lookups are one-per-distinct-value,
+	  cached in the model store (.bi/models.json), capped per request
+	  (map_geocode_max), and skipped rather than failed for blanks and bare
+	  numbers.  Without the geocoder, previously resolved places are still
+	  plotted.
 	[ Enhancements ]
-	- The "geocoder unavailable" message shown on a map page is no longer
-	  printed twice: geocoder_available() returns the finished sentence and
-	  the result reuses it instead of formatting it again.
-	- The location counts follow Geo::Coder::Free 0.48: its geocode_many()
-	  lookups is now the number of reads the backends made, so a value one of
-	  their process-level caches answered is not counted.  counts->lookups
-	  therefore reports work avoided as well as work done, and is never more
-	  than the values attempted.  The count is still the geocoder's own
-	  rather than the app's; only its meaning for a warm process is finer.
-	- Canvas resize handles are keyboard operable and exposed to assistive
-	  technology).  Each card's handle is now in the tab order and
-	  carries slider semantics: left and right change the width in grid
-	  columns, up and down change the height in rows, and Home and End jump to
-	  the narrowest and widest the card can be.  The size is announced as it
-	  changes ("6 columns wide, 2 rows high"), the focused card is outlined so
-	  it is clear which visual the keys will resize, and a keyboard resize is
-  saved exactly like a drag - once, after the last key press, and at once
-  if focus leaves the handle first.
-	- Chart resize handles get the same treatment as the canvas ones.  The
-	  corner grip on every chart page (line, pie, bar, heatmap, scatter,
-	  stacked, combo, treemap, histogram) is in the tab order and carries
-	  slider semantics: left and right change the width, up and down the
-	  height, Shift takes bigger steps and Home and End go to the narrowest and
-	  widest the chart can be - the content width of the box the chart is drawn
-	  in, measured from the container's own left edge, so the corner grip stays
-	  on screen however far in the page indents it.  The size is announced as
-	  it changes ("640 pixels wide, 480 pixels high"), the focused grip is drawn at
-	  full strength with the chart outlined so it is clear which one the keys resize,
-	  and #chart-resize-help describes the keys.  The size is remembered: one key
-	  per kind of chart (bi:chart-size:<path>), so changing a filter does not
-	  lose it and a shared link opens at the recipient's own size rather than
-	  the sender's.  It is written when a keyboard press lands and once when a
-	  drag is let go - not on every pointer move - and read back before the grip
-	  is created, so the grip opens reporting the size the chart is drawn at.
-	  A stored size is clamped to the window it is restored in, and a value that
-	  is not two numbers is ignored rather than applied; storage that throws
-	  leaves the grip working, it just forgets the size.
-	- A remembered chart size can be forgotten instead of dragged back.  Every
-	  chart page's export bar now carries a Reset size button: it removes the
-	  page's bi:chart-size:<path> entry - rather than overwriting it with the
-	  default - and puts each chart on the page back at the size the server sent,
-	  so the next visit asks the server again.  The button is a visible control in
-	  the tab order rather than a key a reader has to know, its tooltip says what
-	  it forgets, and #chart-resize-help names it for a reader who cannot see it.
-	  The size the reset returns to is the one captured before a saved size is
-	  applied, and the announcement ("Chart size reset to 480 by 320 pixels.")
-	  goes to a polite live region.  The resize wrap now goes around the SVG
-	  wherever it sits: HTML::D3 nests the pie in #pie_chart_wrap, so inserting
-	  it into the outer .pie-container threw and left the pie page with neither
-	  a grip nor the Reset size control.
-	- Canvas visuals are dragged to a chosen grid cell, not just resized and
-	  reordered).  A card's header is the grab area: the card snaps
-	  to the cell the pointer is over, a ghost cell shows where it will land,
-	  and on release the card is placed there while anything sharing that cell
-	  is pushed down out of the way - only cards that collide move, so a card
-	  in row 4 stays in row 4 with a gap above it, because a canvas is a place
-	  and  not a list.  The header is also a control: it takes focus, the arrow
-	  keys move the card a cell at a time, Shift with an arrow key goes to that
-	  edge of the canvas, and each move is announced - the cell the card landed
-	  in, and by name any card the move pushed down, so a reader who is told
-	  only about the card they moved does not lose track of the rest.  The whole
-	  layout - x, y, width and height - is persisted, and PATCH
-	  /api/analyses/:id rejects a layout in which two visuals share a cell,
-	  leaving the saved one alone.
-	- A card's width and height can be set from a menu on the card rather than
-	  by dragging its corner).  Every card on a canvas carries a Size menu whose
-	  entries are widths in grid columns - full width, half, a third, a quarter -
-	  and heights in grid rows - one, two, three or six - so a visual can be
-	  sized in both dimensions from the keyboard alone; it is a native select,
-	  because that is operable and announced on every platform without any code
-	  from us, and because a card clips its own contents and a panel built in the
-	  header would be cut off at the card's edge.  The size that is chosen is the
-	  size that lands: a card in column 9 slides left to be twelve columns wide
-	  rather than being quietly cut to four, a height keeps the width that was
-	  there just as a width keeps the height, and whatever it grows over is
-	  pushed down, so what is saved is a layout the server accepts - an
-	  overlapping layout is refused, which a drag widening over a neighbour could
-	  produce until now, so the drag and the arrow keys resolve it the same way
-	  as the menu does.  The menu's first option says the size the card actually
-	  is - "Half width, 2 rows high", or "7 columns wide, 3 rows high" after a
-	  drag - and is what the menu shows whenever the size came from a drag, an
-	  arrow key or a reload; a choice made in the menu itself stays selected, so
-	  the arrow keys walk the entries one after another instead of being pulled
-	  back to the top.  Focus stays on the menu after a choice, and the new size
-	  is saved and announced as it is made.  A card the new size has to push down
-	  is named in that announcement as well.
-	- The browser tests share a fixture and run as one suite.  t/lib/BI/Test/Browser.pm
-	  starts the app on an ephemeral port with a throwaway model_dir, a headless
-	  Firefox with its own profile and a Marionette connection, and presses keys
-	  through the browser's input stack; t/lib/BI/Test/Marionette.pm is the
-	  protocol client it speaks.  t/browser-size.t, the Size menu test the
-	  fixture grew out of, still shows one key press changing the card's
-	  computed grid-column span and sending the layout PATCH, which the app
-	  records before the request is routed, so the test sees the browser's
-	  request rather than one of its own.  The suite runs as
-	  `prove -l t/browser-*.t` and skips when no Firefox is available.
-	- t/browser-canvas-keys.t drives the canvas's three keyboard controls with
-	  real key presses: the header handle's arrow keys and Shift+arrow edges,
-	  the corner grip's width, height, Home and End, and the Size menu's
-	  typeahead and arrow keys.  Each press is read back from the browser - the
-	  computed grid position and span, the size on the card, the menu's summary,
-	  the grip's slider attributes and the live region - and the layout the app
-	  stored is asserted after each burst of keys, so a move that is shown but
-	  not saved fails.
-	- t/browser-chart-keys.t follows a chart from the table view's toolbar to
-	  its export bar with the keyboard alone: Enter opens the Bar chart panel,
-	  native typeahead picks the category and enables Plot, Tab walks the
-	  panel's controls, Enter opens the chart, the arrow keys resize it through
-	  its grip (Shift, Home and End included), and Tab then Enter export it as
-	  SVG and PNG, with Space copying its link.  The exports are observed
-	  through the page's own Blob and anchor, and the SVG's text is read back,
-	  so each control is shown to have produced the file it names.  It then
-	  leaves the chart at a size the server does not send - first with the
-	  keyboard, then by dragging the grip with real pointer actions - opens the
-	  page again under a different query, and asserts that the SVG, the grip's
-	  value and the text a screen reader is given all report the restored size.
-	- t/browser-chart-a11y.t tests the chart grip's accessibility contract on
-	  its own, in headless Firefox: the slider role, the label naming the
-	  chart, the instructions it points at, the announced minimum and maximum,
-	  and a Tab from the top of the page that lands on the grip rather than a
-	  script that puts focus there.  Then each key - Home, the arrows, Shift,
-	  End - is pressed and the SVG's drawn size is read back against
-	  aria-valuenow and the aria-valuetext a screen reader speaks, so a size
-	  that changes without being announced, or an announcement that drifts
-	  from the drawing, fails; pressing past either limit leaves the announced
-	  value truthful, and no press scrolls the page.
-	- The keyboard suite is a CI job of its own.  .github/workflows/browser.yml
-	  installs Mozilla's Firefox ESR tarball rather than using the runner's
-	  snap (a snap's private /tmp cannot see the profile the fixture writes),
-	  and runs t/browser-*.t with real key presses.  BI_REQUIRE_BROWSER=1 makes a
-	  missing or broken browser fail the job rather than skip every test, so
-	  the workflow cannot be green with nothing run.  The Perl matrix sets
-	  BI_SKIP_BROWSER_TESTS=1 and leaves this to that job: a browser test says
-	  nothing about which Perl ran it, and one browser is the honest check.
-	  JSON::MaybeXS, which the Marionette client decodes its frames with, is a
-	  declared test prerequisite now that a clean checkout runs the client.
-	- A canvas says what its two grips are for the first time a reader opens
-	  one, and never again).  The tip is rendered hidden and
-	  uncovered by the script, so a reader who has already dismissed it does
-	  not get a flash of it on the way in; the answer is kept in localStorage
-	  under a key of the page's own, because what the tip explains -- the
-	  header drag and the corner grip -- belongs to the canvas page and not to
-	  one analysis, so a second canvas is not a second first visit.  It closes
-	  with a "Got it" button or Escape, either of which hides the tip, writes
-	  the answer and leaves focus on the header handle it named; while it is
-	  up, the header and the grip it describes are ringed and tinted on the
-	  first card, because a name in a sentence is not a thing on the screen.
-	  A canvas with no cards says nothing, a browser that cannot store the
-	  answer shows the tip and forgets it at the end of the visit, and the tip
-	  does not reach paper.
-	- The arrangement a canvas was given now survives a cross-filter and a
-	  drill-through visit.  A visit renders the layout in the analysis, so the
-	  cards come back in the cells they were left in whatever the filter leaves
-	  them to show, and a card the canvas has not placed itself is left to the
-	  browser instead of being measured into the layout: writing every card's
-	  position from the render in hand is what would freeze the filtered
-	  arrangement as if it were the one the canvas was given, and a card
-	  measured on a narrow filtered render could land on a cell another card
-	  already had.  Nothing is saved by a visit either -- the layout is written
-	  only when a reader moves or resizes a card -- and a press on the corner
-	  grip that does not move it is no longer a resize that rewrites every
-	  position.  A layout the server refuses (two cards in one cell) is
-	  announced rather than swallowed, so a size that did not save is a size
-	  the reader knows to set again.
-	- t/browser-size.t opens the same canvas as a cross-filtered visit and as a
-	  drill path, and reads back the span the browser laid out and the size the
-	  menu reports for each, so both are shown to be the saved ones; neither
-	  visit may PATCH a layout of its own, which is asserted from the requests
-	  the app recorded.  t/model.t asserts the same server-side: the rendered
-	  grid position of every card is unchanged by a cross-filter or a drill
-	  visit, and the stored layout is not rewritten by either.
-	- A card's size is written on the card (3.2), in its header beside the Size
-	  menu: the same two numbers the menu's first option spells out in words, a
-	  card ten columns wide and two rows high reading "10 × 2".  A drag of the
-	  corner grip can leave any width at all, and that width was reported in one
-	  place only - inside the menu, whose text is the one thing on the card that
-	  shrinks when the card is narrow.  The number on the card is columns and
-	  rows in full, with the menu's own words for the size ("Half width, 2 rows
-	  high") as its title, and it is written by the template from the saved
-	  spans, so a reload shows it with no JavaScript involved.  The script
-	  writes it at load for a card the browser placed rather than the canvas, on
-	  every resize - a drag updates it as the grip moves, not only when it is let
-	  go - and whenever the
-	  menu sets a size: the menu's first option and the number on the card are
-	  written through one function, so no path can leave one of them claiming a
-	  size the other disagrees with.  A card with no size yet - one the browser
-	  has not laid out - renders an empty badge, and :empty is what keeps that
-	  from being a small blank pill of padding rather than nothing; the badge does
-	  not shrink where the menu it sits beside does, and it is not printed, since
-	  the printed canvas is two columns whatever the canvas is and the number
-	  would describe a page that is not there.
-	- The controls that were still reachable with a pointer only now answer the
-	  keyboard as well, audited page by page.  A pivot table's column headers
-	  sort and move: each leaf header is in the tab order, Enter and Space sort
-	  by it - the key a click already performs - Shift+Left and Shift+Right move
-	  it where a drag is offered, and a polite live region says which column was
-	  sorted and which way, or where a moved column landed, because neither
-	  gesture moves the focus.  A two-row header (a column dimension) refuses
-	  the move: shifting a measure column out from under its group label would
-	  leave the label over another group's numbers.  #pivot-head-help describes
-	  both routes, and the focused header is ringed on the dark header it sits
-	  on.
-	- A home-page card showed its file's type, size and date in a tooltip on
-	  hover, so a keyboard reader tabbing the same cards was told nothing.  All
-	  three card lists - the data files, the recently opened and saved entries,
-	  and the saved canvases - now show that tip on focus and hide it on blur,
-	  and each card is described by its own tip (role="tooltip", with a polite
-	  live region for the size the lazy /api/stat fetch adds after it is shown),
-	  so tabbing to a card says what a pointer reader is shown.  The trash-can
-	  button on those cards is a real button in the tab order but was drawn only
-	  while its list item was hovered, which left it focusable while invisible:
-	  it is now drawn at full strength when it has focus and at hover strength
-	  whenever focus is anywhere in the item.
-	- Chart legends toggle a series on click and were pointer-only.  The entries
-	  of a stacked chart's legend, and of a multi-series line chart's, are now
-	  switches: in the tab order, named "Toggle <series>", aria-pressed saying
-	  whether that series is drawn, Enter or Space sending the same click the
-	  pointer sends, and #stacked-legend-help / #line-legend-help describing the
-	  keys.  The series appearing or going is announced by a live region as
-	  well, since a pressed state on the entry is not heard by every screen
-	  reader, and the focused entry is ringed on its swatch, because a <g> has
-	  no box of its own.  A single-series line chart has no legend and is given
-	  no instructions for one.
-	- A treemap tile's value - the area the tile is drawn at - cannot be read
-	  out, so the value is now part of the tile's name ("Filter table to
-	  Widget A (1250)") and the tooltip D3 shows on hover is shown on focus too,
-	  positioned from the tile rather than from a pointer.
-	- t/model.t covers each of those controls server-side: the pivot headers'
-	  keys, refusal and announcements; the three card lists' focus handlers and
-	  descriptions; the legends' switches; and the treemap's named value.  Two
-	  browser tests press real keys for the parts a source check cannot reach:
-	  t/browser-pivot-keys.t sorts a column with Enter, reverses it, sorts by
-	  another with Space, moves a column with Shift+Left/Right and asserts that
-	  the same keys leave a two-row header where it was; t/browser-home-keys.t
-	  checks that focusing a card shows its tip with the fetched modified date,
-	  that Tab hides it again, and that the hover-only remove button is drawn
-	  when focus is inside its list item.  The audit's two remaining
-	  pointer-only gestures are documented in the README: brushing a line chart
-	  to zoom (its Reset zoom button is a keyboard control) and dropping a file
-	  on the window to upload it (typing the path, or Browse, is the keyboard
-	  route).  Every other element that behaves as a control is now in the tab
-	  order and answers the keyboard.
+	- Full keyboard accessibility audit.  Canvas and chart resize handles are
+	  now sliders in the tab order (arrow keys, Shift for bigger steps, Home/End
+	  for min/max); card size can also be set from a Size menu on each card.
+	  Canvas cards are draggable to a chosen grid cell from the keyboard
+	  (arrow keys in the header, Shift+arrow for edge).  Pivot column headers
+	  sort (Enter/Space) and move (Shift+Left/Right) from the keyboard.
+	  Home-page card tooltips appear on focus.  Stacked and multi-series line
+	  chart legends are toggle switches.  Treemap tile values are read in the
+	  tile name.  Every size change and card move is announced via a live region.
+	- Browser test suite (t/browser-*.t) driven by headless Firefox via
+	  Marionette.  Covers canvas keyboard controls, chart resize/export/a11y,
+	  pivot keyboard, and home-page focus behaviour.  Runs as a separate CI
+	  job (.github/workflows/browser.yml); skips automatically when Firefox
+	  is unavailable.
 	[ Interface Fixes ]
-	- GET /combo now accepts ?bar_val= and ?line_val= as the canonical parameter
-	  names (as documented in CLAUDE.md and the POD).  The short forms ?bar= and
-	  ?line= remain as backwards-compatible aliases so existing saved URLs continue
-	  to work.  The combo panel in the dashboard submits the canonical names.
-	- GET /combo now accepts ?cat= as the canonical x-axis parameter (?x= remains
-	  a backwards-compatible alias), consistent with /stacked and the panel JS.
-	[ Bug Fixes ]
-	- A canvas card's size could be lost with nothing said: saveLayout() only
-	  handled a transport failure, so a layout the server refused (400, two
-	  cards in one cell) left the size on screen and nowhere else, silently.
-	  The refused and unreachable cases are both announced now.
-	- The data_dir guard on the app-owned stores could be walked around with a
-	  symlink: a model_dir that reached data_dir through a link -- or a data_dir
-	  that was itself a link, with the store naming the directory it resolved to
-	  -- was compared as a string and allowed through, so models.json and
-	  analyses.json were written beside the user's data.  Both store paths now
-	  compare symlink-resolved paths, resolving the deepest existing ancestor
-	  when the store does not exist yet, and ask the file system what the
-	  relationship between the two is rather than testing a textual prefix; a
-	  store inside data_dir is refused however it is spelled.
+	- GET /combo: ?bar_val= and ?line_val= are now the canonical parameter
+	  names (?bar= and ?line= kept as aliases).  ?cat= is now the canonical
+	  x-axis parameter (?x= kept as alias), consistent with /stacked.
 
 0.013.0 Fri Oct 16 04:08:48 PM EDT 2026
 	[ New Features ]
