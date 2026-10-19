@@ -25,11 +25,7 @@ Key features:
 
 - **File picker** -- the home page scans `data_dir` and shows a card for
 every supported file.  Recently opened filesystem files appear in a
-"Recently opened" section powered by `localStorage`.  A card's details (type,
-size, modified date) are shown on hover and on focus, and are what the card is
-described by, so they are available to a keyboard or screen-reader user as well.
-The remove button on a card in those lists is drawn when it has focus, not only
-when its row is hovered.
+"Recently opened" section powered by `localStorage`.
 - **Filesystem browser** -- `/browse` lets the user navigate the entire
 filesystem and open any supported data file, not just files in `data_dir`.
 - **Column sort and reorder** -- clicking a header sorts the table; headers
@@ -55,20 +51,11 @@ top-N, donut mode, configurable colour scheme), heatmap (two categorical
 axes, count or sum mode), bar chart (horizontal or vertical, sort,
 top-N), scatter/bubble plot (optional categorical colour and numeric
 size dimensions), stacked bar chart, combo bar+line chart, treemap, and
-histogram (server-side binning, `?bins=N`).  A legend entry that hides or
-shows its series (stacked, multi-series line) is a keyboard switch as well
-as a click target: Tab to it, press Enter or Space, and it reports its
-state with `aria-pressed`.  All charts can be resized
+histogram (server-side binning, `?bins=N`).  All charts can be resized
 by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
-as it changes.  The size is remembered per kind of chart - one page left at
-900x600 opens the next bar chart, or pie chart, at that size - in `localStorage`
-under `bi:chart-size:<path>`, clamped to the window it is restored in and
-written once when a drag ends or on each keyboard step.  A remembered size can be
-forgotten: the **Reset size** button in a chart page's export bar removes the
-entry and puts the chart back at the size the server sent.  All chart pages
-include Copy-link and Export SVG/PNG buttons.
+as it changes.  All chart pages include Copy-link and Export SVG/PNG buttons.
 - **Maps** -- `GET /map` plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded locally
 with [Geo::Coder::Free](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AFree) (one lookup per distinct place, remembered in the
@@ -77,12 +64,6 @@ dataset's model store).  Rows sharing a position become one marker.
 combination of row dimensions, column dimensions, and measures
 (`sum|avg|min|max|count|count_distinct`).  Supports subtotals, HAVING
 filters, top-N row groups, and direct export to CSV, SQLite, JSON, or XLSX.
-Its headers are controls: click one to sort by it, or focus it and press
-Enter or Space; drag one to reorder the columns, or focus it and press
-Shift+Left/Right (offered where the header has a single row, since moving a
-measure column out from under a column-dimension group label would misfile
-it).  Both are announced in a live region, and `#pivot-head-help` describes
-them.
 - **Column statistics** -- the column-stats button runs `GET /stats`, which
 returns one row per column: row count, null count, distinct count, and
 (for numeric columns) min, max, mean, and median.
@@ -705,55 +686,8 @@ defaults:
     Opening `redis:players|redis://localhost:6379` then displays a two-row table
     with columns `entry`, `name`, and `score`.
 
-## Testing
-
-The ordinary suite runs from the distribution root:
-
-```
-prove -l
-```
-
-The browser suite drives the real pages in a headless Firefox, through
-Marionette and with real key presses:
-
-```
-prove -l t/browser-*.t
-```
-
-It covers the canvas Size menu (`t/browser-size.t`), the canvas's move handle,
-corner grip and Size menu from the keyboard (`t/browser-canvas-keys.t`), the
-chart panel, chart resize grip, export bar and the size the grip keeps across a
-reload (`t/browser-chart-keys.t`), the pivot table's sortable and movable
-headers (`t/browser-pivot-keys.t`), and the home page's focus-shown card
-details and remove button (`t/browser-home-keys.t`).
-Each file starts its own application on an ephemeral port with a throwaway
-`model_dir`, and its own Firefox with a throwaway profile, so the files can run
-in parallel and leave nothing behind.
-
-Set `BI_FIREFOX=/path/to/firefox` when Firefox is not on `PATH`; the tests skip
-when no Firefox is found.  `BI_SKIP_BROWSER_TESTS=1` skips them deliberately.
-
-The pages load D3 from a CDN.  The test profile blocks all non-loopback
-traffic, so the SVG elements in a test are the server-rendered ones: the tests
-assert what the controls do, not what D3 would have drawn.
-
-GitHub Actions runs this suite in its own workflow
-(`.github/workflows/browser.yml`), with Firefox ESR installed from Mozilla's
-tarball and `BI_REQUIRE_BROWSER=1`: a missing or broken browser fails the job
-instead of skipping everything green.  The Perl matrix sets
-`BI_SKIP_BROWSER_TESTS=1`, so the suite is run once, against the browser it is
-about, rather than once per Perl version.
-
 ## Limitations
 
-- Not every gesture has a keyboard equivalent.  Brushing across a line chart
-to zoom is a pointer gesture - the chart's Reset zoom button undoes it from the
-keyboard, and the whole series is drawn before any zoom - and dropping a file
-on the window to upload it is a pointer gesture, with typing the path on the
-home page or opening it from Browse as the keyboard route.  Everything else
-that behaves as a control (table and pivot headers, chart legends, drill-down
-marks, the canvas's move and resize handles, the chart resize grips, the Size
-menu) is reachable and operable from the keyboard.
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.
