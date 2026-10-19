@@ -6366,17 +6366,19 @@ sub stacked_view ($self) {
 sub combo_view ($self) {
 	# ?cat= is the canonical spec name; ?x= is the legacy alias (keep both).
 	my $x_col      = $self->param('cat') // $self->param('x') // '';
-	my $bar_col    = $self->param('bar')         // '';
-	my $line_col   = $self->param('line')        // '';
+	# ?bar_val= is the canonical spec name; ?bar= is the legacy alias (keep both).
+	my $bar_col    = $self->param('bar_val')  // $self->param('bar')  // '';
+	# ?line_val= is the canonical spec name; ?line= is the legacy alias (keep both).
+	my $line_col   = $self->param('line_val') // $self->param('line') // '';
 	my $bar_label  = $self->param('bar_label')   // '';
 	my $line_label = $self->param('line_label')  // '';
 	my $back       = _safe_back_url($self->param('back')) // '/';
 	my $back2      = _safe_back_url($self->param('back2'));
 	my $back2_lbl  = $self->param('back2_label') // '';
 
-	return $self->render(text => 'Missing cat= parameter',  status => 400) unless length $x_col;
-	return $self->render(text => 'Missing bar= parameter',  status => 400) unless length $bar_col;
-	return $self->render(text => 'Missing line= parameter', status => 400) unless length $line_col;
+	return $self->render(text => 'Missing cat= parameter',      status => 400) unless length $x_col;
+	return $self->render(text => 'Missing bar_val= parameter',  status => 400) unless length $bar_col;
+	return $self->render(text => 'Missing line_val= parameter', status => 400) unless length $line_col;
 
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
@@ -7394,8 +7396,8 @@ C<GET /combo> -- Render a D3.js combo bar+line chart.
 Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 
   cat=<col>       X-axis category column (required; x= is a backwards-compat alias)
-  bar_val=<col>   Numeric column plotted as bars (required)
-  line_val=<col>  Numeric column plotted as a line (required)
+  bar_val=<col>   Numeric column plotted as bars (required; bar= is a backwards-compat alias)
+  line_val=<col>  Numeric column plotted as a line (required; line= is a backwards-compat alias)
   back=<url>      URL for the "Back to table" breadcrumb link
 
 =head3 API SPECIFICATION
@@ -7404,8 +7406,8 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 
   l         spec    Required.  Left table spec.
   cat       string  Required.  X-axis categorical column name (x= also accepted).
-  bar_val   string  Required.  Numeric bar-measure column.
-  line_val  string  Required.  Numeric line-measure column.
+  bar_val   string  Required.  Numeric bar-measure column (bar= also accepted).
+  line_val  string  Required.  Numeric line-measure column (line= also accepted).
   back      url     Optional.  Safe back-link URL.
 
 =head4 OUTPUT

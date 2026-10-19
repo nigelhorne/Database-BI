@@ -81,7 +81,8 @@ Readonly our %MESSAGES => (
 sub _fmt {
 	my ($key, @args) = @_;
 
-	my $tmpl = $MESSAGES{$key} // "Internal error: unknown message key '$key'";
+	my $tmpl = (defined($key) ? $MESSAGES{$key} : undef)
+	         // "Internal error: unknown message key '" . ($key // 'undef') . "'";
 
 	return @args ? sprintf($tmpl, @args) : $tmpl;
 }

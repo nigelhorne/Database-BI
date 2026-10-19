@@ -272,6 +272,13 @@ Revision history for Database-BI
 	  on the window to upload it (typing the path, or Browse, is the keyboard
 	  route).  Every other element that behaves as a control is now in the tab
 	  order and answers the keyboard.
+	[ Interface Fixes ]
+	- GET /combo now accepts ?bar_val= and ?line_val= as the canonical parameter
+	  names (as documented in CLAUDE.md and the POD).  The short forms ?bar= and
+	  ?line= remain as backwards-compatible aliases so existing saved URLs continue
+	  to work.  The combo panel in the dashboard submits the canonical names.
+	- GET /combo now accepts ?cat= as the canonical x-axis parameter (?x= remains
+	  a backwards-compatible alias), consistent with /stacked and the panel JS.
 	[ Bug Fixes ]
 	- A canvas card's size could be lost with nothing said: saveLayout() only
 	  handled a transport failure, so a layout the server refused (400, two

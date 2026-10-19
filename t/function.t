@@ -2956,17 +2956,21 @@ subtest 'combo_view -- missing cat= returns 400' => sub {
 };
 
 subtest 'combo_view -- missing bar= returns 400' => sub {
-	$t->get_ok("/combo?l=$SALES_SPEC&cat=region&line=amount")
+	# bar_val= is the canonical name; bar= is accepted as a legacy alias.
+	# Omitting both -> 400 "Missing bar_val= parameter".
+	$t->get_ok("/combo?l=$SALES_SPEC&cat=region&line_val=amount")
 	  ->status_is(400)
-	  ->content_like(qr/Missing bar=/i,
-		'missing bar= yields 400');
+	  ->content_like(qr/Missing bar_val=/i,
+		'missing bar_val= yields 400');
 };
 
 subtest 'combo_view -- missing line= returns 400' => sub {
-	$t->get_ok("/combo?l=$SALES_SPEC&cat=region&bar=amount")
+	# line_val= is the canonical name; line= is accepted as a legacy alias.
+	# Omitting both -> 400 "Missing line_val= parameter".
+	$t->get_ok("/combo?l=$SALES_SPEC&cat=region&bar_val=amount")
 	  ->status_is(400)
-	  ->content_like(qr/Missing line=/i,
-		'missing line= yields 400');
+	  ->content_like(qr/Missing line_val=/i,
+		'missing line_val= yields 400');
 };
 
 subtest 'combo_view -- valid render returns 200 with SVG' => sub {

@@ -907,7 +907,7 @@
     <div class="graph-fields-row">
       <div class="join-field">
         <label for="combo-x-sel">X axis</label>
-        <select id="combo-x-sel" name="x" required>
+        <select id="combo-x-sel" name="cat" required>
           <option value="">&#x2014; select column &#x2014;</option>
           [%- FOREACH col IN columns -%]
           <option value="[% col | html %]">[% col | html %]</option>
@@ -916,13 +916,13 @@
       </div>
       <div class="join-field">
         <label for="combo-bar-sel">Bar column (numeric)</label>
-        <select id="combo-bar-sel" name="bar" required>
+        <select id="combo-bar-sel" name="bar_val" required>
           <option value="">&#x2014; select column &#x2014;</option>
         </select>
       </div>
       <div class="join-field">
         <label for="combo-line-sel">Line column (numeric)</label>
-        <select id="combo-line-sel" name="line" required>
+        <select id="combo-line-sel" name="line_val" required>
           <option value="">&#x2014; select column &#x2014;</option>
         </select>
       </div>
