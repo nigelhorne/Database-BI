@@ -1467,10 +1467,15 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 	};
 
 	subtest 'GET /map?loc=place -- successful geocode path returns 200 HTML' => sub {
-		$t->get_ok('/map?l=' . url_escape($PLACES_SPEC) . '&loc=place')
-		  ->status_is(200, '200 for valid loc= geocode')
-		  ->content_type_like(qr{text/html}, 'response is HTML')
-		  ->content_like(qr/$MAP_PLACE/i, 'place name appears in response');
+		my $res = $t->get_ok('/map?l=' . url_escape($PLACES_SPEC) . '&loc=place')
+		            ->status_is(200, '200 for valid loc= geocode')
+		            ->content_type_like(qr{text/html}, 'response is HTML');
+		# Place names appear only inside map_body (Leaflet popup HTML), which
+		# requires HTML::OSM.  Skip this single assertion when the module is absent.
+		SKIP: {
+			eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 1;
+			$res->content_like(qr/$MAP_PLACE/i, 'place name appears in response');
+		}
 		delete $ledger{'GET./map.200.loc'};
 	};
 

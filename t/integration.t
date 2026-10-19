@@ -1882,9 +1882,13 @@ subtest '/map loc= path: geocoder called, markers + counts correct' => sub {
 	             ->status_is(200)
 	             ->tx->res->body;
 
-	# Both distinct non-skipped places must appear in the page.
-	like $body, qr/Ramsgate/i, 'Ramsgate marker present in response';
-	like $body, qr/Margate/i,  'Margate marker present in response';
+	# Both distinct non-skipped places appear in map_body (Leaflet popup HTML),
+	# which is only rendered when HTML::OSM is installed.
+	SKIP: {
+		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 2;
+		like $body, qr/Ramsgate/i, 'Ramsgate marker present in response';
+		like $body, qr/Margate/i,  'Margate marker present in response';
+	}
 
 	# Exactly one geocode_many() call was made for the two pending values.
 	is scalar(@{ $stub->{calls} }), 1, 'geocoder was called exactly once';
@@ -2051,9 +2055,12 @@ subtest '/map lat/lon path: duplicate coordinates collapse to one marker' => sub
 	             ->tx->res->body;
 
 	# Rows 1+2 share a coordinate -> one marker; row 3 is separate; row 4 is unusable.
-	# The page should reference both locations.
-	like $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat present in response';
-	like $body, qr/$MARGATE_LAT/,  'Margate lat present in response';
+	# The lat values appear inside the Leaflet JS in map_body, which requires HTML::OSM.
+	SKIP: {
+		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 2;
+		like $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat present in response';
+		like $body, qr/$MARGATE_LAT/,  'Margate lat present in response';
+	}
 };
 
 # ---------------------------------------------------------------------------
@@ -2067,8 +2074,12 @@ subtest '/map lat/lon path: f= filter applied before marker construction' => sub
 	             ->tx->res->body;
 
 	# Only row 1 (name=A) survives the filter.
-	like   $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat in response after filter';
-	unlike $body, qr/$MARGATE_LAT/,  'Margate lat absent after name:eq:A filter';
+	# Lat values appear in the Leaflet JS inside map_body, which requires HTML::OSM.
+	SKIP: {
+		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 2;
+		like   $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat in response after filter';
+		unlike $body, qr/$MARGATE_LAT/,  'Margate lat absent after name:eq:A filter';
+	}
 };
 
 # ---------------------------------------------------------------------------
@@ -2175,9 +2186,12 @@ subtest '/map popup= column appears in marker label HTML' => sub {
 	             ->status_is(200)
 	             ->tx->res->body;
 
-	# The amount values from the CSV (100, 50, 200) should appear in the response
-	# as part of the popup label data.
-	like $body, qr/amount/i, 'amount column referenced in map output (popup)';
+	# Popup column names appear inside map_body (Leaflet popup HTML),
+	# which is only rendered when HTML::OSM is installed.
+	SKIP: {
+		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 1;
+		like $body, qr/amount/i, 'amount column referenced in map output (popup)';
+	}
 
 	delete $t->app->config->{geocoder};
 	delete $t->app->config->{openaddr};
@@ -2325,7 +2339,12 @@ subtest '/map: ?c= calculated field applied before geocoding' => sub {
 	             ->status_is(200)
 	             ->tx->res->body;
 
-	like $body, qr/ramsgate/i, 'ramsgate appears in the map output';
+	# City names appear inside map_body (Leaflet popup HTML),
+	# which is only rendered when HTML::OSM is installed.
+	SKIP: {
+		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 1;
+		like $body, qr/ramsgate/i, 'ramsgate appears in the map output';
+	}
 
 	delete $t->app->config->{geocoder};
 	delete $t->app->config->{openaddr};
