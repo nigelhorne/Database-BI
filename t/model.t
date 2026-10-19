@@ -1427,7 +1427,7 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 	like $b, qr/else       commitSize\(card, value, st\.h\);/, 'a width keeps the height';
 	like $b, qr/function initSizeMenus/,
 		'each menu is wired up';
-	like $b, qr/^\s*initSizeMenus\(\);$/m, 'at load';
+	like $b, qr/^\s*initSizeMenus\(\);\r?$/m, 'at load';
 	like $b, qr/function updateSizeSelect/,
 		'the menu shows the size the card actually is';
 	like $b, qr/function updateSizeBadge\(card, state\)/,
@@ -1442,9 +1442,9 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 		'with the menu words for the presets as the title';
 	like $b, qr/function updateSizeControls\(card, state\) \{/,
 		'both readings of the size are written through one function';
-	like $b, qr/^\t\tupdateSizeSelect\(card, state\);$/m,
+	like $b, qr/^\t\tupdateSizeSelect\(card, state\);\r?$/m,
 		'which writes the menu';
-	like $b, qr/^\t\tupdateSizeBadge\(card, state\);$/m,
+	like $b, qr/^\t\tupdateSizeBadge\(card, state\);\r?$/m,
 		'and the card, so the two cannot disagree';
 	like $b, qr/updateSizeControls\(card, st\)/,
 		'so a drag, which leaves any width, is reflected in the menu and on the card';

@@ -282,7 +282,18 @@ subtest 'model_dir inside data_dir: the stores refuse and the app stays read-onl
 	# refused; the placements are left out on a host that cannot make symlinks.
 	my $store_link = Mojo::File->new($links)->child('store-link')->to_string;
 	my $dir_link   = Mojo::File->new($links)->child('data-link')->to_string;
-	my $symlinks   = eval { symlink($data_dir => $store_link) && symlink($data_dir => $dir_link) } ? 1 : 0;
+	my $symlinks   = eval {
+	symlink($data_dir => $store_link) && symlink($data_dir => $dir_link)
+	# Verify that Cwd::realpath actually resolves the symlink on this platform
+	# (Windows may create the symlink but not traverse it, so the overlap guard
+	# would not trigger and the placement tests would give false failures).
+	&& do {
+		require Cwd;
+		my $t = Cwd::realpath($store_link) // '';
+		my $r = Cwd::realpath($data_dir)   // '';
+		$t && $r && File::Spec->canonpath($t) eq File::Spec->canonpath($r);
+	}
+} ? 1 : 0;
 
 	my @placements = (
 		[ 'the data_dir itself',              $relative, Mojo::File->new($relative)->to_string ],
