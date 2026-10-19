@@ -89,6 +89,12 @@
 	margin-bottom: 0.75rem;
 	flex-wrap: wrap;
 }
+.visual-count {
+	font-size: 0.8rem;
+	color: #666;
+	white-space: nowrap;
+	flex: 0 0 auto;
+}
 /* Cross-filter chip */
 .cf-chip {
 	display: inline-flex;
@@ -539,17 +545,17 @@
 	<a href="[% canvas_data_url | html %]" class="btn-add-visual" id="btn-add-visual"
 	   title="Go to the data source to add another chart to this canvas">&#x2295; Add visual&hellip;</a>
 	[% END %]
-	<span style="color:var(--muted,#6c757d);font-size:0.85rem">
-		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
-	</span>
-	<button id="btn-copy-link" type="button" title="Copy a shareable link to this canvas view" style="margin-left:auto">&#x1F517; Copy link</button>
+	<button id="btn-copy-link" type="button" title="Copy a shareable link to this canvas view">&#x1F517; Copy link</button>
 	<button id="btn-print" type="button" title="Print or save as PDF (Ctrl+P)">&#x1F5A8; Print</button>
 	[% IF canvas_id.length %]
 	<button id="btn-delete-canvas" type="button"
 	        data-canvas-name="[% canvas_name | html %]"
 	        title="Permanently delete this canvas"
-	        style="margin-left:0.5rem;color:var(--danger-fg,#c0392b)">&#x1F5D1; Delete canvas</button>
+	        style="color:var(--danger-fg,#c0392b)">&#x1F5D1; Delete canvas</button>
 	[% END %]
+	<span class="visual-count">
+		[% visuals.size %] visual[% visuals.size != 1 ? 's' : '' %]
+	</span>
 </div>
 
 [% IF canvas_params.size %]
