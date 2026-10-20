@@ -590,6 +590,8 @@
 
 [%- IF back_url.length -%]
 <p class="back-link"><a href="[% back_url | html %]">&larr; [% back_label | html %]</a> &rsaquo; <span>[% canvas_name | html %]</span></p>
+[%- ELSE -%]
+<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <span>[% canvas_name | html %]</span></p>
 [%- END -%]
 [%- IF freshness_stale -%]
 <div class="freshness-banner" role="alert" style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:0.4rem 0.75rem;margin-bottom:0.5rem;font-size:0.85rem;color:#664d03;">
