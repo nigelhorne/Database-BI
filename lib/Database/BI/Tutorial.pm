@@ -672,6 +672,7 @@ my %ACTION_CHAPTERS = (
 );
 
 my %EXEMPT_ROUTES = (
+	'/a/:id/visual/:n/:fmt'    => 'per-visual CSV/PNG download; not a navigable page',
 	'/api/analyses'            => 'JSON for the saved-canvas list',
 	'/api/analyses/:id'        => 'JSON for one saved canvas',
 	'/api/analyses/:id/export' => 'JSON export of one saved canvas',
@@ -679,8 +680,11 @@ my %EXEMPT_ROUTES = (
 	'/api/dirs'                => 'JSON folder list for the browse and export panels',
 	'/api/stat'                => 'JSON file details for the home-page tooltips',
 	'/calc/list'               => 'JSON list of calculated fields for the Calc panel',
+	'/catalog'                 => 'Phase 4.7 dataset catalog; tutorial chapter planned',
 	'/dates/list'              => 'JSON list of date formats for the Date panel',
+	'/embed/:id'               => 'chrome-less embed view; requires a share token and is not a standalone page',
 	'/groups/list'             => 'JSON list of value groups for the Group panel',
+	'/share/:id'               => 'shared read-only analysis; requires a signed token and is not a direct-navigation page',
 	'/tutorial'                => 'this page',
 );
 

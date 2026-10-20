@@ -1140,6 +1140,13 @@ sub startup ($self) {
 	$r->patch('/api/analyses/:id/visuals/:visual')->to('Dashboard#analyses_update_visual');
 	$r->get('/api/analyses/:id/export') ->to('Dashboard#analyses_export');
 
+	# Phase 4 -- extracts, catalog, sharing, embedding, per-visual downloads
+	$r->get('/catalog')                       ->to('Dashboard#catalog_view');
+	$r->get('/share/:id')                     ->to('Dashboard#share_view');
+	$r->get('/embed/:id')                     ->to('Dashboard#embed_view');
+	$r->get('/a/:id/visual/:n/:fmt')          ->to('Dashboard#visual_download');
+	$r->post('/api/analyses/:id/share')       ->to('Dashboard#analyses_share');
+
 	# Evict stale upload subdirectories on every startup so the cache cannot
 	# grow unboundedly across server restarts.  Only entries whose mtime is
 	# older than $UPLOAD_MAX_AGE_S seconds are removed; recent uploads that

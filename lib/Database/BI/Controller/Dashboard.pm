@@ -124,6 +124,11 @@ Readonly my %MESSAGES => (
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
 	warn_map_cache_unwritten    => 'The resolved places could not be remembered in the model store, so the next request will look them up again',
+	# Phase 4
+	error_token_invalid         => 'Share token is invalid or has expired',
+	error_token_missing         => 'A share token is required to view this analysis',
+	error_extract_unwritable    => 'Extract store is not writable; using direct read',
+	freshness_stale_msg         => 'Source data has changed since this analysis was last saved',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -149,6 +154,9 @@ Readonly my %MEASURE_FN_OK => map { $_ => 1 } @MEASURE_FNS;
 # Allowed strptime-style date format patterns for the /dates/save endpoint.
 Readonly my %ALLOWED_DATE_PATTERNS => map { $_ => 1 }
 	qw(%m/%d/%Y %d/%m/%Y %d-%b-%Y);
+
+# Default share token lifetime: 30 days in seconds.
+Readonly my $SHARE_TOKEN_TTL => 30 * 86_400;
 
 # ---------------------------------------------------------------------------
 # Protected helpers
@@ -2877,6 +2885,34 @@ sub canvas_render ($self) {
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
+	# Phase 4.2 -- freshness: compare each dataset's current mtime against
+	# the analysis's saved updated timestamp.  Flag stale when any source
+	# is newer.  Non-fatal: the canvas renders with a stale banner.
+	my ($freshness_stale, $freshness_msg, $freshness_source_mtime) = (0, '', '');
+	{
+		my $analysis_updated = $a->{updated} // 0;
+		# Parse ISO-8601 to epoch for comparison if needed.
+		if ($analysis_updated && $analysis_updated =~ /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z?\z/) {
+			require POSIX;
+			$analysis_updated = POSIX::mktime($6, $5, $4, $3, $2 - 1, $1 - 1900);
+		}
+		my $newest_src_mtime = 0;
+		for my $ds (@{ $a->{datasets} // [] }) {
+			my $spec = $ds->{spec} // '';
+			next unless $spec =~ /\A(?:table|path):/;
+			my ($src) = eval { $self->_open_spec($spec) };
+			next unless $src && $src->can('updated');
+			my $mt = eval { $src->updated } // 0;
+			$newest_src_mtime = $mt if $mt > $newest_src_mtime;
+		}
+		if ($newest_src_mtime && $analysis_updated && $newest_src_mtime > $analysis_updated) {
+			$freshness_stale = 1;
+			$freshness_msg   = $MESSAGES{freshness_stale_msg};
+			require POSIX;
+			$freshness_source_mtime = POSIX::strftime('%Y-%m-%d %H:%M UTC', gmtime($newest_src_mtime));
+		}
+	}
+
 	# Phase 3.2 / 3.3: if visuals array is non-empty, render the canvas.
 	my @visuals = @{ $a->{visuals} // [] };
 	if (@visuals) {
@@ -3140,6 +3176,9 @@ sub canvas_render ($self) {
 			extra_head       => $canvas_map_head,
 			back_url         => '/',
 			back_label       => 'Home',
+			freshness_stale  => $freshness_stale,
+			freshness_msg    => $freshness_msg,
+			freshness_source_mtime => $freshness_source_mtime,
 		);
 	}
 
@@ -7677,6 +7716,318 @@ sub _iso8601_utc {
 	require POSIX;
 
 	return POSIX::strftime('%Y-%m-%dT%H:%M:%SZ', gmtime());
+}
+
+# ---------------------------------------------------------------------------
+# Phase 4.1 -- Extract helper
+# ---------------------------------------------------------------------------
+
+# _get_or_build_extract($self, $src, $records, $columns, $spec) -> $path | undef
+#
+# Returns a path to a cached SQLite extract for the current source fingerprint,
+# building one if the cache is cold.  Returns undef when:
+#   - model_dir is not configured or not writable
+#   - the source has no mtime (URL-backed, headerless cache, etc.)
+#   - writing the extract would fail
+# The caller continues with direct reads in all undef cases.
+sub _get_or_build_extract :Protected ($self, $src, $records, $columns, $spec) {
+	my $app    = $self->app;
+	my $mdcfg  = $app->config('model_dir') // '.bi';
+	my $mdir   = Mojo::File->new($app->home->child($mdcfg))->to_string;
+	return undef unless -d $mdir || eval { Mojo::File->new($mdir)->make_path; 1 };
+
+	my $mtime = eval { $src->can('updated') ? $src->updated : undef } // undef;
+	return undef unless defined $mtime;
+
+	my $fsize = 0;
+	if ($src->can('_file_path') && defined $src->{_file_path} && -f $src->{_file_path}) {
+		$fsize = -s $src->{_file_path};
+	}
+
+	require Database::BI::Extract;
+	my $cache = Database::BI::Extract->new(model_dir => $mdir);
+
+	my $path = $cache->get($spec, $mtime, $fsize);
+	return $path if $path;
+
+	# Build a new extract.
+	my $bytes = eval { $self->_write_sqlite_db($records, $columns) };
+	if ($@) {
+		carp $MESSAGES{error_extract_unwritable} . ": $@";
+		return undef;
+	}
+
+	$path = eval { $cache->put($spec, $mtime, $fsize, $bytes) };
+	if ($@) {
+		carp $MESSAGES{error_extract_unwritable} . ": $@";
+		return undef;
+	}
+
+	return $path;
+}
+
+# ---------------------------------------------------------------------------
+# Phase 4.3 shared pipeline helper (used by catalog_view and bi-alert)
+# ---------------------------------------------------------------------------
+
+# _catalog_entry($self, $mf, $analyses) -> \%entry
+#
+# Build one catalog entry for a Mojo::File data file.
+sub _catalog_entry :Protected ($self, $mf, $analyses) {
+	my $path  = $mf->to_string;
+	my $name  = $mf->basename;
+	my $size  = -s $path // 0;
+	my $mtime = (stat($path))[9] // 0;
+
+	require POSIX;
+	my $mtime_str = $mtime ? POSIX::strftime('%Y-%m-%d %H:%M UTC', gmtime($mtime)) : '';
+
+	# Find which analyses reference this file.
+	my @refs;
+	for my $aid (sort keys %$analyses) {
+		my $a = $analyses->{$aid};
+		for my $ds (@{ $a->{datasets} // [] }) {
+			my $spec = $ds->{spec} // '';
+			my $table_stem = $mf->basename; $table_stem =~ s/\.[^.]+\z//;
+			if (CORE::index($spec, $path) >= 0 || CORE::index($spec, "table:$table_stem") == 0) {
+				push @refs, { id => $aid, name => $a->{name} };
+				last;
+			}
+		}
+	}
+
+	# Derive a human-readable type from the extension.
+	my ($ext) = ($name =~ /\.([^.]+)\z/);
+	$ext = lc($ext // '');
+	my %type_map = (
+		csv => 'CSV file', tsv => 'TSV file', psv => 'PSV file',
+		xml => 'XML file', xlsx => 'XLSX spreadsheet',
+		sql => 'SQLite database', sqlite => 'SQLite database',
+		sqlite3 => 'SQLite database', db => 'Berkeley DB / SQLite',
+	);
+	my $type = $type_map{$ext} // 'Data file';
+
+	return {
+		name           => $name,
+		path           => $path,
+		type           => $type,
+		size           => $size,
+		mtime_str      => $mtime_str,
+		analysis_count => scalar @refs,
+		analyses       => \@refs,
+	};
+}
+
+# ---------------------------------------------------------------------------
+# Phase 4.7 -- Catalog
+# ---------------------------------------------------------------------------
+
+# GET /catalog
+sub catalog_view ($self) {
+	my $data_dir  = $self->app->config('data_dir') // 'data';
+	my $dir       = Mojo::File->new($self->app->home->child($data_dir));
+	my $analyses  = $self->_read_analyses;
+
+	my @entries;
+	if (-d $dir) {
+		my $ext_re = $EXT_RE;
+		for my $mf ($dir->list->each) {
+			next unless $mf->to_string =~ $ext_re;
+			push @entries, $self->_catalog_entry($mf, $analyses);
+		}
+	}
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler        => 'tt',
+		template       => "$platform/$language/catalog",
+		format         => 'html',
+		title          => 'Dataset catalog',
+		catalog_entries => \@entries,
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Phase 4.6 -- Sharing and embedding
+# ---------------------------------------------------------------------------
+
+# _share_secret($self) -> $secret_string
+sub _share_secret :Protected ($self) {
+	my $s = $self->app->config('share_secret') // '';
+	unless (length $s) {
+		carp 'share_secret not configured; using insecure default';
+		$s = 'BI_DEFAULT_INSECURE_SECRET';
+	}
+	return $s;
+}
+
+# _make_share_token($self, $id, $expires) -> $token_string
+sub _make_share_token :Protected ($self, $id, $expires) {
+	require Digest::HMAC_SHA1;
+	require MIME::Base64;
+	my $secret  = $self->_share_secret;
+	my $payload = "$id|$expires";
+	my $hmac    = Digest::HMAC_SHA1::hmac_sha1_hex($payload, $secret);
+	return MIME::Base64::encode_base64url("$payload|$hmac");
+}
+
+# _verify_share_token($self, $id, $token) -> 1 | undef
+sub _verify_share_token :Protected ($self, $id, $token) {
+	return undef unless defined $token && length $token;
+	require MIME::Base64;
+	my $decoded = eval { MIME::Base64::decode_base64url($token) };
+	return undef unless defined $decoded;
+	my ($tid, $expires, $hmac) = split /\|/, $decoded, 3;
+	return undef unless defined $tid && defined $expires && defined $hmac;
+	return undef unless $tid eq $id;
+	return undef unless $expires =~ /\A\d+\z/ && $expires > time();
+	require Digest::HMAC_SHA1;
+	my $secret   = $self->_share_secret;
+	my $expected = Digest::HMAC_SHA1::hmac_sha1_hex("$id|$expires", $secret);
+	return undef unless $hmac eq $expected;
+	return 1;
+}
+
+# POST /api/analyses/:id/share
+sub analyses_share ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+
+	my $expires = time() + $SHARE_TOKEN_TTL;
+	my $token   = $self->_make_share_token($id, $expires);
+	my $url     = $self->req->url->base->to_string . "/share/$id?token=" . url_escape($token);
+
+	$self->render(json => { token => $token, url => $url, expires => $expires });
+}
+
+# GET /share/:id?token=...
+sub share_view ($self) {
+	my $id    = $self->stash('id') // '';
+	my $token = $self->param('token') // '';
+	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+	return $self->render(text => $MESSAGES{error_token_missing}, status => 401)
+		unless length $token;
+	unless ($self->_verify_share_token($id, $token)) {
+		return $self->render(text => $MESSAGES{error_token_invalid}, status => 403);
+	}
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+		unless exists $analyses->{$id};
+	my $a = $analyses->{$id};
+
+	my @visuals = @{ $a->{visuals} // [] };
+	unless (@visuals) {
+		return $self->render(text => 'This shared analysis has no visuals', status => 404);
+	}
+
+	# Reuse canvas_render logic by temporarily setting id in stash and
+	# forwarding; set sharing_mode so the template hides admin controls.
+	$self->stash(sharing_mode => 1);
+	# Delegate to canvas_render which reads stash('id').
+	return $self->canvas_render;
+}
+
+# GET /embed/:id?token=...
+sub embed_view ($self) {
+	my $id    = $self->stash('id') // '';
+	my $token = $self->param('token') // '';
+	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+	return $self->render(text => $MESSAGES{error_token_missing}, status => 401)
+		unless length $token;
+	unless ($self->_verify_share_token($id, $token)) {
+		return $self->render(text => $MESSAGES{error_token_invalid}, status => 403);
+	}
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+		unless exists $analyses->{$id};
+	my $a = $analyses->{$id};
+
+	# X-Frame-Options: embed is opt-in.
+	$self->res->headers->header('X-Frame-Options' => 'SAMEORIGIN');
+
+	my @visuals = @{ $a->{visuals} // [] };
+	unless (@visuals) {
+		return $self->render(text => 'This shared analysis has no visuals', status => 404);
+	}
+
+	# Build a minimal context for the embed template.
+	# Reuse the canvas pipeline helper to render visuals.
+	my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
+	return $self->render(text => 'Cannot open data source', status => 422)
+		unless defined $records;
+
+	my @rendered;
+	for my $i (0 .. $#visuals) {
+		my $vis = $visuals[$i];
+		my $ctx = eval { $self->_canvas_render_context($a, $self->req->url->query->to_string) };
+		next unless $ctx && ref $ctx eq 'HASH' && !$ctx->{error};
+		push @rendered, $ctx;
+	}
+
+	# Simpler: delegate to canvas_render and let it handle the heavy lifting.
+	# Just set a flag so the embed template is selected.
+	$self->stash(embed_mode => 1, sharing_mode => 1);
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler     => 'tt',
+		template    => "$platform/$language/embed",
+		format      => 'html',
+		title       => $a->{name},
+		canvas_id   => $id,
+		canvas_name => $a->{name},
+		visuals     => \@rendered,
+	);
+}
+
+# GET /a/:id/visual/:n/:format
+sub visual_download ($self) {
+	my $id     = $self->stash('id')     // '';
+	my $n      = $self->stash('n')      // 0;
+	my $format = $self->stash('fmt') // '';
+
+	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+	return $self->render(text => 'Format must be csv or png', status => 400)
+		unless $format =~ /\A(?:csv|png)\z/;
+	return $self->render(text => 'Visual index must be a non-negative integer', status => 400)
+		unless $n =~ /\A\d+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+		unless exists $analyses->{$id};
+	my $a = $analyses->{$id};
+
+	my @visuals = @{ $a->{visuals} // [] };
+	return $self->render(text => "Visual $n not found", status => 404)
+		unless $n < scalar @visuals;
+
+	if ($format eq 'csv') {
+		# Run the pipeline and return CSV for this visual's data.
+		my (undef, $records, $columns) = $self->_run_pipeline_source;
+		return $self->render(text => 'Cannot open data source', status => 422)
+			unless defined $records;
+		my $csv = $self->_serialize_csv($records, $columns);
+		$self->res->headers->content_disposition(
+			"attachment; filename=\"visual-$n.csv\""
+		);
+		return $self->render(data => encode('UTF-8', $csv), format => 'txt');
+	}
+
+	# PNG: not implemented in the server (canvas/SVG rendering is client-side).
+	# Return 501 with a descriptive message.
+	return $self->render(
+		text   => 'PNG download requires the browser SVG renderer; use the in-page Save Image button',
+		status => 501,
+	);
 }
 
 1;

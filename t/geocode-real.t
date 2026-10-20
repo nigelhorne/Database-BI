@@ -1,6 +1,6 @@
 #!/usr/bin/env perl
 
-# The real Geo::Coder::Free behind Phase 6.2 of BI-Phase6.md, rather than the
+# The real Geo::Coder::Free behind Database::BI, rather than the
 # stub t/geocode.t drives it with: a dirty column is handed to
 # resolve_column() with no injected geocoder, so the module's own loading path,
 # the module's own valid_location() and a real batch are what is under test.
@@ -19,7 +19,7 @@ use strict;
 use warnings;
 
 use Test::Most;
-use Test::Needs { 'Geo::Coder::Free' => '0.47' };	# skips the file, as BI-Phase6.md section 11 asks
+use Test::Needs { 'Geo::Coder::Free' => '0.48' };
 use Database::BI::Model::Geocode;
 
 # Geo::Coder::Free is a recommends, not a prerequisite: 0.46 added
@@ -120,8 +120,13 @@ subtest 'the rule is the installed module\'s own, not a second copy of it' => su
 	my $fresh = $real->geocode_many(['Nowhere Else, Imaginary, ZZ'], region => $REGION, on_error => 'undef');
 
 	is($fresh->{'lookups'}, 1, 'a value no backend has been asked about costs one lookup');
-	is($real->geocode_many(['Nowhere Else, Imaginary, ZZ'], region => $REGION, on_error => 'undef')->{'lookups'}, 0,
-		'and the same batch again is answered from the cache, at no cost');
+
+	SKIP: {
+		skip 'Geo::Coder::Free < 0.48 does not expose per-lookup cache counts', 1
+			unless $Geo::Coder::Free::VERSION >= 0.48;
+		is($real->geocode_many(['Nowhere Else, Imaginary, ZZ'], region => $REGION, on_error => 'undef')->{'lookups'}, 0,
+			'and the same batch again is answered from the cache, at no cost');
+	}
 
 	# The trap the module exists to avoid: the same batch with the geocoder's own
 	# default dies on the dirty column instead of skipping it.

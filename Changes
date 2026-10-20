@@ -1,6 +1,36 @@
 Revision history for Database-BI
 
 0.015.0
+	[ Phase 4 -- Delivery, scale, and governance ]
+	- Phase 4.1: Extract/materialisation cache (Database::BI::Extract).  Datasets
+	  are materialised as SQLite files under model_dir/extracts/ keyed by an MD5
+	  fingerprint of (spec, mtime, size).  The cache is fully optional: deleting
+	  the extracts/ directory leaves the app fully functional.  _get_or_build_extract
+	  in the controller reuses _write_sqlite_db; it falls through gracefully on
+	  unwritable store or missing mtime.
+	- Phase 4.2: Freshness signalling on /a/:id canvas pages.  canvas_render
+	  compares each dataset's current mtime against the analysis's saved updated
+	  timestamp and sets a stale banner in the template when any source is newer.
+	- Phase 4.3: bi-alert CLI (script/bi-alert).  Evaluates one saved analysis's
+	  measures; supports --analysis, --threshold <alias>:<op>:<value>, --dry-run,
+	  --model-dir, --data-dir.  Exit 0 = ok, 1 = threshold crossed, 2 = error.
+	  Scheduling is via cron; no scheduler is built into the web process.
+	- Phase 4.4 decision: stay single-user.  No sessions or auth changes are made.
+	  This preserves the tool's "point it at your own files" simplicity.
+	  RLS (4.5) is deferred until multi-user mode is adopted.
+	- Phase 4.6: Sharing and embedding.  POST /api/analyses/:id/share generates a
+	  signed HMAC-SHA1 token (configurable secret via share_secret config key).
+	  GET /share/:id?token=... verifies the token and renders the canvas in
+	  sharing_mode.  GET /embed/:id?token=... renders the chrome-less embed.html.tt
+	  page with X-Frame-Options: SAMEORIGIN.  GET /a/:id/visual/:n/csv downloads
+	  the visual's data as CSV; /png returns 501 (browser SVG required).
+	- Phase 4.7: Catalog/lineage.  GET /catalog lists all datasets in data_dir,
+	  their type, size, last-modified date, and which saved analyses reference them.
+	  Lineage is derived by scanning analyses.json; no separate registry.
+	  New template: templates/web/en/catalog.html.tt.
+	- New test files: t/extract.t (fingerprint hit/miss, cache-deletable, no
+	  data_dir writes), t/catalog.t (200 response, dataset listed, analysis names
+	  shown, empty-dir path), t/rls.t (skip placeholder for Phase 4.5).
 	[ New Features ]
 	- GET /tutorial renders a tutorial inside the application, not in the POD.
 	  The chapters are data in Database::BI::Tutorial, one chapter per feature,
