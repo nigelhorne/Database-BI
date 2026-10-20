@@ -23,8 +23,10 @@ use Test::Needs { 'Geo::Coder::Free' => '0.48' };
 use Database::BI::Model::Geocode;
 
 # Geo::Coder::Free is a recommends, not a prerequisite: 0.46 added
-# valid_location() and 0.47 added geocode_many(), and the app installs, starts
-# and tests without either.  Test::Needs above skips a machine without 0.47+;
+# valid_location(), 0.47 added geocode_many(), and 0.48 added per-lookup cache
+# counts (the lookups key reports reads, not attempts).  The app installs,
+# starts and tests without any of these.  Test::Needs above skips a machine
+# without 0.48+;
 # this catches the other case, a module that claims the version and does not
 # answer the two questions this module asks of one.
 for my $method (qw(valid_location geocode_many)) {
@@ -120,13 +122,8 @@ subtest 'the rule is the installed module\'s own, not a second copy of it' => su
 	my $fresh = $real->geocode_many(['Nowhere Else, Imaginary, ZZ'], region => $REGION, on_error => 'undef');
 
 	is($fresh->{'lookups'}, 1, 'a value no backend has been asked about costs one lookup');
-
-	SKIP: {
-		skip 'Geo::Coder::Free < 0.48 does not expose per-lookup cache counts', 1
-			unless $Geo::Coder::Free::VERSION >= 0.48;
-		is($real->geocode_many(['Nowhere Else, Imaginary, ZZ'], region => $REGION, on_error => 'undef')->{'lookups'}, 0,
-			'and the same batch again is answered from the cache, at no cost');
-	}
+	is($real->geocode_many(['Nowhere Else, Imaginary, ZZ'], region => $REGION, on_error => 'undef')->{'lookups'}, 0,
+		'and the same batch again is answered from the cache, at no cost');
 
 	# The trap the module exists to avoid: the same batch with the geocoder's own
 	# default dies on the dirty column instead of skipping it.

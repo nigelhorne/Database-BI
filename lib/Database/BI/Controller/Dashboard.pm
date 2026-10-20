@@ -7862,12 +7862,14 @@ sub _share_secret :Protected ($self) {
 }
 
 # _make_share_token($self, $id, $expires) -> $token_string
+#
+# Signs with HMAC-SHA256 using Digest::SHA (Perl core since 5.10).
 sub _make_share_token :Protected ($self, $id, $expires) {
-	require Digest::HMAC_SHA1;
+	require Digest::SHA;
 	require MIME::Base64;
 	my $secret  = $self->_share_secret;
 	my $payload = "$id|$expires";
-	my $hmac    = Digest::HMAC_SHA1::hmac_sha1_hex($payload, $secret);
+	my $hmac    = Digest::SHA::hmac_sha256_hex($payload, $secret);
 	return MIME::Base64::encode_base64url("$payload|$hmac");
 }
 
@@ -7881,9 +7883,9 @@ sub _verify_share_token :Protected ($self, $id, $token) {
 	return undef unless defined $tid && defined $expires && defined $hmac;
 	return undef unless $tid eq $id;
 	return undef unless $expires =~ /\A\d+\z/ && $expires > time();
-	require Digest::HMAC_SHA1;
+	require Digest::SHA;
 	my $secret   = $self->_share_secret;
-	my $expected = Digest::HMAC_SHA1::hmac_sha1_hex("$id|$expires", $secret);
+	my $expected = Digest::SHA::hmac_sha256_hex("$id|$expires", $secret);
 	return undef unless $hmac eq $expected;
 	return 1;
 }

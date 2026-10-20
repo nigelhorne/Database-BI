@@ -46,6 +46,9 @@ WriteMakefile(
 		'Mojolicious::Plugin::TemplateToolkit' => 0,
 		'Params::Get'	=> 0,
 		'Params::Validate::Strict'	=> '0.39',
+		'Digest::MD5'		=> 0,		# For Extract.pm fingerprinting (Phase 4.1)
+		'Digest::SHA'		=> 0,		# For HMAC-SHA256 share tokens in Dashboard.pm (Phase 4.6; core since Perl 5.10)
+		'MIME::Base64'		=> '3.11',	# For encode_base64url/decode_base64url in share tokens (Phase 4.6)
 		'Readonly'		=> 0,
 		'Socket'	=> '2.010',
 		'POSIX'			=> 0,		# For floor/ceil in Calc.pm (core module, listed for completeness)

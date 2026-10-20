@@ -29,6 +29,9 @@ requires 'Net::SFTP::Foreign';
 requires 'POSIX';   # For floor/ceil in Calc.pm (core module, listed for completeness)
 requires 'Params::Get';
 requires 'Params::Validate::Strict', '0.39';
+requires 'Digest::MD5';        # Extract.pm fingerprinting (Phase 4.1)
+requires 'Digest::SHA';        # HMAC-SHA256 share tokens (Phase 4.6; core since Perl 5.10)
+requires 'MIME::Base64', '3.11'; # encode_base64url/decode_base64url for share tokens (Phase 4.6)
 requires 'Readonly';
 requires 'Scalar::Util';   # Used in DataSource.pm (blessed, looks_like_number)
 requires 'Socket', '2.010';
