@@ -7301,6 +7301,14 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		defined($_) && !ref($_) && length($_) && $_ ne $loc_col && $col_set{$_}
 	} @{ ref($options->{popup}) eq 'ARRAY' ? $options->{popup} : [] };
 
+	# Default: when no popup columns are requested, show every column that is
+	# not a coordinate column so the marker tooltip is informative out of the box.
+	unless (@popup) {
+		my %coord_set = map { $_ => 1 }
+			grep { defined($_) && length($_) } ($loc_col, $lat_col, $lon_col);
+		@popup = grep { !$coord_set{$_} } @$columns;
+	}
+
 	my ($backend, $plotted_rows) = (undef, 0);
 	my (@markers, @messages);
 
@@ -8611,7 +8619,7 @@ visual, so the map shows the filtered, calculated view.
   loc=<col>      Location column to geocode (required unless lat= and lon= are given)
   lat=<col>      Latitude column (numeric, -90..90)
   lon=<col>      Longitude column (numeric, -180..180)
-  popup=<col>    Column shown in the marker popup (repeatable; default: none)
+  popup=<col>    Column shown in the marker popup (repeatable; default: all non-coordinate columns)
   max=N          Markers to draw (default: map_max_markers, 2000)
   back=<url>     URL for the "Back to table" breadcrumb link
 
@@ -8628,7 +8636,7 @@ use instead of loading L<Geo::Coder::Free>; the seam the tests use).
   loc      string  Optional.  Column of places to geocode.
   lat      string  Optional.  Numeric latitude column.
   lon      string  Optional.  Numeric longitude column.
-  popup    string  Optional, repeatable.  Columns shown in the popup.
+  popup    string  Optional, repeatable.  Columns shown in the popup.  Default: all non-coordinate columns.
   max      int     Optional.  Positive marker cap for this request.
   back     url     Optional.  Safe back-link URL (sanitised by _safe_back_url).
 
