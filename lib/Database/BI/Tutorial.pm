@@ -318,6 +318,18 @@ my @CHAPTERS = (
 			'Click Plot.',
 		],
 		tip   => 'Click a slice to open the matching rows in the table.',
+		walkthrough => {
+			title => 'Walk through: population share by region',
+			intro => 'This example uses the virginia_counties table in the data folder.',
+			steps => [
+				{ do => 'Open the virginia_counties table and click Pie chart...', see => 'The pie panel opens.' },
+				{ do => 'Choose region for Slice by.', see => 'Seven regions will become slices.' },
+				{ do => 'Choose population for Value.', see => 'Each slice will show the total population for that region.' },
+				{ do => 'Click Plot.', see => 'A pie chart appears. Northern Virginia is the largest slice.' },
+			],
+			result => 'Northern Virginia holds the most people. Its slice is larger than all Southside and Southwest counties combined.',
+		},
+		try    => { href => '/pie?l=table:virginia_counties&cat=region&val=population', label => 'Try population by region' },
 		routes => [ '/pie' ],
 	},
 	{
@@ -350,6 +362,18 @@ my @CHAPTERS = (
 			'Click Plot.',
 		],
 		tip   => 'A bar chart is a good first choice for most data.',
+		walkthrough => {
+			title => 'Walk through: top Virginia counties by population',
+			intro => 'This example uses the virginia_counties table in the data folder.',
+			steps => [
+				{ do => 'Open the virginia_counties table and click Bar chart...', see => 'The bar panel opens.' },
+				{ do => 'Choose county for Category.', see => 'There are 95 counties. Set a limit in the next step.' },
+				{ do => 'Choose population for Value. Set Top N to 10 and Sort to By value.', see => 'The form is ready.' },
+				{ do => 'Click Plot.', see => 'Ten bars appear. Fairfax County stands far above the rest.' },
+			],
+			result => 'The ten most populous counties appear, sorted largest first. Fairfax County has more people than the bottom 30 counties together.',
+		},
+		try    => { href => '/bar?l=table:virginia_counties&cat=county&val=population&sort=value&topn=10', label => 'Try top 10 counties by population' },
 		routes => [ '/bar' ],
 	},
 	{
@@ -382,6 +406,18 @@ my @CHAPTERS = (
 			'Click Plot.',
 		],
 		tip   => 'If a column is not numeric, it does not appear in the axis lists.',
+		walkthrough => {
+			title => 'Walk through: county location and size',
+			intro => 'This example uses the virginia_counties table in the data folder.',
+			steps => [
+				{ do => 'Open the virginia_counties table and click Scatter...', see => 'The scatter panel opens.' },
+				{ do => 'Choose lon for X axis and lat for Y axis.', see => 'Each dot will sit at its map position.' },
+				{ do => 'Choose region for Colour by.', see => 'Each region gets its own colour.' },
+				{ do => 'Choose population for Bubble size. Click Plot.', see => 'Northern Virginia circles are much bigger than the rest.' },
+			],
+			result => 'The chart mirrors Virginia shape. Large bubbles in the northeast show the high-population Northern Virginia counties.',
+		},
+		try    => { href => '/scatter?l=table:virginia_counties&x=lon&y=lat&series=region&size=population', label => 'Try Virginia counties scatter plot' },
 		routes => [ '/scatter' ],
 	},
 	{
@@ -444,6 +480,18 @@ my @CHAPTERS = (
 			'Click Open map.',
 		],
 		tip   => 'Rows at one place become one marker. Click a marker to see what it stands for.',
+		walkthrough => {
+			title => 'Walk through: Virginia counties on a map',
+			intro => 'This example uses the virginia_counties table in the data folder.',
+			steps => [
+				{ do => 'Open the virginia_counties table and click Map...', see => 'The map panel opens.' },
+				{ do => 'Keep Coordinate columns. Choose lat for Latitude and lon for Longitude.', see => 'The form shows lat and lon selected.' },
+				{ do => 'Click Open map.', see => 'A map appears with 95 markers, one for each Virginia county.' },
+				{ do => 'Click any marker.', see => 'A popup shows the county name, population and region.' },
+			],
+			result => 'All 95 Virginia counties appear as markers. Markers near one another cluster at low zoom.',
+		},
+		try    => { href => '/map?l=table:virginia_counties&lat=lat&lon=lon', label => 'Try the Virginia counties map' },
 		routes => [ '/map' ],
 	},
 	{
@@ -486,6 +534,18 @@ my @CHAPTERS = (
 			'For a number column you also see Min, Max, Mean and Median. Mean is the average. Median is the middle value.',
 		],
 		tip   => 'Statistics use the rows that are visible after joins and filters.',
+		walkthrough => {
+			title => 'Walk through: column statistics for Virginia counties',
+			intro => 'This example uses the virginia_counties table in the data folder.',
+			steps => [
+				{ do => 'Open the virginia_counties table and click Column stats.', see => 'The stats page shows one row per column.' },
+				{ do => 'Find the population row.', see => 'Min is 2214 and Max is 1150309.' },
+				{ do => 'Look at the Distinct count for region.', see => 'There are 7 distinct regions.' },
+				{ do => 'Look at Mean and Median for population.', see => 'Mean is much higher than Median. A few large counties pull the average up.' },
+			],
+			result => 'Population is highly uneven. The maximum county is over 500 times larger than the minimum.',
+		},
+		try    => { href => '/stats?l=table:virginia_counties', label => 'Try statistics on Virginia counties' },
 		routes => [ '/stats' ],
 	},
 

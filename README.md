@@ -9,7 +9,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 ## Description
 
 `Database::BI` is a self-contained [Mojolicious](https://metacpan.org/pod/Mojolicious) web application that reads
-and views arbitrary flat data (CSV, PSV, TSV, SQLite, XML, XLSX, etc.)
+and views arbitrary data (CSV, PSV, TSV, SQLite, JSON, XML, XLSX, etc.)
 and presents them as styled, sortable, reorderable
 HTML tables.
 It has no persistent database of its own,
@@ -773,31 +773,6 @@ place search still calls Nominatim if a reader uses it.
 
     Opening `redis:players|redis://localhost:6379` then displays a two-row table
     with columns `entry`, `name`, and `score`.
-
-## Architecture decision: single-user mode (Phase 4.4)
-
-`Database::BI` is a **single-user, local-first tool**.  There are no sessions,
-no login screens, and no per-user ownership of saved analyses.  Whoever can
-reach the server can read any dataset the server can read and manage any saved
-canvas.
-
-This is a deliberate architectural commitment, not an oversight.  The tool's
-value is that it is safe to point at production data files because it only
-reads them.  Adding multi-user identity would change the threat model (shared
-state, session tokens, ownership checks on every route) and is out of scope for
-this distribution.
-
-**Consequence for sharing (Phase 4.6):** Shared analysis links use a
-time-limited signed token so that a URL handed to a colleague cannot be
-trivially guessed.  The token is not an access-control boundary -- it is a
-freshness guard.  If your deployment needs real access control, put the
-application behind a reverse proxy that handles authentication.
-
-**If you need multi-user:** fork the distribution, implement sessions and
-per-user analysis ownership (the model store in `.bi/analyses.json` would need
-to move to a row-keyed SQLite database), and record that decision in your own
-fork's `README.md`.  The core read-only pipeline is unchanged by that
-migration.
 
 ## Limitations
 

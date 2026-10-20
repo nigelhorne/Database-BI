@@ -7708,7 +7708,7 @@ sub _map_popup {
 	my ($heading, $rows, $extras) = @_;
 
 	my @lines = '<strong>' . xml_escape($heading // '') . '</strong>';
-	push @lines, $rows . ($rows == 1 ? ' row' : ' rows');
+	push @lines, $rows . ' rows' if $rows != 1;
 	push @lines, map { xml_escape($_->[0]) . ': ' . xml_escape($_->[1]) }
 		grep { defined($_->[1]) && length($_->[1]) } @{ $extras // [] };
 

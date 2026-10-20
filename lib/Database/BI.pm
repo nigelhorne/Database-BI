@@ -45,7 +45,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 =head1 DESCRIPTION
 
 C<Database::BI> is a self-contained L<Mojolicious> web application that reads
-and views arbitrary flat data (CSV, PSV, TSV, SQLite, XML, XLSX, etc.)
+and views arbitrary data (CSV, PSV, TSV, SQLite, JSON, XML, XLSX, etc.)
 and presents them as styled, sortable, reorderable
 HTML tables.
 It has no persistent database of its own,

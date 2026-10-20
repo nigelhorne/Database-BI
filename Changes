@@ -1,217 +1,61 @@
 Revision history for Database-BI
 
-0.015.0
-	[ Phase 4 -- Delivery, scale, and governance ]
-	- Phase 4.1: Extract/materialisation cache (Database::BI::Extract).  Datasets
-	  are materialised as SQLite files under model_dir/extracts/ keyed by an MD5
-	  fingerprint of (spec, mtime, size).  The cache is fully optional: deleting
-	  the extracts/ directory leaves the app fully functional.  _get_or_build_extract
-	  in the controller reuses _write_sqlite_db; it falls through gracefully on
-	  unwritable store or missing mtime.
-	- Phase 4.2: Freshness signalling on /a/:id canvas pages.  canvas_render
-	  compares each dataset's current mtime against the analysis's saved updated
-	  timestamp and sets a stale banner in the template when any source is newer.
-	- Phase 4.3: bi-alert CLI (script/bi-alert).  Evaluates one saved analysis's
-	  measures; supports --analysis, --threshold <alias>:<op>:<value>, --dry-run,
-	  --model-dir, --data-dir.  Exit 0 = ok, 1 = threshold crossed, 2 = error.
-	  Scheduling is via cron; no scheduler is built into the web process.
-	- Phase 4.4 decision: stay single-user.  No sessions or auth changes are made.
-	  This preserves the tool's "point it at your own files" simplicity.
-	  RLS (4.5) is deferred until multi-user mode is adopted.
-	- Phase 4.6: Sharing and embedding.  POST /api/analyses/:id/share generates a
-	  signed HMAC-SHA1 token (configurable secret via share_secret config key).
-	  GET /share/:id?token=... verifies the token and renders the canvas in
-	  sharing_mode.  GET /embed/:id?token=... renders the chrome-less embed.html.tt
-	  page with X-Frame-Options: SAMEORIGIN.  GET /a/:id/visual/:n/csv downloads
-	  the visual's data as CSV; /png returns 501 (browser SVG required).
-	- Phase 4.7: Catalog/lineage.  GET /catalog lists all datasets in data_dir,
-	  their type, size, last-modified date, and which saved analyses reference them.
-	  Lineage is derived by scanning analyses.json; no separate registry.
-	  New template: templates/web/en/catalog.html.tt.
-	- New test files: t/extract.t (fingerprint hit/miss, cache-deletable, no
-	  data_dir writes), t/catalog.t (200 response, dataset listed, analysis names
-	  shown, empty-dir path), t/rls.t (skip placeholder for Phase 4.5).
+0.015.0	Tue Oct 20 12:00:00 PM EDT 2026
 	[ New Features ]
-	- GET /tutorial renders a tutorial inside the application, not in the POD.
-	  The chapters are data in Database::BI::Tutorial, one chapter per feature,
-	  with short numbered steps, a "Good to know" line and a working example
-	  link where one helps.  Adding a feature means adding one hash to that
-	  list.  t/tutorial.t fails if a GET page has no chapter, if a chapter
-	  names a page that no longer exists, or if a lead, step or tip is longer
-	  than 25 words.  Joins, pivot tables, calculated columns and canvases
-	  have a worked walk-through: each step says what to click and what the
-	  screen should show, and ends with the result to expect.  The join
-	  walk-through uses data/store.db: open its sales table, merge the
-	  customer table, match customer_id to id, and read the customer names
-	  and email addresses beside the four sales.  The contents list
-	  marks those chapters so a reader can find one.  The page also has questions
-	  and answers, a glossary and a short section for maintainers.  The map
-	  has a chapter too, so every visual in the toolbar is documented and the
-	  tutorial has no page exemptions left except /tutorial itself and the
-	  JSON endpoints.
-	- The tutorial is linked from the header of every page and from a card on
-	  the home page.  Each page also has a "Help: <chapter>" link in the header
-	  to the chapter for that screen: /pie goes to the Pie chart chapter, the
-	  table view goes to Read and move around a table, and so on.  The mapping
-	  is one table of controller actions in Database::BI::Tutorial, applied by
-	  a before_render hook, so a new page action is one line.  Each visual,
-	  including the map, has its own chapter, and t/tutorial.t checks that every covered GET page
-	  has a mapping and that the chart overview lists every chart chapter.
-	  Tutorial and Help links open in a new tab, so the current table or chart
-	  view is not lost, and F1 follows the same link.  On a page with a chapter
-	  F1 opens that chapter; elsewhere it opens the tutorial top.
-	  t/browser-tutorial.t presses F1 in Firefox and checks the new tab's URL.
-	- Geocode answers are shared across datasets.  A place is geocoded once for
-	  the whole model store, keyed by the place rather than by the file or
-	  column that named it, so a second dataset that names the same place plots
-	  it without another lookup.  The shared cache is merged on write, so
-	  concurrent requests do not drop each other's answers; per-dataset entries
-	  written by older versions are still read, and the first view of such a
-	  store moves them into the shared cache so other datasets gain too.  t/map.t maps the same two places from two files with
-	  different column names and checks the geocoder is asked once and no
-	  per-dataset entry is written; t/geocode.t covers the shared cache API.
-	- Map markers are clustered with Leaflet.markercluster, on the map page and
-	  on canvas map cards.  A dense map draws a count where markers overlap at
-	  low zoom and splits it into individual pins as the reader zooms in; a
-	  sparse map is unchanged, since markers far enough apart stay on their
-	  own.  Each canvas card gets its own cluster group inside its own script
-	  scope, so several maps on one canvas do not share markers.  t/map.t
-	  checks the plugin assets and the cluster group on the map page and on
-	  every card of a two-map canvas; t/browser-map-panel.t checks that a map
-	  edited in place is redrawn clustered.
-	- The D3 and Leaflet asset URLs are configurable, so a deployment can
-	  serve the libraries itself and charts and canvases work with no
-	  outbound network access.  d3_url replaces the chart and canvas script;
-	  leaflet_js_url, leaflet_css_url, leaflet_cluster_js_url,
-	  leaflet_cluster_css_url and leaflet_cluster_default_css_url replace the
-	  map assets on the map page and on every map card, since both render
-	  through the same HTML::OSM call.  Any Leaflet key left out keeps
-	  HTML::OSM's pinned CDN URL.  t/basic.t and t/model.t check the
-	  self-hosted D3 URL on a chart page and a canvas; t/map.t checks all five
-	  Leaflet assets on the map page and a canvas.  t/browser-offline-assets.t
-	  serves the libraries and tiles from the app's own origin in Firefox,
-	  loads a chart, a map and a canvas holding both, with every external host
-	  blocked, and checks the chart's bars, the map's Leaflet pane and both cards
-	  on the canvas without a single external request.  It uses real copies
-	  vendored under public/static (or BI_SELF_HOSTED_ASSETS) when all six are
-	  present, and otherwise uses the small stand-ins that keep the test runnable
-	  in a bare checkout.  The browser CI workflow downloads pinned D3 7.9.0 and
-	  Leaflet 1.9.4 releases to public/static and sets
-	  BI_REQUIRE_VENDORED_ASSETS, so the stand-in fallback cannot hide a missing
-	  file in the run that is supposed to test the real libraries.
-	- Maps can use a self-hosted tile server.  tile_url replaces the
-	  OpenStreetMap tile layer on the map page and on every map card, keeping
-	  Leaflet's {z}, {x}, {y} and {s} placeholders, so drawing a map needs no
-	  outbound request.  The optional in-page place search still calls Nominatim
-	  when used.  HTML::OSM 0.11 takes the URL directly; with 0.10 the
-	  controller substitutes it in the rendered body, so the setting works
-	  without upgrading.  t/map.t checks the configured tile URL on both the
-	  map page and a canvas, and that neither still asks OpenStreetMap.
-	- A map card on a canvas can have its columns changed in place.  A map
-	  card's header carries Edit columns, which offers the place column or
-	  the latitude and longitude the card currently plots and saves through
-	  PATCH /api/analyses/:id/visuals/:visual.  The visual keeps its index, so
-	  its place in the layout, its size and its title stay; only the card body
-	  is replaced, its map script re-run, and focus returns to the control.
-	  The status region says when the redrawn map has finished drawing, and
-	  names Leaflet if it could not be loaded, rather than leaving the reader
-	  waiting for a drawing that will not come.
-	  The server renders the replacement through the canvas pipeline and the
-	  page's URL state before storing it, so an unknown column is refused and
-	  the saved card is untouched.  t/map.t changes a saved map from
-	  coordinates to a geocoded place column and back, checks the layout and
-	  the neighbouring card are unchanged, and checks that a bad index, a bad
-	  column and half a coordinate pair are refused; t/browser-map-panel.t
-	  edits the appended map card in Firefox without reloading the canvas.
-	- Map is now a canvas visual kind.  A map page carries a map chart spec
-	  with its loc= or lat=/lon= columns, so New Canvas starts with a real map
-	  card rather than falling back to a table, and a map can also be appended
-	  through Add current view.  Canvases render maps through the same
-	  Database::BI::Model::Geocode cache and HTML::OSM renderer as the map page;
-	  each card gets unique Leaflet element ids and its own script scope, so a
-	  canvas can hold more than one map.  t/map.t verifies the map spec, the
-	  rendered canvas and the unique ids; t/browser-map-panel.t creates a canvas
-	  from the map page in Firefox and opens it.
-	- A canvas has an Add current view button that appends another table, chart
-	  or map without leaving the canvas.  The panel offers a table, bar, pie,
-	  line, scatter, heatmap, stacked, combo, treemap, histogram or map, filled
-	  from the canvas's columns; the server renders the visual through the
-	  canvas pipeline (including joins and calculated fields) before storing
-	  it, so a missing column is a clear refusal rather than a broken card.
-	  The new card is appended in place, without reloading the canvas: it is
-	  auto-placed after the saved ones, focus moves to it, and an aria-live
-	  status announces what was added and the new visual count.  When the
-	  card's own script has drawn it, that region says the chart or map has
-	  finished drawing; if D3 or Leaflet could not be loaded, it names the
-	  missing library and says nothing was drawn.  The check is the drawing
-	  itself - a shape in the card's SVG, or a map's Leaflet container - not
-	  the script having run.  The canvas's
-	  own URL state is sent with the request, so a card added while a chart is
-	  cross-filtering, with calculated columns on the URL, or with a what-if
-	  parameter set is drawn through the same state as the cards beside it and
-	  takes part in cross-filtering straight away.  POST
-	  /api/analyses/:id/visuals exposes the same append, returning kind, head
-	  and cf_col as well as the rendered html; t/model.t covers storing a
-	  table and a chart, the query-state path, and refusing one that cannot be
-	  drawn.  t/browser-new-canvas.t opens the panel on a real canvas in
-	  Firefox and checks the appended card, the focus and the announcement.
-	- New canvas now starts with the current table or chart as its first
-	  visual.  A table page saves its visible columns and title; a chart page
-	  saves the chart's kind, encoding, title and options from the chart spec
-	  the action already rendered, so a pie stays a pie rather than becoming a
-	  table.  The same spec also fixes Add to Existing Canvas, which previously
-	  guessed at URL parameter names and missed keys such as pie's value.
-	  Opening the new canvas shows a real card instead of redirecting back to
-	  the data view because the analysis had no visuals.  The panel also works
-	  on /view/:table, where the data source is the table name rather than an l=
-	  parameter.  t/browser-new-canvas.t drives the panel from a table and a
-	  chart in Firefox, reads both stored analyses and opens both canvases to
-	  check the cards and their contents.  t/browser-seed-canvas.t does the
-	  same from every chart route (/bar, /pie, /graph, /line, /scatter,
-	  /heatmap, /stacked, /combo, /treemap, /histogram and /map), checking the
-	  page's spec, the stored kind and encoding, and the card that opens.
-	- A table inside a multi-table SQLite file can be named in a spec as
-	  table:store/customer.  The join and combine panels now list each
-	  internal table (for example "store / customer") as well as the file,
-	  and opening a table from the schema browser keeps that table selected
-	  for joins, filters and export instead of dropping back to the file's
-	  first table.  /api/columns accepts the same table:file/table form, so
-	  the join panel can load the right key columns.
-	- A Map option in the table toolbar opens the map page from the same panel
-	  as the other charts.  Choose latitude and longitude columns, or switch to
-	  a place-name column and let the app geocode it.  Obvious column names are
-	  preselected, and only the controls for the chosen mode are submitted.
-	  Joins, combines, filters, calculated fields and duplicate removal carry
-	  over to the map.  t/basic.t checks the button and panel, and
-	  t/browser-map-panel.t opens the panel and submits it with the keyboard in
-	  Firefox.
+	- GET /tutorial: in-application tutorial with a chapter for every page
+	  feature (Database::BI::Tutorial).  Each chapter has numbered steps, a
+	  tip, and a Try it link.  Chapters for joins, pivot, calc fields, canvas,
+	  and five chart types include a worked walk-through.  F1 opens the chapter
+	  for the current page; a "Help:" link in the header does the same.
+	  t/tutorial.t enforces that every GET page has a chapter and no sentence
+	  exceeds 25 words.
+	- Dataset catalog (GET /catalog): lists all files in data_dir with type,
+	  size, last-modified date, and which saved analyses reference each file.
+	- Sharing and embedding: POST /api/analyses/:id/share issues a signed
+	  HMAC token.  GET /share/:id?token= renders a read-only canvas;
+	  GET /embed/:id?token= renders a chrome-less embed page.
+	  GET /a/:id/visual/:n/csv downloads one visual's data as CSV.
+	- Extract cache (Database::BI::Extract): query results are materialised as
+	  SQLite files under model_dir/extracts/ keyed by source fingerprint.
+	  Deleting the extracts/ directory leaves the app fully functional.
+	- bi-alert CLI (script/bi-alert): evaluates a saved analysis against a
+	  threshold (--threshold alias:op:value).  Exit 0 = ok, 1 = crossed,
+	  2 = error.  Schedule via cron.
+	[ Enhancements ]
+	- Map markers cluster with Leaflet.markercluster: overlapping pins show a
+	  count at low zoom and split into individual markers as you zoom in.
+	- Geocode answers are now shared across all datasets in the model store.
+	  A place is resolved once and any other dataset that names it plots it
+	  immediately without another lookup.
+	- D3, Leaflet, and tile-server URLs are all configurable, so a deployment
+	  with no outbound network access can serve every asset itself.
+	- Map is a canvas visual kind.  New Canvas and Add to Existing Canvas both
+	  start from the map's lat/lon or geocoded column spec.  Canvas map cards
+	  support in-place column editing without a page reload.
+	- Add visual panel on canvas: append a table, chart, or map card to an
+	  open canvas without leaving the page.
+	- New Canvas seeds itself from the current table or chart, including its
+	  kind, columns, and options, so a pie chart stays a pie on the canvas.
+	- Multi-table SQLite files support a nested spec (table:store/customer).
+	  The join and combine panels list each internal table separately.
+	- Map marker popups now show all non-coordinate columns by default.
+	  Pass ?popup=col to restrict the popup to specific columns.
+	- data/virginia_counties.csv added: all 95 Virginia counties with 2020
+	  census populations, lat/lon centroids, and region labels.  Tutorial
+	  walk-throughs for map, pie, bar, scatter, and stats use this file.
+	- Canvas home-page cards support Ctrl+click and rubber-band drag for
+	  multi-select; a floating action bar offers bulk delete.
+	- Canvas freshness banner warns when a source file has changed since the
+	  analysis was last saved.
 	[ Bug Fixes ]
-	- Opening a canvas with a treemap card no longer returns 500.  The canvas
-	  passed [label, value] pairs to HTML::D3's treemap, which takes one
-	  { path, value } row per tile, so rendering died; it now builds the same
-	  rows the treemap page does.  t/browser-seed-canvas.t found this while
-	  seeding a canvas from every chart route.
-	- A canvas seeded from a chart page now keeps the chart's options.  A bar
-	  page stores its direction as options.orientation while the canvas
-	  renderer read options.orient, so a horizontal bar came back vertical; a
-	  bar's top-N cap (max_items) and a heatmap's show_values were ignored for
-	  the same reason (the option never reached the snippet).  Stacked bars
-	  also ignored orientation entirely.  Both spellings are accepted now, the
-	  cap and show_values are passed through, and t/model.t seeds a canvas from
-	  /bar, /stacked and /heatmap and checks the rendered card.
-	- Canvas charts are drawn.  D3 was loaded after the cards, so each card's
-	  inline chart script ran before d3 existed and threw; the library is now
-	  loaded before the grid.  Each card also gets an SVG id of its own
-	  (vis-0, vis-1, ...), so two charts of the same kind no longer share
-	  #bar_chart and draw into the first card.
-	- A chart on a cross-filtered canvas, or with filters of its own, now
-	  aggregates the filtered rows.  The SQL push path re-read the source and
-	  ignored the filters that had already been applied to the records.
-	- A calculated field saved with Calc fields now appears in the table view it
-	  was saved for.  The view action is addressed by :table rather than l=, so
-	  it was not finding the stored field and only charts showed the column;
-	  t/basic.t saves a field, reads /view/sales and checks the column and its
-	  value.
+	- Canvas treemap cards no longer return 500.
+	- Chart options (orientation, max_items, show_values) are now preserved
+	  when seeding a canvas from a chart page.
+	- D3 is now loaded before chart cards, so inline chart scripts run
+	  correctly on first render.
+	- Cross-filtered canvas charts now aggregate the filtered rows, not the
+	  full source.
+	- Stored calc fields now appear in /view/:table (not only in chart views).
 
 0.014.0	Mon Oct 19 09:49:36 AM EDT 2026
 	[ New Features ]
