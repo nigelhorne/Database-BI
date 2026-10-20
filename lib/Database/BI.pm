@@ -721,9 +721,10 @@ C</>, or a full URL; a path without the leading slash is relative to the page.  
 ones the defaults name: D3 7.9.0, Leaflet 1.9.4, and leaflet.markercluster 1.5.3.
 C<tile_url> points the map layer at a self-hosted tile server instead of
 OpenStreetMap.  It keeps Leaflet's C<{z}>, C<{x}> and C<{y}> placeholders, and
-C<{s}> too if the server uses subdomains.  Set it and every request a map page
-or canvas makes can stay on the local network.  The OpenStreetMap attribution
-stays on the map, since it is the usual credit for OSM-derived tiles.
+C<{s}> too if the server uses subdomains.  Set it and every request needed to
+draw a map can stay on the local network.  The OpenStreetMap attribution stays
+on the map, since it is the usual credit for OSM-derived tiles.  The in-page
+place search still calls Nominatim if a reader uses it.
 
 =head1 COMMON PITFALLS
 

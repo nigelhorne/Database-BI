@@ -58,11 +58,22 @@ Revision history for Database-BI
 	  through the same HTML::OSM call.  Any Leaflet key left out keeps
 	  HTML::OSM's pinned CDN URL.  t/basic.t and t/model.t check the
 	  self-hosted D3 URL on a chart page and a canvas; t/map.t checks all five
-	  Leaflet assets on the map page and a canvas.
+	  Leaflet assets on the map page and a canvas.  t/browser-offline-assets.t
+	  serves the libraries and tiles from the app's own origin in Firefox,
+	  loads a chart, a map and a canvas holding both, with every external host
+	  blocked, and checks the chart's bars, the map's Leaflet pane and both cards
+	  on the canvas without a single external request.  It uses real copies
+	  vendored under public/static (or BI_SELF_HOSTED_ASSETS) when all six are
+	  present, and otherwise uses the small stand-ins that keep the test runnable
+	  in a bare checkout.  The browser CI workflow downloads pinned D3 7.9.0 and
+	  Leaflet 1.9.4 releases to public/static and sets
+	  BI_REQUIRE_VENDORED_ASSETS, so the stand-in fallback cannot hide a missing
+	  file in the run that is supposed to test the real libraries.
 	- Maps can use a self-hosted tile server.  tile_url replaces the
 	  OpenStreetMap tile layer on the map page and on every map card, keeping
-	  Leaflet's {z}, {x}, {y} and {s} placeholders, so a map needs no outbound
-	  request at all.  HTML::OSM 0.11 takes the URL directly; with 0.10 the
+	  Leaflet's {z}, {x}, {y} and {s} placeholders, so drawing a map needs no
+	  outbound request.  The optional in-page place search still calls Nominatim
+	  when used.  HTML::OSM 0.11 takes the URL directly; with 0.10 the
 	  controller substitutes it in the rendered body, so the setting works
 	  without upgrading.  t/map.t checks the configured tile URL on both the
 	  map page and a canvas, and that neither still asks OpenStreetMap.

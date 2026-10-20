@@ -1,14 +1,13 @@
 ---
-# The browser keyboard tests: the canvas and chart controls, driven with real
-# key presses in a headless Firefox.
+# The browser tests: the canvas and chart controls driven with real key
+# presses, and the offline-asset test run against real vendored D3 and Leaflet.
 #
-# They are a workflow of their own rather than a job in perl-ci.yml.  The Perl
+# These are a workflow of their own rather than a job in perl-ci.yml.  The Perl
 # matrix is about the application under different Perls; this is about the page
 # under a browser, and one browser on one machine is the honest check.  The
-# matrix sets BI_SKIP_BROWSER_TESTS, because a runner without a usable browser
-# should not be mistaken for a failing one; this job does the opposite, and
-# refuses to pass by skipping.
-name: Browser keyboard tests
+# jobs set BI_REQUIRE_BROWSER, because a runner without a usable browser should
+# not be mistaken for a passing one; they refuse to pass by skipping.
+name: Browser tests
 
 'on':
   push:
@@ -39,7 +38,7 @@ jobs:
       # Green with nothing run is not green: if the browser is missing or
       # broken, the tests fail rather than skipping.
       BI_REQUIRE_BROWSER: 1
-      AUTHOR_TESTING=1: 1
+      AUTHOR_TESTING: 1
     steps:
       - uses: actions/checkout@v7
 
@@ -84,3 +83,87 @@ jobs:
           eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
           "$BI_FIREFOX" --version
           prove -l -v -j2 t/browser-*.t
+
+  # t/browser-offline-assets.t can run with its stand-ins in a bare checkout.
+  # That keeps the file runnable, but it does not prove the real D3 and Leaflet
+  # builds work with the chart and map cards.  This job downloads pinned
+  # releases to the same public/static paths a deployment uses and makes the
+  # stand-in fallback an error, so a missing file cannot pass as a vendored run.
+  offline-assets:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      AUTOMATED_TESTING: 1
+      NO_NETWORK_TESTING: 1
+      NONINTERACTIVE_TESTING: 1
+      BI_REQUIRE_BROWSER: 1
+      AUTHOR_TESTING: 1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Perl
+        uses: shogo82148/actions-setup-perl@v1.44.2
+        with:
+          perl-version: '5.40'
+
+      - name: Install cpanm and local::lib
+        run: cpanm --notest --local-lib=~/perl5 local::lib
+
+      - name: Install DB_File, needed for a lot of CPAN modules
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libdb-dev libperl-dev
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          cpanm --notest --installdeps --verbose .
+
+      - name: Install Firefox
+        id: setup-firefox
+        uses: browser-actions/setup-firefox@v1
+        with:
+          firefox-version: latest-esr
+
+      - name: Vendor D3 and Leaflet
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p public/static/d3 public/static/leaflet
+
+          fetch() {
+            local url="$1" path="$2" digest="$3"
+            curl --fail --silent --show-error --location "$url" --output "$path"
+            printf '%s  %s\n' "$digest" "$path" | sha256sum --check --status
+          }
+
+          fetch 'https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js' \
+            'public/static/d3/d3.min.js' \
+            'f2094bbf6141b359722c4fe454eb6c4b0f0e42cc10cc7af921fc158fceb86539'
+          fetch 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js' \
+            'public/static/leaflet/leaflet.js' \
+            'db49d009c841f5ca34a888c96511ae936fd9f5533e90d8b2c4d57596f4e5641a'
+          fetch 'https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css' \
+            'public/static/leaflet/leaflet.css' \
+            'a7837102824184820dfa198d1ebcd109ff6d0ff9a2672a074b9a1b4d147d04c6'
+          fetch 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js' \
+            'public/static/leaflet/leaflet.markercluster.js' \
+            '1e4e1d22972a3926f48598e0caf14e3fe7049835d428a344fed4f9e3665b3508'
+          fetch 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.css' \
+            'public/static/leaflet/MarkerCluster.css' \
+            '614dea0a98ff3f4ead74f04918f6b1d1b9ba435c25b5fc23b21a394d1e3e4d87'
+          fetch 'https://cdn.jsdelivr.net/npm/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css' \
+            'public/static/leaflet/MarkerCluster.Default.css' \
+            '61258232d98d64dc2a7b1e02130d67421bc5b9bda5994eef70228ff97570c170'
+
+      - name: Run the offline asset browser test
+        shell: bash
+        env:
+          BI_FIREFOX: ${{ steps.setup-firefox.outputs.firefox-path }}
+          BI_REQUIRE_VENDORED_ASSETS: 1
+          MOZ_DISABLE_CONTENT_SANDBOX: '1'
+        run: |
+          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          "$BI_FIREFOX" --version
+          prove -l -v t/browser-offline-assets.t
