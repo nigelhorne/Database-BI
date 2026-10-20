@@ -7794,13 +7794,22 @@ sub _catalog_entry :Protected ($self, $mf, $analyses) {
 	my $mtime_str = $mtime ? POSIX::strftime('%Y-%m-%d %H:%M UTC', gmtime($mtime)) : '';
 
 	# Find which analyses reference this file.
+	# Normalize path separators so that Windows paths stored with backslashes
+	# match Mojo::File paths that may use forward slashes, and vice versa.
+	# Case-fold only the path portion on case-insensitive filesystems.
+	my $use_ci = File::Spec->case_tolerant;
+	(my $norm_path = $path) =~ s{\\}{/}g;
+	$norm_path = lc $norm_path if $use_ci;
+
 	my @refs;
 	for my $aid (sort keys %$analyses) {
 		my $a = $analyses->{$aid};
 		for my $ds (@{ $a->{datasets} // [] }) {
 			my $spec = $ds->{spec} // '';
 			my $table_stem = $mf->basename; $table_stem =~ s/\.[^.]+\z//;
-			if (CORE::index($spec, $path) >= 0 || CORE::index($spec, "table:$table_stem") == 0) {
+			(my $norm_spec = $spec) =~ s{\\}{/}g;
+			$norm_spec = lc $norm_spec if $use_ci;
+			if (CORE::index($norm_spec, $norm_path) >= 0 || CORE::index($spec, "table:$table_stem") == 0) {
 				push @refs, { id => $aid, name => $a->{name} };
 				last;
 			}

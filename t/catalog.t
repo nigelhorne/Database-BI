@@ -45,10 +45,7 @@ $t->app->config->{model_dir} = $model_dir;
 
 # Create a fake analyses.json referencing sales.csv.
 my $analyses_path = Mojo::File->new($model_dir)->child('analyses.json')->to_string;
-my $abs_sales = do {
-	require Cwd;
-	Cwd::abs_path('data/sales.csv');
-};
+my $abs_sales = Mojo::File->new('data/sales.csv')->realpath->to_string;
 my $analyses = {
 	'testABC123' => {
 		id       => 'testABC123',

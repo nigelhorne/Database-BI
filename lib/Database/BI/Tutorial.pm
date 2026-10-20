@@ -507,6 +507,22 @@ my @CHAPTERS = (
 		routes => [ '/export' ],
 	},
 	{
+		id    => 'catalog',
+		part  => 'Save and share',
+		title => 'See all your data files at a glance',
+		lead  => 'The dataset catalog lists every file in the data folder and shows which canvases use it.',
+		steps => [
+			'Open the home page and click Dataset catalog.',
+			'Each row shows the file name, type, size, and when it was last changed.',
+			'The Used by column lists the canvases that include this file.',
+			'Click a file name to open it as a table.',
+			'Use the catalog to check which canvases will be affected if a file changes.',
+		],
+		tip   => 'A file that appears in Used by is linked to a canvas. Moving or renaming it will break that canvas.',
+		try   => { href => '/catalog', label => 'Open the dataset catalog' },
+		routes => [ '/catalog' ],
+	},
+	{
 		id    => 'canvas',
 		part  => 'Save and share',
 		title => 'Save a canvas with several charts',
@@ -519,7 +535,7 @@ my @CHAPTERS = (
 			'Click Add visual... to add another view from a data file.',
 			'Drag a card by its header to move it. Use the Size menu to change its width and height.',
 		],
-		tip   => 'The home page lists your saved canvases under Saved canvases.',
+		tip   => 'The home page lists your saved canvases under Saved canvases. A banner appears if a data file has changed since the canvas was saved.',
 		walkthrough => {
 			title => 'Walk through: arrange and filter a canvas',
 			intro => 'This example starts from a canvas with at least two visuals. Open one from the home page.',
@@ -547,6 +563,21 @@ my @CHAPTERS = (
 		tip   => 'On a table, Copy link appears when a filter is active. On a chart, it is always there. The other person needs access to the file.',
 		routes => [],
 	},
+	{
+		id    => 'share-canvas',
+		part  => 'Save and share',
+		title => 'Share a canvas with a signed link',
+		lead  => 'A canvas share link lets anyone with the link view the canvas for 30 days.',
+		steps => [
+			'Open a saved canvas.',
+			'Click Share in the canvas toolbar.',
+			'Click Copy share link. The link is now on your clipboard.',
+			'Send the link by email or in a message.',
+			'The link stops working after 30 days. Click Share again to create a new one.',
+		],
+		tip   => 'The link gives read-only access. The person can see every visual but cannot change the canvas or the data.',
+		routes => [],
+	},
 
 	# ---------------------------------------------------------------
 	# Help
@@ -570,6 +601,22 @@ my @CHAPTERS = (
 	# ---------------------------------------------------------------
 	# For maintainers
 	# ---------------------------------------------------------------
+	{
+		id    => 'alerts',
+		part  => 'For maintainers',
+		title => 'Alert when a number crosses a limit',
+		lead  => 'The bi-alert script checks a canvas measure and signals when it crosses a threshold.',
+		steps => [
+			'Find the script at script/bi-alert in the application folder.',
+			'Run bi-alert --help to see all options.',
+			'Pass --analysis with the canvas id and --threshold with the measure, comparison and value.',
+			'For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.',
+			'Pass --dry-run to print what would be checked without running the check.',
+			'Wire the script into a cron job or a monitoring system to get automatic alerts.',
+		],
+		tip   => 'Exit code 0 means the threshold was not crossed. Exit code 1 means it was. Exit code 2 means an error.',
+		routes => [],
+	},
 	{
 		id    => 'developers',
 		part  => 'For maintainers',
@@ -669,6 +716,7 @@ my %ACTION_CHAPTERS = (
 	histogram_view => 'histogram-chart',
 	map_view       => 'map-chart',
 	canvas_render  => 'canvas',
+	catalog_view   => 'catalog',
 );
 
 my %EXEMPT_ROUTES = (
@@ -680,11 +728,10 @@ my %EXEMPT_ROUTES = (
 	'/api/dirs'                => 'JSON folder list for the browse and export panels',
 	'/api/stat'                => 'JSON file details for the home-page tooltips',
 	'/calc/list'               => 'JSON list of calculated fields for the Calc panel',
-	'/catalog'                 => 'Phase 4.7 dataset catalog; tutorial chapter planned',
 	'/dates/list'              => 'JSON list of date formats for the Date panel',
 	'/embed/:id'               => 'chrome-less embed view; requires a share token and is not a standalone page',
 	'/groups/list'             => 'JSON list of value groups for the Group panel',
-	'/share/:id'               => 'shared read-only analysis; requires a signed token and is not a direct-navigation page',
+	'/share/:id'               => 'shared read-only canvas view; requires a signed token and cannot be navigated to directly',
 	'/tutorial'                => 'this page',
 );
 
