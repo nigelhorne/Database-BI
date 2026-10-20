@@ -551,6 +551,27 @@
       box-shadow: none;
     }
 
+    .db-card--unavailable {
+      opacity: 0.5;
+      filter: grayscale(0.8);
+      cursor: not-allowed;
+      pointer-events: none;
+    }
+    .db-card--unavailable:hover {
+      background: transparent;
+      box-shadow: none;
+    }
+    /* The delete button on an unavailable card must remain clickable even
+       though the card itself has pointer-events: none -- the button is a
+       sibling of the card inside the <li>, so it is unaffected. */
+    .db-unavail-badge {
+      display: block;
+      font-size: 0.72rem;
+      color: #b04000;
+      margin-top: 0.2rem;
+      font-weight: bold;
+    }
+
     .db-icon { font-size: 2rem; }
 
     .db-name {

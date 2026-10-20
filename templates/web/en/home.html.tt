@@ -433,6 +433,36 @@
                        + '<span class="db-file">' + txt(fileLine) + '</span>';
         li.appendChild(card);
 
+        /* Probe path: datasets to check file availability via /api/stat.
+         * Only path: specs map to a local file we can stat; others are skipped.
+         * If any dataset is unavailable the card is greyed out with a warning. */
+        var pathSpecs = (a.datasets || [])
+          .map(function (d) { return d.spec || ''; })
+          .filter(function (s) { return /^path:/.test(s); })
+          .map(function (s) { return s.slice(5); });   /* strip "path:" prefix */
+
+        if (pathSpecs.length) {
+          Promise.all(pathSpecs.map(function (p) {
+            return fetch('/api/stat?path=' + encodeURIComponent(p))
+              .then(function (r) { return r.ok ? r.json() : { exists: false }; })
+              .catch(function () { return { exists: false }; });
+          })).then(function (stats) {
+            var missing = pathSpecs.filter(function (_, idx) { return !stats[idx].exists; });
+            if (missing.length) {
+              card.classList.add('db-card--unavailable');
+              card.removeAttribute('href');
+              card.setAttribute('role', 'img');
+              card.setAttribute('aria-label', txt(a.name || a.id) + ' (data unavailable)');
+              card.title = 'Data source unavailable:\n' + missing.join('\n');
+              var warn = document.createElement('span');
+              warn.className   = 'db-unavail-badge';
+              warn.textContent = '⚠ Unavailable';
+              warn.title       = 'Data source unavailable:\n' + missing.join('\n');
+              card.appendChild(warn);
+            }
+          });
+        }
+
         /* details tooltip, shown for the same reason on hover and on focus */
         var tip = document.createElement('div');
         tip.className    = 'file-tooltip tip-below';

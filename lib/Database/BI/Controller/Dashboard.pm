@@ -2946,10 +2946,21 @@ sub canvas_render ($self) {
 		} sort keys %param_defs;
 
 		my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
-		return $self->render(
-			text   => 'Cannot open data source for this canvas',
-			status => 422,
-		) unless defined $records;
+		unless (defined $records) {
+			my ($platform, $language) = $self->_resolve_template;
+			my @specs = map { $_->{spec} // '' } @{ $a->{datasets} // [] };
+			return $self->render(
+				handler     => 'tt',
+				template    => "$platform/$language/canvas_error",
+				format      => 'html',
+				status      => 422,
+				title       => 'Canvas unavailable',
+				canvas_id   => $id,
+				canvas_name => ($a->{name} // $id),
+				error_msg   => 'The data source for this canvas could not be opened.',
+				error_specs => \@specs,
+			);
+		}
 
 		# Apply calc fields with bound params so expressions may reference them.
 		my $canvas_spec_key = ($a->{datasets}[0]{spec} // '');
