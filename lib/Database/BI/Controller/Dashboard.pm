@@ -139,6 +139,11 @@ Readonly my $MAX_UPLOAD_BYTES    => $MAX_UPLOAD_MIB * 1_048_576;
 Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
 Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_geocode_max)
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
+Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
+Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
+    red orange yellow green teal cyan blue navy purple
+    magenta pink brown maroon olive silver gray grey gold lime white black
+);
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
 Readonly my $MAX_PER_PAGE          => 2_000;
@@ -7519,8 +7524,19 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 				($tile_url && $native_tile_url ? (tile_url => $tile_url) : ()),
 				%leaflet_assets,
 			);
+			my $color_col     = $options->{color_col} // '';
+			my $color_rules   = $options->{color_rules}   // [];
+			my $color_default = $options->{color_default} // $DEFAULT_MARKER_COLOR;
 			for my $marker (@markers) {
-				$map->add_marker([ $marker->{lat}, $marker->{lon} ], html => $marker->{label});
+				my @icon_arg;
+				if (length $color_col) {
+					my $row   = $records->[ $marker->{first_row} ];
+					my $cval  = (defined($row) ? $row->{$color_col} : undef) // '';
+					my $color = _apply_color_rule($cval, $color_rules, $color_default);
+					@icon_arg = (icon => _marker_icon($color));
+				}
+				$map->add_marker([ $marker->{lat}, $marker->{lon} ],
+					html => $marker->{label}, @icon_arg);
 			}
 			($map_head, $map_body) = $map->onload_render();
 			$map_body = _replace_map_tile_url($map_body, $tile_url)
@@ -7544,6 +7560,13 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	$chart_spec{options}{popup} = \@popup if @popup;
 	$chart_spec{options}{max}   = $options->{max}
 		if defined($options->{max}) && $options->{max} =~ /\A\d+\z/ && $options->{max} > 0;
+	if (defined($options->{color_col}) && length($options->{color_col})) {
+		$chart_spec{encode}{color}         = $options->{color_col};
+		$chart_spec{options}{color_rules}  = $options->{color_rules}
+			if defined($options->{color_rules}) && @{ $options->{color_rules} };
+		$chart_spec{options}{color_default} = $options->{color_default}
+			if defined($options->{color_default});
+	}
 
 	return {
 		title        => $title,
@@ -7655,10 +7678,40 @@ sub map_view ($self) {
 	my @popup = grep { length($_) && $_ ne $loc_col && $col_set{$_} }
 		@{ $self->every_param('popup') };
 
+	# Marker colour params
+	my $color_col     = $self->param('color') // '';
+	my $color_def_raw = $self->param('color_default') // '';
+	my ($color_rules, $color_default) =
+		_parse_color_rules($self->every_param('color_rule'), $color_def_raw);
+
+	if (length($color_col) && !$col_set{$color_col}) {
+		return $self->render(text => "Column not found: $color_col", status => 400);
+	}
+
 	my %options;
-	$options{popup} = \@popup if @popup;
+	$options{popup}         = \@popup       if @popup;
+	$options{color_col}     = $color_col    if length $color_col;
+	$options{color_rules}   = $color_rules  if @$color_rules;
+	$options{color_default} = $color_default;
 	my $max = $self->param('max');
 	$options{max} = $max if defined($max) && $max =~ /\A\d+\z/ && $max > 0;
+
+	# Build colour legend for the template
+	my @color_legend;
+	if (length $color_col) {
+		my %op_label = (
+			gt => '>', ge => '>=', lt => '<', le => '<=', eq => '=', ne => '!=',
+		);
+		for my $rule (@$color_rules) {
+			push @color_legend, {
+				color => $rule->{color},
+				label => $color_col . ' ' . ($op_label{ $rule->{op} } // $rule->{op})
+					. ' ' . $rule->{val},
+			};
+		}
+		push @color_legend, { color => $color_default, label => 'Other' }
+			if @color_legend;
+	}
 
 	my $result = $self->_map_data(
 		$records, $columns,
@@ -7691,6 +7744,8 @@ sub map_view ($self) {
 		backend         => $result->{backend},
 		chart           => $result->{chart},
 		chart_json      => $self->_chart_json($result->{chart}),
+		color_col       => $color_col,
+		color_legend    => \@color_legend,
 		back_url        => ($back2 // $back),
 		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
@@ -7726,6 +7781,100 @@ sub _map_limit {
 	return $default unless defined($value) && ($value =~ /\A\d+\z/) && ($value > 0);
 
 	return $value + 0;
+}
+
+# _parse_color($str) -> $color_or_undef
+#
+# Accepts a lowercase CSS named color from a fixed whitelist, or a hex color
+# string in #rgb or #rrggbb form.  Returns the normalised lowercase string or
+# undef when the input is invalid.
+sub _parse_color {
+	my ($c) = @_;
+	return undef unless defined($c) && length($c);
+	$c = lc $c;
+	return $c if $NAMED_COLORS{$c};
+	return $c if $c =~ /\A#[0-9a-f]{3}\z/;
+	return $c if $c =~ /\A#[0-9a-f]{6}\z/;
+	return undef;
+}
+
+# _parse_color_rules(\@raw_rules, $default_raw) -> (\@rules, $default_color)
+#
+# Parses the ?color_rule=op:threshold:color repeatable param list and the
+# optional ?color_default=color param into a structured rules array and a
+# fallback colour.  Invalid rule entries are silently dropped.
+sub _parse_color_rules {
+	my ($raw_rules, $default_raw) = @_;
+	my $default_color = _parse_color($default_raw // '') // $DEFAULT_MARKER_COLOR;
+	my @rules;
+	for my $raw (@{ $raw_rules // [] }) {
+		my ($op, $val, $color_str) = split /:/, $raw, 3;
+		next unless defined($op) && defined($val) && defined($color_str);
+		$op = lc $op;
+		next unless $op =~ /\A(?:gt|ge|lt|le|eq|ne)\z/;
+		my $color = _parse_color($color_str);
+		next unless defined $color;
+		push @rules, { op => $op, val => $val, color => $color };
+	}
+	return (\@rules, $default_color);
+}
+
+# _apply_color_rule($value, \@rules, $default_color) -> $color
+#
+# Returns the first colour whose rule matches $value, or $default_color.
+# Numeric comparisons are used when both sides look like plain numbers.
+sub _apply_color_rule {
+	my ($value, $rules, $default) = @_;
+	$value //= '';
+	for my $rule (@$rules) {
+		my ($op, $threshold, $color) = @{$rule}{qw(op val color)};
+		my ($num_val, $num_thr);
+		if (	$value     =~ /\A-?\d+(?:\.\d+)?\z/ &&
+			$threshold =~ /\A-?\d+(?:\.\d+)?\z/) {
+			$num_val = $value     + 0;
+			$num_thr = $threshold + 0;
+		}
+		my $match;
+		if (defined $num_val) {
+			$match = ($op eq 'gt' && $num_val >  $num_thr)
+			      || ($op eq 'ge' && $num_val >= $num_thr)
+			      || ($op eq 'lt' && $num_val <  $num_thr)
+			      || ($op eq 'le' && $num_val <= $num_thr)
+			      || ($op eq 'eq' && $num_val == $num_thr)
+			      || ($op eq 'ne' && $num_val != $num_thr);
+		} else {
+			$match = ($op eq 'eq' && lc($value) eq lc($threshold))
+			      || ($op eq 'ne' && lc($value) ne lc($threshold));
+		}
+		return $color if $match;
+	}
+	return $default;
+}
+
+# _marker_icon($color) -> $data_uri
+#
+# Returns a data:image/svg+xml URI for a 32x32 teardrop pin icon whose fill is
+# $color.  The icon anchor is [16,32] (HTML::OSM's hardcoded default), so the
+# path tip lands at the bottom centre of the bounding box.
+sub _marker_icon {
+	my ($color) = @_;
+	$color //= $DEFAULT_MARKER_COLOR;
+
+	# Commas in path data avoid spaces that would need percent-encoding.
+	my $svg =
+		"<svg xmlns='http://www.w3.org/2000/svg' width='32' height='32' viewBox='0 0 32 32'>" .
+		"<path d='M16,0C10,0,5,5,5,12C5,21,16,32,16,32C16,32,27,21,27,12C27,5,22,0,16,0Z'" .
+		" fill='$color' stroke='#444' stroke-width='1.5'/>" .
+		"<circle cx='16' cy='12' r='5' fill='white' opacity='0.65'/>" .
+		"</svg>";
+
+	# Minimal percent-encoding for a data: URI (RFC 2397).
+	$svg =~ s/#/%23/g;
+	$svg =~ s/</%3C/g;
+	$svg =~ s/>/%3E/g;
+	$svg =~ s/ /%20/g;
+
+	return "data:image/svg+xml,$svg";
 }
 
 # _iso8601_utc() -> $string

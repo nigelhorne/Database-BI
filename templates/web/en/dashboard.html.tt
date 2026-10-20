@@ -1098,6 +1098,24 @@
         </div>
       </div>
     </div>
+
+    <div class="graph-fields-row" id="map-color-row">
+      <div class="join-field">
+        <label for="map-color-sel">Colour by column</label>
+        <select id="map-color-sel">
+          <option value="">&#x2014; none &#x2014;</option>
+        </select>
+      </div>
+      <div class="join-field" id="map-color-default-field" hidden>
+        <label for="map-color-default-inp">Default colour</label>
+        <input type="text" id="map-color-default-inp" placeholder="#3388ff" size="10">
+      </div>
+    </div>
+    <div id="map-color-rules" hidden>
+      <div class="filter-section-head" style="margin:0.4rem 0 0.2rem;font-size:0.85rem;font-weight:600;color:#555">Colour rules &mdash; first match wins</div>
+      <div id="map-rule-rows"></div>
+      <button type="button" id="btn-add-map-rule" class="btn-add-filter">&#x2b; Add rule</button>
+    </div>
   </form>
 </div>
 
@@ -3152,6 +3170,7 @@ function parseAccounting(v) {
       if (back2LabelInp) back2LabelInp.value = pb ? (mapForm.getAttribute('data-parent-back-label') || '') : '';
     }
     guessColumns();
+    buildColorSelect();
     panel.hidden = !panel.hidden;
     syncMode();
     if (!panel.hidden) modeSel.focus();
@@ -3165,6 +3184,120 @@ function parseAccounting(v) {
   latSel.addEventListener('change', checkMap);
   lonSel.addEventListener('change', checkMap);
   locSel.addEventListener('change', checkMap);
+
+  // --- Colour-coding controls ---
+  function isMapDateVal(v) {
+    return /^\d{4}-\d{2}-\d{2}$/.test(v) || /^\d{1,2}\/\d{1,2}\/\d{4}$/.test(v);
+  }
+
+  function buildColorSelect() {
+    if (!colorSel) return;
+    var tbl  = document.querySelector('table[data-table]') || document.querySelector('table');
+    if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return;
+    var headers = Array.from(tbl.tHead.rows[0].cells);
+    var rows    = Array.from(tbl.tBodies[0].rows);
+    var prev    = colorSel.value;
+    while (colorSel.options.length > 1) colorSel.remove(1);
+    headers.forEach(function (th, idx) {
+      var name = th.textContent.trim();
+      if (!name) return;
+      var vals = rows.map(function (r) {
+        return r.cells[idx] ? r.cells[idx].textContent.trim() : '';
+      }).filter(function (v) { return v !== ''; });
+      if (vals.length === 0) return;
+      if (vals.every(isMapDateVal)) return;
+      if (!vals.every(function (v) { return !isNaN(parseAccounting(v)); })) return;
+      var opt = document.createElement('option');
+      opt.value = name; opt.textContent = name;
+      if (name === prev) opt.selected = true;
+      colorSel.appendChild(opt);
+    });
+    colorSel.style.width = 'auto';
+  }
+
+  var colorSel          = document.getElementById('map-color-sel');
+  var colorDefaultInp   = document.getElementById('map-color-default-inp');
+  var colorDefaultField = document.getElementById('map-color-default-field');
+  var colorRulesDiv     = document.getElementById('map-color-rules');
+  var colorRuleRows     = document.getElementById('map-rule-rows');
+  var btnAddRule        = document.getElementById('btn-add-map-rule');
+
+  var COLOR_OPS = [
+    ['gt', '> greater than'],
+    ['ge', '>= at least'],
+    ['lt', '< less than'],
+    ['le', '<= at most'],
+    ['eq', '= equals'],
+    ['ne', '!= not equals']
+  ];
+
+  function toggleColorSection() {
+    var active = colorSel.value !== '';
+    colorDefaultField.hidden = !active;
+    colorRulesDiv.hidden = !active;
+  }
+
+  function addColorRule() {
+    var row = document.createElement('div');
+    row.className = 'filter-row';
+
+    var opSel = document.createElement('select');
+    opSel.className = 'filter-op-sel';
+    COLOR_OPS.forEach(function (pair) {
+      var opt = document.createElement('option');
+      opt.value = pair[0]; opt.textContent = pair[1];
+      opSel.appendChild(opt);
+    });
+
+    var threshInp = document.createElement('input');
+    threshInp.type = 'text';
+    threshInp.className = 'filter-val-inp';
+    threshInp.placeholder = 'threshold';
+
+    var colorInp = document.createElement('input');
+    colorInp.type = 'text';
+    colorInp.className = 'filter-val-inp';
+    colorInp.placeholder = 'colour (e.g. red, #ff0000)';
+    colorInp.style.width = '12em';
+
+    var rmBtn = document.createElement('button');
+    rmBtn.type = 'button';
+    rmBtn.className = 'btn-remove-filter';
+    rmBtn.textContent = 'x';
+    rmBtn.addEventListener('click', function () { row.remove(); });
+
+    row.appendChild(opSel);
+    row.appendChild(threshInp);
+    row.appendChild(colorInp);
+    row.appendChild(rmBtn);
+    colorRuleRows.appendChild(row);
+  }
+
+  btnAddRule && btnAddRule.addEventListener('click', addColorRule);
+  colorSel && colorSel.addEventListener('change', toggleColorSection);
+
+  mapForm.addEventListener('submit', function () {
+    var col = colorSel ? colorSel.value : '';
+    if (!col) return;
+    function addHidden(nm, val) {
+      var inp = document.createElement('input');
+      inp.type = 'hidden'; inp.name = nm; inp.value = val;
+      mapForm.appendChild(inp);
+    }
+    addHidden('color', col);
+    var def = colorDefaultInp ? colorDefaultInp.value.trim() : '';
+    if (def) addHidden('color_default', def);
+    if (colorRuleRows) {
+      colorRuleRows.querySelectorAll('.filter-row').forEach(function (row) {
+        var sels = row.querySelectorAll('select');
+        var inps = row.querySelectorAll('input');
+        var op     = sels[0] ? sels[0].value : 'gt';
+        var thresh = inps[0] ? inps[0].value.trim() : '';
+        var clr    = inps[1] ? inps[1].value.trim() : '';
+        if (thresh && clr) addHidden('color_rule', op + ':' + thresh + ':' + clr);
+      });
+    }
+  });
 
   syncMode();
 }());
