@@ -642,6 +642,77 @@
       color: #c0392b;
     }
 
+    /* ---- canvas multi-select ---- */
+
+    /* selected card li */
+    li.cv-sel > a.db-card {
+      outline: 2px solid #3a6eca;
+      outline-offset: 2px;
+      background: rgba(58, 110, 202, 0.07);
+    }
+    /* card hovered during rubber-band drag */
+    li.cv-drag-over > a.db-card {
+      outline: 2px dashed #3a6eca;
+      outline-offset: 2px;
+      background: rgba(58, 110, 202, 0.04);
+    }
+
+    /* selection hint beside the "Saved canvases" heading */
+    .cv-sel-hint {
+      font-size: 0.7rem;
+      font-weight: normal;
+      text-transform: none;
+      letter-spacing: 0;
+      color: #aaa;
+    }
+
+    /* rubber-band selection rectangle */
+    .cv-rubber {
+      position: fixed;
+      border: 1.5px solid #3a6eca;
+      background: rgba(58, 110, 202, 0.08);
+      border-radius: 2px;
+      pointer-events: none;
+      z-index: 9000;
+    }
+
+    /* floating action bar shown when >= 1 canvas selected */
+    .cv-sel-bar {
+      position: fixed;
+      bottom: 1.2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 8000;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.55rem 1rem;
+      background: #2c3e7a;
+      color: #fff;
+      border-radius: 2rem;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.22);
+      font-size: 0.88rem;
+      white-space: nowrap;
+    }
+    .cv-sel-count { opacity: 0.85; }
+    .cv-sel-del, .cv-sel-clr {
+      background: none;
+      border: 1px solid rgba(255,255,255,0.4);
+      color: #fff;
+      border-radius: 1rem;
+      padding: 0.2rem 0.7rem;
+      cursor: pointer;
+      font-size: 0.82rem;
+      transition: background 0.12s;
+    }
+    .cv-sel-del:hover { background: rgba(192, 57, 43, 0.7); border-color: transparent; }
+    .cv-sel-clr:hover { background: rgba(255,255,255,0.15); }
+
+    @media (prefers-color-scheme: dark) {
+      li.cv-sel > a.db-card      { background: rgba(58, 110, 202, 0.18); }
+      li.cv-drag-over > a.db-card { background: rgba(58, 110, 202, 0.12); }
+    }
+
     /* Export button in the toolbar */
     .btn-export-open {
       flex-shrink: 0;
