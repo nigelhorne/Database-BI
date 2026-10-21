@@ -1011,7 +1011,7 @@ sub startup ($self) {
 	$self->hook(before_render => sub {
 		my $c = shift;
 
-		# Phase 5 -- AI availability flag used by dashboard and insights templates.
+		# AI availability flag used by dashboard and insights templates.
 		$c->stash(ai_available => (length($c->app->config('ai_api_key') // '') ? 1 : 0))
 			unless defined $c->stash('ai_available');
 
@@ -1129,9 +1129,9 @@ sub startup ($self) {
 	$r->get('/histogram')     ->to('Dashboard#histogram_view');
 	$r->get('/map')           ->to('Dashboard#map_view');
 	$r->get('/line')          ->to('Dashboard#graph_view');	# alias for /graph
-	$r->post('/api/ask')       ->to('Dashboard#ask_api');		# Phase 5.1
-	$r->get('/insights')      ->to('Dashboard#insights_view');	# Phase 5.2
-	$r->post('/api/summary')  ->to('Dashboard#summary_api');	# Phase 5.3
+	$r->post('/api/ask')       ->to('Dashboard#ask_api');
+	$r->get('/insights')      ->to('Dashboard#insights_view');
+	$r->post('/api/summary')  ->to('Dashboard#summary_api');
 
 	# Saved analyses
 	# /api/analyses/import must be registered BEFORE /api/analyses/:id so that the
