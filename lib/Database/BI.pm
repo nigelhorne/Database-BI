@@ -1126,6 +1126,7 @@ sub startup ($self) {
 	$r->get('/map')           ->to('Dashboard#map_view');
 	$r->get('/line')          ->to('Dashboard#graph_view');	# alias for /graph
 	$r->get('/insights')      ->to('Dashboard#insights_view');	# Phase 5.2
+	$r->post('/api/summary')  ->to('Dashboard#summary_api');	# Phase 5.3
 
 	# Saved analyses
 	# /api/analyses/import must be registered BEFORE /api/analyses/:id so that the

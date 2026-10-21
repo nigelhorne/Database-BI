@@ -9,10 +9,18 @@ Revision history for Database-BI
 	  required.  Every insight includes a view_url linking to the chart
 	  or stats page that shows the underlying data.
 	  Database::BI::Insights -- new module; pure arithmetic, no eval.
-	  New test suite t/insights.t (111 subtests): spike outlier detection,
-	  period-over-period presence and values, top-mover detection,
-	  insufficient-data graceful degradation, HTTP smoke, filter forwarding.
+	  New test suite t/insights.t (218 subtests).
 	- Insights button added to the dashboard toolbar (next to Column stats).
+	- POST /api/summary: Narrative summary generation.
+	  Two paths: deterministic template sentences (offline, always available)
+	  and optional LLM polish via the Anthropic Messages API (opt-in,
+	  activated by setting ai_api_key in the app config and passing ai=1).
+	  Only aggregate insight facts are sent to the LLM -- no raw row data,
+	  no file paths.  Results are cached in-process for 1 hour.
+	  Database::BI::Summary -- new module.
+	  Summarize button added to /insights page; Use AI opt-in checkbox
+	  shown when ai_api_key is configured in the app.
+	  New test suite t/summary.t.
 
 0.015.0 Tue Oct 20 08:10:43 PM EDT 2026
 	[ New Features ]

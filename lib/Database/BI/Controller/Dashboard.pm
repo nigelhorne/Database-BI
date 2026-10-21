@@ -127,6 +127,10 @@ Readonly my %MESSAGES => (
 	# Phase 5.2 -- insights
 	error_insights_no_data      => 'No data available to analyse',
 	insights_insufficient_data  => 'Insufficient data for this insight type (need more rows or periods)',
+	# Phase 5.3 -- narrative summaries
+	summary_consent_required    => 'AI consent is required before sending data to an external provider',
+	summary_ai_unavailable      => 'AI provider not configured; using template summary',
+	summary_provider_error      => 'AI provider error; using template summary',
 	# Phase 4
 	error_token_invalid         => 'Share token is invalid or has expired',
 	error_token_missing         => 'A share token is required to view this analysis',
@@ -8216,6 +8220,67 @@ sub visual_download ($self) {
 # Phase 5.2 -- Automatic insights  (GET /insights)
 # ---------------------------------------------------------------------------
 
+# summary_api($self)
+#
+# POST /api/summary
+#
+# Runs the same pipeline as insights_view, computes insights, then generates
+# a narrative summary via Database::BI::Summary::generate().
+#
+# Body params:
+#   l=<spec>   (required) -- left table spec
+#   f=<filter> (repeatable, optional)
+#   ai=1       (optional) -- request LLM polish (honoured only when ai_api_key
+#                           is set in the app config)
+#
+# Returns JSON: { text, source, cached }
+# On error:     { error } with 400 or 404 status
+sub summary_api ($self) {
+	my $left_spec = $self->param('l') // '';
+	return $self->render(json => { error => 'Missing required parameter: l' }, status => 400)
+		unless length $left_spec;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(json => { error => 'Could not open data source' }, status => 404)
+		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(json => { error => $e }, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my $row_count = scalar @$records;
+	(my $label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
+
+	require Database::BI::Insights;
+	my $insights = Database::BI::Insights::compute(
+		records  => $records,
+		columns  => $columns,
+		spec_key => $left_spec,
+	);
+
+	my $use_ai = $self->param('ai') ? 1 : 0;
+	my $ai_config = {
+		provider => $self->app->config('ai_provider') // 'anthropic',
+		api_key  => $self->app->config('ai_api_key')  // '',
+		model    => $self->app->config('ai_model')    // 'claude-haiku-5-5',
+	};
+
+	require Database::BI::Summary;
+	my $result = Database::BI::Summary::generate(
+		insights  => $insights,
+		spec_key  => $left_spec,
+		label     => $label,
+		row_count => $row_count,
+		use_ai    => $use_ai,
+		ai_config => $ai_config,
+	);
+
+	return $self->render(json => $result);
+}
+
 # insights_view($self)
 #
 # Accepts the same l=, j=, f=, c= pipeline as /stats.  Runs the standard
@@ -8264,16 +8329,17 @@ sub insights_view ($self) {
 
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
-		handler    => 'tt',
-		template   => "$platform/$language/insights",
-		format     => 'html',
-		title      => 'Automatic insights',
-		insights   => $insights,
-		left_spec  => $left_spec,
-		left_label => $left_label,
-		row_count  => $row_count,
-		back_url   => ($back2 // $back),
-		back_label => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
+		handler      => 'tt',
+		template     => "$platform/$language/insights",
+		format       => 'html',
+		title        => 'Automatic insights',
+		insights     => $insights,
+		left_spec    => $left_spec,
+		left_label   => $left_label,
+		row_count    => $row_count,
+		ai_available => (length($self->app->config('ai_api_key') // '') ? 1 : 0),
+		back_url     => ($back2 // $back),
+		back_label   => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
 		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
 	);
 }

@@ -87,6 +87,52 @@
     font-style: italic;
     margin-top: 1.5rem;
   }
+  .summary-toolbar {
+    margin-top: 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-wrap: wrap;
+  }
+  .btn-summarize {
+    padding: 0.4rem 0.85rem;
+    border: 1px solid #bbb;
+    border-radius: 4px;
+    background: #f5f5f5;
+    cursor: pointer;
+    font-size: 0.88rem;
+  }
+  .btn-summarize:hover { background: #e8e8e8; }
+  .btn-summarize:disabled { opacity: 0.55; cursor: not-allowed; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .btn-summarize { background: #2a2f3a; border-color: #55607a; color: #ccd; }
+    :root:not([data-theme="light"]) .btn-summarize:hover { background: #353c4a; }
+  }
+  :root[data-theme="dark"] .btn-summarize { background: #2a2f3a; border-color: #55607a; color: #ccd; }
+  :root[data-theme="dark"] .btn-summarize:hover { background: #353c4a; }
+  .summary-ai-label { font-size: 0.82rem; color: #666; cursor: pointer; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .summary-ai-label { color: #aab; }
+  }
+  :root[data-theme="dark"] .summary-ai-label { color: #aab; }
+  #summary-box {
+    display: none;
+    margin-top: 1rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid #c8d0e0;
+    border-radius: 6px;
+    background: #f0f4fc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) #summary-box { background: #1a2035; border-color: #334; }
+  }
+  :root[data-theme="dark"] #summary-box { background: #1a2035; border-color: #334; }
+  .summary-text { margin: 0 0 0.4rem; font-size: 0.93rem; line-height: 1.5; }
+  .summary-source { font-size: 0.72rem; color: #888; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .summary-source { color: #778; }
+  }
+  :root[data-theme="dark"] .summary-source { color: #778; }
 </style>
 
 <p class="back-link"><a href="/">&larr; Home</a>[% IF back_url && back_url != '/' %] &rsaquo; <a href="[% back_url | html %]">[% back_label | html %]</a>[% END %][%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
@@ -94,6 +140,12 @@
 <h2 style="margin-bottom:0.5rem">[% title | html %]</h2>
 <p class="insights-meta">Source: [% left_label | html %] &mdash; [% row_count %] row[% IF row_count != 1 %]s[% END %] analysed</p>
 
+[%- SET method_labels = {
+    iqr_fence  = 'Outlier detected using the interquartile range (IQR) fence rule',
+    pop_delta  = 'Period-over-period change between consecutive time periods',
+    autocorr   = 'Repeating seasonal pattern detected by lag autocorrelation',
+    top_mover  = 'Category with the largest change between time periods',
+} -%]
 [%- IF insights.size == 0 -%]
 <p class="insights-empty">No insights detected for this dataset. Try a dataset with a date column and numeric columns to see period-over-period changes and outliers.</p>
 [%- ELSE -%]
@@ -101,7 +153,7 @@
 [%- FOREACH ins IN insights -%]
   <li class="insight-card">
     <span class="insight-kind kind-[% ins.kind | html %]">[% ins.kind | html %]</span><span class="insight-headline">[% ins.headline | html %]</span>
-    <span class="insight-method" title="[% ins.method | html %]">&#x2139;</span>
+    <span class="insight-method" title="[% method_labels.${ins.method} || ins.method | html %]">&#x2139;</span>
     [%- IF ins.detail -%]
     <div class="insight-detail">[% ins.detail | html %]</div>
     [%- END -%]
@@ -110,5 +162,69 @@
 [%- END -%]
 </ul>
 [%- END -%]
+
+<div class="summary-toolbar">
+  <button class="btn-summarize" id="btn-summarize">&#x2728; Summarize</button>
+  [%- IF ai_available -%]
+  <label class="summary-ai-label"><input type="checkbox" id="summary-ai-chk"> Use AI for better prose</label>
+  [%- END -%]
+</div>
+<div id="summary-box" role="region" aria-live="polite"></div>
+
+<script>
+(function() {
+	var btn = document.getElementById('btn-summarize');
+	if (!btn) return;
+	var box = document.getElementById('summary-box');
+	var aiChk = document.getElementById('summary-ai-chk');
+
+	btn.addEventListener('click', function() {
+		btn.disabled = true;
+		btn.textContent = 'Generating\u2026';
+		box.style.display = 'none';
+		box.innerHTML = '';
+
+		var sp = new URLSearchParams(window.location.search);
+		var parts = ['l=' + encodeURIComponent(sp.get('l') || '')];
+		sp.getAll('f').forEach(function(f) {
+			parts.push('f=' + encodeURIComponent(f));
+		});
+		if (aiChk && aiChk.checked) {
+			parts.push('ai=1');
+		}
+
+		fetch('/api/summary', {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+			body: parts.join('&')
+		})
+		.then(function(r) { return r.json(); })
+		.then(function(data) {
+			if (data.error) {
+				box.textContent = 'Error: ' + data.error;
+			} else {
+				var p = document.createElement('p');
+				p.className = 'summary-text';
+				p.textContent = data.text || '';
+				box.appendChild(p);
+				var sm = document.createElement('small');
+				sm.className = 'summary-source';
+				sm.textContent = 'Source: ' + (data.source || 'template')
+				               + (data.cached ? ' (cached)' : '');
+				box.appendChild(sm);
+			}
+			box.style.display = 'block';
+		})
+		.catch(function() {
+			box.textContent = 'Could not generate summary.';
+			box.style.display = 'block';
+		})
+		.finally(function() {
+			btn.disabled = false;
+			btn.textContent = '\u2728 Summarize';
+		});
+	});
+}());
+</script>
 
 [%- END -%]
