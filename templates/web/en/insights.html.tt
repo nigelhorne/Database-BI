@@ -1,0 +1,99 @@
+[%- WRAPPER 'web/en/layouts/default.html.tt' -%]
+
+<style>
+  .insights-meta { font-size: 0.82rem; color: #666; margin-bottom: 1rem; }
+  .insights-list { list-style: none; margin: 0; padding: 0; }
+  .insight-card {
+    border: 1px solid #d0d4de;
+    border-radius: 6px;
+    padding: 0.75rem 1rem;
+    margin-bottom: 0.65rem;
+    background: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .insight-card {
+      background: #1e2128;
+      border-color: #3a3f50;
+    }
+  }
+  :root[data-theme="dark"] .insight-card {
+    background: #1e2128;
+    border-color: #3a3f50;
+  }
+  .insight-kind {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    margin-right: 0.4rem;
+    vertical-align: middle;
+  }
+  .kind-outlier    { background: #fde8e8; color: #b92020; }
+  .kind-top_mover  { background: #e8f4fd; color: #1a6fa0; }
+  .kind-period_delta { background: #e8fde8; color: #1a7a30; }
+  .kind-seasonality  { background: #fdf5e8; color: #8a5a00; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .kind-outlier    { background: #4a1010; color: #f4a0a0; }
+    :root:not([data-theme="light"]) .kind-top_mover  { background: #0e2a40; color: #7ecbf0; }
+    :root:not([data-theme="light"]) .kind-period_delta { background: #0e3318; color: #7ad898; }
+    :root:not([data-theme="light"]) .kind-seasonality  { background: #3a2800; color: #f0c060; }
+  }
+  :root[data-theme="dark"] .kind-outlier    { background: #4a1010; color: #f4a0a0; }
+  :root[data-theme="dark"] .kind-top_mover  { background: #0e2a40; color: #7ecbf0; }
+  :root[data-theme="dark"] .kind-period_delta { background: #0e3318; color: #7ad898; }
+  :root[data-theme="dark"] .kind-seasonality  { background: #3a2800; color: #f0c060; }
+  .insight-headline { font-weight: 600; font-size: 0.95rem; vertical-align: middle; }
+  .insight-detail   { font-size: 0.82rem; color: #555; margin-top: 0.25rem; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .insight-detail { color: #aab; }
+  }
+  :root[data-theme="dark"] .insight-detail { color: #aab; }
+  .insight-view-link {
+    display: inline-block;
+    margin-top: 0.35rem;
+    font-size: 0.8rem;
+    color: #0066aa;
+    text-decoration: none;
+  }
+  .insight-view-link:hover { text-decoration: underline; }
+  .insight-method {
+    display: inline-block;
+    font-size: 0.72rem;
+    color: #999;
+    margin-left: 0.6rem;
+    vertical-align: middle;
+    cursor: help;
+  }
+  .insights-empty {
+    color: #666;
+    font-style: italic;
+    margin-top: 1.5rem;
+  }
+</style>
+
+<p class="back-link"><a href="/">&larr; Home</a>[% IF back_url && back_url != '/' %] &rsaquo; <a href="[% back_url | html %]">[% back_label | html %]</a>[% END %][%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</p>
+
+<h2 style="margin-bottom:0.5rem">[% title | html %]</h2>
+<p class="insights-meta">Source: [% left_label | html %] &mdash; [% row_count %] row[% IF row_count != 1 %]s[% END %] analysed</p>
+
+[%- IF insights.size == 0 -%]
+<p class="insights-empty">No insights detected for this dataset. Try a dataset with a date column and numeric columns to see period-over-period changes and outliers.</p>
+[%- ELSE -%]
+<ul class="insights-list" aria-label="Automatic insights">
+[%- FOREACH ins IN insights -%]
+  <li class="insight-card">
+    <span class="insight-kind kind-[% ins.kind | html %]">[% ins.kind | html %]</span><span class="insight-headline">[% ins.headline | html %]</span>
+    <span class="insight-method" title="[% ins.method | html %]">&#x2139;</span>
+    [%- IF ins.detail -%]
+    <div class="insight-detail">[% ins.detail | html %]</div>
+    [%- END -%]
+    <a class="insight-view-link" href="[% ins.view_url | html %]">&#x1F50D; View in chart &rarr;</a>
+  </li>
+[%- END -%]
+</ul>
+[%- END -%]
+
+[%- END -%]

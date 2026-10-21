@@ -242,6 +242,8 @@
           title="Summarise the data as a pivot table - group by row and column dimensions and compute aggregates">&#x25A6; Pivot table&hellip;</button>
   <button class="btn-stats" id="btn-stats" type="button"
           title="Show column statistics: row count, nulls, distinct values, numeric min, max, mean and median">&#x03A3; Column stats</button>
+  <button class="btn-insights" id="btn-insights" type="button"
+          title="Automatic statistical insights: outliers, period-over-period changes, top movers, and seasonality">&#x1F4A1; Insights</button>
   <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <button class="btn-calc" id="btn-calc" type="button"
           title="Add virtual columns computed from expressions (e.g. revenue-cost). Saved fields are applied automatically whenever this data source is opened.">&fnof;(x) Calc fields&hellip;</button>
@@ -1311,6 +1313,14 @@
   <input type="hidden" name="f" value="[% fs | html %]">
   [%- END -%]
   <input type="hidden" name="back" id="stats-form-back" value="">
+  <input type="hidden" name="back_label" value="Back to table">
+</form>
+<form id="insights-form" method="get" action="/insights" style="display:none">
+  <input type="hidden" name="l" value="[% left_spec | html %]">
+  [%- FOREACH fs IN filter_specs -%]
+  <input type="hidden" name="f" value="[% fs | html %]">
+  [%- END -%]
+  <input type="hidden" name="back" id="insights-form-back" value="">
   <input type="hidden" name="back_label" value="Back to table">
 </form>
 [%- END -%]
@@ -3352,6 +3362,21 @@ function parseAccounting(v) {
 
   btn.addEventListener('click', function () {
     var backInp = document.getElementById('stats-form-back');
+    if (backInp) backInp.value = window.location.href;
+    form.submit();
+  });
+}());
+
+// ---------------------------------------------------------------------------
+// Insights button -- navigate to /insights with current l= and f= params
+// ---------------------------------------------------------------------------
+(function () {
+  var btn  = document.getElementById('btn-insights');
+  var form = document.getElementById('insights-form');
+  if (!btn || !form) return;
+
+  btn.addEventListener('click', function () {
+    var backInp = document.getElementById('insights-form-back');
     if (backInp) backInp.value = window.location.href;
     form.submit();
   });

@@ -13,7 +13,7 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
-our $VERSION = '0.015.0';
+our $VERSION = '0.016.0';
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -40,7 +40,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.015.0
+0.016.0
 
 =head1 DESCRIPTION
 
@@ -881,7 +881,7 @@ renderer, giving visible progress on slow joins.
 # =============================================================================
 #
 # Items marked [NEW 0.010.0] were identified during the 0.010.0 gap analysis.
-# Items completed in 0.012.0 (Phase 0):
+# Items completed in 0.012.0:
 #   A. Pagination -- done: /view, /open, /join, /combine, /export all paginate.
 #   1. dbi_source() proxy -- done: DataSource::dbi_source() delegating method added.
 #   2. limit/offset plumbing -- done: /join, /combine, /export thread pagination.
@@ -889,7 +889,7 @@ renderer, giving visible progress on slow joins.
 #   4. Filter pushdown -- done: _filter_specs_to_criteria translates f= specs to
 #      SQL criteria for SQLite sources; _grouped_totals and _fetch_page both use it.
 #   5. Schema warnings UI -- partial: join_tables captures and passes schema_warnings;
-#      BI-side type-mismatch detection (P0-6 in BI-Phases0-1-TODO.md) is still open.
+#      BI-side type-mismatch detection is still open.
 #   6. updated() in DataSource -- done: DataSource::updated() delegates to inner DA.
 #
 # ---- POST-RELEASE FEATURE ROADMAP ----
@@ -1125,8 +1125,9 @@ sub startup ($self) {
 	$r->get('/histogram')     ->to('Dashboard#histogram_view');
 	$r->get('/map')           ->to('Dashboard#map_view');
 	$r->get('/line')          ->to('Dashboard#graph_view');	# alias for /graph
+	$r->get('/insights')      ->to('Dashboard#insights_view');	# Phase 5.2
 
-	# Phase 3.1 -- Saved analyses
+	# Saved analyses
 	# /api/analyses/import must be registered BEFORE /api/analyses/:id so that the
 	# literal segment "import" is matched before the :id placeholder captures it.
 	$r->get('/a/:id')                   ->to('Dashboard#canvas_render');
@@ -1140,7 +1141,7 @@ sub startup ($self) {
 	$r->patch('/api/analyses/:id/visuals/:visual')->to('Dashboard#analyses_update_visual');
 	$r->get('/api/analyses/:id/export') ->to('Dashboard#analyses_export');
 
-	# Phase 4 -- extracts, catalog, sharing, embedding, per-visual downloads
+	# extracts, catalog, sharing, embedding, per-visual downloads
 	$r->get('/catalog')                       ->to('Dashboard#catalog_view');
 	$r->get('/share/:id')                     ->to('Dashboard#share_view');
 	$r->get('/embed/:id')                     ->to('Dashboard#embed_view');

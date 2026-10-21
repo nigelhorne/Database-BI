@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.015.0';
+our $VERSION = '0.016.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -124,6 +124,9 @@ Readonly my %MESSAGES => (
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
 	warn_map_cache_unwritten    => 'The resolved places could not be remembered in the model store, so the next request will look them up again',
+	# Phase 5.2 -- insights
+	error_insights_no_data      => 'No data available to analyse',
+	insights_insufficient_data  => 'Insufficient data for this insight type (need more rows or periods)',
 	# Phase 4
 	error_token_invalid         => 'Share token is invalid or has expired',
 	error_token_missing         => 'A share token is required to view this analysis',
@@ -8206,6 +8209,72 @@ sub visual_download ($self) {
 	return $self->render(
 		text   => 'PNG download requires the browser SVG renderer; use the in-page Save Image button',
 		status => 501,
+	);
+}
+
+# ---------------------------------------------------------------------------
+# Phase 5.2 -- Automatic insights  (GET /insights)
+# ---------------------------------------------------------------------------
+
+# insights_view($self)
+#
+# Accepts the same l=, j=, f=, c= pipeline as /stats.  Runs the standard
+# pipeline (date normalisation, calc fields, filters), then delegates to
+# Database::BI::Insights::compute() for pure-arithmetic insight detection.
+#
+# No LLM or external service is invoked.  Every returned insight carries a
+# view_url linking to the chart or stats page that shows the underlying data.
+#
+# Stash keys:
+#   insights   -- arrayref of insight hashrefs (kind/headline/detail/view_url/method)
+#   left_spec  -- the l= value
+#   left_label -- human-readable data-source label
+#   row_count  -- number of rows analysed
+#   base_url   -- current request URL (passed to Insights for fallback URLs)
+sub insights_view ($self) {
+	my $left_spec = $self->param('l') // '';
+	return $self->render(text => 'Missing l= parameter', status => 400)
+		unless length $left_spec;
+
+	my $back      = _safe_back_url($self->param('back')) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404)
+		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	for my $s (@{ $self->every_param('f') }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	my $row_count = scalar @$records;
+	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
+
+	require Database::BI::Insights;
+	my $insights = Database::BI::Insights::compute(
+		records  => $records,
+		columns  => $columns,
+		spec_key => $left_spec,
+		base_url => $self->req->url->path_query,
+	);
+
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler    => 'tt',
+		template   => "$platform/$language/insights",
+		format     => 'html',
+		title      => 'Automatic insights',
+		insights   => $insights,
+		left_spec  => $left_spec,
+		left_label => $left_label,
+		row_count  => $row_count,
+		back_url   => ($back2 // $back),
+		back_label => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
+		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
 	);
 }
 
