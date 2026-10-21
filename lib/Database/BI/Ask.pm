@@ -112,7 +112,7 @@ sub _call_llm {
 
 	require LWP::UserAgent;
 	require HTTP::Request;
-	require JSON::PP;
+	require JSON::PP;	# core since Perl 5.013009; MIN_PERL_VERSION is 5.020000
 
 	my $col_lines = join("\n", map { "- $_->{name} ($_->{type})" } @$columns);
 	my $kinds_str = join(', ', sort keys %SUPPORTED_KINDS);

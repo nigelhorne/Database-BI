@@ -677,6 +677,33 @@ Supported patterns: C<%m/%d/%Y> (US), C<%d/%m/%Y> (EU), C<%d-%b-%Y> (DD-Mon-YYYY
 Removes a date-normalisation pattern.  Body: C<l=&col=>.
 Omit C<col=> to clear all patterns for the spec.
 
+=item C<GET /insights>
+
+Automatic statistical insights for a dataset.  Runs the same pipeline as
+C</join> then detects outliers (Tukey IQR fence), period-over-period deltas,
+top movers, and seasonality (lag-1 autocorrelation).  No LLM or network call
+is made.  Every insight links to a chart or stats view that shows it.
+Parameters: C<l=E<lt>specE<gt>> (required), repeatable C<f=> filters.
+
+=item C<POST /api/ask>
+
+Natural language to analysis spec (Phase 5.1).  Body params: C<l=E<lt>specE<gt>>
+(required), C<q=E<lt>questionE<gt>> (required), repeatable C<f=> filters.
+Returns C<{ spec, url, valid =E<gt> 1 }> on success.  The model receives only
+column names and types -- never raw row data or file paths.  Returns 503 when
+C<ai_api_key> is not configured; 400 for missing params; 422 for an
+unparseable or invalid-column spec; 502 for a provider error.
+
+=item C<POST /api/summary>
+
+Narrative summary of an analysis (Phase 5.3).  Body params: C<l=E<lt>specE<gt>>
+(required), repeatable C<f=> filters, C<ai=1> (optional, honours
+C<ai_api_key> config).  Returns C<{ text, source, cached }>.  Two paths:
+deterministic template sentences (always available, works offline) and
+optional LLM-polished prose when C<ai=1> is passed and C<ai_api_key> is
+set.  Only aggregate insight facts are sent to the LLM.  Results are cached
+in-process for one hour keyed on the analysis fingerprint.
+
 =back
 
 =head1 CONFIGURATION

@@ -147,7 +147,7 @@ sub _call_anthropic {
 
 	require LWP::UserAgent;
 	require HTTP::Request;
-	require JSON::PP;
+	require JSON::PP;	# core since Perl 5.013009; MIN_PERL_VERSION is 5.020000
 
 	my $model   = $ai_config->{model} // 'claude-haiku-5-5';
 	my $api_key = $ai_config->{api_key};
