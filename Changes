@@ -1,7 +1,16 @@
 Revision history for Database-BI
 
-0.016.0
+0.016.0 Wed Oct 21 12:00:00 PM EDT 2026
 	[ New Features ]
+	- POST /api/ask: Natural language to analysis spec (Phase 5.1).
+	  Translates a plain-English question into a Phase 3 analysis spec by
+	  calling the Anthropic Messages API.  The model receives only column
+	  names and types -- no raw row data, no file paths.  The returned spec
+	  is validated (column names and kind checked) before being returned.
+	  The feature is absent (503) when ai_api_key is not configured.
+	  Database::BI::Ask -- new module.
+	  Ask... button added to the dashboard toolbar when ai_api_key is set.
+	  New test suite t/ask.t.
 	- GET /insights: Automatic statistical insights panel.
 	  Detects outliers (Tukey IQR fence), period-over-period deltas,
 	  top movers by dimension, and seasonality (lag-1 autocorrelation

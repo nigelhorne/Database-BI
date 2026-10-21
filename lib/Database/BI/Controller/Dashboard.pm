@@ -127,6 +127,12 @@ Readonly my %MESSAGES => (
 	# Phase 5.2 -- insights
 	error_insights_no_data      => 'No data available to analyse',
 	insights_insufficient_data  => 'Insufficient data for this insight type (need more rows or periods)',
+	# Phase 5.1 -- ask a question
+	ask_unavailable    => 'Ask a question is not available: no AI provider is configured',
+	ask_no_question    => 'Please enter a question',
+	ask_provider_error => 'AI provider error; could not generate an analysis',
+	ask_unparseable    => 'Could not parse a valid visualization from the response; please rephrase your question',
+	ask_invalid_spec   => 'Generated spec contains an unknown column: %s',
 	# Phase 5.3 -- narrative summaries
 	summary_consent_required    => 'AI consent is required before sending data to an external provider',
 	summary_ai_unavailable      => 'AI provider not configured; using template summary',
@@ -8219,6 +8225,74 @@ sub visual_download ($self) {
 # ---------------------------------------------------------------------------
 # Phase 5.2 -- Automatic insights  (GET /insights)
 # ---------------------------------------------------------------------------
+
+# ask_api($self)
+#
+# POST /api/ask
+#
+# Translates a plain-English question into a Phase 3 analysis spec by
+# calling the configured AI provider.  The model receives only column
+# names and types -- never raw row data, file paths, or spec_key.
+#
+# Body params:
+#   l=<spec>      (required) -- left table spec
+#   q=<question>  (required) -- natural language question
+#   f=<filter>    (repeatable, optional)
+#
+# Returns JSON: { spec, url, valid => 1 }
+# On error:     { error } with 400, 503, or 502 status
+sub ask_api ($self) {
+	my $api_key = $self->app->config('ai_api_key') // '';
+	return $self->render(json => { error => $MESSAGES{ask_unavailable} }, status => 503)
+		unless length $api_key;
+
+	my $left_spec = $self->param('l') // '';
+	return $self->render(json => { error => 'Missing required parameter: l' }, status => 400)
+		unless length $left_spec;
+
+	my $question = $self->param('q') // '';
+	return $self->render(json => { error => $MESSAGES{ask_no_question} }, status => 400)
+		unless length $question;
+
+	my ($src, $records, $columns, $left_label) = $self->_run_pipeline_source;
+	return $self->render(json => { error => 'Could not open data source' }, status => 404)
+		unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+
+	# Sample up to 200 rows for type inference; avoids slurping huge files.
+	my @sample = @{$records}[0 .. ($#$records < 199 ? $#$records : 199)];
+
+	require Database::BI::Ask;
+	my $typed_cols = Database::BI::Ask::infer_column_types(\@sample, $columns);
+
+	my $ai_config = {
+		provider => $self->app->config('ai_provider') // 'anthropic',
+		api_key  => $api_key,
+		model    => $self->app->config('ai_model')    // 'claude-haiku-5-5',
+	};
+
+	my $result = Database::BI::Ask::ask(
+		question  => $question,
+		spec_key  => $left_spec,
+		label     => $left_label // $left_spec,
+		columns   => $typed_cols,
+		ai_config => $ai_config,
+	);
+
+	if (my $err = $result->{error}) {
+		my ($status, $msg) =
+			$err eq 'ask_unavailable'              ? (503, $MESSAGES{ask_unavailable})
+		  : $err eq 'ask_no_question'              ? (400, $MESSAGES{ask_no_question})
+		  : $err eq 'ask_provider_error'           ? (502, $MESSAGES{ask_provider_error})
+		  : $err eq 'ask_unparseable'              ? (422, $MESSAGES{ask_unparseable})
+		  : $err =~ /\Aask_invalid_spec:(.+)\z/   ? (422, sprintf($MESSAGES{ask_invalid_spec}, $1))
+		  :                                          (500, $err);
+		return $self->render(json => { error => $msg }, status => $status);
+	}
+
+	return $self->render(json => $result);
+}
 
 # summary_api($self)
 #

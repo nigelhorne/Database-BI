@@ -6,8 +6,7 @@ location column geocoded locally with `Geo::Coder::Free`. Items 6.1–6.5, plus 
 cross-dist work §8 asks of `HTML::OSM`.
 
 - **Target dist:** `Database::BI`.
-- **Version:** if implemented next, the next minor after 0.012.x (proposal `0.013.0`); if the
-  phase documents 3–5 are built first, the next minor after Phase 5 (proposal `0.019.0`).
+- **Version:** the next major after Phase 5 (proposal `0.017.0`).
 - **Hard prerequisite:** none from Phases 3–5. Everything this phase needs already ships:
   the per-dataset model store (`.bi/models.json`, `_calc_models_path`, `Dashboard.pm:1395`),
   the pipeline entry point (`_run_pipeline_source`, `Dashboard.pm:1181`), calculated fields
