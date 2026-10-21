@@ -126,12 +126,27 @@ sub method_note {
 # Private helpers
 # ---------------------------------------------------------------------------
 
+# _looks_like_date($v) -> bool
+#
+# Returns true when $v matches any common date format.  Checked BEFORE numeric
+# classification so that slash-dates (e.g. 12/22/2025 from US bank exports),
+# EU slash-dates (22/12/2025), and dash-Mon dates (22-Oct-2026) are never
+# stripped of their punctuation and misread as large integers like 12222025.
+sub _looks_like_date {
+	my $v = shift;
+	return 0 unless defined $v && length $v;
+	return 1 if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;            # ISO-8601
+	return 1 if $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/;      # M/D/YYYY or D/M/YYYY
+	return 1 if $v =~ /\A\d{1,2}-[A-Za-z]{3}-\d{4}\z/;    # DD-Mon-YYYY
+	return 0;
+}
+
 sub _is_date_col {
 	my $vals = shift;
 	my $n = @$vals > 20 ? 20 : scalar @$vals;
 	my $ok = 0;
 	for my $v (@{$vals}[0 .. $n - 1]) {
-		return 0 unless defined $v && $v =~ /\A\d{4}-\d{2}-\d{2}\z/;
+		return 0 unless _looks_like_date($v);
 		$ok++;
 	}
 	return $ok ? 1 : 0;
@@ -143,6 +158,7 @@ sub _is_numeric_col {
 	my $ok = 0;
 	my $n  = @$vals > 20 ? 20 : scalar @$vals;
 	for my $v (@{$vals}[0 .. $n - 1]) {
+		return 0 if _looks_like_date($v);   # date values are not numeric measures
 		my $num = _to_num($v);
 		return 0 unless defined $num;
 		$ok++;
@@ -274,12 +290,31 @@ sub _find_outliers {
 				$view_url = "/stats?l=" . url_escape_simple($spec_key);
 			}
 
+			# Build drill_url: data table filtered to category group so
+			# the outlier row is visible in context of its peers.
+			my $drill_url;
+			if (@$cat_cols) {
+				my $base = _spec_to_data_url($spec_key);
+				if ($base) {
+					my $cat_enc = url_escape_simple($cat_cols->[0]);
+					my $gval    = (split /\x00/, $key)[0] // '';
+					my $gv_enc  = url_escape_simple($gval);
+					my $sep     = ($base =~ /\?/) ? '&' : '?';
+					$drill_url  = $base . $sep . 'f=' . $cat_enc . ':eq:' . $gv_enc;
+					if ($base_url) {
+						$drill_url .= '&back2=' . url_escape_simple($base_url)
+						           . '&back2_label=Back+to+insights';
+					}
+				}
+			}
+
 			push @insights, {
-				kind     => 'outlier',
-				headline => $headline,
-				detail   => $detail,
-				view_url => $view_url,
-				method   => 'iqr_fence',
+				kind      => 'outlier',
+				headline  => $headline,
+				detail    => $detail,
+				view_url  => $view_url,
+				($drill_url ? (drill_url => $drill_url) : ()),
+				method    => 'iqr_fence',
 			};
 		}
 	}
@@ -340,12 +375,26 @@ sub _period_over_period {
 	my $enc_num  = url_escape_simple($num_col);
 	my $view_url = "/graph?l=$enc_spec&x=$enc_date&y=$enc_num";
 
+	# Drill into the data table filtered to the current period.
+	my $drill_url;
+	my $base = _spec_to_data_url($spec_key);
+	if ($base) {
+		my $sep = ($base =~ /\?/) ? '&' : '?';
+		$drill_url = $base . $sep
+		           . 'f=' . $enc_date . ':starts:' . url_escape_simple($cur);
+		if ($base_url) {
+			$drill_url .= '&back2=' . url_escape_simple($base_url)
+			           . '&back2_label=Back+to+insights';
+		}
+	}
+
 	return ({
-		kind     => 'period_delta',
-		headline => $headline,
-		detail   => $detail,
-		view_url => $view_url,
-		method   => 'pop_delta',
+		kind      => 'period_delta',
+		headline  => $headline,
+		detail    => $detail,
+		view_url  => $view_url,
+		($drill_url ? (drill_url => $drill_url) : ()),
+		method    => 'pop_delta',
 	});
 }
 
@@ -413,12 +462,27 @@ sub _top_movers {
 		my $view_url = "/graph?l=$enc_spec&x=$enc_date&y=$enc_num"
 		             . "&f=$enc_cat:eq:$gval_enc";
 
+		# Drill into data table filtered to category + current period.
+		my $drill_url;
+		my $base = _spec_to_data_url($spec_key);
+		if ($base) {
+			my $sep = ($base =~ /\?/) ? '&' : '?';
+			$drill_url = $base . $sep
+			           . 'f=' . $enc_date . ':starts:' . url_escape_simple($cur)
+			           . '&f=' . $enc_cat  . ':eq:'     . $gval_enc;
+			if ($base_url) {
+				$drill_url .= '&back2=' . url_escape_simple($base_url)
+				           . '&back2_label=Back+to+insights';
+			}
+		}
+
 		push @insights, {
-			kind     => 'top_mover',
-			headline => $headline,
-			detail   => $detail,
-			view_url => $view_url,
-			method   => 'top_mover',
+			kind      => 'top_mover',
+			headline  => $headline,
+			detail    => $detail,
+			view_url  => $view_url,
+			($drill_url ? (drill_url => $drill_url) : ()),
+			method    => 'top_mover',
 		};
 	}
 
@@ -507,6 +571,23 @@ sub url_escape_simple {
 	my $s = shift // '';
 	$s =~ s/([^A-Za-z0-9\-._~])/sprintf('%%%02X', ord($1))/ge;
 	return $s;
+}
+
+# _spec_to_data_url($spec_key) -> $url_or_undef
+#
+# Converts a l= spec key to the root-relative URL of the data table page.
+#   table:sales           -> /view/sales
+#   path:/abs/path/f.csv  -> /open?path=%2Fabs%2Fpath%2Ff.csv
+# Returns undef for unrecognised spec forms.
+sub _spec_to_data_url {
+	my $spec = shift // '';
+	if ($spec =~ /\Atable:(.+)\z/) {
+		return '/view/' . url_escape_simple($1);
+	}
+	if ($spec =~ /\Apath:(.+)\z/) {
+		return '/open?path=' . url_escape_simple($1);
+	}
+	return undef;
 }
 
 1;
