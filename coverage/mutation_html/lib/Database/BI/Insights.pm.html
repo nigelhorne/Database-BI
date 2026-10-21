@@ -293,10 +293,10 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../../../../index.html">Index</a>
  <a href="Model/DataSource.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 96.95%<br>
-TER2 (Branch): 70.78%<br>
+TER1 (Statement): 96.98%<br>
+TER2 (Branch): 71.52%<br>
 TER3 (LCSAJ): 100.0% (16/16)<br>
-Approximate LCSAJ segments: 155<br>
+Approximate LCSAJ segments: 159<br>
 </div>
 
     <div class="legend">
@@ -566,7 +566,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  154: 
 </span><span class="">  155: sub _is_numeric_col {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">156 → 160 → 166</span></span>  156: 	my $vals = shift;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  157: 	return 0 unless @$vals;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  157: 	return 0 unless @$vals;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -777,7 +777,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  223: 		$group_example{$key} //= $row;
 </span><span class="">  224: 	}
 </span><span class="">  225: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">226 → 226 → 322</span></span>  226: 	for my $key (sort keys %groups) {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">226 → 226 → 330</span></span>  226: 	for my $key (sort keys %groups) {
 </span><span class="">  227: 		my @nums = @{ $groups{$key} };
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  228: 		next if @nums &lt; $MIN_ROWS_OUTLIER;
 </span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  229: 
@@ -914,46 +914,112 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  290: 				$view_url = &quot;/stats?l=&quot; . url_escape_simple($spec_key);
 </span><span class="">  291: 			}
 </span><span class="">  292: 
-</span><span class="">  293: 			# Build drill_url: data table filtered to category group so
-</span><span class="">  294: 			# the outlier row is visible in context of its peers.
-</span><span class="">  295: 			my $drill_url;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  296: 			if (@$cat_cols) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  297: 				my $base = _spec_to_data_url($spec_key);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  298: 				if ($base) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  299: 					my $cat_enc = url_escape_simple($cat_cols-&gt;[0]);
-</span><span class="">  300: 					my $gval    = (split /\x00/, $key)[0] // &#39;&#39;;
-</span><span class="">  301: 					my $gv_enc  = url_escape_simple($gval);
-</span><span class="">  302: 					my $sep     = ($base =~ /\?/) ? &#39;&amp;&#39; : &#39;?&#39;;
-</span><span class="">  303: 					$drill_url  = $base . $sep . &#39;f=&#39; . $cat_enc . &#39;:eq:&#39; . $gv_enc;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  304: 					if ($base_url) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  305: 						$drill_url .= &#39;&amp;back2=&#39; . url_escape_simple($base_url)
-</span><span class="">  306: 						           . &#39;&amp;back2_label=Back+to+insights&#39;;
-</span><span class="">  307: 					}
-</span><span class="">  308: 				}
-</span><span class="">  309: 			}
-</span><span class="">  310: 
-</span><span class="">  311: 			push @insights, {
-</span><span class="">  312: 				kind      =&gt; &#39;outlier&#39;,
-</span><span class="">  313: 				headline  =&gt; $headline,
-</span><span class="">  314: 				detail    =&gt; $detail,
-</span><span class="">  315: 				view_url  =&gt; $view_url,
-</span><span class="">  316: 				($drill_url ? (drill_url =&gt; $drill_url) : ()),
-</span><span class="">  317: 				method    =&gt; &#39;iqr_fence&#39;,
-</span><span class="">  318: 			};
-</span><span class="">  319: 		}
-</span><span class="">  320: 	}
-</span><span class="">  321: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  322: 	return @insights;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  323: }
-</span><span class="">  324: 
-</span><span class="">  325: sub _fence_distance {
-</span><span class="">  326: 	my ($val, $lo, $hi) = @_;
-</span><span class="survived-3 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  327: 	return $val &gt; $hi ? $val - $hi
+</span><span class="">  293: 			# Build drill_url: data table filtered to category group so the
+</span><span class="">  294: 			# outlier row is visible in context of its peers.  The hl_col /
+</span><span class="">  295: 			# hl_op / hl_val params tell dashboard.html.tt to highlight and
+</span><span class="">  296: 			# scroll to the specific outlier row(s) within those 75+ peers.
+</span><span class="">  297: 			my $drill_url;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  298: 			if (@$cat_cols) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  299: 				my $base = _spec_to_data_url($spec_key);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  300: 				if ($base) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  301: 					my $cat_enc  = url_escape_simple($cat_cols-&gt;[0]);
+</span><span class="">  302: 					my $gval     = (split /\x00/, $key)[0] // &#39;&#39;;
+</span><span class="">  303: 					my $gv_enc   = url_escape_simple($gval);
+</span><span class="">  304: 					my $sep      = ($base =~ /\?/) ? &#39;&amp;&#39; : &#39;?&#39;;
+</span><span class="">  305: 					$drill_url   = $base . $sep . &#39;f=&#39; . $cat_enc . &#39;:eq:&#39; . $gv_enc;
+</span><span class="">  306: 					# Highlight the outlier row(s): beyond the IQR fence.
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  307: 					my $hl_op    = ($val &gt; $hi_fence) ? &#39;gt&#39; : &#39;lt&#39;;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_307_27_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_307_27_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_307_27_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  308: 					my $hl_fence = ($val &gt; $hi_fence) ? $hi_fence : $lo_fence;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_308_27_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_308_27_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_308_27_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  309: 					$drill_url  .= &#39;&amp;hl_col=&#39; . url_escape_simple($num_col)
+</span><span class="">  310: 					            .  &#39;&amp;hl_op=&#39;  . $hl_op
+</span><span class="">  311: 					            .  &#39;&amp;hl_val=&#39; . url_escape_simple(sprintf(&#39;%.10g&#39;, $hl_fence));
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  312: 					if ($base_url) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  313: 						$drill_url .= &#39;&amp;back2=&#39; . url_escape_simple($base_url)
+</span><span class="">  314: 						           . &#39;&amp;back2_label=Back+to+insights&#39;;
+</span><span class="">  315: 					}
+</span><span class="">  316: 				}
+</span><span class="">  317: 			}
+</span><span class="">  318: 
+</span><span class="">  319: 			push @insights, {
+</span><span class="">  320: 				kind      =&gt; &#39;outlier&#39;,
+</span><span class="">  321: 				headline  =&gt; $headline,
+</span><span class="">  322: 				detail    =&gt; $detail,
+</span><span class="">  323: 				view_url  =&gt; $view_url,
+</span><span class="">  324: 				($drill_url ? (drill_url =&gt; $drill_url) : ()),
+</span><span class="">  325: 				method    =&gt; &#39;iqr_fence&#39;,
+</span><span class="">  326: 			};
+</span><span class="">  327: 		}
+</span><span class="">  328: 	}
+</span><span class="">  329: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  330: 	return @insights;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  331: }
+</span><span class="">  332: 
+</span><span class="">  333: sub _fence_distance {
+</span><span class="">  334: 	my ($val, $lo, $hi) = @_;
+</span><span class="survived-3 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  335: 	return $val &gt; $hi ? $val - $hi
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 5, Killed: 0, Survived: 5)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_327_14_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_335_14_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -961,7 +1027,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_327_14_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_335_14_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -969,7 +1035,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_327_14_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_335_14_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -977,7 +1043,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>BOOL_NEGATE_327_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+							</li><li><b>BOOL_NEGATE_335_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -985,7 +1051,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_327_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_335_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -994,12 +1060,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  328: 	     : $val &lt; $lo ? $lo - $val
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  336: 	     : $val &lt; $lo ? $lo - $val
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_328_14_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_336_14_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1007,7 +1073,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_328_14_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_336_14_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1015,7 +1081,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_328_14_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_336_14_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1024,70 +1090,49 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  329: 	     :              0;
-</span><span class="">  330: }
-</span><span class="">  331: 
-</span><span class="">  332: # _period_over_period($records, $date_col, $num_col, $spec_key, $base_url) -&gt; @insights
-</span><span class="">  333: #
-</span><span class="">  334: # Aggregates $num_col by year-month period, then reports the delta between the
-</span><span class="">  335: # most recent two periods.
-</span><span class="">  336: sub _period_over_period {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">337 → 340 → 349</span></span>  337: 	my ($records, $date_col, $num_col, $spec_key, $base_url) = @_;
-</span><span class="">  338: 
-</span><span class="">  339: 	my %period_totals;
-</span><span class="">  340: 	for my $row (@$records) {
-</span><span class="">  341: 		my $date = $row-&gt;{$date_col} // &#39;&#39;;
-</span><span class="">  342: 		next unless $date =~ /\A(\d{4}-\d{2})/;
-</span><span class="">  343: 		my $period = $1;
-</span><span class="">  344: 		my $val    = _to_num($row-&gt;{$num_col});
-</span><span class="">  345: 		next unless defined $val;
-</span><span class="">  346: 		$period_totals{$period} += $val;
-</span><span class="">  347: 	}
-</span><span class="">  348: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">349 → 381 → 391</span></span>  349: 	my @periods = sort keys %period_totals;
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  350: 	return () unless @periods &gt;= $MIN_PERIODS_POP;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
-					<ul>
-				<li><b>NUM_BOUNDARY_350_28_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>NUM_BOUNDARY_350_28_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>NUM_BOUNDARY_350_28_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  351: 
-</span><span class="">  352: 	my $cur  = $periods[-1];
-</span><span class="">  353: 	my $prev = $periods[-2];
-</span><span class="">  354: 	my $cur_val  = $period_totals{$cur};
-</span><span class="">  355: 	my $prev_val = $period_totals{$prev};
+<span class="">  337: 	     :              0;
+</span><span class="">  338: }
+</span><span class="">  339: 
+</span><span class="">  340: # _period_over_period($records, $date_col, $num_col, $spec_key, $base_url) -&gt; @insights
+</span><span class="">  341: #
+</span><span class="">  342: # Aggregates $num_col by year-month period, then reports the delta between the
+</span><span class="">  343: # most recent two periods.
+</span><span class="">  344: sub _period_over_period {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">345 → 348 → 357</span></span>  345: 	my ($records, $date_col, $num_col, $spec_key, $base_url) = @_;
+</span><span class="">  346: 
+</span><span class="">  347: 	my %period_totals;
+</span><span class="">  348: 	for my $row (@$records) {
+</span><span class="">  349: 		my $date = $row-&gt;{$date_col} // &#39;&#39;;
+</span><span class="">  350: 		next unless $date =~ /\A(\d{4}-\d{2})/;
+</span><span class="">  351: 		my $period = $1;
+</span><span class="">  352: 		my $val    = _to_num($row-&gt;{$num_col});
+</span><span class="">  353: 		next unless defined $val;
+</span><span class="">  354: 		$period_totals{$period} += $val;
+</span><span class="">  355: 	}
 </span><span class="">  356: 
-</span><span class="">  357: 	my $delta = $cur_val - $prev_val;
-</span><span class="survived-1 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  358: 	my $pct   = $prev_val != 0 ? $delta / abs($prev_val) * 100 : undef;
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">357 → 389 → 399</span></span>  357: 	my @periods = sort keys %period_totals;
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  358: 	return () unless @periods &gt;= $MIN_PERIODS_POP;
 </span>
 					<details class="mutant-details">
-					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_358_24_==: Numeric boundary flip != to ==</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_358_28_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_358_28_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_358_28_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1097,28 +1142,18 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 								</div>
 							</li></ul></details>
 <span class="">  359: 
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  360: 	my $dir  = $delta &gt;= 0 ? &#39;up&#39; : &#39;down&#39;;
+</span><span class="">  360: 	my $cur  = $periods[-1];
+</span><span class="">  361: 	my $prev = $periods[-2];
+</span><span class="">  362: 	my $cur_val  = $period_totals{$cur};
+</span><span class="">  363: 	my $prev_val = $period_totals{$prev};
+</span><span class="">  364: 
+</span><span class="">  365: 	my $delta = $cur_val - $prev_val;
+</span><span class="survived-1 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  366: 	my $pct   = $prev_val != 0 ? $delta / abs($prev_val) * 100 : undef;
 </span>
 					<details class="mutant-details">
-					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_360_20_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>NUM_BOUNDARY_360_20_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>NUM_BOUNDARY_360_20_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_366_24_==: Numeric boundary flip != to ==</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1127,12 +1162,13 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  361: 	my $sign = $delta &gt;= 0 ? &#39;+&#39; : &#39;&#39;;
+<span class="">  367: 
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  368: 	my $dir  = $delta &gt;= 0 ? &#39;up&#39; : &#39;down&#39;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_361_20_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_368_20_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1140,7 +1176,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_361_20_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_368_20_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1148,7 +1184,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_361_20_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_368_20_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1157,75 +1193,105 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  362: 
-</span><span class="">  363: 	my $headline = sprintf(&#39;%s is %s %s vs prior period (%s)&#39;,
-</span><span class="">  364: 		$num_col, $dir, _fmt_num(abs($delta)), $prev);
-</span><span class="">  365: 
-</span><span class="">  366: 	my $detail = defined $pct
-</span><span class="">  367: 		? sprintf(&#39;%s: %s  %s: %s  (%s%s%%)&#39;,
-</span><span class="">  368: 			$prev, _fmt_num($prev_val), $cur, _fmt_num($cur_val),
-</span><span class="">  369: 			$sign, sprintf(&#39;%.1f&#39;, $pct))
-</span><span class="">  370: 		: sprintf(&#39;%s: %s  %s: %s&#39;,
-</span><span class="">  371: 			$prev, _fmt_num($prev_val), $cur, _fmt_num($cur_val));
-</span><span class="">  372: 
-</span><span class="">  373: 	my $enc_spec = url_escape_simple($spec_key);
-</span><span class="">  374: 	my $enc_date = url_escape_simple($date_col);
-</span><span class="">  375: 	my $enc_num  = url_escape_simple($num_col);
-</span><span class="">  376: 	my $view_url = &quot;/graph?l=$enc_spec&amp;x=$enc_date&amp;y=$enc_num&quot;;
-</span><span class="">  377: 
-</span><span class="">  378: 	# Drill into the data table filtered to the current period.
-</span><span class="">  379: 	my $drill_url;
-</span><span class="">  380: 	my $base = _spec_to_data_url($spec_key);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  381: 	if ($base) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  382: 		my $sep = ($base =~ /\?/) ? &#39;&amp;&#39; : &#39;?&#39;;
-</span><span class="">  383: 		$drill_url = $base . $sep
-</span><span class="">  384: 		           . &#39;f=&#39; . $enc_date . &#39;:starts:&#39; . url_escape_simple($cur);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  385: 		if ($base_url) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  386: 			$drill_url .= &#39;&amp;back2=&#39; . url_escape_simple($base_url)
-</span><span class="">  387: 			           . &#39;&amp;back2_label=Back+to+insights&#39;;
-</span><span class="">  388: 		}
-</span><span class="">  389: 	}
-</span><span class="">  390: 
-</span><span class="">  391: 	return ({
-</span><span class="">  392: 		kind      =&gt; &#39;period_delta&#39;,
-</span><span class="">  393: 		headline  =&gt; $headline,
-</span><span class="">  394: 		detail    =&gt; $detail,
-</span><span class="">  395: 		view_url  =&gt; $view_url,
-</span><span class="">  396: 		($drill_url ? (drill_url =&gt; $drill_url) : ()),
-</span><span class="">  397: 		method    =&gt; &#39;pop_delta&#39;,
-</span><span class="">  398: 	});
-</span><span class="">  399: }
-</span><span class="">  400: 
-</span><span class="">  401: # _top_movers($records, $date_col, $num_col, \@cat_cols, $spec_key, $base_url) -&gt; @insights
-</span><span class="">  402: #
-</span><span class="">  403: # For each categorical group, compute period-over-period delta between the two
-</span><span class="">  404: # most recent periods, and report the top MAX_TOP_MOVERS movers.
-</span><span class="">  405: sub _top_movers {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">406 → 412 → 424</span></span>  406: 	my ($records, $date_col, $num_col, $cat_cols, $spec_key, $base_url) = @_;
-</span><span class="">  407: 	return () unless @$cat_cols;
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  369: 	my $sign = $delta &gt;= 0 ? &#39;+&#39; : &#39;&#39;;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_369_20_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_369_20_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_369_20_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  370: 
+</span><span class="">  371: 	my $headline = sprintf(&#39;%s is %s %s vs prior period (%s)&#39;,
+</span><span class="">  372: 		$num_col, $dir, _fmt_num(abs($delta)), $prev);
+</span><span class="">  373: 
+</span><span class="">  374: 	my $detail = defined $pct
+</span><span class="">  375: 		? sprintf(&#39;%s: %s  %s: %s  (%s%s%%)&#39;,
+</span><span class="">  376: 			$prev, _fmt_num($prev_val), $cur, _fmt_num($cur_val),
+</span><span class="">  377: 			$sign, sprintf(&#39;%.1f&#39;, $pct))
+</span><span class="">  378: 		: sprintf(&#39;%s: %s  %s: %s&#39;,
+</span><span class="">  379: 			$prev, _fmt_num($prev_val), $cur, _fmt_num($cur_val));
+</span><span class="">  380: 
+</span><span class="">  381: 	my $enc_spec = url_escape_simple($spec_key);
+</span><span class="">  382: 	my $enc_date = url_escape_simple($date_col);
+</span><span class="">  383: 	my $enc_num  = url_escape_simple($num_col);
+</span><span class="">  384: 	my $view_url = &quot;/graph?l=$enc_spec&amp;x=$enc_date&amp;y=$enc_num&quot;;
+</span><span class="">  385: 
+</span><span class="">  386: 	# Drill into the data table filtered to the current period.
+</span><span class="">  387: 	my $drill_url;
+</span><span class="">  388: 	my $base = _spec_to_data_url($spec_key);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  389: 	if ($base) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  390: 		my $sep = ($base =~ /\?/) ? &#39;&amp;&#39; : &#39;?&#39;;
+</span><span class="">  391: 		$drill_url = $base . $sep
+</span><span class="">  392: 		           . &#39;f=&#39; . $enc_date . &#39;:starts:&#39; . url_escape_simple($cur);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  393: 		if ($base_url) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  394: 			$drill_url .= &#39;&amp;back2=&#39; . url_escape_simple($base_url)
+</span><span class="">  395: 			           . &#39;&amp;back2_label=Back+to+insights&#39;;
+</span><span class="">  396: 		}
+</span><span class="">  397: 	}
+</span><span class="">  398: 
+</span><span class="">  399: 	return ({
+</span><span class="">  400: 		kind      =&gt; &#39;period_delta&#39;,
+</span><span class="">  401: 		headline  =&gt; $headline,
+</span><span class="">  402: 		detail    =&gt; $detail,
+</span><span class="">  403: 		view_url  =&gt; $view_url,
+</span><span class="">  404: 		($drill_url ? (drill_url =&gt; $drill_url) : ()),
+</span><span class="">  405: 		method    =&gt; &#39;pop_delta&#39;,
+</span><span class="">  406: 	});
+</span><span class="">  407: }
 </span><span class="">  408: 
-</span><span class="">  409: 	# Collect totals keyed by (period, group_key).
-</span><span class="">  410: 	my (%totals, %group_labels);
-</span><span class="">  411: 	my %all_periods;
-</span><span class="">  412: 	for my $row (@$records) {
-</span><span class="">  413: 		my $date = $row-&gt;{$date_col} // &#39;&#39;;
-</span><span class="">  414: 		next unless $date =~ /\A(\d{4}-\d{2})/;
-</span><span class="">  415: 		my $period = $1;
-</span><span class="">  416: 		$all_periods{$period}++;
-</span><span class="">  417: 		my $gkey = join(&quot;\x00&quot;, map { $row-&gt;{$_} // &#39;&#39; } @$cat_cols);
-</span><span class="">  418: 		my $val  = _to_num($row-&gt;{$num_col});
-</span><span class="">  419: 		next unless defined $val;
-</span><span class="">  420: 		$totals{$period}{$gkey} += $val;
-</span><span class="">  421: 		$group_labels{$gkey} //= join(&#39;, &#39;, map { $row-&gt;{$_} // &#39;&#39; } @$cat_cols);
-</span><span class="">  422: 	}
-</span><span class="">  423: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">424 → 431 → 439</span></span>  424: 	my @periods = sort keys %all_periods;
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  425: 	return () unless @periods &gt;= $MIN_PERIODS_POP;
+</span><span class="">  409: # _top_movers($records, $date_col, $num_col, \@cat_cols, $spec_key, $base_url) -&gt; @insights
+</span><span class="">  410: #
+</span><span class="">  411: # For each categorical group, compute period-over-period delta between the two
+</span><span class="">  412: # most recent periods, and report the top MAX_TOP_MOVERS movers.
+</span><span class="">  413: sub _top_movers {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">414 → 420 → 432</span></span>  414: 	my ($records, $date_col, $num_col, $cat_cols, $spec_key, $base_url) = @_;
+</span><span class="">  415: 	return () unless @$cat_cols;
+</span><span class="">  416: 
+</span><span class="">  417: 	# Collect totals keyed by (period, group_key).
+</span><span class="">  418: 	my (%totals, %group_labels);
+</span><span class="">  419: 	my %all_periods;
+</span><span class="">  420: 	for my $row (@$records) {
+</span><span class="">  421: 		my $date = $row-&gt;{$date_col} // &#39;&#39;;
+</span><span class="">  422: 		next unless $date =~ /\A(\d{4}-\d{2})/;
+</span><span class="">  423: 		my $period = $1;
+</span><span class="">  424: 		$all_periods{$period}++;
+</span><span class="">  425: 		my $gkey = join(&quot;\x00&quot;, map { $row-&gt;{$_} // &#39;&#39; } @$cat_cols);
+</span><span class="">  426: 		my $val  = _to_num($row-&gt;{$num_col});
+</span><span class="">  427: 		next unless defined $val;
+</span><span class="">  428: 		$totals{$period}{$gkey} += $val;
+</span><span class="">  429: 		$group_labels{$gkey} //= join(&#39;, &#39;, map { $row-&gt;{$_} // &#39;&#39; } @$cat_cols);
+</span><span class="">  430: 	}
+</span><span class="">  431: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">432 → 439 → 447</span></span>  432: 	my @periods = sort keys %all_periods;
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  433: 	return () unless @periods &gt;= $MIN_PERIODS_POP;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_425_28_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_433_28_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1233,7 +1299,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_425_28_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_433_28_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1241,7 +1307,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_425_28_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_433_28_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1250,29 +1316,29 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  426: 
-</span><span class="">  427: 	my $cur  = $periods[-1];
-</span><span class="">  428: 	my $prev = $periods[-2];
-</span><span class="">  429: 
-</span><span class="">  430: 	my (@movers);
-</span><span class="">  431: 	for my $gkey (keys %group_labels) {
-</span><span class="">  432: 		my $cur_val  = $totals{$cur}{$gkey}  // 0;
-</span><span class="">  433: 		my $prev_val = $totals{$prev}{$gkey} // 0;
-</span><span class="">  434: 		my $delta    = $cur_val - $prev_val;
-</span><span class="">  435: 		push @movers, { gkey =&gt; $gkey, label =&gt; $group_labels{$gkey},
-</span><span class="">  436: 		                delta =&gt; $delta, cur =&gt; $cur_val, prev =&gt; $prev_val };
-</span><span class="">  437: 	}
-</span><span class="">  438: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">439 → 452 → 489</span></span>  439: 	return () unless @movers;
-</span><span class="">  440: 
-</span><span class="">  441: 	# Sort by absolute delta descending.
-</span><span class="">  442: 	@movers = sort { abs($b-&gt;{delta}) &lt;=&gt; abs($a-&gt;{delta}) } @movers;
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  443: 	splice @movers, $MAX_TOP_MOVERS if @movers &gt; $MAX_TOP_MOVERS;
+<span class="">  434: 
+</span><span class="">  435: 	my $cur  = $periods[-1];
+</span><span class="">  436: 	my $prev = $periods[-2];
+</span><span class="">  437: 
+</span><span class="">  438: 	my (@movers);
+</span><span class="">  439: 	for my $gkey (keys %group_labels) {
+</span><span class="">  440: 		my $cur_val  = $totals{$cur}{$gkey}  // 0;
+</span><span class="">  441: 		my $prev_val = $totals{$prev}{$gkey} // 0;
+</span><span class="">  442: 		my $delta    = $cur_val - $prev_val;
+</span><span class="">  443: 		push @movers, { gkey =&gt; $gkey, label =&gt; $group_labels{$gkey},
+</span><span class="">  444: 		                delta =&gt; $delta, cur =&gt; $cur_val, prev =&gt; $prev_val };
+</span><span class="">  445: 	}
+</span><span class="">  446: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">447 → 460 → 497</span></span>  447: 	return () unless @movers;
+</span><span class="">  448: 
+</span><span class="">  449: 	# Sort by absolute delta descending.
+</span><span class="">  450: 	@movers = sort { abs($b-&gt;{delta}) &lt;=&gt; abs($a-&gt;{delta}) } @movers;
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  451: 	splice @movers, $MAX_TOP_MOVERS if @movers &gt; $MAX_TOP_MOVERS;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_443_45_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_451_45_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1280,7 +1346,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_443_45_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_451_45_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1288,7 +1354,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_443_45_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_451_45_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1297,21 +1363,21 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  444: 
-</span><span class="">  445: 	my $cat_col  = $cat_cols-&gt;[0];
-</span><span class="">  446: 	my $enc_spec = url_escape_simple($spec_key);
-</span><span class="">  447: 	my $enc_date = url_escape_simple($date_col);
-</span><span class="">  448: 	my $enc_num  = url_escape_simple($num_col);
-</span><span class="">  449: 	my $enc_cat  = url_escape_simple($cat_col);
-</span><span class="">  450: 
-</span><span class="">  451: 	my @insights;
-</span><span class="">  452: 	for my $m (@movers) {
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  453: 		my $dir  = $m-&gt;{delta} &gt;= 0 ? &#39;up&#39; : &#39;down&#39;;
+<span class="">  452: 
+</span><span class="">  453: 	my $cat_col  = $cat_cols-&gt;[0];
+</span><span class="">  454: 	my $enc_spec = url_escape_simple($spec_key);
+</span><span class="">  455: 	my $enc_date = url_escape_simple($date_col);
+</span><span class="">  456: 	my $enc_num  = url_escape_simple($num_col);
+</span><span class="">  457: 	my $enc_cat  = url_escape_simple($cat_col);
+</span><span class="">  458: 
+</span><span class="">  459: 	my @insights;
+</span><span class="">  460: 	for my $m (@movers) {
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  461: 		my $dir  = $m-&gt;{delta} &gt;= 0 ? &#39;up&#39; : &#39;down&#39;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_453_26_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_461_26_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1319,7 +1385,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_453_26_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_461_26_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1327,7 +1393,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_453_26_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_461_26_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1336,12 +1402,12 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  454: 		my $sign = $m-&gt;{delta} &gt;= 0 ? &#39;+&#39; : &#39;&#39;;
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  462: 		my $sign = $m-&gt;{delta} &gt;= 0 ? &#39;+&#39; : &#39;&#39;;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_454_26_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_462_26_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1349,7 +1415,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_454_26_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_462_26_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1357,7 +1423,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_454_26_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_462_26_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1366,76 +1432,76 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  455: 		my $headline = sprintf(&#39;%s %s %s by %s from %s to %s&#39;,
-</span><span class="">  456: 			$m-&gt;{label}, $num_col, $dir, _fmt_num(abs($m-&gt;{delta})), $prev, $cur);
-</span><span class="">  457: 		my $detail = sprintf(&#39;%s: %s  %s: %s&#39;,
-</span><span class="">  458: 			$prev, _fmt_num($m-&gt;{prev}), $cur, _fmt_num($m-&gt;{cur}));
-</span><span class="">  459: 
-</span><span class="">  460: 		# Encode the group value for the filter.
-</span><span class="">  461: 		my $gval_enc = url_escape_simple((split /\x00/, $m-&gt;{gkey})[0] // &#39;&#39;);
-</span><span class="">  462: 		my $view_url = &quot;/graph?l=$enc_spec&amp;x=$enc_date&amp;y=$enc_num&quot;
-</span><span class="">  463: 		             . &quot;&amp;f=$enc_cat:eq:$gval_enc&quot;;
-</span><span class="">  464: 
-</span><span class="">  465: 		# Drill into data table filtered to category + current period.
-</span><span class="">  466: 		my $drill_url;
-</span><span class="">  467: 		my $base = _spec_to_data_url($spec_key);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  468: 		if ($base) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  469: 			my $sep = ($base =~ /\?/) ? &#39;&amp;&#39; : &#39;?&#39;;
-</span><span class="">  470: 			$drill_url = $base . $sep
-</span><span class="">  471: 			           . &#39;f=&#39; . $enc_date . &#39;:starts:&#39; . url_escape_simple($cur)
-</span><span class="">  472: 			           . &#39;&amp;f=&#39; . $enc_cat  . &#39;:eq:&#39;     . $gval_enc;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  473: 			if ($base_url) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  474: 				$drill_url .= &#39;&amp;back2=&#39; . url_escape_simple($base_url)
-</span><span class="">  475: 				           . &#39;&amp;back2_label=Back+to+insights&#39;;
-</span><span class="">  476: 			}
-</span><span class="">  477: 		}
-</span><span class="">  478: 
-</span><span class="">  479: 		push @insights, {
-</span><span class="">  480: 			kind      =&gt; &#39;top_mover&#39;,
-</span><span class="">  481: 			headline  =&gt; $headline,
-</span><span class="">  482: 			detail    =&gt; $detail,
-</span><span class="">  483: 			view_url  =&gt; $view_url,
-</span><span class="">  484: 			($drill_url ? (drill_url =&gt; $drill_url) : ()),
-</span><span class="">  485: 			method    =&gt; &#39;top_mover&#39;,
-</span><span class="">  486: 		};
-</span><span class="">  487: 	}
-</span><span class="">  488: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  489: 	return @insights;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  490: }
-</span><span class="">  491: 
-</span><span class="">  492: # _seasonality($records, $date_col, $num_col, $spec_key, $base_url) -&gt; @insights
-</span><span class="">  493: #
-</span><span class="">  494: # Computes period sums (year-month), then calculates the lag-1 autocorrelation
-</span><span class="">  495: # coefficient on the sequence of sums.  A coefficient &gt;= SEASON_R_THRESHOLD
-</span><span class="">  496: # is flagged as seasonal.
-</span><span class="">  497: #
-</span><span class="">  498: # Autocorrelation formula:
-</span><span class="">  499: #   r(1) = sum_{t=1}^{n-1}[(x_t - xbar)(x_{t+1} - xbar)] / sum_{t=0}^{n-1}[(x_t - xbar)^2]
-</span><span class="">  500: #
-</span><span class="">  501: # This is the Pearson correlation between the series and itself shifted by one
-</span><span class="">  502: # period.  For a regular, evenly-spaced time series this is the lag-1 Moran
-</span><span class="">  503: # coefficient.  With uneven spacing it is an approximation, but adequate for
-</span><span class="">  504: # detecting year-over-year periodicity in monthly business data.
-</span><span class="">  505: sub _seasonality {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">506 → 509 → 518</span></span>  506: 	my ($records, $date_col, $num_col, $spec_key, $base_url) = @_;
-</span><span class="">  507: 
-</span><span class="">  508: 	my %period_totals;
-</span><span class="">  509: 	for my $row (@$records) {
-</span><span class="">  510: 		my $date = $row-&gt;{$date_col} // &#39;&#39;;
-</span><span class="">  511: 		next unless $date =~ /\A(\d{4}-\d{2})/;
-</span><span class="">  512: 		my $period = $1;
-</span><span class="">  513: 		my $val    = _to_num($row-&gt;{$num_col});
-</span><span class="">  514: 		next unless defined $val;
-</span><span class="">  515: 		$period_totals{$period} += $val;
-</span><span class="">  516: 	}
-</span><span class="">  517: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">518 → 527 → 533</span></span>  518: 	my @periods = sort keys %period_totals;
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  519: 	return () unless @periods &gt;= $MIN_PERIODS_SEASON;
+<span class="">  463: 		my $headline = sprintf(&#39;%s %s %s by %s from %s to %s&#39;,
+</span><span class="">  464: 			$m-&gt;{label}, $num_col, $dir, _fmt_num(abs($m-&gt;{delta})), $prev, $cur);
+</span><span class="">  465: 		my $detail = sprintf(&#39;%s: %s  %s: %s&#39;,
+</span><span class="">  466: 			$prev, _fmt_num($m-&gt;{prev}), $cur, _fmt_num($m-&gt;{cur}));
+</span><span class="">  467: 
+</span><span class="">  468: 		# Encode the group value for the filter.
+</span><span class="">  469: 		my $gval_enc = url_escape_simple((split /\x00/, $m-&gt;{gkey})[0] // &#39;&#39;);
+</span><span class="">  470: 		my $view_url = &quot;/graph?l=$enc_spec&amp;x=$enc_date&amp;y=$enc_num&quot;
+</span><span class="">  471: 		             . &quot;&amp;f=$enc_cat:eq:$gval_enc&quot;;
+</span><span class="">  472: 
+</span><span class="">  473: 		# Drill into data table filtered to category + current period.
+</span><span class="">  474: 		my $drill_url;
+</span><span class="">  475: 		my $base = _spec_to_data_url($spec_key);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  476: 		if ($base) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  477: 			my $sep = ($base =~ /\?/) ? &#39;&amp;&#39; : &#39;?&#39;;
+</span><span class="">  478: 			$drill_url = $base . $sep
+</span><span class="">  479: 			           . &#39;f=&#39; . $enc_date . &#39;:starts:&#39; . url_escape_simple($cur)
+</span><span class="">  480: 			           . &#39;&amp;f=&#39; . $enc_cat  . &#39;:eq:&#39;     . $gval_enc;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  481: 			if ($base_url) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  482: 				$drill_url .= &#39;&amp;back2=&#39; . url_escape_simple($base_url)
+</span><span class="">  483: 				           . &#39;&amp;back2_label=Back+to+insights&#39;;
+</span><span class="">  484: 			}
+</span><span class="">  485: 		}
+</span><span class="">  486: 
+</span><span class="">  487: 		push @insights, {
+</span><span class="">  488: 			kind      =&gt; &#39;top_mover&#39;,
+</span><span class="">  489: 			headline  =&gt; $headline,
+</span><span class="">  490: 			detail    =&gt; $detail,
+</span><span class="">  491: 			view_url  =&gt; $view_url,
+</span><span class="">  492: 			($drill_url ? (drill_url =&gt; $drill_url) : ()),
+</span><span class="">  493: 			method    =&gt; &#39;top_mover&#39;,
+</span><span class="">  494: 		};
+</span><span class="">  495: 	}
+</span><span class="">  496: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  497: 	return @insights;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  498: }
+</span><span class="">  499: 
+</span><span class="">  500: # _seasonality($records, $date_col, $num_col, $spec_key, $base_url) -&gt; @insights
+</span><span class="">  501: #
+</span><span class="">  502: # Computes period sums (year-month), then calculates the lag-1 autocorrelation
+</span><span class="">  503: # coefficient on the sequence of sums.  A coefficient &gt;= SEASON_R_THRESHOLD
+</span><span class="">  504: # is flagged as seasonal.
+</span><span class="">  505: #
+</span><span class="">  506: # Autocorrelation formula:
+</span><span class="">  507: #   r(1) = sum_{t=1}^{n-1}[(x_t - xbar)(x_{t+1} - xbar)] / sum_{t=0}^{n-1}[(x_t - xbar)^2]
+</span><span class="">  508: #
+</span><span class="">  509: # This is the Pearson correlation between the series and itself shifted by one
+</span><span class="">  510: # period.  For a regular, evenly-spaced time series this is the lag-1 Moran
+</span><span class="">  511: # coefficient.  With uneven spacing it is an approximation, but adequate for
+</span><span class="">  512: # detecting year-over-year periodicity in monthly business data.
+</span><span class="">  513: sub _seasonality {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">514 → 517 → 526</span></span>  514: 	my ($records, $date_col, $num_col, $spec_key, $base_url) = @_;
+</span><span class="">  515: 
+</span><span class="">  516: 	my %period_totals;
+</span><span class="">  517: 	for my $row (@$records) {
+</span><span class="">  518: 		my $date = $row-&gt;{$date_col} // &#39;&#39;;
+</span><span class="">  519: 		next unless $date =~ /\A(\d{4}-\d{2})/;
+</span><span class="">  520: 		my $period = $1;
+</span><span class="">  521: 		my $val    = _to_num($row-&gt;{$num_col});
+</span><span class="">  522: 		next unless defined $val;
+</span><span class="">  523: 		$period_totals{$period} += $val;
+</span><span class="">  524: 	}
+</span><span class="">  525: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">526 → 535 → 541</span></span>  526: 	my @periods = sort keys %period_totals;
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  527: 	return () unless @periods &gt;= $MIN_PERIODS_SEASON;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_519_28_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_527_28_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1443,7 +1509,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_519_28_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_527_28_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1451,7 +1517,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_519_28_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_527_28_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1460,54 +1526,22 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  520: 
-</span><span class="">  521: 	my @y     = map { $period_totals{$_} } @periods;
-</span><span class="">  522: 	my $n     = scalar @y;
-</span><span class="">  523: 	my $ybar  = (sum(@y)) / $n;
-</span><span class="">  524: 
-</span><span class="">  525: 	my $num   = 0;
-</span><span class="">  526: 	my $denom = 0;
-</span><span class="">  527: 	for my $i (0 .. $n - 1) {
-</span><span class="">  528: 		my $dev = $y[$i] - $ybar;
-</span><span class="">  529: 		$denom += $dev * $dev;
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  530: 		$num   += $dev * ($y[$i + 1] - $ybar) if $i &lt; $n - 1;
-</span>
-					<details class="mutant-details">
-					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
-					<ul>
-				<li><b>NUM_BOUNDARY_530_47_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>NUM_BOUNDARY_530_47_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li><li><b>NUM_BOUNDARY_530_47_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
-
-								<div class="suggested-test">
-								<div class="suggest-label">🧪 Suggested Test</div>
-								<pre># Boundary test suggestion
-is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
-</pre>
-								</div>
-							</li></ul></details>
-<span class="">  531: 	}
+<span class="">  528: 
+</span><span class="">  529: 	my @y     = map { $period_totals{$_} } @periods;
+</span><span class="">  530: 	my $n     = scalar @y;
+</span><span class="">  531: 	my $ybar  = (sum(@y)) / $n;
 </span><span class="">  532: 
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  533: 	return () unless $denom &gt; 0;
+</span><span class="">  533: 	my $num   = 0;
+</span><span class="">  534: 	my $denom = 0;
+</span><span class="">  535: 	for my $i (0 .. $n - 1) {
+</span><span class="">  536: 		my $dev = $y[$i] - $ybar;
+</span><span class="">  537: 		$denom += $dev * $dev;
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  538: 		$num   += $dev * ($y[$i + 1] - $ybar) if $i &lt; $n - 1;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_533_26_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_538_47_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1515,7 +1549,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_533_26_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_538_47_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1523,7 +1557,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_533_26_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_538_47_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1532,14 +1566,14 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  534: 	my $r = $num / $denom;
-</span><span class="">  535: 
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  536: 	return () unless $r &gt;= $SEASON_R_THRESHOLD;
+<span class="">  539: 	}
+</span><span class="">  540: 
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  541: 	return () unless $denom &gt; 0;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_536_22_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_541_26_&lt;: Numeric boundary flip &gt; to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1547,7 +1581,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_536_22_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_541_26_&gt;=: Numeric boundary flip &gt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1555,7 +1589,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_536_22_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_541_26_&lt;=: Numeric boundary flip &gt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1564,38 +1598,70 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  537: 
-</span><span class="">  538: 	my $headline = sprintf(&#39;%s shows a repeating period-over-period pattern (r=%.2f)&#39;,
-</span><span class="">  539: 		$num_col, $r);
-</span><span class="">  540: 	my $detail = sprintf(
-</span><span class="">  541: 		&#39;Lag-1 autocorrelation %.2f across %d periods (%s to %s)&#39;,
-</span><span class="">  542: 		$r, $n, $periods[0], $periods[-1]
-</span><span class="">  543: 	);
-</span><span class="">  544: 
-</span><span class="">  545: 	my $enc_spec = url_escape_simple($spec_key);
-</span><span class="">  546: 	my $enc_date = url_escape_simple($date_col);
-</span><span class="">  547: 	my $enc_num  = url_escape_simple($num_col);
-</span><span class="">  548: 	my $view_url = &quot;/graph?l=$enc_spec&amp;x=$enc_date&amp;y=$enc_num&quot;;
-</span><span class="">  549: 
-</span><span class="">  550: 	return ({
-</span><span class="">  551: 		kind     =&gt; &#39;seasonality&#39;,
-</span><span class="">  552: 		headline =&gt; $headline,
-</span><span class="">  553: 		detail   =&gt; $detail,
-</span><span class="">  554: 		view_url =&gt; $view_url,
-</span><span class="">  555: 		method   =&gt; &#39;autocorr&#39;,
-</span><span class="">  556: 	});
-</span><span class="">  557: }
-</span><span class="">  558: 
-</span><span class="">  559: # _fmt_num($n) -&gt; $string
-</span><span class="">  560: # Format a number to 4 significant figures, stripping trailing zeros.
-</span><span class="">  561: sub _fmt_num {
-</span><span class="">  562: 	my $n = shift;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  563: 	return &#39;N/A&#39; unless defined $n;
+<span class="">  542: 	my $r = $num / $denom;
+</span><span class="">  543: 
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  544: 	return () unless $r &gt;= $SEASON_R_THRESHOLD;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_544_22_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_544_22_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_544_22_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  545: 
+</span><span class="">  546: 	my $headline = sprintf(&#39;%s shows a repeating period-over-period pattern (r=%.2f)&#39;,
+</span><span class="">  547: 		$num_col, $r);
+</span><span class="">  548: 	my $detail = sprintf(
+</span><span class="">  549: 		&#39;Lag-1 autocorrelation %.2f across %d periods (%s to %s)&#39;,
+</span><span class="">  550: 		$r, $n, $periods[0], $periods[-1]
+</span><span class="">  551: 	);
+</span><span class="">  552: 
+</span><span class="">  553: 	my $enc_spec = url_escape_simple($spec_key);
+</span><span class="">  554: 	my $enc_date = url_escape_simple($date_col);
+</span><span class="">  555: 	my $enc_num  = url_escape_simple($num_col);
+</span><span class="">  556: 	my $view_url = &quot;/graph?l=$enc_spec&amp;x=$enc_date&amp;y=$enc_num&quot;;
+</span><span class="">  557: 
+</span><span class="">  558: 	return ({
+</span><span class="">  559: 		kind     =&gt; &#39;seasonality&#39;,
+</span><span class="">  560: 		headline =&gt; $headline,
+</span><span class="">  561: 		detail   =&gt; $detail,
+</span><span class="">  562: 		view_url =&gt; $view_url,
+</span><span class="">  563: 		method   =&gt; &#39;autocorr&#39;,
+</span><span class="">  564: 	});
+</span><span class="">  565: }
+</span><span class="">  566: 
+</span><span class="">  567: # _fmt_num($n) -&gt; $string
+</span><span class="">  568: # Format a number to 4 significant figures, stripping trailing zeros.
+</span><span class="">  569: sub _fmt_num {
+</span><span class="">  570: 	my $n = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  571: 	return &#39;N/A&#39; unless defined $n;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_563_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_571_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1603,7 +1669,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_563_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_571_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1612,12 +1678,12 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  564: 	return sprintf(&#39;%s&#39;, $n) if $n == int($n) &amp;&amp; abs($n) &lt; 1e12;
+<span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  572: 	return sprintf(&#39;%s&#39;, $n) if $n == int($n) &amp;&amp; abs($n) &lt; 1e12;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 6, Killed: 2, Survived: 4)</summary>
 					<ul>
-				<li><b>NUM_BOUNDARY_564_33_!=: Numeric boundary flip == to !=</b><br>HIGH: Likely missing edge-case test (boundary value)
+				<li><b>NUM_BOUNDARY_572_55_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1625,7 +1691,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_564_55_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_572_55_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1633,7 +1699,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_564_55_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_572_55_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1641,7 +1707,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>NUM_BOUNDARY_564_55_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+							</li><li><b>NUM_BOUNDARY_572_33_!=: Numeric boundary flip == to !=</b><br>HIGH: Likely missing edge-case test (boundary value)
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1650,12 +1716,12 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  565: 	return sprintf(&#39;%s&#39;, 0 + sprintf(&#39;%.4g&#39;, $n));
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  573: 	return sprintf(&#39;%s&#39;, 0 + sprintf(&#39;%.4g&#39;, $n));
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_565_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_573_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1663,7 +1729,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_565_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_573_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1672,36 +1738,36 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  566: }
-</span><span class="">  567: 
-</span><span class="">  568: # Minimal URL-encode for query-parameter values (encodes everything except
-</span><span class="">  569: # letters, digits, hyphens, dots, underscores, and tildes per RFC 3986).
-</span><span class="">  570: sub url_escape_simple {
-</span><span class="">  571: 	my $s = shift // &#39;&#39;;
-</span><span class="">  572: 	$s =~ s/([^A-Za-z0-9\-._~])/sprintf(&#39;%%%02X&#39;, ord($1))/ge;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  573: 	return $s;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  574: }
+<span class="">  574: }
 </span><span class="">  575: 
-</span><span class="">  576: # _spec_to_data_url($spec_key) -&gt; $url_or_undef
-</span><span class="">  577: #
-</span><span class="">  578: # Converts a l= spec key to the root-relative URL of the data table page.
-</span><span class="">  579: #   table:sales           -&gt; /view/sales
-</span><span class="">  580: #   path:/abs/path/f.csv  -&gt; /open?path=%2Fabs%2Fpath%2Ff.csv
-</span><span class="">  581: # Returns undef for unrecognised spec forms.
-</span><span class="">  582: sub _spec_to_data_url {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">583 → 584 → 587</span></span>  583: 	my $spec = shift // &#39;&#39;;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  584: 	if ($spec =~ /\Atable:(.+)\z/) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  585: 		return &#39;/view/&#39; . url_escape_simple($1);
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  586: 	}
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">587 → 587 → 590</span></span>  587: 	if ($spec =~ /\Apath:(.+)\z/) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  588: 		return &#39;/open?path=&#39; . url_escape_simple($1);
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  589: 	}
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  590: 	return undef;
+</span><span class="">  576: # Minimal URL-encode for query-parameter values (encodes everything except
+</span><span class="">  577: # letters, digits, hyphens, dots, underscores, and tildes per RFC 3986).
+</span><span class="">  578: sub url_escape_simple {
+</span><span class="">  579: 	my $s = shift // &#39;&#39;;
+</span><span class="">  580: 	$s =~ s/([^A-Za-z0-9\-._~])/sprintf(&#39;%%%02X&#39;, ord($1))/ge;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  581: 	return $s;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  582: }
+</span><span class="">  583: 
+</span><span class="">  584: # _spec_to_data_url($spec_key) -&gt; $url_or_undef
+</span><span class="">  585: #
+</span><span class="">  586: # Converts a l= spec key to the root-relative URL of the data table page.
+</span><span class="">  587: #   table:sales           -&gt; /view/sales
+</span><span class="">  588: #   path:/abs/path/f.csv  -&gt; /open?path=%2Fabs%2Fpath%2Ff.csv
+</span><span class="">  589: # Returns undef for unrecognised spec forms.
+</span><span class="">  590: sub _spec_to_data_url {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">591 → 592 → 595</span></span>  591: 	my $spec = shift // &#39;&#39;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  592: 	if ($spec =~ /\Atable:(.+)\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  593: 		return &#39;/view/&#39; . url_escape_simple($1);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  594: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">595 → 595 → 598</span></span>  595: 	if ($spec =~ /\Apath:(.+)\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  596: 		return &#39;/open?path=&#39; . url_escape_simple($1);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  597: 	}
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  598: 	return undef;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
 					<ul>
-				<li><b>BOOL_NEGATE_590_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+				<li><b>BOOL_NEGATE_598_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1709,7 +1775,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
 </pre>
 								</div>
-							</li><li><b>RETURN_UNDEF_590_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+							</li><li><b>RETURN_UNDEF_598_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
 
 								<div class="suggested-test">
 								<div class="suggest-label">🧪 Suggested Test</div>
@@ -1718,111 +1784,111 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  591: }
-</span><span class="">  592: 
-</span><span class="">  593: 1;
-</span><span class="">  594: 
-</span><span class="">  595: __END__
-</span><span class="">  596: 
-</span><span class="">  597: =head1 NAME
-</span><span class="">  598: 
-</span><span class="">  599: Database::BI::Insights - Automatic statistical insights for Database::BI (Phase 5.2)
+<span class="">  599: }
 </span><span class="">  600: 
-</span><span class="">  601: =head1 SYNOPSIS
+</span><span class="">  601: 1;
 </span><span class="">  602: 
-</span><span class="">  603:     use Database::BI::Insights;
+</span><span class="">  603: __END__
 </span><span class="">  604: 
-</span><span class="">  605:     my $insights = Database::BI::Insights::compute(
-</span><span class="">  606:         records  =&gt; \@rows,
-</span><span class="">  607:         columns  =&gt; \@cols,
-</span><span class="">  608:         spec_key =&gt; &#39;table:sales&#39;,
-</span><span class="">  609:         base_url =&gt; &#39;/insights?l=table:sales&#39;,
-</span><span class="">  610:     );
-</span><span class="">  611: 
-</span><span class="">  612: =head1 DESCRIPTION
-</span><span class="">  613: 
-</span><span class="">  614: Pure-arithmetic insight detection.  No LLM, no external service calls.
-</span><span class="">  615: Detects four classes of insight:
-</span><span class="">  616: 
-</span><span class="">  617: =over
-</span><span class="">  618: 
-</span><span class="">  619: =item outlier
-</span><span class="">  620: 
-</span><span class="">  621: A value beyond the Tukey IQR fence (Q1 - 1.5*IQR or Q3 + 1.5*IQR).
-</span><span class="">  622: 
-</span><span class="">  623: =item period_delta
+</span><span class="">  605: =head1 NAME
+</span><span class="">  606: 
+</span><span class="">  607: Database::BI::Insights - Automatic statistical insights for Database::BI (Phase 5.2)
+</span><span class="">  608: 
+</span><span class="">  609: =head1 SYNOPSIS
+</span><span class="">  610: 
+</span><span class="">  611:     use Database::BI::Insights;
+</span><span class="">  612: 
+</span><span class="">  613:     my $insights = Database::BI::Insights::compute(
+</span><span class="">  614:         records  =&gt; \@rows,
+</span><span class="">  615:         columns  =&gt; \@cols,
+</span><span class="">  616:         spec_key =&gt; &#39;table:sales&#39;,
+</span><span class="">  617:         base_url =&gt; &#39;/insights?l=table:sales&#39;,
+</span><span class="">  618:     );
+</span><span class="">  619: 
+</span><span class="">  620: =head1 DESCRIPTION
+</span><span class="">  621: 
+</span><span class="">  622: Pure-arithmetic insight detection.  No LLM, no external service calls.
+</span><span class="">  623: Detects four classes of insight:
 </span><span class="">  624: 
-</span><span class="">  625: Overall period-over-period delta between the most recent two month-periods
-</span><span class="">  626: visible in a date column.
-</span><span class="">  627: 
-</span><span class="">  628: =item top_mover
-</span><span class="">  629: 
-</span><span class="">  630: The dimension member with the largest period-over-period absolute change.
-</span><span class="">  631: Requires at least one categorical column and one date column.
+</span><span class="">  625: =over
+</span><span class="">  626: 
+</span><span class="">  627: =item outlier
+</span><span class="">  628: 
+</span><span class="">  629: A value beyond the Tukey IQR fence (Q1 - 1.5*IQR or Q3 + 1.5*IQR).
+</span><span class="">  630: 
+</span><span class="">  631: =item period_delta
 </span><span class="">  632: 
-</span><span class="">  633: =item seasonality
-</span><span class="">  634: 
-</span><span class="">  635: Detected via lag-1 autocorrelation on monthly totals.  A coefficient &gt;= 0.6
-</span><span class="">  636: is flagged.  Requires at least 8 distinct month-periods.
+</span><span class="">  633: Overall period-over-period delta between the most recent two month-periods
+</span><span class="">  634: visible in a date column.
+</span><span class="">  635: 
+</span><span class="">  636: =item top_mover
 </span><span class="">  637: 
-</span><span class="">  638: =back
-</span><span class="">  639: 
-</span><span class="">  640: Every insight includes a C&lt;view_url&gt; that links to the chart or stats view
-</span><span class="">  641: showing the underlying data.  An insight without a clickable view_url is a bug.
+</span><span class="">  638: The dimension member with the largest period-over-period absolute change.
+</span><span class="">  639: Requires at least one categorical column and one date column.
+</span><span class="">  640: 
+</span><span class="">  641: =item seasonality
 </span><span class="">  642: 
-</span><span class="">  643: =head1 FUNCTIONS
-</span><span class="">  644: 
-</span><span class="">  645: =head2 compute(%args)
-</span><span class="">  646: 
-</span><span class="">  647:     my $insights = Database::BI::Insights::compute(
-</span><span class="">  648:         records  =&gt; \@rows,     # arrayref of row hashrefs
-</span><span class="">  649:         columns  =&gt; \@cols,     # arrayref of column names
-</span><span class="">  650:         spec_key =&gt; $l,         # l= spec string
-</span><span class="">  651:         base_url =&gt; $url,       # request URL, used only as a fallback
-</span><span class="">  652:     );
-</span><span class="">  653: 
-</span><span class="">  654: Returns an arrayref of insight hashrefs.  Each hashref has:
-</span><span class="">  655: 
-</span><span class="">  656:     kind      -- &#39;outlier&#39; | &#39;top_mover&#39; | &#39;period_delta&#39; | &#39;seasonality&#39;
-</span><span class="">  657:     headline  -- one short sentence
-</span><span class="">  658:     detail    -- numbers that substantiate the headline
-</span><span class="">  659:     view_url  -- URL to the view showing the data
-</span><span class="">  660:     method    -- key for method_note()
+</span><span class="">  643: Detected via lag-1 autocorrelation on monthly totals.  A coefficient &gt;= 0.6
+</span><span class="">  644: is flagged.  Requires at least 8 distinct month-periods.
+</span><span class="">  645: 
+</span><span class="">  646: =back
+</span><span class="">  647: 
+</span><span class="">  648: Every insight includes a C&lt;view_url&gt; that links to the chart or stats view
+</span><span class="">  649: showing the underlying data.  An insight without a clickable view_url is a bug.
+</span><span class="">  650: 
+</span><span class="">  651: =head1 FUNCTIONS
+</span><span class="">  652: 
+</span><span class="">  653: =head2 compute(%args)
+</span><span class="">  654: 
+</span><span class="">  655:     my $insights = Database::BI::Insights::compute(
+</span><span class="">  656:         records  =&gt; \@rows,     # arrayref of row hashrefs
+</span><span class="">  657:         columns  =&gt; \@cols,     # arrayref of column names
+</span><span class="">  658:         spec_key =&gt; $l,         # l= spec string
+</span><span class="">  659:         base_url =&gt; $url,       # request URL, used only as a fallback
+</span><span class="">  660:     );
 </span><span class="">  661: 
-</span><span class="">  662: =head2 method_note($key)
+</span><span class="">  662: Returns an arrayref of insight hashrefs.  Each hashref has:
 </span><span class="">  663: 
-</span><span class="">  664: Returns a one-sentence description of the algorithm behind C&lt;$key&gt;.
-</span><span class="">  665: 
-</span><span class="">  666: =head1 ALGORITHM NOTES
-</span><span class="">  667: 
-</span><span class="">  668: =head3 Outliers
+</span><span class="">  664:     kind      -- &#39;outlier&#39; | &#39;top_mover&#39; | &#39;period_delta&#39; | &#39;seasonality&#39;
+</span><span class="">  665:     headline  -- one short sentence
+</span><span class="">  666:     detail    -- numbers that substantiate the headline
+</span><span class="">  667:     view_url  -- URL to the view showing the data
+</span><span class="">  668:     method    -- key for method_note()
 </span><span class="">  669: 
-</span><span class="">  670: Tukey IQR fence: Q1 - 1.5*IQR and Q3 + 1.5*IQR.  Requires at least 4 values
-</span><span class="">  671: per group.  Results are sorted by distance from the nearest fence; up to 5
-</span><span class="">  672: outliers are reported per column.
+</span><span class="">  670: =head2 method_note($key)
+</span><span class="">  671: 
+</span><span class="">  672: Returns a one-sentence description of the algorithm behind C&lt;$key&gt;.
 </span><span class="">  673: 
-</span><span class="">  674: =head3 Period-over-period
+</span><span class="">  674: =head1 ALGORITHM NOTES
 </span><span class="">  675: 
-</span><span class="">  676: Year-month (YYYY-MM) buckets from ISO-8601 date columns.  Requires at least
-</span><span class="">  677: 2 distinct periods.
-</span><span class="">  678: 
-</span><span class="">  679: =head3 Seasonality
-</span><span class="">  680: 
-</span><span class="">  681: Lag-1 autocorrelation r(1) on the sequence of period sums.
-</span><span class="">  682: Formula: r(1) = cov(y[t], y[t+1]) / var(y[t]).
-</span><span class="">  683: Threshold: r &gt;= 0.6.  Requires at least 8 distinct month-periods.
-</span><span class="">  684: 
-</span><span class="">  685: =head1 AUTHOR
+</span><span class="">  676: =head3 Outliers
+</span><span class="">  677: 
+</span><span class="">  678: Tukey IQR fence: Q1 - 1.5*IQR and Q3 + 1.5*IQR.  Requires at least 4 values
+</span><span class="">  679: per group.  Results are sorted by distance from the nearest fence; up to 5
+</span><span class="">  680: outliers are reported per column.
+</span><span class="">  681: 
+</span><span class="">  682: =head3 Period-over-period
+</span><span class="">  683: 
+</span><span class="">  684: Year-month (YYYY-MM) buckets from ISO-8601 date columns.  Requires at least
+</span><span class="">  685: 2 distinct periods.
 </span><span class="">  686: 
-</span><span class="">  687: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  687: =head3 Seasonality
 </span><span class="">  688: 
-</span><span class="">  689: =head1 LICENCE AND COPYRIGHT
-</span><span class="">  690: 
-</span><span class="">  691: Copyright 2026 Nigel Horne.
+</span><span class="">  689: Lag-1 autocorrelation r(1) on the sequence of period sums.
+</span><span class="">  690: Formula: r(1) = cov(y[t], y[t+1]) / var(y[t]).
+</span><span class="">  691: Threshold: r &gt;= 0.6.  Requires at least 8 distinct month-periods.
 </span><span class="">  692: 
-</span><span class="">  693: Usage is subject to the GPL2 licence terms.
+</span><span class="">  693: =head1 AUTHOR
 </span><span class="">  694: 
-</span><span class="">  695: =cut
+</span><span class="">  695: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  696: 
+</span><span class="">  697: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  698: 
+</span><span class="">  699: Copyright 2026 Nigel Horne.
+</span><span class="">  700: 
+</span><span class="">  701: Usage is subject to the GPL2 licence terms.
+</span><span class="">  702: 
+</span><span class="">  703: =cut
 </span></pre>
 
 <script>
