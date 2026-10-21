@@ -266,6 +266,9 @@ use_ok('Database::BI::Insights');
         like($o->{drill_url}, qr{\A/view/insights_fixture\?}, 'outlier drill_url starts with /view/...');
         like($o->{drill_url}, qr/f=region%3Aeq%3A|f=region:eq:/,
             'outlier drill_url contains category filter');
+        like($o->{drill_url}, qr/hl_col=/, 'outlier drill_url has hl_col param');
+        like($o->{drill_url}, qr/hl_op=(?:gt|lt)/, 'outlier drill_url has hl_op gt or lt');
+        like($o->{drill_url}, qr/hl_val=/, 'outlier drill_url has hl_val param');
         like($o->{drill_url}, qr/back2=/, 'outlier drill_url has back2 breadcrumb');
         unlike($o->{drill_url}, qr/ /, 'outlier drill_url has no raw spaces');
     }
@@ -338,6 +341,15 @@ use_ok('Database::BI::Insights');
       ->status_is(200)
       ->content_like(qr/See rows/, 'insights page contains "See rows" drill link text')
       ->content_like(qr/insight-drill-link/, 'insights page contains drill-link CSS class');
+
+    # HTTP: drill_url params (hl_col/hl_op/hl_val) on /open must not cause a 500.
+    $t->get_ok("/open?path=${enc}&f=region:eq:West&hl_col=amount&hl_op=gt&hl_val=500")
+      ->status_is(200, '/open with hl params returns 200 (highlight is client-side only)');
+
+    # HTTP: hl-row CSS class must appear in the dashboard layout when loaded.
+    $t->get_ok("/open?path=${enc}")
+      ->status_is(200)
+      ->content_like(qr/hl-row/, 'dashboard layout contains hl-row CSS class');
 }
 
 done_testing;

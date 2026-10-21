@@ -4289,6 +4289,64 @@ function parseAccounting(v) {
 }());
 </script>
 
+<script>
+// ---------------------------------------------------------------------------
+// Row highlight: applied when ?hl_col=, ?hl_op=, ?hl_val= are present in the
+// URL.  Used by the insights drill-down so the specific outlier row stands out
+// within the category group (which may be 75+ rows).
+// hl_op must be one of: gt ge lt le eq (default gt)
+// ---------------------------------------------------------------------------
+(function () {
+  var params = new URLSearchParams(window.location.search);
+  var hlCol  = params.get('hl_col');
+  var hlOp   = params.get('hl_op') || 'gt';
+  var hlVal  = params.get('hl_val');
+  if (!hlCol || hlVal === null) return;
+
+  var table = document.querySelector('table[data-table]');
+  if (!table || !table.tHead || !table.tBodies[0]) return;
+
+  // Locate the column index by scanning the current header row (which includes
+  // the injected sel-th at index 0 -- but that cell has no text, so it won't
+  // match any column name).  Using the found index directly on row.cells is
+  // correct because both the header and body are shifted identically.
+  var headers = Array.from(table.tHead.rows[0].cells);
+  var colIdx  = -1;
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i].textContent.trim() === hlCol) { colIdx = i; break; }
+  }
+  if (colIdx < 0) return;
+
+  var refNum  = parseFloat(hlVal);
+  var firstHl = null;
+
+  Array.from(table.tBodies[0].rows).forEach(function (row) {
+    var cell = row.cells[colIdx];
+    if (!cell) return;
+    var raw     = cell.textContent.trim();
+    var cellNum = parseAccounting(raw);
+    var match;
+    if (isNaN(cellNum) || isNaN(refNum)) {
+      match = (hlOp === 'eq' && raw === hlVal);
+    } else {
+      if      (hlOp === 'gt') match = cellNum >  refNum;
+      else if (hlOp === 'ge') match = cellNum >= refNum;
+      else if (hlOp === 'lt') match = cellNum <  refNum;
+      else if (hlOp === 'le') match = cellNum <= refNum;
+      else                    match = Math.abs(cellNum - refNum) < 1e-9;
+    }
+    if (match) {
+      row.classList.add('hl-row');
+      if (!firstHl) firstHl = row;
+    }
+  });
+
+  if (firstHl) {
+    firstHl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+}());
+</script>
+
 [%- IF file_path -%]
 <div id="bi-open-meta"
      data-name="[% title | html %]"

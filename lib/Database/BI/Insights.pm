@@ -290,17 +290,25 @@ sub _find_outliers {
 				$view_url = "/stats?l=" . url_escape_simple($spec_key);
 			}
 
-			# Build drill_url: data table filtered to category group so
-			# the outlier row is visible in context of its peers.
+			# Build drill_url: data table filtered to category group so the
+			# outlier row is visible in context of its peers.  The hl_col /
+			# hl_op / hl_val params tell dashboard.html.tt to highlight and
+			# scroll to the specific outlier row(s) within those 75+ peers.
 			my $drill_url;
 			if (@$cat_cols) {
 				my $base = _spec_to_data_url($spec_key);
 				if ($base) {
-					my $cat_enc = url_escape_simple($cat_cols->[0]);
-					my $gval    = (split /\x00/, $key)[0] // '';
-					my $gv_enc  = url_escape_simple($gval);
-					my $sep     = ($base =~ /\?/) ? '&' : '?';
-					$drill_url  = $base . $sep . 'f=' . $cat_enc . ':eq:' . $gv_enc;
+					my $cat_enc  = url_escape_simple($cat_cols->[0]);
+					my $gval     = (split /\x00/, $key)[0] // '';
+					my $gv_enc   = url_escape_simple($gval);
+					my $sep      = ($base =~ /\?/) ? '&' : '?';
+					$drill_url   = $base . $sep . 'f=' . $cat_enc . ':eq:' . $gv_enc;
+					# Highlight the outlier row(s): beyond the IQR fence.
+					my $hl_op    = ($val > $hi_fence) ? 'gt' : 'lt';
+					my $hl_fence = ($val > $hi_fence) ? $hi_fence : $lo_fence;
+					$drill_url  .= '&hl_col=' . url_escape_simple($num_col)
+					            .  '&hl_op='  . $hl_op
+					            .  '&hl_val=' . url_escape_simple(sprintf('%.10g', $hl_fence));
 					if ($base_url) {
 						$drill_url .= '&back2=' . url_escape_simple($base_url)
 						           . '&back2_label=Back+to+insights';
