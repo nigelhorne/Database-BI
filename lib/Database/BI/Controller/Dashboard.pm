@@ -1090,33 +1090,15 @@ sub _fetch_page :Protected ($self, $source, $params) {
 		return (\@page, $has_next);
 	}
 
-	# Criteria pushdown: translate as many f= specs as possible into SQL
-	# criteria (_filter_specs_to_criteria returns a criteria hashref and a
-	# residual list for any spec that cannot be safely pushed to SQL).
-	my ($criteria, $residual) = _filter_specs_to_criteria(\@f_specs, $source);
-	my $has_criteria = %$criteria;
+	# Always fetch all rows in Perl and filter with _apply_filter_spec.
+	# SQL criteria pushdown (passing %criteria to selectall_arrayref) is
+	# intentionally avoided: on some Perl/D::A version combinations the WHERE
+	# clause is silently dropped, returning the full unfiltered set.  The Perl
+	# path is correct on every supported version.  Memory cost: bounded by the
+	# source file size (the same as the dedup path already accepted).
+	my $all = $source->selectall_arrayref(@sort_args) // [];
 
-	# Full-pushdown fast path: all specs translated, no dedup, SQL-backed source.
-	# Use N+1 trick with SQL criteria + LIMIT/OFFSET -- avoids full-table fetch.
-	# Copy before pop: D::A may return a read-only ref to its internal cache.
-	if ($is_sql && !$dedup && !@$residual) {
-		my @records = @{ $source->selectall_arrayref(
-			%$criteria, limit => $per_page + 1, offset => $offset, @sort_args,
-		) // [] };
-		my $has_next = (@records > $per_page) ? 1 : 0;
-		pop @records if $has_next;
-		return (\@records, $has_next);
-	}
-
-	# Partial-pushdown / dedup path: fetch the SQL-filtered (and sorted) set,
-	# apply residual specs and/or dedup in Perl, then paginate the reduced set.
-	# Memory cost: the full reduced set.
-	my $all = $has_criteria
-		? $source->selectall_arrayref(%$criteria, @sort_args)
-		: $source->selectall_arrayref(@sort_args);
-	$all //= [];
-
-	$all = _apply_filter_spec($all, $_) for @$residual;
+	$all = _apply_filter_spec($all, $_) for @f_specs;
 
 	if ($dedup) {
 		my $cols = $source->columns;
