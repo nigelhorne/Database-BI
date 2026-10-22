@@ -5,8 +5,9 @@ use warnings;
 
 our $VERSION = '0.016.0';
 
-use List::Util qw(sum min max);
-use Scalar::Util qw(looks_like_number);
+use Database::BI::Util  qw(urlencode);
+use List::Util          qw(sum min max);
+use Scalar::Util        qw(looks_like_number);
 use Readonly;
 
 # ---------------------------------------------------------------------------
@@ -170,7 +171,7 @@ sub _to_num {
 	my $v = shift;
 	return undef unless defined $v && length $v;
 	my $is_acct = ($v =~ /\A\s*\(/);
-	(my $n = $v) =~ s/[^\d.\-]//g;
+	(my $n = $v) =~ s/[^\d.-]//g;
 	$n = "-$n" if $is_acct && $n =~ /\A\d/;
 	return undef unless $n =~ /\A-?\d+(?:\.\d+)?\z/;
 	return $n + 0;
@@ -283,11 +284,11 @@ sub _find_outliers {
 			# Build view_url: link to /bar for cat_cols, /stats otherwise.
 			my $view_url;
 			if (@$cat_cols) {
-				my $cat = url_escape_simple($cat_cols->[0]);
-				my $val_enc = url_escape_simple($num_col);
-				$view_url = "/bar?l=${\url_escape_simple($spec_key)}&cat=$cat&val=$val_enc&sort=value";
+				my $cat = urlencode($cat_cols->[0]);
+				my $val_enc = urlencode($num_col);
+				$view_url = "/bar?l=${\urlencode($spec_key)}&cat=$cat&val=$val_enc&sort=value";
 			} else {
-				$view_url = "/stats?l=" . url_escape_simple($spec_key);
+				$view_url = "/stats?l=" . urlencode($spec_key);
 			}
 
 			# Build drill_url: data table filtered to category group so the
@@ -298,19 +299,19 @@ sub _find_outliers {
 			if (@$cat_cols) {
 				my $base = _spec_to_data_url($spec_key);
 				if ($base) {
-					my $cat_enc  = url_escape_simple($cat_cols->[0]);
+					my $cat_enc  = urlencode($cat_cols->[0]);
 					my $gval     = (split /\x00/, $key)[0] // '';
-					my $gv_enc   = url_escape_simple($gval);
+					my $gv_enc   = urlencode($gval);
 					my $sep      = ($base =~ /\?/) ? '&' : '?';
 					$drill_url   = $base . $sep . 'f=' . $cat_enc . ':eq:' . $gv_enc;
 					# Highlight the outlier row(s): beyond the IQR fence.
 					my $hl_op    = ($val > $hi_fence) ? 'gt' : 'lt';
 					my $hl_fence = ($val > $hi_fence) ? $hi_fence : $lo_fence;
-					$drill_url  .= '&hl_col=' . url_escape_simple($num_col)
+					$drill_url  .= '&hl_col=' . urlencode($num_col)
 					            .  '&hl_op='  . $hl_op
-					            .  '&hl_val=' . url_escape_simple(sprintf('%.10g', $hl_fence));
+					            .  '&hl_val=' . urlencode(sprintf('%.10g', $hl_fence));
 					if ($base_url) {
-						$drill_url .= '&back2=' . url_escape_simple($base_url)
+						$drill_url .= '&back2=' . urlencode($base_url)
 						           . '&back2_label=Back+to+insights';
 					}
 				}
@@ -378,9 +379,9 @@ sub _period_over_period {
 		: sprintf('%s: %s  %s: %s',
 			$prev, _fmt_num($prev_val), $cur, _fmt_num($cur_val));
 
-	my $enc_spec = url_escape_simple($spec_key);
-	my $enc_date = url_escape_simple($date_col);
-	my $enc_num  = url_escape_simple($num_col);
+	my $enc_spec = urlencode($spec_key);
+	my $enc_date = urlencode($date_col);
+	my $enc_num  = urlencode($num_col);
 	my $view_url = "/graph?l=$enc_spec&x=$enc_date&y=$enc_num";
 
 	# Drill into the data table filtered to the current period.
@@ -389,9 +390,9 @@ sub _period_over_period {
 	if ($base) {
 		my $sep = ($base =~ /\?/) ? '&' : '?';
 		$drill_url = $base . $sep
-		           . 'f=' . $enc_date . ':starts:' . url_escape_simple($cur);
+		           . 'f=' . $enc_date . ':starts:' . urlencode($cur);
 		if ($base_url) {
-			$drill_url .= '&back2=' . url_escape_simple($base_url)
+			$drill_url .= '&back2=' . urlencode($base_url)
 			           . '&back2_label=Back+to+insights';
 		}
 	}
@@ -451,10 +452,10 @@ sub _top_movers {
 	splice @movers, $MAX_TOP_MOVERS if @movers > $MAX_TOP_MOVERS;
 
 	my $cat_col  = $cat_cols->[0];
-	my $enc_spec = url_escape_simple($spec_key);
-	my $enc_date = url_escape_simple($date_col);
-	my $enc_num  = url_escape_simple($num_col);
-	my $enc_cat  = url_escape_simple($cat_col);
+	my $enc_spec = urlencode($spec_key);
+	my $enc_date = urlencode($date_col);
+	my $enc_num  = urlencode($num_col);
+	my $enc_cat  = urlencode($cat_col);
 
 	my @insights;
 	for my $m (@movers) {
@@ -466,7 +467,7 @@ sub _top_movers {
 			$prev, _fmt_num($m->{prev}), $cur, _fmt_num($m->{cur}));
 
 		# Encode the group value for the filter.
-		my $gval_enc = url_escape_simple((split /\x00/, $m->{gkey})[0] // '');
+		my $gval_enc = urlencode((split /\x00/, $m->{gkey})[0] // '');
 		my $view_url = "/graph?l=$enc_spec&x=$enc_date&y=$enc_num"
 		             . "&f=$enc_cat:eq:$gval_enc";
 
@@ -476,10 +477,10 @@ sub _top_movers {
 		if ($base) {
 			my $sep = ($base =~ /\?/) ? '&' : '?';
 			$drill_url = $base . $sep
-			           . 'f=' . $enc_date . ':starts:' . url_escape_simple($cur)
+			           . 'f=' . $enc_date . ':starts:' . urlencode($cur)
 			           . '&f=' . $enc_cat  . ':eq:'     . $gval_enc;
 			if ($base_url) {
-				$drill_url .= '&back2=' . url_escape_simple($base_url)
+				$drill_url .= '&back2=' . urlencode($base_url)
 				           . '&back2_label=Back+to+insights';
 			}
 		}
@@ -550,9 +551,9 @@ sub _seasonality {
 		$r, $n, $periods[0], $periods[-1]
 	);
 
-	my $enc_spec = url_escape_simple($spec_key);
-	my $enc_date = url_escape_simple($date_col);
-	my $enc_num  = url_escape_simple($num_col);
+	my $enc_spec = urlencode($spec_key);
+	my $enc_date = urlencode($date_col);
+	my $enc_num  = urlencode($num_col);
 	my $view_url = "/graph?l=$enc_spec&x=$enc_date&y=$enc_num";
 
 	return ({
@@ -573,13 +574,6 @@ sub _fmt_num {
 	return sprintf('%s', 0 + sprintf('%.4g', $n));
 }
 
-# Minimal URL-encode for query-parameter values (encodes everything except
-# letters, digits, hyphens, dots, underscores, and tildes per RFC 3986).
-sub url_escape_simple {
-	my $s = shift // '';
-	$s =~ s/([^A-Za-z0-9\-._~])/sprintf('%%%02X', ord($1))/ge;
-	return $s;
-}
 
 # _spec_to_data_url($spec_key) -> $url_or_undef
 #
@@ -590,10 +584,10 @@ sub url_escape_simple {
 sub _spec_to_data_url {
 	my $spec = shift // '';
 	if ($spec =~ /\Atable:(.+)\z/) {
-		return '/view/' . url_escape_simple($1);
+		return '/view/' . urlencode($1);
 	}
 	if ($spec =~ /\Apath:(.+)\z/) {
-		return '/open?path=' . url_escape_simple($1);
+		return '/open?path=' . urlencode($1);
 	}
 	return undef;
 }

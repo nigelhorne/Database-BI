@@ -785,7 +785,7 @@ sub _numeric_cell {
 	my $v = shift;
 	return undef unless defined $v && length($v);
 	my $is_acct_neg = ($v =~ /\A\s*\(/);
-	(my $n = $v) =~ s/[^\d.\-]//g;
+	(my $n = $v) =~ s/[^\d.-]//g;
 	$n = "-$n" if $is_acct_neg && $n =~ /\A\d/;
 	return undef unless $n =~ /\A-?\d+(?:\.\d+)?\z/;
 	return $n + 0;
@@ -2910,7 +2910,13 @@ sub canvas_render ($self) {
 	{
 		my $analysis_updated = $a->{updated} // 0;
 		# Parse ISO-8601 to epoch for comparison if needed.
-		if ($analysis_updated && $analysis_updated =~ /\A(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2}):(\d{2})Z?\z/) {
+		if ($analysis_updated && $analysis_updated =~ /
+			\A
+			(\d{4}) - (\d{2}) - (\d{2})	# $1 yr  $2 mon  $3 day
+			T
+			(\d{2}) : (\d{2}) : (\d{2})	# $4 hr  $5 min  $6 sec
+			Z? \z
+		/x) {
 			require POSIX;
 			$analysis_updated = POSIX::mktime($6, $5, $4, $3, $2 - 1, $1 - 1900);
 		}

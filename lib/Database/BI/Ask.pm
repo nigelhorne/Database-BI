@@ -5,9 +5,10 @@ use warnings;
 
 our $VERSION = '0.016.0';
 
-use Carp        qw(croak);
+use Carp                qw(croak);
+use Database::BI::Util  qw(urlencode);
 use Readonly;
-use Scalar::Util qw(looks_like_number);
+use Scalar::Util        qw(looks_like_number);
 
 Readonly my %SUPPORTED_KINDS => map { $_ => 1 }
 	qw( bar pie line graph scatter heatmap stacked combo treemap histogram map table );
@@ -183,10 +184,31 @@ sub _parse_visual {
 	# Try the full text first (clean LLM response).
 	my $v = eval { JSON::PP::decode_json($text) };
 
-	# Fall back to extracting the outermost JSON object (LLM added surrounding text).
+	# Fall back: LLM added preamble/suffix text around the JSON object.
+	# A bracket-depth counter locates the first complete balanced {..} block.
+	# This is safer than a greedy /\{.*\}/s regex, which captures from the
+	# first '{' all the way to the LAST '}' in the string -- if the LLM
+	# produced multiple JSON-like constructs the greedy form spans them all
+	# and returns unparseable input.  The depth counter handles nested objects
+	# and stops exactly at the matching brace.
 	if (!ref $v) {
-		my ($json) = ($text =~ /(\{.*\})/s);
-		$v = eval { JSON::PP::decode_json($json) } if defined $json;
+		my $start = index($text, '{');
+		if ($start >= 0) {
+			my ($depth, $end) = (0, -1);
+			for my $i ($start .. length($text) - 1) {
+				my $ch = substr($text, $i, 1);
+				$depth++ if $ch eq '{';
+				if ($ch eq '}') {
+					$depth--;
+					if ($depth == 0) { $end = $i; last }
+				}
+			}
+			if ($end >= 0) {
+				$v = eval { JSON::PP::decode_json(
+					substr($text, $start, $end - $start + 1)
+				) };
+			}
+		}
 	}
 
 	return undef unless ref $v eq 'HASH';
@@ -219,15 +241,15 @@ sub _build_url {
 			return "/view/$1";
 		}
 		(my $path = $spec_key) =~ s/\Apath://;
-		return '/open?path=' . _urlencode($path);
+		return '/open?path=' . urlencode($path);
 	}
 
 	my $route  = $KIND_ROUTE{$kind} // $kind;
-	my @params = ('l=' . _urlencode($spec_key));
+	my @params = ('l=' . urlencode($spec_key));
 	for my $key (sort keys %$encode) {
 		my $val = $encode->{$key};
 		next unless defined $val && length $val;
-		push @params, "$key=" . _urlencode($val);
+		push @params, "$key=" . urlencode($val);
 	}
 	return "/$route?" . join('&', @params);
 }
@@ -247,11 +269,6 @@ sub _build_spec {
 	};
 }
 
-sub _urlencode {
-	my ($str) = @_;
-	$str =~ s/([^A-Za-z0-9\-_.~])/sprintf('%%%02X', ord($1))/ge;
-	return $str;
-}
 
 1;
 
