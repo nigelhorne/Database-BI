@@ -807,6 +807,7 @@ my %EXEMPT_ROUTES = (
 	'/api/stat'                => 'JSON file details for the home-page tooltips',
 	'/calc/list'               => 'JSON list of calculated fields for the Calc panel',
 	'/dates/list'              => 'JSON list of date formats for the Date panel',
+	'/geo/list'                => 'JSON list of saved coordinate column preferences for the Map panel',
 	'/embed/:id'               => 'chrome-less embed view; requires a share token and is not a standalone page',
 	'/groups/list'             => 'JSON list of value groups for the Group panel',
 	'/share/:id'               => 'shared read-only canvas view; requires a signed token and cannot be navigated to directly',
