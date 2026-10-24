@@ -1109,6 +1109,29 @@
       </div>
     </div>
 
+    <div class="graph-fields-row" id="map-opts-row">
+      <div class="join-field">
+        <label class="check-label" title="Add a heatmap density layer behind the markers">
+          <input type="checkbox" id="map-heat-chk">
+          Heatmap layer
+        </label>
+      </div>
+      <div class="join-field" id="map-weight-field" hidden>
+        <label for="map-weight-sel">Heat weight column</label>
+        <select id="map-weight-sel">
+          <option value="">(equal weight)</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="map-zoom-inp">Initial zoom (0&ndash;19)</label>
+        <input type="number" id="map-zoom-inp" min="0" max="19"
+               style="width:5rem" placeholder="auto">
+      </div>
+    </div>
+
     <div class="graph-fields-row" id="map-color-row">
       <div class="join-field">
         <label for="map-color-sel">Colour by column</label>
@@ -3283,7 +3306,6 @@ function parseAccounting(v) {
       }).filter(function (v) { return v !== ''; });
       if (vals.length === 0) return;
       if (vals.every(isMapDateVal)) return;
-      if (!vals.every(function (v) { return !isNaN(parseAccounting(v)); })) return;
       var opt = document.createElement('option');
       opt.value = name; opt.textContent = name;
       if (name === prev) opt.selected = true;
@@ -3353,6 +3375,12 @@ function parseAccounting(v) {
   btnAddRule && btnAddRule.addEventListener('click', addColorRule);
   colorSel && colorSel.addEventListener('change', toggleColorSection);
 
+  var heatChk   = document.getElementById('map-heat-chk');
+  var weightFld = document.getElementById('map-weight-field');
+  heatChk && heatChk.addEventListener('change', function () {
+    if (weightFld) weightFld.hidden = !heatChk.checked;
+  });
+
   mapForm.addEventListener('submit', function () {
     function addHidden(nm, val) {
       var inp = document.createElement('input');
@@ -3384,6 +3412,17 @@ function parseAccounting(v) {
         });
       }
     }
+
+    var heatChkEl  = document.getElementById('map-heat-chk');
+    var weightSel  = document.getElementById('map-weight-sel');
+    var zoomInpEl  = document.getElementById('map-zoom-inp');
+    if (heatChkEl && heatChkEl.checked) {
+      addHidden('heat', '1');
+      var wVal = weightSel ? weightSel.value.trim() : '';
+      if (wVal) addHidden('weight', wVal);
+    }
+    var zVal = zoomInpEl ? zoomInpEl.value.trim() : '';
+    if (zVal !== '') addHidden('zoom', zVal);
 
     var col = colorSel ? colorSel.value : '';
     if (!col) return;
