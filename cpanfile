@@ -39,7 +39,7 @@ requires 'Socket', '2.010';
 requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected', '0.03';
 recommends 'Geo::Coder::Free', '0.48';
-recommends 'HTML::OSM', '0.11';
+recommends 'HTML::OSM', '0.12';
 
 on 'test' => sub {
 	requires 'DBD::CSV';

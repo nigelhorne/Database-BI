@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.017.0	Fri Oct 23 12:00:00 PM EDT 2026
+0.017.0	Sat Oct 24 12:00:00 PM EDT 2026
 	[ New Features ]
 	- GET /geo/list, POST /geo/save, POST /geo/delete: coordinate-column
 	  preference CRUD.  Saves the user's choice of lat=, lon=, or loc=
@@ -19,6 +19,14 @@ Revision history for Database-BI
 	  ?weight=<col>: numeric column that drives heatmap point intensity;
 	    values are normalised to [0,1]; defaults to equal weight 1 when
 	    absent.
+	  ?max_zoom=N (0-28): sets the Leaflet tile layer maxZoom option so the
+	    user cannot zoom past what the tile server covers.  Also readable
+	    from the map_max_zoom config key; the URL param takes precedence.
+	    Requires HTML::OSM >= 0.12.
+	- GET /map: Nominatim live-search box is now suppressed (search => 0
+	  passed to HTML::OSM).  The Reset Map button is retained; only the
+	  search input and Nominatim egress are removed.  Requires HTML::OSM >=
+	  0.12.
 	- script/bi-geocode: new CLI warming script.
 	  Opens a dataset spec, geocodes every distinct value of the named
 	  column, and writes the resolved coordinates into the shared geocode
@@ -26,6 +34,9 @@ Revision history for Database-BI
 	  cache resolves zero places and writes nothing.  Suitable for cron.
 	  Flags: --spec, --col, --data-dir, --model-dir, --openaddr, --region,
 	  --dry-run, --verbose.
+	[ Dependency changes ]
+	- HTML::OSM minimum bumped from 0.11 to 0.12 (search => 0 and max_zoom
+	  constructor params; tile_url was already present in 0.11).
 
 0.016.0	Fri Oct 23 08:58:00 AM EDT 2026
 	[ New Features ]

@@ -94,7 +94,7 @@ WriteMakefile(
 					'Geo::Coder::Free' => '0.48',
 					# Rendering the map itself (Phase 6.1).  Also runtime-required: the
 					# rest of the application installs, starts and tests without it.
-					'HTML::OSM' => '0.11'
+					'HTML::OSM' => '0.12'
 				}
 			}, test => {
 				recommends => {
