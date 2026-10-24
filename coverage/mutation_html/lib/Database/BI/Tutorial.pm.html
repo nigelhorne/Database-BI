@@ -1148,116 +1148,117 @@ Approximate LCSAJ segments: 9<br>
 </span><span class="">  807: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
 </span><span class="">  808: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  809: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  810: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
-</span><span class="">  811: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
-</span><span class="">  812: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
-</span><span class="">  813: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
-</span><span class="">  814: );
-</span><span class="">  815: 
-</span><span class="">  816: sub intro     { return \@INTRO }
-</span><span class="">  817: sub chapters  { return \@CHAPTERS }
-</span><span class="">  818: sub faq       { return \@FAQ }
-</span><span class="">  819: sub glossary  { return \@GLOSSARY }
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  820: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  821: sub parts {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">822 → 824 → 838</span></span>  822: 	my @parts;
-</span><span class="">  823: 
-</span><span class="">  824: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  825: 		my $name = $chapter-&gt;{part};
-</span><span class="">  826: 
-</span><span class="">  827: 		if (!@parts || $parts[-1]{name} ne $name) {
-</span><span class="">  828: 			push @parts, {
-</span><span class="">  829: 				name     =&gt; $name,
-</span><span class="">  830: 				id       =&gt; _slug($name),
-</span><span class="">  831: 				chapters =&gt; [],
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  832: 			};
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  833: 		}
-</span><span class="">  834: 
-</span><span class="">  835: 		push @{ $parts[-1]{chapters} }, $chapter;
-</span><span class="">  836: 	}
-</span><span class="">  837: 
-</span><span class="">  838: 	return \@parts;
-</span><span class="">  839: }
-</span><span class="">  840: 
-</span><span class="">  841: sub covered_routes {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">842 → 844 → 850</span></span>  842: 	my %routes;
-</span><span class="">  843: 
-</span><span class="">  844: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  845: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  846: 			$routes{$route} = $chapter-&gt;{id};
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  847: 		}
-</span><span class="">  848: 	}
-</span><span class="">  849: 
-</span><span class="">  850: 	return \%routes;
-</span><span class="">  851: }
-</span><span class="">  852: 
-</span><span class="">  853: sub exempt_routes {
-</span><span class="">  854: 	return { %EXEMPT_ROUTES };
-</span><span class="">  855: }
-</span><span class="">  856: 
-</span><span class="">  857: sub chapter_for_action {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">858 → 863 → 867</span></span>  858: 	my $action = $_[1];
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  859: 	return unless defined $action;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  860: 
-</span><span class="">  861: 	my $id = $ACTION_CHAPTERS{$action} or return;
-</span><span class="">  862: 
-</span><span class="">  863: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  864: 		return $chapter if $chapter-&gt;{id} eq $id;
-</span><span class="">  865: 	}
-</span><span class="">  866: 
-</span><span class="">  867: 	return;
-</span><span class="">  868: }
-</span><span class="">  869: 
-</span><span class="">  870: sub _slug {
-</span><span class="">  871: 	my ($text) = @_;
-</span><span class="">  872: 
-</span><span class="">  873: 	my $slug = lc $text;
-</span><span class="">  874: 	$slug =~ s/[^a-z0-9]+/-/g;
-</span><span class="">  875: 	$slug =~ s/\A-+|-+\z//g;
-</span><span class="">  876: 
-</span><span class="">  877: 	return $slug;
-</span><span class="">  878: }
-</span><span class="">  879: 
-</span><span class="">  880: 1;
-</span><span class="">  881: 
-</span><span class="">  882: =head1 NAME
-</span><span class="">  883: 
-</span><span class="">  884: Database::BI::Tutorial - the chapters of the in-application tutorial
-</span><span class="">  885: 
-</span><span class="">  886: =head1 DESCRIPTION
-</span><span class="">  887: 
-</span><span class="">  888: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
-</span><span class="">  889: data in this module.  A chapter is one feature: a title, a short lead, numbered
-</span><span class="">  890: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
-</span><span class="">  891: order, so adding a feature means adding a hash here, not editing HTML.
-</span><span class="">  892: 
-</span><span class="">  893: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
-</span><span class="">  894: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
-</span><span class="">  895: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
-</span><span class="">  896: chapter so a reader can find it.
-</span><span class="">  897: 
-</span><span class="">  898: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
-</span><span class="">  899: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
-</span><span class="">  900: short: the same test fails a lead, step, tip or walk-through sentence longer
-</span><span class="">  901: than 25 words.
-</span><span class="">  902: 
-</span><span class="">  903: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
-</span><span class="">  904: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
-</span><span class="">  905: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
-</span><span class="">  906: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
-</span><span class="">  907: there.
-</span><span class="">  908: 
-</span><span class="">  909: =head1 AUTHOR
-</span><span class="">  910: 
-</span><span class="">  911: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class="">  912: 
-</span><span class="">  913: =head1 LICENCE AND COPYRIGHT
-</span><span class="">  914: 
-</span><span class="">  915: Copyright 2026 Nigel Horne.
-</span><span class="">  916: 
-</span><span class="">  917: Usage is subject to the GPL2 licence terms.
-</span><span class="">  918: 
-</span><span class="">  919: =cut
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  810: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
+</span><span class="">  811: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
+</span><span class="">  812: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
+</span><span class="">  813: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
+</span><span class="">  814: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
+</span><span class="">  815: );
+</span><span class="">  816: 
+</span><span class="">  817: sub intro     { return \@INTRO }
+</span><span class="">  818: sub chapters  { return \@CHAPTERS }
+</span><span class="">  819: sub faq       { return \@FAQ }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  820: sub glossary  { return \@GLOSSARY }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  821: 
+</span><span class="">  822: sub parts {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">823 → 825 → 839</span></span>  823: 	my @parts;
+</span><span class="">  824: 
+</span><span class="">  825: 	for my $chapter (@CHAPTERS) {
+</span><span class="">  826: 		my $name = $chapter-&gt;{part};
+</span><span class="">  827: 
+</span><span class="">  828: 		if (!@parts || $parts[-1]{name} ne $name) {
+</span><span class="">  829: 			push @parts, {
+</span><span class="">  830: 				name     =&gt; $name,
+</span><span class="">  831: 				id       =&gt; _slug($name),
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  832: 				chapters =&gt; [],
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  833: 			};
+</span><span class="">  834: 		}
+</span><span class="">  835: 
+</span><span class="">  836: 		push @{ $parts[-1]{chapters} }, $chapter;
+</span><span class="">  837: 	}
+</span><span class="">  838: 
+</span><span class="">  839: 	return \@parts;
+</span><span class="">  840: }
+</span><span class="">  841: 
+</span><span class="">  842: sub covered_routes {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">843 → 845 → 851</span></span>  843: 	my %routes;
+</span><span class="">  844: 
+</span><span class="">  845: 	for my $chapter (@CHAPTERS) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  846: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  847: 			$routes{$route} = $chapter-&gt;{id};
+</span><span class="">  848: 		}
+</span><span class="">  849: 	}
+</span><span class="">  850: 
+</span><span class="">  851: 	return \%routes;
+</span><span class="">  852: }
+</span><span class="">  853: 
+</span><span class="">  854: sub exempt_routes {
+</span><span class="">  855: 	return { %EXEMPT_ROUTES };
+</span><span class="">  856: }
+</span><span class="">  857: 
+</span><span class="">  858: sub chapter_for_action {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">859 → 864 → 868</span></span>  859: 	my $action = $_[1];
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  860: 	return unless defined $action;
+</span><span class="">  861: 
+</span><span class="">  862: 	my $id = $ACTION_CHAPTERS{$action} or return;
+</span><span class="">  863: 
+</span><span class="">  864: 	for my $chapter (@CHAPTERS) {
+</span><span class="">  865: 		return $chapter if $chapter-&gt;{id} eq $id;
+</span><span class="">  866: 	}
+</span><span class="">  867: 
+</span><span class="">  868: 	return;
+</span><span class="">  869: }
+</span><span class="">  870: 
+</span><span class="">  871: sub _slug {
+</span><span class="">  872: 	my ($text) = @_;
+</span><span class="">  873: 
+</span><span class="">  874: 	my $slug = lc $text;
+</span><span class="">  875: 	$slug =~ s/[^a-z0-9]+/-/g;
+</span><span class="">  876: 	$slug =~ s/\A-+|-+\z//g;
+</span><span class="">  877: 
+</span><span class="">  878: 	return $slug;
+</span><span class="">  879: }
+</span><span class="">  880: 
+</span><span class="">  881: 1;
+</span><span class="">  882: 
+</span><span class="">  883: =head1 NAME
+</span><span class="">  884: 
+</span><span class="">  885: Database::BI::Tutorial - the chapters of the in-application tutorial
+</span><span class="">  886: 
+</span><span class="">  887: =head1 DESCRIPTION
+</span><span class="">  888: 
+</span><span class="">  889: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
+</span><span class="">  890: data in this module.  A chapter is one feature: a title, a short lead, numbered
+</span><span class="">  891: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
+</span><span class="">  892: order, so adding a feature means adding a hash here, not editing HTML.
+</span><span class="">  893: 
+</span><span class="">  894: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
+</span><span class="">  895: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
+</span><span class="">  896: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
+</span><span class="">  897: chapter so a reader can find it.
+</span><span class="">  898: 
+</span><span class="">  899: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
+</span><span class="">  900: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
+</span><span class="">  901: short: the same test fails a lead, step, tip or walk-through sentence longer
+</span><span class="">  902: than 25 words.
+</span><span class="">  903: 
+</span><span class="">  904: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
+</span><span class="">  905: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
+</span><span class="">  906: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
+</span><span class="">  907: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
+</span><span class="">  908: there.
+</span><span class="">  909: 
+</span><span class="">  910: =head1 AUTHOR
+</span><span class="">  911: 
+</span><span class="">  912: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  913: 
+</span><span class="">  914: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  915: 
+</span><span class="">  916: Copyright 2026 Nigel Horne.
+</span><span class="">  917: 
+</span><span class="">  918: Usage is subject to the GPL2 licence terms.
+</span><span class="">  919: 
+</span><span class="">  920: =cut
 </span></pre>
 
 <script>
