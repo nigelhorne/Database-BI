@@ -3,7 +3,7 @@ package Database::BI::Tutorial;
 use strict;
 use warnings;
 
-our $VERSION = '0.016.0';
+our $VERSION = '0.017.0';
 
 # ---------------------------------------------------------------------------
 # The tutorial that the application shows at GET /tutorial.

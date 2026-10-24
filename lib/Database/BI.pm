@@ -13,7 +13,7 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
-our $VERSION = '0.016.0';
+use version; our $VERSION = version->declare('0.017.0');
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -40,7 +40,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.016.0
+0.017.0
 
 =head1 DESCRIPTION
 
