@@ -56,10 +56,20 @@ package BI::Test::Browser;
 # and the documented answer is the default language, so the fixture has to be
 # able to produce it without building a home.  See _language_home.
 #
+# A job that has to say what its run covered sets BI_BROWSER_REPORT_DIR, and
+# the fixture writes one report file per test file there: the pages that file
+# loaded, the canvas cards on them, and whatever the test said with proved().
+# One file per test file because the keyboard job runs the glob with -j2, where
+# a single shared file would interleave two tests' lines; a test file that opens
+# more than one application writes one file per application, since each has its
+# own pages to report.  Nothing is written when the variable is unset, so a local
+# run behaves exactly as it did.
+#
 #   my $browser = BI::Test::Browser->new(record_patches => 1);
 #   $browser->navigate('/view/sales');
 #   $browser->focus('#btn-bar');
 #   $browser->press('Enter');
+#   $browser->proved('GET /view/sales: Enter on the bar button opens the chart');
 #
 # Skips are the test file's decision: skip_reason() says why there is no point
 # starting, and is undef when there is.
@@ -247,10 +257,17 @@ sub plan_browser_tests {
 	return 0;
 }
 
+# Fixtures made by this process, so each report file can be named for one of
+# them.  A test that opens three applications (t/browser-language.t: the
+# configured language, the control and the fallback) would otherwise have each
+# write the same file and the last one would erase the rest.
+my $INSTANCES = 0;
+
 sub new {
 	my ($class, %arg) = @_;
 
 	my $self = bless {
+		report_index    => ++$INSTANCES,
 		data_dir        => File::Spec->rel2abs($arg{data_dir} || 'data'),
 		platform        => $arg{platform} || 'web',
 		language        => $arg{language} || 'en',
@@ -719,7 +736,91 @@ sub uri {
 
 sub navigate {
 	my ($self, $path) = @_;
-	return $self->{client}->cmd('WebDriver:Navigate' => { url => $self->uri($path) });
+
+	my $res = $self->{client}->cmd('WebDriver:Navigate' => { url => $self->uri($path) });
+
+	$self->_record_page($path);
+
+	return $res;
+}
+
+# ---------------------------------------------------------------------------
+# What this run covered, for the browser jobs to publish
+# ---------------------------------------------------------------------------
+# A browser job that goes green says the files passed, not which pages they
+# opened: t/browser-chart-keys.t and t/browser-language.t both pass, and their
+# TAP output looks alike whether one page or five were driven.  So a test can
+# say what it established with proved(), and the fixture records the pages it
+# loaded, and both go into a report file per test file - per file because the
+# keyboard job runs the glob with -j2, where one shared file would interleave
+# two tests' lines.
+#
+# The report is a file rather than a log line because the job turns it into the
+# run's summary; the path comes from BI_BROWSER_REPORT_DIR, so a local run that
+# does not set it writes nothing and behaves exactly as before.
+
+# What this test established, in a line of its own: a page, a card, the state
+# it needed and the thing that proved it.  The line is written when the test
+# finishes, so it can be said where the assertions are rather than collected up
+# at the end.
+sub proved {
+	my ($self, $what) = @_;
+
+	push @{ $self->{proved} }, $what;
+
+	return;
+}
+
+sub _record_page {
+	my ($self, $path) = @_;
+
+	# The directory is created when the report is written, at the end, so it
+	# does not exist yet: the switch is the variable, not the directory.
+	return unless defined $ENV{BI_BROWSER_REPORT_DIR} && length $ENV{BI_BROWSER_REPORT_DIR};
+
+	# The path alone: the query is the test's data - a temporary file, a language
+	# - and the page is what the report is about.  A page loaded twice is
+	# recorded once, which is what a reader wants from a coverage list.
+	my ($page) = split /\?/, (defined $path ? $path : ''), 2;
+	$page = '/' unless defined $page && length $page;
+
+	my $cards = $self->_cards_on_page;
+	$self->{pages}{$page} = $cards;
+
+	return;
+}
+
+# The canvas cards on the page just loaded, as "title (kind)".  A canvas renders
+# its cards in the template, so they are there as soon as navigation returns; a
+# page that is not a canvas has none, and the probe answers [] for it.  The kind
+# is read from what the card's body actually contains - a table's wrapper, a
+# map's summary or notes, a chart's svg - so a card that failed to render is
+# reported as 'card' rather than claimed as a chart.
+sub _cards_on_page {
+	my ($self) = @_;
+
+	my $json = eval {
+		$self->js(<<'JS');
+return JSON.stringify(Array.prototype.map.call(document.querySelectorAll('.visual-card'), function (card) {
+	var body  = card.querySelector('.visual-card-body');
+	var title = card.querySelector('.visual-card-title');
+	/* Map before chart: a Leaflet pane can hold an svg of vector overlays, and a
+	   map card that drew nothing is still a map card because its notes are
+	   there - which is the state the absent-renderer jobs are about. */
+	var kind  = !body                                        ? 'card'
+		: body.querySelector('.visual-table-wrap')           ? 'table'
+		: body.querySelector('.map-summary, .map-notes, .leaflet-container') ? 'map'
+		: body.querySelector('svg')                          ? 'chart'
+		: 'card';
+
+	return (title ? title.textContent.replace(/\s+/g, ' ').trim() : 'untitled') + ' (' + kind + ')';
+}));
+JS
+	};
+	return [] unless defined $json;
+
+	my $cards = eval { decode_json($json) };
+	return ref $cards eq 'ARRAY' ? $cards : [];
 }
 
 # Run a script in the page and return its value.
@@ -935,6 +1036,53 @@ sub _read_text {
 sub server_log  { return $_[0]->_read_text($_[0]->{server_log}) }
 sub firefox_log { return $_[0]->_read_text($_[0]->{firefox_log}) }
 
+# Write what this file covered, when the job asked for a report.  Called from
+# stop and, through it, from DESTROY, so a test that dies still leaves what it
+# reached; the guard makes the second call a no-op.
+sub _write_report {
+	my ($self) = @_;
+
+	return if $self->{report_written}++;
+
+	my $dir = $ENV{BI_BROWSER_REPORT_DIR};
+	return unless defined $dir && length $dir;
+
+	File::Path::make_path($dir) unless -d $dir;
+
+	(my $name = $0) =~ s{\A\./}{};
+	$name =~ s{.*/}{};
+
+	my @lines = (
+		'### ' . $name . ($self->{report_index} > 1 ? " (fixture $self->{report_index})" : ''),
+		'',
+	);
+	push @lines,
+		@{ $self->{proved} || [] }
+			? map { "- proved: $_" } @{ $self->{proved} }
+			: '- proved: no claim made - the pages below are what this file loaded';
+
+	my @pages = sort keys %{ $self->{pages} || {} };
+	push @lines, @pages
+		? '- pages loaded: ' . join(', ', @pages)
+		: '- pages loaded: none';
+
+	for my $page (@pages) {
+		my @cards = @{ $self->{pages}{$page} };
+		push @lines, "- cards on $page: " . join(', ', @cards) if @cards;
+	}
+	push @lines, '';
+
+	my $file = File::Spec->catfile(
+		$dir,
+		$self->{report_index} > 1 ? "$name.$self->{report_index}.md" : "$name.md",
+	);
+	open(my $fh, '>', $file) or die "Cannot write $file: $!";
+	print {$fh} map { "$_\n" } @lines;
+	close($fh) or die "Cannot close $file: $!";
+
+	return;
+}
+
 # ---------------------------------------------------------------------------
 # Stopping: the browser first, since nothing after it needs the app.
 # ---------------------------------------------------------------------------
@@ -943,6 +1091,8 @@ sub stop {
 
 	return if $self->{stopped}++;
 	local $?;
+
+	$self->_write_report;
 
 	$self->{client}->close if $self->{client};
 	$self->{client} = undef;

@@ -123,4 +123,12 @@ subtest 'the named directory is the one the app reads' => sub {
 	), qr/Alpha/, 'and shows the fixture row';
 };
 
+# What this run established, for the job summary: a value the fixture names is
+# the value the running application has, for the keys that used to be ignored.
+$browser->proved(
+	'GET / and /view reading the directory the test named: only its table is'
+	. ' offered and it opens, while the app\'s own config holds the data_dir,'
+	. ' platform and app_config values it could not have got any other way'
+);
+
 done_testing();

@@ -23,6 +23,7 @@ use strict;
 use warnings;
 
 use Test::Most;
+use Cwd ();
 use File::Temp qw(tempdir);
 use Mojo::File qw(path);
 use lib 't/lib';
@@ -210,6 +211,63 @@ subtest 'a language can be named without a template tree behind it' => sub {
 
 	is BI::Test::Browser::_language_home({ tmp => tempdir(CLEANUP => 1), language => 'en' }),
 		undef, 'and the default language needs no home of its own';
+};
+
+# The report the browser jobs publish.  A summary that named the wrong file, or
+# that let a second application overwrite the first one's pages, would be worse
+# than no summary: it is the one place a reader looks to see what a green run
+# actually drove.  The writer is checked here, without a browser, because it only
+# touches what the fixture has already collected.
+subtest 'the report names the test file and each of its fixtures' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	local $ENV{BI_BROWSER_REPORT_DIR} = $dir;
+
+	my $fixture = sub {
+		my ($index, %arg) = @_;
+
+		return bless {
+			report_index => $index,
+			proved       => $arg{proved} || [],
+			pages        => $arg{pages}  || {},
+		}, 'BI::Test::Browser';
+	};
+
+	$fixture->(1, proved => ['GET /: the first claim'], pages => { '/' => [] })->_write_report;
+
+	my $first = path("$dir/browser-fixture.t.md")->slurp;
+	like $first, qr/^### browser-fixture\.t$/m,
+		'the report is headed with the test file it came from';
+	like $first, qr/^- proved: GET \/: the first claim$/m,
+		'and carries the claim the test made';
+	like $first, qr/^- pages loaded: \/$/m, 'and the pages it loaded';
+
+	# A test that opens a second application has a second set of pages, and one
+	# file per test file would have the later fixture erase the earlier one.
+	$fixture->(2, pages => { '/' => ['North (chart)'] })->_write_report;
+
+	is path("$dir/browser-fixture.t.md")->slurp, $first,
+		'the second fixture does not overwrite the first fixture\'s report';
+
+	my $second = path("$dir/browser-fixture.t.2.md")->slurp;
+	like $second, qr/^### browser-fixture\.t \(fixture 2\)$/m, 'it has a file of its own';
+	like $second, qr/^- cards on \/: North \(chart\)$/m, 'carrying the cards on its pages';
+	like $second, qr/^- proved: no claim made/m,
+		'and says no claim was made rather than leaving the report silent about it';
+
+	# A local run sets no directory, and must leave nothing behind: the check is
+	# made from inside a directory of its own, so a file written anywhere the test
+	# can see is found rather than assumed absent.
+	my $elsewhere = tempdir(CLEANUP => 1);
+	my $was       = Cwd::getcwd();
+	chdir $elsewhere or die "chdir $elsewhere: $!";
+	my @written;
+	{
+		local $ENV{BI_BROWSER_REPORT_DIR};
+		$fixture->(3, pages => { '/x' => [] })->_write_report;
+		@written = glob('*.md');
+	}
+	chdir $was or die "chdir $was: $!";
+	is_deeply \@written, [], 'nothing is written when the job asked for no report';
 };
 
 done_testing();

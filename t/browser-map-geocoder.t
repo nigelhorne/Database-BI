@@ -86,7 +86,10 @@ sub show_page {
 # hidden note fails as the reader would experience it.
 sub geocoder_note {
 	my $json = $browser->js(<<'JS');
-return JSON.stringify((function () {
+/* Wrapped in an object: JSON.stringify(null) is the bare value null, which a
+   JSON backend may refuse to decode (allow_nonref) and the tester's machine
+   and each CPAN smoker disagree about.  An object is always decodable. */
+return JSON.stringify({ note: (function () {
 	var notes = Array.prototype.slice.call(document.querySelectorAll('.map-notes .map-note'));
 	var note = notes.filter(function (n) {
 		return (n.getAttribute('data-key') || '').indexOf('error_map_geocoder_') === 0;
@@ -107,11 +110,11 @@ return JSON.stringify((function () {
 			&& style.visibility !== 'hidden'
 			&& style.opacity !== '0'
 	};
-})());
+})() });
 JS
 
 	return undef unless defined $json;
-	return decode_json($json);
+	return decode_json($json)->{note};
 }
 
 sub title_text {
@@ -168,6 +171,12 @@ for my $case (
 		"var el = document.querySelector('.back-link');"
 		. "return el ? (/Home/.test(el.textContent) ? 1 : 0) : 0;"
 	), 1, "$state: the page chrome around it is intact";
+
+	$browser->proved(
+		'GET /map geocoding a place column with Geo::Coder::Free '
+		. ($state eq 'missing' ? 'absent' : '0.47')
+		. ': the geocoder note is visible and announced, nothing is plotted, and the page chrome is intact'
+	);
 }
 
 # ---------------------------------------------------------------------------
@@ -191,5 +200,9 @@ like $browser->js(
 	. "  return n.getAttribute('data-key') || ''; }).join('|');"
 ) // '', qr/warn_map_coordinate_rows/,
 	'control: the notes list is rendered, carrying the note about the row without a coordinate';
+
+$browser->proved(
+	'GET /map plotting coordinates while the geocoder is too old: no geocoder note, the rows are counted, and the note about the row without a coordinate is still there'
+);
 
 done_testing();

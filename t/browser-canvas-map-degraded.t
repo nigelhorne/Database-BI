@@ -97,7 +97,10 @@ sub show_state {
 # first one.
 sub note_on_card {
 	my $json = $browser->js(<<'JS');
-return JSON.stringify((function () {
+/* Wrapped in an object: JSON.stringify(null) is the bare value null, which a
+   JSON backend may refuse to decode (allow_nonref) and machines disagree
+   about.  An object is always decodable. */
+return JSON.stringify({ note: (function () {
 	var card = document.getElementById('visual-0');
 	if (!card) return null;
 
@@ -122,11 +125,11 @@ return JSON.stringify((function () {
 			&& style.visibility !== 'hidden'
 			&& style.opacity !== '0'
 	};
-})());
+})() });
 JS
 
 	return undef unless defined $json;
-	return decode_json($json);
+	return decode_json($json)->{note};
 }
 
 sub summary_on_card {
@@ -173,6 +176,11 @@ for my $case (
 		"var el = document.querySelector('#visual-1 td');"
 		. "return el ? el.textContent : '';"
 	), 'Alpha', "$state: the table card beside it still shows its rows";
+
+	$browser->proved(
+		"canvas /a/$id with HTML::OSM " . ($state eq 'missing' ? 'absent' : 'older than 0.12')
+		. ': the map card carries the visible note and draws nothing, and the table card beside it keeps its rows'
+	);
 }
 
 # ---------------------------------------------------------------------------
@@ -192,6 +200,10 @@ SKIP: {
 	is note_on_card(), undef, 'current: there is no note on the card';
 	like summary_on_card(), qr/Plotting 2 markers for 2 of 3 rows/,
 		'current: the card counts the same markers';
+
+	$browser->proved(
+		"canvas /a/$id with a usable renderer: the map card draws its Leaflet element, has no note, and counts the same markers"
+	);
 }
 
 done_testing();

@@ -202,4 +202,13 @@ for my $case (@cases) {
 	};
 }
 
+# What this run established, for the job summary: the routes are named, because
+# a green run of this file is otherwise indistinguishable from one that drove a
+# single chart page.
+$browser->proved(
+	'New canvas driven from each chart route (' . join(', ', map { $_->{label} } @cases) . '):'
+	. ' the panel saved the kind and encoding the page offered, and the canvas it'
+	. ' opened has one card, titled as the chart, carrying the chart\'s own element'
+);
+
 done_testing();

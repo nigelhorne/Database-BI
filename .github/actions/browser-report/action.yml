@@ -1,0 +1,45 @@
+---
+# Publish what a browser job covered.
+#
+# A green browser job says its test files passed, not which pages they opened:
+# t/browser-chart-keys.t and t/browser-canvas-keys.t produce TAP that reads
+# alike whether five pages were driven or one.  BI::Test::Browser therefore
+# writes a report per test file - the pages it loaded, the canvas cards on them,
+# and the claims it made with proved() - whenever BI_BROWSER_REPORT_DIR names a
+# directory, and this action turns those files into the job summary.
+#
+# It is an action rather than the same step written out in each job because a
+# summary that drifted between jobs would be the one thing a reader trusts
+# without checking.
+name: Browser report
+description: Publish the pages, cards and claims the browser tests reported
+
+runs:
+  using: composite
+  steps:
+    - name: Publish what the browser tests proved
+      shell: bash
+      run: |
+        set -eu
+        dir="${BI_BROWSER_REPORT_DIR:?BI_BROWSER_REPORT_DIR must name the directory the tests report into}"
+
+        summary="$RUNNER_TEMP/browser-report.md"
+        {
+          printf '## Pages and cards proved\n\n'
+          # One '### <test file>' section per file, each listing what it proved,
+          # the pages it loaded and the cards on them; a file that opens more
+          # than one application has a section per fixture.
+          if compgen -G "$dir/*.md" > /dev/null; then
+            cat "$dir"/*.md
+          else
+            # Said rather than left blank: a summary with no content would read
+            # as a job that proved nothing, which is a different claim from a
+            # job whose tests never reported.
+            echo '- no report: the tests wrote none, so this run cannot say which pages it reached'
+          fi
+        } > "$summary"
+
+        cat "$summary"
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          { printf '\n'; cat "$summary"; } >> "$GITHUB_STEP_SUMMARY"
+        fi

@@ -444,4 +444,12 @@ SKIP: {
 		'and the page announces that the map has finished drawing');
 }
 
+# What this run established, for the job summary: the route a reader takes to
+# the map from the table they are looking at, rather than the map page's URL.
+$browser->proved(
+	'GET /open on a table with coordinates: the toolbar\'s Map panel opens, chooses'
+	. ' the latitude and longitude columns, switches to the place-name mode and'
+	. ' back, and Enter submits to GET /map with the columns it named'
+);
+
 done_testing();

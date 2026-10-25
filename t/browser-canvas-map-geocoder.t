@@ -123,7 +123,10 @@ sub geocoder_note_on_card {
 	my ($index) = @_;
 
 	my $json = $browser->js(<<JS);
-return JSON.stringify((function () {
+/* Wrapped in an object: JSON.stringify(null) is the bare value null, which a
+   JSON backend may refuse to decode (allow_nonref) and machines disagree
+   about.  An object is always decodable. */
+return JSON.stringify({ note: (function () {
 	var card = document.getElementById('visual-$index');
 	if (!card) return null;
 
@@ -147,11 +150,11 @@ return JSON.stringify((function () {
 			&& style.visibility !== 'hidden'
 			&& style.opacity !== '0'
 	};
-})());
+})() });
 JS
 
 	return undef unless defined $json;
-	return decode_json($json);
+	return decode_json($json)->{note};
 }
 
 sub summary_on_card {
@@ -220,6 +223,11 @@ for my $case (
 
 	like summary_on_card(1), qr/Plotting 2 markers for 2 of 3 rows/,
 		"$state: and still counts the markers it plotted";
+
+	$browser->proved(
+		"canvas /a/$id place card with Geo::Coder::Free " . ($state eq 'missing' ? 'absent' : '0.47')
+		. ': the card carries the visible geocoder note and draws nothing, while the coordinate card beside it plots 2 markers'
+	);
 }
 
 done_testing();
