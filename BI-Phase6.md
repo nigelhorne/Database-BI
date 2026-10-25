@@ -20,6 +20,27 @@ cross-dist work §8 asks of `HTML::OSM`.
   is the design. See §7.
 - **Line references:** dated 2026-10-15 anchors; anchor on sub names, not line numbers.
 
+## Implementation status (0.018.0)
+
+- **6.1** -- implemented for coordinate and geocoded columns.  The `agg=`
+  parameter in the table below was accepted but never used, and has been
+  removed rather than left as a no-op: rows at one position always collapse to
+  one marker whose popup reports the row count.  A measure-based aggregation
+  would need a visual encoding to go with it; that is recorded in the README
+  roadmap.
+- **6.2** -- implemented (`Database::BI::Model::Geocode`, local
+  `Geo::Coder::Free`, shared cache).
+- **6.3** -- implemented, including `script/bi-geocode`.
+- **6.4** -- implemented: clustering (always on), heatmap (`heat=`, `weight=`),
+  `zoom=`, `tiles=`, `max_zoom=`, bubble maps (`size=` via
+  `add_circle_marker`), and marker colour by rules (`color=`, `color_rule=`,
+  `color_default=`) or by category (`series=`, `scheme=`).  HTML::OSM 0.12 is
+  the floor and is checked at runtime, so an older optional install degrades
+  to a warning instead of a 500.
+- **6.5** -- not implemented.  It is optional in this specification; the
+  deferral is recorded in the README/POD roadmap, and no boundary data is
+  shipped or downloaded.
+
 ---
 
 ## 1. Why a map is a different kind of visual
@@ -61,11 +82,11 @@ A new chart route and template, structurally identical to `scatter_view`
   | `lat=`, `lon=` | the two coordinate columns (required unless `loc=` is given) |
   | `loc=` | a location column to geocode instead (6.2) |
   | `popup=` | column(s) shown in the marker popup (repeatable, default: all non-coordinate columns, truncated) |
-  | `agg=` | `count` (default) \| `none` \| `sum:<col>` \| `avg:<col>` — how rows sharing a coordinate are combined |
+  | `agg=` | **dropped** — rows sharing a coordinate always collapse to one marker with a row count (see Implementation status) |
   | `size=` | numeric column controlling marker radius (bubble map; needs §8) |
-  | `series=` + `scheme=` | colour markers by a category column using the existing `%SCATTER_SCHEMES` (`Dashboard.pm:110`) |
-  | `heat=1`, `weight=` | heatmap layer, intensity from a numeric column |
-  | `cluster=1` | group markers with `leaflet.markercluster` |
+| `series=` + `scheme=` | colour markers by a category column using the existing `%SCATTER_SCHEMES` and the matching categorical palette |
+| `heat=1`, `weight=` | heatmap layer, intensity from a numeric column |
+| clustering | group markers with `leaflet.markercluster`; always on |
   | `zoom=`, `tiles=` | zoom level; `tiles=` names a tile source from config, never a URL |
   | `max=` | marker cap for this request (default `map_max_markers`, 6.4) |
   | `back=`, `back2=`, `back2_label=` | as everywhere else |
@@ -80,11 +101,12 @@ A new chart route and template, structurally identical to `scatter_view`
 - **Per-row handling.** Non-numeric, empty or out-of-range coordinates are skipped, counted,
   and reported on the page ("plotting N of M rows; K rows have no usable coordinate"). Rows
   are never plotted at (0,0) — a fake point in the Gulf of Guinea is worse than a missing one.
-- **Marker aggregation is the default** (`agg=count`), as in the in-workspace precedent
+- **Marker aggregation is unconditional**, as in the in-workspace precedent
   `HTML::Genealogy::Map` (`lib/HTML/Genealogy/Map.pm`, which groups events on
   `sprintf('%.6f,%.6f', $lat, $lon)`): rows at the same coordinate become one marker whose
-  popup lists the count and the aggregated measure. This is what makes a 100k-row file
-  renderable, and it is the correct semantic for "how many of these are there?".
+  popup lists the count. This is what makes a 100k-row file renderable, and it is the
+  correct semantic for "how many of these are there?". The `agg=` switch in the parameter
+  table was dropped rather than implemented as a no-op (see Implementation status).
 - **Template.** New `templates/web/en/map.html.tt` modelled on `scatter.html.tt` (back links,
   title, source attribution via `_url_attribution`, i18n through `_resolve_template`).
   `HTML::OSM::onload_render` returns **two** strings — a head part (Leaflet CSS/JS) and a body
@@ -335,9 +357,13 @@ A changed parameter name is a breaking change in `Changes`, as with every other 
   (running without openaddr data), `warn_map_cache_unwritable`, `error_map_tiles_unknown`.
 - New tests, all **hermetic — no network, no live geocoder**:
   - `t/map.t` — column auto-detection (name and range tables), range rejection with the right
-    message, aggregation/`agg=` semantics, marker cap message, popup escaping fixture,
-    missing-module path (`Test::Without::Module` is already a test dependency, as used to
-    prove optional-module degradation).
+    message, repeated-coordinate collapse into one marker, marker cap message, popup escaping
+    fixture, bubble (`size=`) and category (`series=`) encoding, the colour rules, and an
+    HTML::OSM older than the floor degrading to a warning.
+  - `t/integration.t` — the same degradation through the real route, by overriding
+    `$HTML::OSM::VERSION`; `Test::Without::Module` cannot be used for an HTTP request here,
+    because Test::Mojo dispatches in-process and recompiles the hidden module, printing a
+    "Subroutine ... redefined" warning for every sub in it.
   - `t/geocode.t` — inject a **stub geocoder object** (`can('geocode')`, returning a
     `Geo::Location::Point`-ish object) to test distinct-value de-duplication, cache hit/miss,
     attempted-and-unresolved not being retried, the `map_geocode_max` cap, and the

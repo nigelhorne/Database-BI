@@ -52,6 +52,11 @@ Readonly my $SALES_CSV_PATH  => File::Spec->rel2abs('data/sales.csv');
 
 my $t = Test::Mojo->new('Database::BI');
 
+# A staging directory this file owns, so a parallel test file's
+# POST /uploads/clear cannot empty it mid-test.
+my $STAGING = File::Temp::tempdir(CLEANUP => 1);
+$t->app->config->{uploads_dir} = $STAGING;
+
 # ---------------------------------------------------------------------------
 # Attack vector 1: Table-name injection via the :table route placeholder
 #
@@ -497,18 +502,19 @@ subtest 'POST /upload -- missing file returns 400' => sub {
 
 subtest 'POST /upload -- filename directory traversal is stripped' => sub {
 	# Exploit mechanism: "../../evil.csv" as filename hoping to write outside
-	# .uploads/.  The upload itself may succeed (extension is valid); what
-	# matters is that the file lands in .uploads/<random>/evil.csv, not ../../.
+	# the staging directory.  The upload itself may succeed (extension is
+	# valid); what matters is that the file lands in <staging>/<random>/evil.csv,
+	# not ../../.
 	# Proof: s{.*[/\\]}{} strips "../../" leaving "evil.csv", then stored in
-	# a randomly-named subdirectory of .uploads/.
+	# a randomly-named subdirectory of the staging directory.
 	my $res = $t->post_ok('/upload', form => {
 		file => {
 			content  => "id,name\n1,safe\n",
 			filename => '../../evil.csv',
 		}
 	})->status_is(200)->tx->res->json;
-	like($res->{path}, qr{\.uploads[/\\]}, 'upload path is inside .uploads/');
-	unlike($res->{path}, qr{\.\.},     'upload path has no directory traversal');
+	like($res->{path}, qr{\Q$STAGING\E[/\\]}, 'upload path is inside the staging directory');
+	unlike($res->{path}, qr{\.\.},          'upload path has no directory traversal');
 };
 
 # ---------------------------------------------------------------------------

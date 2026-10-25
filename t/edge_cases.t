@@ -18,6 +18,11 @@ use Scalar::Util qw(reftype);
 # ---------------------------------------------------------------------------
 my $t = Test::Mojo->new('Database::BI');
 
+# A staging directory this file owns, so a parallel test file's
+# POST /uploads/clear cannot empty it mid-test.
+my $STAGING = tempdir(CLEANUP => 1);
+$t->app->config->{uploads_dir} = $STAGING;
+
 # Package-level aliases to package-scoped (non-:Private) helpers.
 # These survive in the stash because they were loaded via require (post-CHECK).
 my $IS_SAFE_URL       = \&Database::BI::Controller::Dashboard::_is_safe_url;
@@ -367,7 +372,7 @@ subtest 'POST /upload -- file.php.csv is stored; GET /open produces friendly err
 	})->status_is(200)->tx->res->json;
 
 	ok $res->{path}, 'upload succeeded: path returned';
-	like $res->{path}, qr{\.uploads[/\\]}, 'stored inside .uploads/';
+	like $res->{path}, qr{\Q$STAGING\E[/\\]}, 'stored inside the staging directory';
 	like $res->{path}, qr{file\.php\.csv\z}, 'filename preserved intact (double-extension on disk)';
 
 	# Opening via the URL in the response must yield 200 with an error message.

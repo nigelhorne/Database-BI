@@ -13,6 +13,11 @@ use Mojo::Util		qw(url_escape);
 # Bootstrap the app first so :Private stash entries survive.
 # ------------------------------------------------------------------
 my $t = Test::Mojo->new('Database::BI');
+
+# A staging directory this file owns, so a parallel test file's
+# POST /uploads/clear cannot empty it mid-test.
+$t->app->config->{uploads_dir} = tempdir(CLEANUP => 1);
+
 require Database::BI::Model::DataSource;
 require Database::BI::Controller::Dashboard;
 

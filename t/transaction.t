@@ -15,6 +15,11 @@ use Readonly;
 
 my $t = Test::Mojo->new('Database::BI');
 
+# A staging directory this file owns.  Transaction 16 counts exactly the files
+# it uploaded, and a parallel test file's uploads or clear calls in the shared
+# default directory would break both that count and its neighbours' opens.
+$t->app->config->{uploads_dir} = tempdir(CLEANUP => 1);
+
 # ======================================================================
 # CONSTANTS
 # ======================================================================
@@ -1117,7 +1122,7 @@ subtest 'Transaction 15: from=saved — bi:recent suppression contract' => sub {
 #
 # Verifies POST /uploads/clear across three phases:
 #
-#   Phase 1  POST /upload (two files)          -> uploads land in .uploads/
+#   Phase 1  POST /upload (two files)          -> uploads land in uploads_dir
 #   Phase 2  POST /uploads/clear (first call)  -> freed > 0, count >= 2
 #   Phase 3  POST /uploads/clear (second call) -> freed = 0, count = 0
 #                                                 (cache already empty)
@@ -1127,8 +1132,9 @@ subtest 'Transaction 15: from=saved — bi:recent suppression contract' => sub {
 # ======================================================================
 
 subtest 'Transaction 16: Clear upload cache — full lifecycle' => sub {
-	# Phase 0: drain any files left over from prior test runs or other test
-	# files so the lifecycle starts from a known-empty state.
+	# Phase 0: drain any files left over from a prior run in this process (the
+	# directory is this file's own temp dir) so the lifecycle starts from a
+	# known-empty state.
 	$t->post_ok('/uploads/clear')->status_is(200);
 
 	# Phase 1: upload two distinct CSV files so .uploads/ is non-empty.

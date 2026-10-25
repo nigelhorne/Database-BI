@@ -1,5 +1,100 @@
 Revision history for Database-BI
 
+0.018.0	Unreleased
+	[ Bug Fixes ]
+	- script/database-bi no longer starts an endless chain of morbo managers
+	  that ends in "Can't exec ...: Argument list too long".  0.017.0's shebang
+	  named morbo, and morbo starts the application as "perl
+	  script/database-bi daemon"; perl hands a script whose #! line does not
+	  mention perl to the interpreter that line names (perlrun), so every
+	  worker became another morbo.  Each generation exported the whole of @INC
+	  as PERL5LIB, so the environment grew until exec failed with E2BIG, and
+	  every generation kept the listening socket, leaving dozens of stale
+	  servers holding the port.  The shebang is perl again and the script
+	  starts the reloading server itself when it is given no arguments.
+	- GET /map: an HTML::OSM older than 0.12 is now detected before the map is
+	  built, so the page shows a warning instead of a 500: the markers are
+	  still counted, nothing is drawn and the rest of the page is untouched.
+	  0.017.0 passed search => 0 and max_zoom to the constructor
+	  unconditionally, and HTML::OSM rejects unknown keys.  The warning names
+	  both versions - "needs HTML::OSM 0.12 or later, but the installed
+	  HTML::OSM is 0.11" - where 0.017.0 said "0.10 or later" and "could not
+	  be loaded" for an install that had loaded fine.
+	- GET /map: ?agg= was accepted and ignored.  It has been removed from the
+	  route and the documentation instead of staying a no-op; rows at one
+	  coordinate still collapse to one marker whose popup reports the count.
+	  A measure-based aggregation is a roadmap item.
+	- The schema-warnings banner on /join can now fire.  Database::BI::Model::
+	  DataSource delegates schema() to its inner backend, and the controller
+	  compares the declared types across each join step, reporting a column
+	  whose type differs (for example INTEGER in one file, TEXT in the other)
+	  with both types and both file names.  Database::Join's own
+	  warn_schema_type_mismatch cannot fire here, because every join passes a
+	  collision_prefix for the right table.
+	- data_dir may be absolute.  A relative value is still resolved against
+	  the application home, but an absolute one was appended to it, so
+	  table=, /view, /join and the column APIs looked in a path that could not
+	  exist.  t/map.t covers the absolute case.
+	- Database::BI::Extract: removed _get_or_build_extract, which no route
+	  called, and corrected the class documentation and the 0.015.0 claim that
+	  the web application materialises extracts.  The class itself is
+	  unchanged and still usable on its own.
+	- script/bi-alert no longer claims to mail a digest; it never did.  The
+	  digest goes to STDOUT and the exit status is the alert (0 = not crossed,
+	  1 = crossed, 2 = error), which is what cron acts on.  Delivery is the
+	  caller's job - pipe STDOUT into mail, a webhook or a ticket creator - so
+	  --dry-run is documented as accepted for compatibility rather than as a
+	  switch that suppresses a mail nobody sent.
+	- t/integration.t: restore %INC after the Test::Without::Module block, so
+	  the "Subroutine ... redefined" noise from recompiling HTML::OSM is gone.
+	[ New Features ]
+	- GET /map: ?size=<column> draws bubble markers (L.circleMarker) whose pixel
+	  radius is scaled across the plotted values (6 to 30 px), so a circle over
+	  the same place does not grow when the map is zoomed.
+	- GET /map: ?series=<column>&scheme=<name> colours markers by category from
+	  tableau10, category10, set2, set3 or paired, with a category legend.
+	  ?color= (threshold rules) and ?series= are mutually exclusive; combining
+	  them, or naming an unknown scheme or column, is a 400.
+	[ Documentation ]
+	- README and POD: complete /map parameter reference (zoom, max_zoom, tiles,
+	  heat, weight, size, color, color_rule, color_default, series, scheme),
+	  the map config keys, and the colour-rule semantics: rules are tried in
+	  order, the first match wins, the comparison is numeric when both sides
+	  look numeric and otherwise only eq/ne are meaningful, and a colour is
+	  hex or a CSS name.
+	- README and POD: state that the map page never shows the HTML::OSM
+	  Nominatim search box (search => 0 is always passed) and that HTML::OSM
+	  0.12 is the floor.
+	- README and POD: new "Command-line tools" section covering
+	  script/database-bi, script/bi-geocode and script/bi-alert.
+	- POD: sections for the canvas route, the analyses CRUD/import/export API,
+	  sharing and embedding, the catalog, insights, ask, summary and geo
+	  endpoints, which were previously documented only in the README.
+	- README: the Phase 4.4 decision is recorded - this stays a single-user
+	  local application, so there are no accounts, sessions, per-user ownership
+	  or row-level security.  The roadmap lists only work that is still open.
+
+	[ Tests ]
+	- t/launcher.t reads every script the distribution ships (every
+	  executable file in MANIFEST, and everything under script/ and bin/) and
+	  asserts a perl shebang, so a server shebang - the cause of the runaway
+	  morbo chain above - cannot come back unnoticed.  It also keeps the
+	  launcher's contract: with no arguments it starts the reloading server,
+	  with a command word it hands over to the application.
+	- t/map.t and t/integration.t now drive both renderer states - HTML::OSM
+	  missing, and HTML::OSM older than 0.12 - through the probe the controller
+	  uses (_map_renderer_version), so the page an operator without the
+	  optional dependency sees is exercised, not just the message text.
+	  Hiding the module with Test::Without::Module does not do it: its @INC
+	  hook is bypassed during in-process dispatch, so the installed copy is
+	  found again.
+	- t/map.t covers the canvas as well as GET /map: a saved canvas holding a
+	  map card and a table card is opened in both renderer states and must keep
+	  its page, carry the matching note on the map card, still count its
+	  markers and still render the table card beside it.  A usable renderer is
+	  checked first, so the assertions cannot pass on a card that never drew a
+	  map.
+
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]
 	- GET /geo/list, POST /geo/save, POST /geo/delete: coordinate-column
