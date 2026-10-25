@@ -68,7 +68,7 @@ use strict;
 use warnings;
 
 use Exporter 'import';
-our @EXPORT_OK = qw(find_firefox map_renderer_state);
+our @EXPORT_OK = qw(find_firefox map_renderer_state geocoder_state);
 
 use File::Copy      ();
 use File::Path      ();
@@ -169,6 +169,46 @@ sub map_renderer_state {
 			return (0, undef)  if $state eq 'missing';
 			return (0, '0.11') if $state eq 'old';
 			die "unknown renderer state '$state'\n";
+		};
+	};
+}
+
+# geocoder_state($path) -> $app_setup_coderef
+#
+# A stand-in for the optional geocoder, answering from a file the test writes:
+# "missing" (Geo::Coder::Free is not installed) or "old" (a copy below the
+# floor the application asks for, quoted back as 0.47).  Pass the result as
+# app_setup, and the file's contents decide what the next request sees, so one
+# server and one browser session show both states without installing or
+# removing the module.
+#
+# The reason is fabricated, as it is in map_renderer_state: the real probe asks
+# the installed module for a version, which a test cannot make fail on a
+# machine whose copy is new enough.  What is not fabricated is the sentence the
+# page shows - the model builds that from _unavailable - so a note read here
+# says what it says on a machine in the state the file names.
+sub geocoder_state {
+	my ($state_file) = @_;
+
+	return sub {
+		my $app = shift;
+
+		require Database::BI::Model::Geocode;
+
+		no warnings 'redefine';
+		*Database::BI::Model::Geocode::_load_geocoder = sub {
+			my $self  = shift;
+			my $state = path($state_file)->slurp;
+			$state =~ s/\s+\z//;
+
+			die "unknown geocoder state '$state'\n"
+				unless $state eq 'missing' || $state eq 'old';
+
+			$self->{'_unavailable'} = $state eq 'missing'
+				? 'it is not installed'
+				: '0.47 is installed';
+
+			return;
 		};
 	};
 }

@@ -416,7 +416,12 @@ subtest 'GET / -- home page lists available tables' => sub {
 	  # to catch the regression where the path input was silently removed
 	  # from home.html.tt without any test failing.
 	  ->content_like(qr/id="bi-path-input"/, 'home page has path input field')
-	  ->content_like(qr/action="\/open"/, 'Browse card form targets /open');
+	  ->content_like(qr/action="\/open"/, 'Browse card form targets /open')
+	  # The layout writes the resolved language into <html lang>.  index() rendered
+	  # its template without passing it, so the attribute was empty here while the
+	  # tutorial's page carried the language - a screen reader and a translation
+	  # tool both read it, and an empty one says nothing.
+	  ->content_like(qr/<html lang="en"/, 'and the page declares its language');
 	delete $ledger{'GET./'};
 };
 

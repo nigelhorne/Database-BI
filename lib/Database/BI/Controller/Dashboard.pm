@@ -3101,6 +3101,7 @@ sub canvas_render ($self) {
 				canvas_name => ($a->{name} // $id),
 				error_msg   => 'The data source for this canvas could not be opened.',
 				error_specs => \@specs,
+				language    => $language,
 			);
 		}
 
@@ -3332,6 +3333,7 @@ sub canvas_render ($self) {
 			freshness_stale  => $freshness_stale,
 			freshness_msg    => $freshness_msg,
 			freshness_source_mtime => $freshness_source_mtime,
+			language     => $language,
 		);
 	}
 
@@ -3520,12 +3522,17 @@ None produced by this action; any file-scan errors are silently ignored
 sub index ($self) {
 	my ($platform, $language) = $self->_resolve_template;
 
+	# The layout writes the resolved language into <html lang>, so every action
+	# that renders a template from $platform/$language hands it over; t/html-lang.t
+	# holds the controller to that.  A screen reader, a translation tool and
+	# anything that indexes the page read the attribute.
 	$self->render(
 		template => "$platform/$language/home",
 		handler  => 'tt',
 		format   => 'html',
 		tables   => $self->_scan_data_dir,
 		title    => 'Choose a Database',
+		language => $language,
 	);
 }
 
@@ -3653,6 +3660,7 @@ sub view ($self) {
 			tables   => [],
 			title    => 'Choose a Database',
 			error    => $self->_i18n('error_table_open', $table, $@),
+			language => $language,
 		);
 	}
 
@@ -3707,6 +3715,7 @@ sub view ($self) {
 		per_page         => $per_page,
 		has_next         => $has_next,
 		page_base_url    => $page_base_url,
+		language         => $language,
 	);
 }
 
@@ -3798,6 +3807,7 @@ sub browse ($self) {
 		crumbs       => \@crumbs,
 		dirs         => \@dirs,
 		files        => \@files,
+		language     => $language,
 	);
 }
 
@@ -3908,6 +3918,7 @@ sub open_file ($self) {
 				error      => $self->_i18n('error_file_open', $label, $@),
 				back_url   => '/',
 				back_label => 'Home',
+				language   => $language,
 			);
 		}
 		$records //= [];
@@ -3941,6 +3952,7 @@ sub open_file ($self) {
 			per_page         => $per_page,
 			has_next         => $has_next,
 			page_base_url    => $rpage_url->to_string,
+			language         => $language,
 		);
 	}
 
@@ -3968,6 +3980,7 @@ sub open_file ($self) {
 				error      => $self->_i18n('error_file_open', $filename, $@),
 				back_url   => '/',
 				back_label => 'Home',
+				language   => $language,
 			);
 		}
 		$records //= [];
@@ -4001,6 +4014,7 @@ sub open_file ($self) {
 			per_page         => $per_page,
 			has_next         => $has_next,
 			page_base_url    => $rpage_url->to_string,
+			language         => $language,
 		);
 	}
 
@@ -4067,6 +4081,7 @@ sub open_file ($self) {
 			back_label  => $back_label_default,
 			back2_url   => _safe_back_url($self->param('back2')),
 			back2_label => $self->param('back2_label') // 'Back',
+			language    => $language,
 		);
 	}
 
@@ -4107,6 +4122,7 @@ sub open_file ($self) {
 		per_page         => $per_page,
 		has_next         => $has_next,
 		page_base_url    => $lpage_url->to_string,
+		language         => $language,
 	);
 }
 
@@ -4162,6 +4178,7 @@ sub import_url ($self) {
 			tables   => $self->_scan_data_dir,
 			title    => 'Choose a Database',
 			error    => $self->_i18n($key, @args),
+			language => $language,
 		);
 	};
 
@@ -4209,6 +4226,7 @@ sub import_url ($self) {
 		filters_json     => $filters_json,
 		dedup            => $dedup,
 		export_url       => $self->_build_export_url($lspec, [], $filter_specs, undef, $dedup),
+		language         => $language,
 	);
 }
 
@@ -4435,6 +4453,7 @@ sub join_tables ($self) {
 			tables   => [],
 			title    => 'Error',
 			error    => $self->_i18n('error_table_open', $left_label, $@),
+			language => $language,
 		);
 	}
 	$records //= [];
@@ -4480,6 +4499,7 @@ sub join_tables ($self) {
 		per_page         => $per_page,
 		has_next         => $has_next,
 		page_base_url    => $page_url->to_string,
+		language         => $language,
 	);
 }
 
@@ -4550,6 +4570,7 @@ sub combine_tables ($self) {
 			tables   => [],
 			title    => 'Error',
 			error    => $self->_i18n('error_table_open', $left_label, $@),
+			language => $language,
 		);
 	}
 	$left_recs //= [];
@@ -4635,6 +4656,7 @@ sub combine_tables ($self) {
 		per_page         => $per_page,
 		has_next         => $has_next,
 		page_base_url    => $page_url->to_string,
+		language         => $language,
 	);
 }
 
@@ -5246,6 +5268,7 @@ sub graph_view ($self) {
 			point_count     => scalar @series_order,
 			source_url      => $source_url,
 			source_accessed => $source_accessed,
+			language        => $language,
 		);
 	}
 
@@ -5334,6 +5357,7 @@ sub graph_view ($self) {
 		ref_avg_y        => sprintf('%.4g', $avg_y),
 		source_url       => $source_url,
 		source_accessed  => $source_accessed,
+		language         => $language,
 	);
 }
 
@@ -5466,6 +5490,7 @@ sub pie_view ($self) {
 		currency_symbol  => $currency_symbol,
 		source_url       => $source_url,
 		source_accessed  => $source_accessed,
+		language         => $language,
 	);
 }
 
@@ -5634,6 +5659,7 @@ sub heatmap_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url       => $source_url,
 		source_accessed  => $source_accessed,
+		language         => $language,
 	);
 }
 
@@ -5809,6 +5835,7 @@ sub bar_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
+		language        => $language,
 	);
 }
 
@@ -6020,6 +6047,7 @@ sub folder_view ($self) {
 		back_url   => $back,
 		back_label => 'Back to table',
 		left_spec  => $left_spec,
+		language   => $language,
 	);
 }
 
@@ -6170,6 +6198,7 @@ sub tables_view ($self) {
 		spec       => $spec,
 		back_url   => $back_url,
 		back_label => $back_label,
+		language   => $language,
 	);
 }
 
@@ -6584,6 +6613,7 @@ sub pivot_view ($self) {
 		has_next          => $piv_has_next,
 		page_base_url     => $piv_page_url->to_string,
 		total_row_groups  => $total_row_groups,
+		language      => $language,
 	);
 }
 
@@ -6685,6 +6715,7 @@ sub stats_view ($self) {
 		back_url       => ($back2 // $back),
 		back_label     => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
 		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
+		language   => $language,
 	);
 }
 
@@ -7007,6 +7038,7 @@ sub scatter_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
+		language        => $language,
 	);
 }
 
@@ -7110,6 +7142,7 @@ sub stacked_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
+		language        => $language,
 	);
 }
 
@@ -7222,6 +7255,7 @@ sub combo_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
+		language        => $language,
 	);
 }
 
@@ -7336,6 +7370,7 @@ sub treemap_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
+		language        => $language,
 	);
 }
 
@@ -7459,6 +7494,7 @@ sub histogram_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url       => $source_url,
 		source_accessed  => $source_accessed,
+		language         => $language,
 	);
 }
 
@@ -8130,6 +8166,7 @@ sub map_view ($self) {
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
 		source_url      => $source_url,
 		source_accessed => $source_accessed,
+		language        => $language,
 	);
 }
 
@@ -8396,6 +8433,7 @@ sub catalog_view ($self) {
 		format         => 'html',
 		title          => 'Dataset catalog',
 		catalog_entries => \@entries,
+		language       => $language,
 	);
 }
 
@@ -8535,6 +8573,7 @@ sub embed_view ($self) {
 		canvas_id   => $id,
 		canvas_name => $a->{name},
 		visuals     => \@rendered,
+		language    => $language,
 	);
 }
 
@@ -8769,6 +8808,7 @@ sub insights_view ($self) {
 		back_url     => ($back2 // $back),
 		back_label   => ($back2 ? ($back2_lbl || 'Back') : ($self->param('back_label') // 'Back to table')),
 		($back2 ? (back2_url => $back, back2_label => ($self->param('back_label') // 'Back to table')) : ()),
+		language     => $language,
 	);
 }
 

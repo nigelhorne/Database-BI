@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.018.0	Unreleased
+0.017.1
 	[ Bug Fixes ]
 	- script/database-bi no longer starts an endless chain of morbo managers
 	  that ends in "Can't exec ...: Argument list too long".  0.017.0's shebang
@@ -75,6 +75,31 @@ Revision history for Database-BI
 	  nothing in the browser tests asks a JSON backend what a string is.
 	- t/integration.t: restore %INC after the Test::Without::Module block, so
 	  the "Subroutine ... redefined" noise from recompiling HTML::OSM is gone.
+	- Every page declares its language.  The layout writes the resolved language
+	  into <html lang> and each action has to hand it over: index() did not, and
+	  neither did 35 other renders of templates/<platform>/<language>/..., so the
+	  home page, /view, /browse, /map and the rest served <html lang=""> while the
+	  tutorial served lang="en".  A screen reader, a translation tool and anything
+	  that indexes the page read that attribute, and an empty one says the page is
+	  in no language at all.  t/unit.t asserts it on GET /, t/browser-language.t on
+	  the running home page in each language it covers - the configured one, the
+	  default-language control and the fallback to English for a language with no
+	  template tree - and the new t/html-lang.t over every render in
+	  lib/*/Controller/*.pm, which reads the source because a new action is
+	  exactly the one no test has fetched yet.  That checker is itself run over
+	  probe files, so a pattern that had stopped matching fails instead of finding
+	  nothing to complain about.
+	- The version of Geo::Coder::Free the application asks for is 0.48, the one
+	  the distribution recommends, and the messages that quote it now say so.
+	  Database::BI::Model::Geocode's floor constant said 0.47, so a machine with
+	  0.47 passed the runtime check and was then asked for the per-lookup read
+	  counts 0.48 introduced, and the sentence a user was given named 0.47 as the
+	  version to install - one the check would have rejected again had they
+	  installed it.  The constant is 0.48, and the two messages that quote the
+	  floor are given it (a caller that pins min_geocoder_version still gets its
+	  own number back); the constructor POD's default and the Makefile.PL comment
+	  move with it.  t/geocode.t's assertion of the message text moves too - it
+	  had been holding the wrong floor in place.
 	[ New Features ]
 	- GET /map: ?size=<column> draws bubble markers (L.circleMarker) whose pixel
 	  radius is scaled across the plotted values (6 to 30 px), so a circle over
@@ -218,6 +243,34 @@ Revision history for Database-BI
 	  survive.  The usable-renderer state is the control: the same URL must
 	  draw a sized #map inside the panel and carry no renderer note, so the
 	  note assertions are proven able to fail.
+	- t/browser-map-geocoder.t does the same for the other optional module the map
+	  page needs: /map?loc=<column> is loaded in the browser with Geo::Coder::Free
+	  missing and with one older than the 0.48 floor, and the note has to name the
+	  version required and which problem it is ("not installed", "0.47 is
+	  installed"), be visible as the browser computes it inside the notes banner
+	  announced as a status, leave no map element and still be described by a
+	  summary that says nothing could be plotted.  The geocoder is answered from a
+	  file the test writes, through the model's _load_geocoder, so neither state
+	  needs the module installed or removed and one server shows both.  The
+	  control is the same file plotted by coordinate while the state file still
+	  says the geocoder is too old: that page carries the note about the row with
+	  no coordinate and no geocoder note, so the assertions above are about the
+	  geocoder rather than about any page that mentions it.  Hiding the notes
+	  banner fails the two visibility assertions, which a body-string test would
+	  not see.
+	- t/browser-canvas-map-geocoder.t covers the combination neither of the two
+	  above does: a canvas map card whose column has to be geocoded, on a
+	  machine where Geo::Coder::Free is missing or below the 0.48 floor.  The
+	  card has to carry the note, the note has to be visible as the browser
+	  computes it, inside the banner announced as a status, nothing may be
+	  drawn, and the card must not claim to have plotted markers.  The second
+	  card on the same canvas plots the same file by coordinate while the state
+	  file still says the geocoder is too old: it has to carry no geocoder note
+	  while carrying its own note about the row with no coordinate and
+	  counting its two markers, so the absence is the card's rather than the
+	  page's, and the assertions above are proven able to fail.  Both states
+	  come from the same stand-in as t/browser-map-geocoder.t, which is now
+	  exported from BI::Test::Browser as geocoder_state($state_file).
 	- t/recommended-versions.t holds the tests to the version floors the
 	  distribution already declares: every load of a recommended module in
 	  t/*.t and t/lib/**/*.pm has to be gated, in the same statement, by
@@ -245,6 +298,23 @@ Revision history for Database-BI
 	  end of the file, which made the whole tree look like one spec and failed
 	  the file.  Escapes and quoted strings are now removed before the depth of
 	  a statement is counted.
+	- t/recommended-versions.t holds the application to the same floors as the
+	  tests.  The M->VERSION(...) call in lib/ that decides whether an optional
+	  module is usable has to ask for the recommended version - written into the
+	  call, through a variable the file declares, or through its $MIN_*VERSION
+	  constant when the argument is an expression the check cannot follow - and
+	  the message shown when the module is missing or too old has to say that
+	  same version - written into the string, interpolated from a declared
+	  variable, or, when the template leaves it to a placeholder, taken from the
+	  file's floor constant, which is where the caller's default comes from.  That
+	  is the other half of the failure this file was written for: a test that skips
+	  on an old copy is visible in the run, while an application that accepts one
+	  reports nothing at all and fails later, on the feature that needed the newer
+	  version.  It found the 0.47/0.48 split above on its first run, and the
+	  messages and checks are held to each other as well as to Makefile.PL, so a
+	  message cannot name a version the check would reject.  The checker is run
+	  over probe files for each rule; the file's header states what is and is not
+	  read.
 	- Two loads that t/recommended-versions.t found were fixed rather than
 	  exempted.  t/map.t compared a bare HTML::OSM->VERSION against 0.12 on the
 	  next line, which reads as an installation check with the floor somewhere
@@ -268,6 +338,21 @@ Revision history for Database-BI
 	  answers and the page can only be French because the config said so; a
 	  default-language run of the same pages is the control.  t/browser-fixture.t
 	  checks the template tree itself, without a browser.
+	- The browser fixture can also run the application with a language that has
+	  no template tree behind it, which is the state the documented fallback
+	  exists for: language => 'de' with no templates/web/de/ used to reach the
+	  renderer and return a 500, and now answers in the default language.  Passing
+	  language_templates => 0 builds no home at all, so the app runs on the
+	  templates it ships while its config still names the language - the one state
+	  the copy-for-the-language mode cannot produce.  t/browser-language.t opens
+	  the home page and the tutorial in it: both must render, <html lang> must say
+	  en, the page must carry no marker from a copied directory and the home page
+	  must list the tables of the directory the test named.  The browser's
+	  Accept-Language asks for de as well as the config, so an English page cannot
+	  be a request that happened to ask for English; removing the directory check
+	  from _resolve_language fails the test.  t/browser-fixture.t checks the
+	  decision itself - no home for a language that was given no templates, a home
+	  for one that was - without starting anything.
 	- The keyboard browser job now reports which optional modules its runner
 	  actually has.  HTML::OSM and Geo::Coder::Free are recommends, so that job
 	  pins neither, and the branches that need one - drawing a map, geocoding a

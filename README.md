@@ -271,9 +271,8 @@ perl Makefile.PL
 - `POST /upload`
 
     Accepts a multipart file upload (field name: `file`), validates the
-    extension, saves to a subdirectory of the staging directory
-    (`uploads_dir`, default `.uploads/` under the app home), and returns JSON
-    `{ url, path }`.
+    extension, saves to a managed `.uploads/` subdirectory under the app
+    home, and returns JSON `{ url, path }`.
 
 - `GET /import`
 
@@ -390,8 +389,7 @@ perl Makefile.PL
 
 - `POST /uploads/clear`
 
-    Deletes every file from the staging directory (`uploads_dir`, default
-    `.uploads/` under the app home).  Returns JSON
+    Deletes every file from the `.uploads/` staging directory.  Returns JSON
     `{ "freed": <bytes`, "count": &lt;n> }>.  No request body is needed.
 
 - `GET /pivot`
@@ -874,9 +872,11 @@ command, and `hypnotoad script/database-bi` starts a preforking server (see
 
     Setting `language => 'de'` in `database_bi.conf` tells the controller
     to look for templates in `templates/web/de/`.  If that directory does not
-    exist, the controller automatically falls back to the default language.  To
-    add German support: (1) create `templates/web/de/`, (2) copy and translate
-    the `.html.tt` files from `templates/web/en/`, then (3) set the config.
+    exist, the controller automatically falls back to the default language, and
+    the same fallback applies when a browser asks for a language no directory
+    serves.  To add German support: (1) create `templates/web/de/`, (2) copy and
+    translate the `.html.tt` files from `templates/web/en/`, then (3) set the
+    config.
 
 - **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx**
 

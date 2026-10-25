@@ -29,15 +29,26 @@
 #     something else - "already loaded", "has no $method()" - names the module
 #     without being about its version, and is not checked; neither is a message
 #     held in a variable, which this file cannot read;
+#   * the application's own check and message say the same thing.  The
+#     M->VERSION(x) call in lib/ that decides whether an optional module is
+#     usable asks for the floor - written into the call, or through a variable
+#     the file declares, or through its $MIN_*VERSION constant when the argument
+#     is an expression this file cannot follow - and the sentence shown to a user
+#     when the module is missing or too old names that same version.  An
+#     application that accepts HTML::OSM 0.10 says nothing at all on a machine
+#     with 0.11, and one that asks for 0.47 while the distribution recommends
+#     0.48 tells the user to install a version it will reject again;
 #   * a recommended module with no declared floor (Redis) is reported rather
 #     than quietly exempt, so nothing is unchecked by accident;
 #   * Makefile.PL and cpanfile still agree on the set, because a floor only one
 #     of them knows about is enforced nowhere;
 #   * the checker itself, on probe files it writes: a bare load is rejected, a
 #     gate below the floor is rejected, a gate in a multi-line probe counts, a
-#     skip message without the floor is rejected, and a module that is a hard
-#     prerequisite is left alone.  A regex that had stopped matching would
-#     otherwise let this file pass while checking nothing.
+#     skip message without the floor is rejected, a message that interpolates a
+#     constant is read through it, a check through an unreadable expression is
+#     answered by the floor constant, and a module that is a hard prerequisite is
+#     left alone.  A regex that had stopped matching would otherwise let this file
+#     pass while checking nothing.
 #
 # Nothing is executed from the tree: the files are read.
 #
@@ -330,6 +341,195 @@ sub _skip_messages {
 	return @skips;
 }
 
+# ---------------------------------------------------------------------------
+# The application's own messages
+# ---------------------------------------------------------------------------
+#
+# A skipping test is not the only reader who needs the number.  The application
+# reports a missing or too-old optional module too, and that sentence is what an
+# operator acts on: "Drawing a map needs HTML::OSM 0.12 or later, but the
+# installed HTML::OSM is 0.11" says what to install, and "your HTML::OSM is out
+# of date" does not.  Those sentences live in lib/, and they are held to the same
+# floor as the tests.
+#
+# The number can be written into the string or interpolated from a variable the
+# same file declares; both are read.  A template that leaves it to a placeholder
+# the caller fills in is read through the file's floor constant, which is where
+# the caller's default comes from.  That is not proof that the placeholder is
+# given it - this file reads text, not data flow - but it does mean the number a
+# user is shown is one this file has checked, and that a message with no version
+# anywhere is caught.
+#
+# The check the message reports is a second thing to hold to the floor: an
+# application that accepts HTML::OSM 0.10 reports nothing at all on a machine
+# with 0.11, and the message then names a version the distribution does not
+# recommend.  So M->VERSION(x) is read too, and x has to resolve to a version at
+# the floor - written into the call, or through a variable the file declares, or
+# through the file's own floor constant when the argument is an expression this
+# check cannot follow.
+
+# The versions a file declares, by variable name, so "$MIN_FOO or later" can be
+# read as the 0.12 it is.
+sub _declared_versions {
+	my ($lines) = @_;
+
+	my %version;
+	for my $line (@$lines) {
+		while ($line =~ /\b(?:Readonly\s+)?(?:my|our)\s+\$(\w+)\s*(?:=>|=)\s*['"]?(\d+\.\d+(?:\.\d+)*)['"]?/g) {
+			$version{$1} = $2;
+		}
+		while ($line =~ /\buse\s+constant\s+(\w+)\s*=>\s*['"]?(\d+\.\d+(?:\.\d+)*)['"]?/g) {
+			$version{$1} = $2;
+		}
+	}
+
+	return \%version;
+}
+
+# Every single-line quoted string in the file, with the line it is on.  A
+# message is written that way here; a literal split over several lines is not
+# read.
+sub _strings {
+	my ($lines) = @_;
+
+	my @strings;
+	for my $index (0 .. $#$lines) {
+		my $line = $lines->[$index];
+		while ($line =~ /'((?:[^'\\]|\\.)*)'/g) {
+			push @strings, { line => $index + 1, text => $1 };
+		}
+		while ($line =~ /"((?:[^"\\]|\\.)*)"/g) {
+			push @strings, { line => $index + 1, text => $1 };
+		}
+	}
+
+	return @strings;
+}
+
+# The versions a message names: written into it, or interpolated from a variable
+# the file declares with one.
+sub _message_versions {
+	my ($text, $declared) = @_;
+
+	my @versions = _versions_named($text);
+	while ($text =~ /\$\{(\w+)\}|\$(\w+)/g) {
+		my $name = defined $1 ? $1 : $2;
+		push @versions, $declared->{$name} if defined $declared->{$name};
+	}
+
+	return @versions;
+}
+
+# Every string in the file that reports a recommended module as missing or too
+# old, and the highest version it names.
+sub _app_messages {
+	my ($file, $lines, $minima) = @_;
+
+	my $declared = _declared_versions($lines);
+
+	my @messages;
+	for my $string (_strings($lines)) {
+		for my $module (sort keys %$minima) {
+			my $needs = $minima->{$module};
+			next unless defined $needs;
+			next unless $string->{text} =~ /\Q$module\E/;
+			next unless $string->{text} =~ $UNAVAILABLE_RE;
+
+			my @versions = sort { $b <=> $a }
+				_message_versions($string->{text}, $declared);
+
+			push @messages, {
+				file        => $file,
+				line        => $string->{line},
+				module      => $module,
+				needs       => $needs,
+				text        => $string->{text},
+				named       => @versions ? $versions[0] : undef,
+				placeholder => $string->{text} =~ /%(?:s|d)/ ? 1 : 0,
+				declared    => $declared,
+			};
+		}
+	}
+
+	return @messages;
+}
+
+# Every place the application asks a module for a version.  VERSION() with no
+# argument asks what is installed, which is not a floor, and is not read.
+sub _runtime_gates {
+	my ($file, $lines, $minima) = @_;
+
+	my $declared = _declared_versions($lines);
+
+	my @gates;
+	for my $index (0 .. $#$lines) {
+		for my $module (sort keys %$minima) {
+			my $needs = $minima->{$module};
+			next unless defined $needs;
+
+			while ($lines->[$index] =~ /\Q$module\E\s*->\s*VERSION\s*\(\s*([^)]+?)\s*\)/g) {
+				my $argument = $1;
+
+				my ($asks, $through);
+				if ($argument =~ /\A['"]?(\d+\.\d+(?:\.\d+)*)['"]?\z/) {
+					$asks = $1;
+				} elsif ($argument =~ /\A\$(\w+)\z/ && defined $declared->{$1}) {
+					$asks    = $declared->{$1};
+					$through = "\$$1";
+				}
+
+				push @gates, {
+					file     => $file,
+					line     => $index + 1,
+					module   => $module,
+					needs    => $needs,
+					argument => $argument,
+					asks     => $asks,
+					through  => $through,
+					declared => $declared,
+				};
+			}
+		}
+	}
+
+	return @gates;
+}
+
+# The number a file's floor constant holds, when it has exactly one.  The
+# convention the tree already follows is one $MIN_*VERSION for the module a file
+# checks.  Two of them is ambiguous and answers nothing rather than guessing
+# which module one belongs to.
+sub _floor_constant_version {
+	my ($declared) = @_;
+
+	my @names = sort grep { /MIN/i && /VERSION/i } keys %{ $declared };
+	return undef unless @names == 1;
+
+	return $declared->{ $names[0] };
+}
+
+# The version a gate enforces.  A call whose argument the file does not make
+# readable is read through the file's floor constant.
+sub _gate_floor {
+	my ($gate) = @_;
+
+	return $gate->{asks} if defined $gate->{asks};
+
+	return _floor_constant_version($gate->{declared});
+}
+
+# The version a message says the module needs: the one it names, or the one its
+# file's floor constant holds when the number is left to a placeholder.  Nothing
+# when neither can be read.
+sub _message_floor {
+	my ($message) = @_;
+
+	return $message->{named} if defined $message->{named};
+	return undef unless $message->{placeholder};
+
+	return _floor_constant_version($message->{declared});
+}
+
 # Every place a file loads a recommended module.  The module name has to end
 # there: HTML::OSM::Extra is a different module.
 sub _recommended_loads {
@@ -492,6 +692,24 @@ sub _probe_skips {
 	return _skip_messages('probe.t', \@lines, $minima);
 }
 
+sub _probe_gates {
+	my ($source) = @_;
+
+	my $file  = _write_probe($source);
+	my @lines = _source_lines($file);
+
+	return _runtime_gates('probe.pm', \@lines, $minima);
+}
+
+sub _probe_messages {
+	my ($source) = @_;
+
+	my $file  = _write_probe($source);
+	my @lines = _source_lines($file);
+
+	return _app_messages('probe.pm', \@lines, $minima);
+}
+
 my $gated_module = 'HTML::OSM';
 my $gated_floor  = $minima->{$gated_module};
 
@@ -576,6 +794,97 @@ subtest 'the checker reads the other ways a test declares an optional module' =>
 	my @hidden = _probe_hidden("Test::Without::Module->import('$gated_module');\n");
 	is(scalar @hidden, 1, 'a module hidden rather than loaded is seen');
 	is($hidden[0]->{module}, $gated_module, 'and named, so the run says the form was looked at');
+};
+
+subtest 'the checker reads the version an application message and check name' => sub {
+	my @named = _probe_messages(
+		"my \$why = 'Drawing a map needs $gated_module $gated_floor or later';\n"
+	);
+	is(scalar @named, 1, 'a message about a recommended module is seen');
+	is($named[0]->{named}, $gated_floor, 'and the floor it names is read');
+	is($named[0]->{line}, 1, 'with the line it is on');
+
+	my @bare = _probe_messages("my \$why = '$gated_module is not installed';\n");
+	is(scalar @bare, 1, 'a message without a version is seen too');
+	is($bare[0]->{named}, undef, 'and names nothing, so it is rejected');
+
+	my $below = '0.01';
+	my @low = _probe_messages("my \$why = '$gated_module $below is too old';\n");
+	is($low[0]->{named}, $below, 'a version below the floor is read, and rejected by the check beside it');
+
+	my @constant = _probe_messages(
+		"Readonly my \$MIN_VERSION => '$gated_floor';\n"
+		. "my \$why = \"needs $gated_module \$MIN_VERSION or later\";\n"
+	);
+	is(scalar @constant, 1, 'a message that interpolates the floor is seen');
+	is($constant[0]->{named}, $gated_floor, 'and the value of the variable is what it names');
+
+	my @template = _probe_messages(
+		"Readonly my \$MIN_VERSION => '$gated_floor';\n"
+		. "my \$why = 'needs $gated_module %s or later, and %s';\n"
+	);
+	is(_message_floor($template[0]), $gated_floor,
+		'a template that leaves the number to a placeholder is read through the floor constant');
+
+	my @templated = _probe_messages("my \$why = 'needs $gated_module %s or later';\n");
+	is(_message_floor($templated[0]), undef,
+		'and without a floor constant there is nothing to read, so it is rejected');
+
+	my @low_constant = _probe_messages(
+		"Readonly my \$MIN_VERSION => '$below';\n"
+		. "my \$why = 'needs $gated_module %s or later';\n"
+	);
+	is(_message_floor($low_constant[0]), $below,
+		'a constant below the floor is read as what it holds, and rejected by the check beside it');
+
+	my @unrelated = _probe_messages("my \$why = 'the table could not be opened';\n");
+	is(scalar @unrelated, 0, 'a message about something else is not this file\'s business');
+
+	my @pinged = _probe_messages(
+		"my \$why = '$gated_module loaded; the options are not read';\n"
+	);
+	is(scalar @pinged, 0, 'nor is one that says the module is there');
+
+	my @literal = _probe_gates(
+		"my \$ok = eval { require $gated_module; $gated_module->VERSION($gated_floor); 1 };\n"
+	);
+	is(scalar @literal, 1, 'a version check is seen');
+	is(_gate_floor($literal[0]), $gated_floor, 'and the version written into it is read');
+
+	my @low_gate = _probe_gates(
+		"my \$ok = eval { require $gated_module; $gated_module->VERSION($below); 1 };\n"
+	);
+	is(_gate_floor($low_gate[0]), $below, 'a check that asks for less is read as what it asks for');
+
+	my @through = _probe_gates(
+		"Readonly my \$MIN_VERSION => '$gated_floor';\n"
+		. "my \$ok = eval { require $gated_module; $gated_module->VERSION(\$MIN_VERSION); 1 };\n"
+	);
+	is(_gate_floor($through[0]), $gated_floor, 'a check through a declared variable is read too');
+
+	my @opaque = _probe_gates(
+		"my \$ok = eval { require $gated_module; $gated_module->VERSION(\$self->{'min'}); 1 };\n"
+	);
+	is(_gate_floor($opaque[0]), undef,
+		'a check through an expression the file does not make readable answers nothing');
+
+	my @answered = _probe_gates(
+		"Readonly my \$MIN_VERSION => '$gated_floor';\n"
+		. "my \$ok = eval { require $gated_module; $gated_module->VERSION(\$self->{'min'}); 1 };\n"
+	);
+	is(_gate_floor($answered[0]), $gated_floor,
+		'and is read through the file\'s floor constant, which is what names it');
+
+	my @ambiguous = _probe_gates(
+		"Readonly my \$MIN_VERSION => '$gated_floor';\n"
+		. "Readonly my \$MIN_OTHER_VERSION => '$gated_floor';\n"
+		. "my \$ok = eval { require $gated_module; $gated_module->VERSION(\$self->{'min'}); 1 };\n"
+	);
+	is(_gate_floor($ambiguous[0]), undef,
+		'two floor constants are ambiguous, so neither is assumed to be the one');
+
+	my @installed = _probe_gates("my \$ok = eval { require $gated_module; $gated_module->VERSION; 1 };\n");
+	is(scalar @installed, 0, 'and asking for whatever is installed is not a version check');
 };
 
 subtest 'the checker reads what a skip says about a recommended module' => sub {
@@ -728,6 +1037,109 @@ for my $skip (@skips) {
 			. "    skip '%s %s is not installed here', \$tests;",
 			$where, $skip->{module}, $skip->{message},
 			$skip->{module}, $skip->{needs},
+		));
+}
+
+# ---------------------------------------------------------------------------
+# The application
+# ---------------------------------------------------------------------------
+#
+# The same floor, in the code an operator runs rather than the tests: the check
+# that decides whether the module is usable, and the sentence a user is given
+# when it is not.
+sub _lib_files {
+	my @files;
+	File::Find::find({
+		no_chdir => 1,
+		wanted   => sub {
+			my $file = $File::Find::name;
+			push @files, $file if -f $file && $file =~ /\.pm\z/;
+		},
+	}, 'lib');
+
+	return sort @files;
+}
+
+my @lib_files = _lib_files();
+cmp_ok(scalar @lib_files, '>', 10, 'the scan found the application')
+	or BAIL_OUT('the scan found almost no modules, so the checks below prove nothing');
+
+my (@gates, @messages);
+for my $file (@lib_files) {
+	my @lines = _source_lines($file);
+	push @gates,    _runtime_gates($file, \@lines, $minima);
+	push @messages, _app_messages($file, \@lines, $minima);
+}
+
+for my $module (sort grep { defined $minima->{$_} } keys %$minima) {
+	my $needs = $minima->{$module};
+
+	ok(scalar(grep { $_->{module} eq $module } @gates),
+		"the application checks which $module it has")
+		or diag("no $module->VERSION(...) call was found in lib/, so the floor $needs is enforced nowhere");
+
+	ok(scalar(grep { $_->{module} eq $module } @messages),
+		"and has a message for a $module that is missing or too old")
+		or diag("no message about $module was found in lib/, so a user with the wrong version is told nothing");
+}
+
+# What each file's own check asks for, so a message can be held to it as well as
+# to the floor: a message that names a version the check would not accept sends
+# the operator round the same loop twice.
+my %asks;
+for my $gate (@gates) {
+	next unless defined $gate->{asks};
+
+	my $key = "$gate->{file}\0$gate->{module}";
+	$asks{$key} = $gate->{asks}
+		if !defined $asks{$key} || $gate->{asks} > $asks{$key};
+}
+
+for my $gate (@gates) {
+	my $where  = "$gate->{file} line $gate->{line}";
+	my $module = $gate->{module};
+	my $needs  = $gate->{needs};
+	my $floor  = _gate_floor($gate);
+
+	# What the diag says the check asks for: the number written into it, the one
+	# its floor constant holds, or nothing when neither can be read.
+	my $asking = defined $gate->{asks}  ? $gate->{asks}
+		: defined $floor                ? "$floor, from the file's floor constant"
+		:                                 'a version this file does not make readable';
+
+	ok(defined $floor && $floor >= $needs,
+		"$where checks $module at the $needs the distribution recommends")
+		or diag(sprintf(
+			"%s asks %s for %s, but the distribution recommends %s.\n"
+			. "A machine with the older version gets an application that starts and\n"
+			. "then meets the feature that needs the newer one - the same split the\n"
+			. "tests had, on the other side.  Ask for the version Makefile.PL\n"
+			. "recommends, and name it in a \$MIN_*VERSION constant if the call cannot\n"
+			. "show it:",
+			$where, $module, $asking, $needs,
+		));
+}
+
+for my $message (@messages) {
+	my $where  = "$message->{file} line $message->{line}";
+	my $module = $message->{module};
+	my $needs  = $message->{needs};
+
+	my $key  = "$message->{file}\0$module";
+	my $want = defined $asks{$key} && $asks{$key} > $needs ? $asks{$key} : $needs;
+	my $says = _message_floor($message);
+
+	ok(defined $says && $says >= $want,
+		"$where says which $module version it needs")
+		or diag(sprintf(
+			"%s reports %s as missing or too old, but the message does not say %s\n"
+			. "or later:\n"
+			. "    %s\n"
+			. "The sentence is what an operator acts on, so it has to name the version\n"
+			. "the application accepts - the floor, or the constant the check uses,\n"
+			. "interpolated into the template - rather than leaving it out or naming an\n"
+			. "older one:",
+			$where, $module, $want, $message->{text},
 		));
 }
 
