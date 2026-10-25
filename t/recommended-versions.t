@@ -22,15 +22,22 @@
 #     skips on any installed copy, which is the same assumption as a bare
 #     require and drifts the same way; the module a test hides with
 #     Test::Without::Module has no version to name and is reported as such;
+#   * a skip message that reports a recommended module as not there, or not new
+#     enough, names the floor as well.  A skipped run is all most readers ever
+#     see of such a test, and "HTML::OSM not available" leaves them unable to
+#     tell a missing 0.12 from a machine with 0.11 on it.  A skip about
+#     something else - "already loaded", "has no $method()" - names the module
+#     without being about its version, and is not checked; neither is a message
+#     held in a variable, which this file cannot read;
 #   * a recommended module with no declared floor (Redis) is reported rather
 #     than quietly exempt, so nothing is unchecked by accident;
 #   * Makefile.PL and cpanfile still agree on the set, because a floor only one
 #     of them knows about is enforced nowhere;
 #   * the checker itself, on probe files it writes: a bare load is rejected, a
-#     gate below the floor is rejected, a gate in a multi-line probe counts,
-#     and a module that is a hard prerequisite is left alone.  A regex that had
-#     stopped matching would otherwise let this file pass while checking
-#     nothing.
+#     gate below the floor is rejected, a gate in a multi-line probe counts, a
+#     skip message without the floor is rejected, and a module that is a hard
+#     prerequisite is left alone.  A regex that had stopped matching would
+#     otherwise let this file pass while checking nothing.
 #
 # Nothing is executed from the tree: the files are read.
 #
@@ -173,8 +180,17 @@ sub _source_lines {
 # How deeply the text is inside braces, brackets and parentheses.  Approximate
 # by design: it decides where a statement ends, and a probe written over
 # several lines is the only thing it has to get right.
+#
+# Escapes and quoted strings come out first.  A regex may hold an escaped
+# bracket - \( and \[ are common - and a message may hold one of its own; counted
+# as structure they would leave every statement after them open to the end of
+# the file, which is how a checker silently stops checking.
 sub _depth {
 	my ($text) = @_;
+
+	$text =~ s/\\.//gs;
+	$text =~ s/'(?:[^'])*'//gs;
+	$text =~ s/"(?:[^"]*)"//gs;
 
 	my $opens  = () = $text =~ /[\{\(\[]/g;
 	my $closes = () = $text =~ /[\}\)\]]/g;
@@ -237,6 +253,81 @@ sub _gated_version {
 	}
 
 	return $highest;
+}
+
+# How a skip message says a module is not usable.  A message about something
+# else - "already loaded", "has no method" - names the module without being
+# about the version the test wants, and is not the subject of this check.
+my $UNAVAILABLE_RE = qr/\b(?:
+	not\s+installed | not\s+available | not\s+loadable | unavailable |
+	missing | required | needed | too\s+old | or\s+later
+)\b/ix;
+
+# The versions a message names: a number with a fractional part, so a count of
+# assertions ('4 tests skipped') cannot be read as one.  0.12 is a version;
+# 10.12 and 0.120 are different ones, which is why the digits either side are
+# checked as well.
+sub _versions_named {
+	my ($message) = @_;
+
+	return $message =~ /(?<![\d.])(\d+\.\d+(?:\.\d+)*)(?![\d.])/g;
+}
+
+# Whether the message names a version that would satisfy the floor.  A message
+# about a test that needs something newer than the floor counts too: it still
+# tells the reader why the run was skipped.
+sub _names_floor {
+	my ($message, $needs) = @_;
+
+	return scalar grep { $_ >= $needs } _versions_named($message);
+}
+
+# The message a skip or skip_all call is given, or undef when it is not a
+# literal.  Only the message is checked, not the condition beside it: a version
+# in a gate that fails says nothing to a reader of the skip, which is the point.
+# The capture is the second group - the first is the quote that delimits it.
+sub _skip_message {
+	my ($statement) = @_;
+
+	return $2 if $statement =~ /\bskip_all\s*=>\s*(['"])(.*?)\1/s;
+	return $2 if $statement =~ /\bskip\s*\(?\s*(['"])(.*?)\1/s;
+
+	return undef;
+}
+
+# Every place a file skips because a recommended module cannot be used.  The
+# message is the only thing a reader of a skipped run sees, so it is where the
+# floor has to be written down.
+sub _skip_messages {
+	my ($file, $lines, $minima) = @_;
+
+	my $statement_of = _statement_by_line($lines);
+
+	my @skips;
+	for my $index (0 .. $#$lines) {
+		next unless $lines->[$index] =~ /\b(?:skip_all|skip)\b/;
+
+		my $message = _skip_message($statement_of->{$index});
+		next unless defined $message;
+
+		for my $module (sort keys %$minima) {
+			my $needs = $minima->{$module};
+			next unless defined $needs;
+			next unless $message =~ /\Q$module\E/;
+			next unless $message =~ $UNAVAILABLE_RE;
+
+			push @skips, {
+				file    => $file,
+				line    => $index + 1,
+				module  => $module,
+				needs   => $needs,
+				message => $message,
+				names   => _names_floor($message, $needs),
+			};
+		}
+	}
+
+	return @skips;
 }
 
 # Every place a file loads a recommended module.  The module name has to end
@@ -392,6 +483,15 @@ sub _probe_hidden {
 	return _hidden_modules('probe.t', \@lines, $minima);
 }
 
+sub _probe_skips {
+	my ($source) = @_;
+
+	my $file  = _write_probe($source);
+	my @lines = _source_lines($file);
+
+	return _skip_messages('probe.t', \@lines, $minima);
+}
+
 my $gated_module = 'HTML::OSM';
 my $gated_floor  = $minima->{$gated_module};
 
@@ -478,6 +578,55 @@ subtest 'the checker reads the other ways a test declares an optional module' =>
 	is($hidden[0]->{module}, $gated_module, 'and named, so the run says the form was looked at');
 };
 
+subtest 'the checker reads what a skip says about a recommended module' => sub {
+	my @named = _probe_skips(
+		"plan skip_all => '$gated_module $gated_floor or later is needed to draw a map';\n"
+	);
+	is(scalar @named, 1, 'a skip message about a recommended module is seen');
+	ok($named[0]->{names}, 'and accepted when it names the floor');
+	is($named[0]->{module}, $gated_module, 'with the module named');
+	is($named[0]->{line}, 1, 'and the line it is on');
+
+	# The message, not the quote that delimits it.  Reading $1 instead of $2
+	# would hand every check a single character, and every probe would pass.
+	like($named[0]->{message}, qr/\A\Q$gated_module\E /,
+		'and the text of the message rather than its opening quote');
+
+	my @bare = _probe_skips(
+		"\tskip '$gated_module is not installed here', 4;\n"
+	);
+	is(scalar @bare, 1, 'a message that names the module without its version is seen');
+	ok(!$bare[0]->{names}, 'and rejected: a reader cannot tell 0.11 from no copy at all');
+
+	my @newer = _probe_skips(
+		"\tskip '$gated_module 99.0 is needed for this', 1;\n"
+	);
+	ok($newer[0]->{names}, 'a message asking for more than the floor is accepted');
+
+	my @old = _probe_skips(
+		"\tskip '$gated_module 0.01 is missing', 1;\n"
+	);
+	ok(!$old[0]->{names}, 'a floor below the one needed is not accepted');
+
+	my @count = _probe_skips(
+		"\tskip '$gated_module is not installed here', 4;\n"
+	);
+	ok(!$count[0]->{names}, 'the number of skipped assertions is not read as a version');
+
+	my @ungated = _probe_skips(
+		"\tskip '$gated_module is missing', 1 unless \$have;\n"
+	);
+	is(scalar @ungated, 1, 'the condition beside the message is not part of what is checked');
+
+	my @loaded = _probe_skips(
+		"plan skip_all => '$gated_module already loaded; cannot simulate absence';\n"
+	);
+	is(scalar @loaded, 0, 'a skip about something other than the module\'s version is left alone');
+
+	my @variable = _probe_skips("\tmy \$why = '$gated_module is missing';\n\tskip \$why, 1;\n");
+	is(scalar @variable, 0, 'a message held in a variable is not read');
+};
+
 # ---------------------------------------------------------------------------
 # The tests in the tree
 # ---------------------------------------------------------------------------
@@ -500,12 +649,13 @@ my @files = _test_files();
 cmp_ok(scalar @files, '>', 20, 'the scan found the test suite')
 	or BAIL_OUT('the file scan found almost nothing, so it is not testing anything');
 
-my (@loads, @specs, @hidden);
+my (@loads, @specs, @hidden, @skips);
 for my $file (@files) {
 	my @lines = _source_lines($file);
 	push @loads,  _recommended_loads($file, \@lines, $minima);
 	push @specs,  _recommended_specs($file, \@lines, $minima);
 	push @hidden, _hidden_modules($file, \@lines, $minima);
+	push @skips,  _skip_messages($file, \@lines, $minima);
 }
 
 cmp_ok(scalar @loads, '>', 5, 'the scan found the loads of recommended modules')
@@ -558,6 +708,27 @@ for my $spec (@specs) {
 
 for my $hidden (@hidden) {
 	pass("$hidden->{file} line $hidden->{line} hides $hidden->{module}, so there is no version to name");
+}
+
+cmp_ok(scalar @skips, '>', 0,
+	'the scan found skip messages about recommended modules')
+	or BAIL_OUT('no skip message mentions a recommended module, so that check proves nothing');
+
+for my $skip (@skips) {
+	my $where = "$skip->{file} line $skip->{line}";
+
+	ok($skip->{names}, "$where says which version of $skip->{module} it needed")
+		or diag(sprintf(
+			"%s skips because %s cannot be used, but the message does not say\n"
+			. "which version it needed:\n"
+			. "    %s\n"
+			. "A skipped run is all most readers see of this test, and this message\n"
+			. "reads the same on a machine with 0.11 on it as on one with no copy\n"
+			. "at all.  Name the floor:\n"
+			. "    skip '%s %s is not installed here', \$tests;",
+			$where, $skip->{module}, $skip->{message},
+			$skip->{module}, $skip->{needs},
+		));
 }
 
 done_testing();

@@ -180,4 +180,36 @@ subtest 'a language the distribution does not ship gets a template tree of its o
 	ok !-d 'templates/web/fr', 'and no language directory was created in the checkout';
 };
 
+# Building a tree for the language is the usual case, but not the only state
+# worth reaching: an operator who sets language => 'de' before adding
+# templates/web/de/ has a configured language the app cannot serve, and the
+# documented answer is the default language.  That needs the app to run on the
+# templates it ships with the config still naming 'de', so the fixture has to be
+# able to build no home at all.  The decision is checked here, without starting
+# anything; t/browser-language.t checks what the page then says.
+subtest 'a language can be named without a template tree behind it' => sub {
+	my $tmp = tempdir(CLEANUP => 1);
+
+	is BI::Test::Browser::_language_home({
+		tmp                => $tmp,
+		language           => 'de',
+		language_templates => 0,
+	}), undef, 'asking for no tree builds no home';
+
+	ok !-d "$tmp/home",
+		'so nothing is copied and the app keeps the templates it ships';
+	ok !-d 'templates/web/de', 'and nothing is written into the checkout';
+
+	my $home = BI::Test::Browser::_language_home({
+		tmp                => $tmp,
+		language           => 'de',
+		language_templates => 1,
+	});
+	ok defined $home && -d "$home/templates/web/de",
+		'while the default still builds one, so the flag is the only difference';
+
+	is BI::Test::Browser::_language_home({ tmp => tempdir(CLEANUP => 1), language => 'en' }),
+		undef, 'and the default language needs no home of its own';
+};
+
 done_testing();

@@ -227,12 +227,24 @@ Revision history for Database-BI
 	  not draw - and Test::Without::Module, skip-if-absent and
 	  eval { require ... } all answer it.  A Test::Needs spec has to name the
 	  same floor: { 'M' => 0 } and the bare list accept any installed copy, and
-	  drift the same way.  cpanfile and Makefile.PL must still agree on the set;
-	  a recommended module with no floor (Redis) is reported rather than exempted
-	  silently, as is one a test hides with Test::Without::Module, where hiding
-	  it is the point and there is no version to name; and the checker is run
-	  over probe files it writes, so a regex that stopped matching fails instead
-	  of passing.
+	  drift the same way.  So does the message a test gives when it skips for
+	  want of such a module: a skipped run is all most readers ever see of the
+	  test, and "HTML::OSM is not installed here" reads the same on a machine
+	  with 0.11 on it as on one with no copy at all, so a message that reports a
+	  recommended module as missing or too old has to name the floor as well.
+	  Messages about something else ("already loaded", "has no $method()") and
+	  messages held in a variable are left alone, and a count of skipped
+	  assertions is not mistaken for a version.  cpanfile and Makefile.PL must
+	  still agree on the set; a recommended module with no floor (Redis) is
+	  reported rather than exempted silently, as is one a test hides with
+	  Test::Without::Module, where hiding it is the point and there is no
+	  version to name; and the checker is run over probe files it writes, so a
+	  regex that stopped matching fails instead of passing.  That last part
+	  caught the checker splitting statements on brackets inside regex escapes:
+	  a \( in one of its own patterns left every statement after it open to the
+	  end of the file, which made the whole tree look like one spec and failed
+	  the file.  Escapes and quoted strings are now removed before the depth of
+	  a statement is counted.
 	- Two loads that t/recommended-versions.t found were fixed rather than
 	  exempted.  t/map.t compared a bare HTML::OSM->VERSION against 0.12 on the
 	  next line, which reads as an installation check with the floor somewhere
@@ -256,6 +268,14 @@ Revision history for Database-BI
 	  answers and the page can only be French because the config said so; a
 	  default-language run of the same pages is the control.  t/browser-fixture.t
 	  checks the template tree itself, without a browser.
+	- The keyboard browser job now reports which optional modules its runner
+	  actually has.  HTML::OSM and Geo::Coder::Free are recommends, so that job
+	  pins neither, and the branches that need one - drawing a map, geocoding a
+	  place column - run there only if the machine happens to have it at or above
+	  the declared version.  A step reads cpanfile, probes each recommended
+	  module (not installed / version / version too old) and writes a table to the
+	  log and the job summary, so a green run can be read for what it covered
+	  instead of being assumed to have covered everything.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]

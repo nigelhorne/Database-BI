@@ -49,6 +49,13 @@ package BI::Test::Browser;
 # nothing is written into the checkout.  See _home_for_language for what the
 # copies say about themselves.
 #
+# language_templates => 0 asks for the opposite state: the config still names
+# the language, and there is no template directory behind it, because the app
+# runs against the templates the distribution ships.  That is the state an
+# operator reaches by setting language => 'de' before adding templates/web/de/,
+# and the documented answer is the default language, so the fixture has to be
+# able to produce it without building a home.  See _language_home.
+#
 #   my $browser = BI::Test::Browser->new(record_patches => 1);
 #   $browser->navigate('/view/sales');
 #   $browser->focus('#btn-bar');
@@ -207,6 +214,11 @@ sub new {
 		data_dir        => File::Spec->rel2abs($arg{data_dir} || 'data'),
 		platform        => $arg{platform} || 'web',
 		language        => $arg{language} || 'en',
+		# Whether a template tree is built for that language.  On by default, so
+		# naming a language runs in it; off means the language has no directory
+		# and the default language is what the app falls back to.
+		language_templates => defined $arg{language_templates}
+			? ($arg{language_templates} ? 1 : 0) : 1,
 		record_patches  => $arg{record_patches} ? 1 : 0,
 		app_config      => $arg{app_config} || {},
 		static_paths    => $arg{static_paths} || [],
@@ -239,8 +251,10 @@ sub new {
 	# code and then renders templates/<platform>/<code>/, and there is no such
 	# directory for anything but the default.  A test that names another one
 	# gets a home for the app holding the templates it has plus a copy of them
-	# as that language; _start_server passes it through MOJO_HOME.
-	$self->{home} = _home_for_language($self) if $self->{language} ne 'en';
+	# as that language; _start_server passes it through MOJO_HOME.  A test that
+	# asks for no tree gets no home, which is how the app is left with the
+	# shipped templates and a language it cannot serve.
+	$self->{home} = _language_home($self);
 
 	$self->_start_server;
 	$self->_start_browser(
@@ -324,6 +338,23 @@ sub _config_value {
 # ---------------------------------------------------------------------------
 # A home for a language the distribution does not ship
 # ---------------------------------------------------------------------------
+
+# The home the app is started with: one built for the named language, or undef
+# to leave the app on the templates the distribution ships.
+#
+# Undef is a state, not a default: with no home the app resolves the language it
+# was configured with, finds no directory for it and answers in the default
+# language, which is the documented fallback and the thing a test of that
+# fallback has to be able to reach.  Deciding it here rather than inline in new()
+# is what lets t/browser-fixture.t check it without starting a browser.
+sub _language_home {
+	my ($self) = @_;
+
+	return undef if $self->{language} eq 'en'; # the language the distribution ships
+	return undef unless $self->{language_templates};
+
+	return _home_for_language($self);
+}
 
 # The application home the fixture builds for a non-default language.
 #

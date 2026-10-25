@@ -13,8 +13,9 @@
 # What each job pins - every one of these states is reachable on a developer's
 # machine by accident and would otherwise never be exercised by CI:
 #
-#   keyboard            t/browser-*.t on a stock runner: Perl 5.40, Firefox ESR,
-#                       HTML::OSM whatever the runner happens to have
+#   keyboard            t/browser-*.t on a stock runner: Perl 5.40, Firefox ESR;
+#                       the optional modules are not pinned, and the job records
+#                       which ones it found in its log and job summary
 #   no-renderer         t/browser-map-page-renderer.t with HTML::OSM verifiably
 #                       not loadable - the job fails if it is
 #   no-renderer-canvas  the same absence for the canvas map card, in
@@ -79,6 +80,72 @@ jobs:
         run: |
           eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
           cpanm --notest --installdeps --verbose .
+
+      # What this job leaves to the runner.  Recommended modules are optional, by
+      # design, so the branches that need one - drawing a map, geocoding a place
+      # column - run here only if the machine has it and it is new enough.  The
+      # other jobs pin their state; this one reports the state it got, in the log
+      # and in the job summary, so a green run can be read for what it covered
+      # instead of being assumed to have covered everything.
+      - name: Report the optional modules this runner has
+        shell: bash
+        run: |
+          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+
+          # The list and the floors come from cpanfile, which
+          # t/recommended-versions.t keeps in step with Makefile.PL, so this
+          # cannot drift from the metadata it is describing.
+          report=$(mktemp)
+          perl <<'PERL' > "$report"
+            use strict;
+            use warnings;
+
+            open my $fh, '<', 'cpanfile' or die "cpanfile: $!";
+            my @optional;
+            while (my $line = <$fh>) {
+              push @optional, [ $1, $2 ]
+                if $line =~ /^\s*recommends\s+'([\w:]+)'(?:\s*,\s*'([^']*)')?\s*;/;
+            }
+            close $fh;
+
+            print "| optional module | version needed | on this runner |\n";
+            print "| --- | --- | --- |\n";
+
+            for my $entry (@optional) {
+              my ($module, $floor) = @$entry;
+              $floor = undef if defined $floor && !length $floor;
+
+              # require takes a file when the name is in a variable, not a
+              # package name, so the separator is translated by hand.
+              my $loaded = eval {
+                (my $path = $module) =~ s{::}{/}g;
+                require "$path.pm";
+                1;
+              };
+              my $published = $loaded ? $module->VERSION : undef;
+              my $found     = defined $published ? $published : 'no version';
+
+              # VERSION(n) is the check the application itself makes, and it
+              # compares versions the way Perl does rather than as decimals.
+              my $state =
+                  !$loaded                             ? 'not installed'
+                : !defined $floor                      ? $found
+                : eval { $module->VERSION($floor); 1 }  ? $found
+                :                                        "$found (too old)";
+
+              printf "| %s | %s | %s |\n",
+                $module, (defined $floor ? $floor : 'any'), $state;
+            }
+
+            print "\nA module that is absent, or older than the version needed, "
+              . "makes the browser tests skip the assertions that need it.\n";
+          PERL
+
+          cat "$report"
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+            { printf '\n'; cat "$report"; } >> "$GITHUB_STEP_SUMMARY"
+          fi
+          rm -f "$report"
 
       - name: Install Firefox
         id: setup-firefox
