@@ -166,8 +166,14 @@ $t->app->config->{geocoder} = $stub;
 
 # HTML::OSM is a recommends dep; skip when absent so CI does not fail just
 # because the optional renderer is not installed.
-plan skip_all => 'HTML::OSM not installed; map rendering tests need it'
-	unless eval { require HTML::OSM; 1 };
+#
+# 0.12 is the floor, not just installation: below it the application reports
+# the renderer in the page and draws nothing, so every assertion here about
+# markers, popups and Leaflet assets would fail for a reason the file cannot
+# test.  The degraded page is covered by the in-process stand-in instead.
+my $have_map_renderer = eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 };
+plan skip_all => 'HTML::OSM 0.12 or later is needed to draw a map'
+	unless $have_map_renderer;
 
 # ===========================================================================
 # loc=<column> -- a dataset with places but no coordinates

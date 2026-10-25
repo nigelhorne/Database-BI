@@ -68,6 +68,11 @@ Readonly my $REMOTE_HOST_RE => qr/\A(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\@)?[a-zA-Z0-9]
 # that release introduced search => 0, max_zoom, and tile_url (0.11).
 Readonly my $DEFAULT_TILE_URL => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
+# The language the distribution ships templates for.  It is what a request falls
+# back to when the language it resolved has no template directory of its own;
+# see _resolve_language.  Keep it equal to Database::BI's $DEFAULT_LANGUAGE.
+Readonly my $DEFAULT_LANGUAGE => 'en';
+
 # The floor this controller passes options for.  HTML::OSM validates its
 # constructor arguments strictly, so an older install does not ignore the new
 # keys - it croaks on them.  _map_data therefore checks the version before
@@ -318,8 +323,9 @@ sub _safe_back_url {
 # _resolve_template($self) -> ($platform, $language)
 #
 # Purpose: Read platform and language from config, then resolve the Accept-Language
-#          header to a language code -- falling back to the config default when
-#          no template directory exists for the resolved language.
+#          header to a language code -- falling back to the config language, and
+#          then to the default language, when no template directory exists for
+#          the code that was resolved.
 # Exit:    Returns ($platform, $language) -- both guaranteed non-empty strings.
 sub _resolve_template :Protected ($self) {
 	my $conf         = $self->app->config();
@@ -366,9 +372,13 @@ sub _detect_platform ($user_agent, $fallback) {
 # Purpose: Determine the best ISO 639-1 language code for this request.
 #          When Accept-Language is present, CGI::Lingua selects the best
 #          match from the languages that have a template directory under
-#          templates/<platform>/.  Falls back to $default when the header
-#          is absent, no templates exist for the matched language, or
-#          CGI::Lingua is unavailable.
+#          templates/<platform>/.  $default answers when the header is absent,
+#          no templates exist for the matched language, or CGI::Lingua is
+#          unavailable.  The result has a template directory whenever one
+#          exists: a code without one - the configured language included -
+#          becomes the default language, and only when that has no directory
+#          either is the resolved code returned, so the missing template names
+#          what was asked for.
 # Entry:   $platform is the resolved VWF platform string.
 #          $default  is a non-empty fallback language code (e.g. 'en').
 # Exit:    Returns a two-letter ISO 639-1 language code string.
@@ -376,32 +386,65 @@ sub _detect_platform ($user_agent, $fallback) {
 #               temporarily sets $ENV{HTTP_ACCEPT_LANGUAGE} with local().
 sub _resolve_language :Protected ($self, $platform, $default) {
 	my $accept = $self->req->headers->accept_language() // '';
-	return $default unless $accept;
 
-	# Discover supported languages from template directories so CGI::Lingua
-	# only returns a code we can actually serve.
-	my $tmpl_base = $self->app->home->child("templates/$platform");
-	my @supported;
-	if (-d $tmpl_base) {
-		@supported = map  { Mojo::File->new($_)->basename }
-		             grep { -d $_ }
-		             @{ $tmpl_base->list({ dir => 1 }) };
+	my $language = $default;
+	if ($accept) {
+		# Discover supported languages from template directories so CGI::Lingua
+		# only returns a code we can actually serve.  The configured language is
+		# offered as well, so a request that asks for it gets it, whether or not
+		# it can be served - the check below decides that.
+		my @supported = _template_languages($self->app->home, $platform);
+		push @supported, $default unless grep { $_ eq $default } @supported;
+
+		my $chosen = eval {
+			local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
+			my $lingua = CGI::Lingua->new(supported => \@supported);
+			$lingua->language_code_alpha2();
+		};
+		$language = $chosen if defined $chosen;
 	}
-	push @supported, $default unless grep { $_ eq $default } @supported;
 
-	my $lang = eval {
-		local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
-		my $lingua = CGI::Lingua->new(supported => \@supported);
-		$lingua->language_code_alpha2();
-	};
-	$lang //= $default;
+	# Confirm a template directory exists for the language we are about to
+	# render from.  Naming a language does not give it templates, and rendering
+	# a directory that is not there is a 500 rather than a translation.  This
+	# covers the configured language itself and not just the one Accept-Language
+	# produced: the documented fallback used to happen only when the two
+	# differed, so the ordinary case - an operator setting language => 'de'
+	# before adding templates/web/de/ - reached the renderer unchecked.
+	my $home = $self->app->home;
+	return $language      if _has_templates($home, $platform, $language);
+	return $DEFAULT_LANGUAGE
+		if _has_templates($home, $platform, $DEFAULT_LANGUAGE);
 
-	# Confirm a template directory exists for the chosen language.
-	if ($lang ne $default) {
-		my $dir = $self->app->home->child("templates/$platform/$lang");
-		$lang   = $default unless -d $dir;
-	}
-	return $lang;
+	# Neither exists.  Keep what was resolved, so the missing template names the
+	# language the request asked for rather than one nobody configured.
+	return $language;
+}
+
+# _template_languages($home, $platform) -> @codes
+#
+# The languages that have a template directory for the platform, sorted so that
+# the answer does not depend on the order the filesystem returns entries in.
+# Plain functions taking the application home rather than methods: the tests
+# call _resolve_language with a mock controller, and a method call on it would
+# look for the helper in the mock's package rather than this one.
+sub _template_languages ($home, $platform) {
+	my $base = $home->child("templates/$platform");
+	return () unless -d $base;
+
+	return sort map { Mojo::File->new($_)->basename }
+		grep { -d $_ } @{ $base->list({ dir => 1 }) };
+}
+
+# _has_templates($home, $platform, $language) -> 1 | 0
+#
+# Whether the application can render a language: the controller builds template
+# names as "<platform>/<language>/<page>", so a language without a directory
+# under templates/<platform>/ cannot be served at all.
+sub _has_templates ($home, $platform, $language) {
+	return 0 unless defined $language && length $language;
+
+	return -d $home->child("templates/$platform/$language") ? 1 : 0;
 }
 
 # _data_dir_for($app) -> Mojo::File

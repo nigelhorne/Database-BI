@@ -1892,7 +1892,8 @@ subtest '/map loc= path: geocoder called, markers + counts correct' => sub {
 	# Both distinct non-skipped places appear in map_body (Leaflet popup HTML),
 	# which is only rendered when HTML::OSM is installed.
 	SKIP: {
-		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 2;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
+			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 2;
 		like $body, qr/Ramsgate/i, 'Ramsgate marker present in response';
 		like $body, qr/Margate/i,  'Margate marker present in response';
 	}
@@ -2063,7 +2064,8 @@ subtest '/map lat/lon path: duplicate coordinates collapse to one marker' => sub
 	# Rows 1+2 share a coordinate -> one marker; row 3 is separate; row 4 is unusable.
 	# The lat values appear inside the Leaflet JS in map_body, which requires HTML::OSM.
 	SKIP: {
-		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 2;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
+			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 2;
 		like $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat present in response';
 		like $body, qr/$MARGATE_LAT/,  'Margate lat present in response';
 	}
@@ -2082,7 +2084,8 @@ subtest '/map lat/lon path: f= filter applied before marker construction' => sub
 	# Only row 1 (name=A) survives the filter.
 	# Lat values appear in the Leaflet JS inside map_body, which requires HTML::OSM.
 	SKIP: {
-		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 2;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
+			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 2;
 		like   $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat in response after filter';
 		unlike $body, qr/$MARGATE_LAT/,  'Margate lat absent after name:eq:A filter';
 	}
@@ -2195,7 +2198,8 @@ subtest '/map popup= column appears in marker label HTML' => sub {
 	# Popup column names appear inside map_body (Leaflet popup HTML),
 	# which is only rendered when HTML::OSM is installed.
 	SKIP: {
-		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 1;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
+			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 1;
 		like $body, qr/amount/i, 'amount column referenced in map output (popup)';
 	}
 
@@ -2373,7 +2377,8 @@ subtest '/map: ?c= calculated field applied before geocoding' => sub {
 	# City names appear inside map_body (Leaflet popup HTML),
 	# which is only rendered when HTML::OSM is installed.
 	SKIP: {
-		eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 1;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
+			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 1;
 		like $body, qr/ramsgate/i, 'ramsgate appears in the map output';
 	}
 

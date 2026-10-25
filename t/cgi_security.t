@@ -57,6 +57,10 @@ my $t = Test::Mojo->new('Database::BI');
 my $STAGING = File::Temp::tempdir(CLEANUP => 1);
 $t->app->config->{uploads_dir} = $STAGING;
 
+# The model store (.bi/) is shared state in the checkout: give this file its
+# own directory, so a parallel run cannot create, read or write it underneath.
+$t->app->config->{model_dir} = File::Temp::tempdir(CLEANUP => 1);
+
 # ---------------------------------------------------------------------------
 # Attack vector 1: Table-name injection via the :table route placeholder
 #

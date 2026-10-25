@@ -15,6 +15,10 @@ my $t = Test::Mojo->new('Database::BI');
 # empty it between an upload and the /open that reads it.
 $t->app->config->{uploads_dir} = File::Temp::tempdir(CLEANUP => 1);
 
+# The model store (.bi/) is shared state in the checkout: give this file its
+# own directory, so a parallel run cannot create, read or write it underneath.
+$t->app->config->{model_dir} = File::Temp::tempdir(CLEANUP => 1);
+
 # ---------------------------------------------------------------------------
 subtest 'Home page' => sub {
 	$t->get_ok('/')->status_is(200)->content_like(qr/Choose a Database/i);

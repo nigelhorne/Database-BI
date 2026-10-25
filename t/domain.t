@@ -18,6 +18,10 @@ my $t = Test::Mojo->new('Database::BI');
 # POST /uploads/clear cannot empty it mid-test.
 $t->app->config->{uploads_dir} = tempdir(CLEANUP => 1);
 
+# The model store (.bi/) is shared state in the checkout: give this file its
+# own directory, so a parallel run cannot create, read or write it underneath.
+$t->app->config->{model_dir} = tempdir(CLEANUP => 1);
+
 require Database::BI::Model::DataSource;
 require Database::BI::Controller::Dashboard;
 

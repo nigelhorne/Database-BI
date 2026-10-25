@@ -20,6 +20,10 @@ my $t = Test::Mojo->new('Database::BI');
 # default directory would break both that count and its neighbours' opens.
 $t->app->config->{uploads_dir} = tempdir(CLEANUP => 1);
 
+# The model store (.bi/) is shared state in the checkout: give this file its
+# own directory, so a parallel run cannot create, read or write it underneath.
+$t->app->config->{model_dir} = tempdir(CLEANUP => 1);
+
 # ======================================================================
 # CONSTANTS
 # ======================================================================

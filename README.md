@@ -271,8 +271,9 @@ perl Makefile.PL
 - `POST /upload`
 
     Accepts a multipart file upload (field name: `file`), validates the
-    extension, saves to a managed `.uploads/` subdirectory under the app
-    home, and returns JSON `{ url, path }`.
+    extension, saves to a subdirectory of the staging directory
+    (`uploads_dir`, default `.uploads/` under the app home), and returns JSON
+    `{ url, path }`.
 
 - `GET /import`
 
@@ -389,7 +390,8 @@ perl Makefile.PL
 
 - `POST /uploads/clear`
 
-    Deletes every file from the `.uploads/` staging directory.  Returns JSON
+    Deletes every file from the staging directory (`uploads_dir`, default
+    `.uploads/` under the app home).  Returns JSON
     `{ "freed": <bytes`, "count": &lt;n> }>.  No request body is needed.
 
 - `GET /pivot`
@@ -704,6 +706,7 @@ defaults:
 ```perl
 {
     data_dir => 'data',   # directory scanned for data files on the home page
+    uploads_dir => '.uploads',  # staging directory for uploaded files
     platform => 'web',    # VWF template dimension
     language => 'en',     # VWF template dimension
 
@@ -713,6 +716,16 @@ defaults:
     # below.
     d3_url => 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js',
 }
+```
+
+`uploads_dir` is where `POST /upload` stages the files a user drags onto the
+page, and the directory `POST /uploads/clear` empties.  It defaults to
+`.uploads` under the application home.  A relative value resolves against the
+application home, an absolute one is used as given, so a deployment whose
+application directory is read-only can stage uploads somewhere writable:
+
+```perl
+{ uploads_dir => '/var/tmp/database-bi-uploads' }
 ```
 
 ### Self-Hosting D3 and Leaflet

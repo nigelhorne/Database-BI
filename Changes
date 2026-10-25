@@ -34,7 +34,12 @@ Revision history for Database-BI
 	- data_dir may be absolute.  A relative value is still resolved against
 	  the application home, but an absolute one was appended to it, so
 	  table=, /view, /join and the column APIs looked in a path that could not
-	  exist.  t/map.t covers the absolute case.
+	  exist.  t/map.t covers the absolute case.  /view was still broken: it
+	  opens its table without a directory of its own, so it used the copy
+	  open_table was given in startup(), which was still built by appending the
+	  absolute path to the home directory - the page listed the table but
+	  showed no rows.  Both now resolve with the same rule, so an absolute
+	  data_dir is used as given everywhere.
 	- Database::BI::Extract: removed _get_or_build_extract, which no route
 	  called, and corrected the class documentation and the 0.015.0 claim that
 	  the web application materialises extracts.  The class itself is
@@ -45,6 +50,29 @@ Revision history for Database-BI
 	  caller's job - pipe STDOUT into mail, a webhook or a ticket creator - so
 	  --dry-run is documented as accepted for compatibility rather than as a
 	  switch that suppresses a mail nobody sent.
+	- The test suite is deterministic under a parallel harness
+	  (HARNESS_OPTIONS=j10): t/integration.t's "Upload -> open -> filter"
+	  pipeline failed about one run in four with a 404 from GET /open.
+	  Every test file staged its uploads in the same <app_home>/.uploads,
+	  and POST /uploads/clear - exercised by t/basic.t and t/transaction.t -
+	  deletes every subdirectory there, including an upload another process
+	  had just written and was about to open.  The staging directory is now
+	  the uploads_dir config key: .uploads under the application home when it
+	  is unset, resolved against that home when relative and used as given
+	  when absolute.  Database::BI::_uploads_dir resolves it in one place, so
+	  POST /upload, POST /uploads/clear and the startup eviction always agree,
+	  and a deployment whose application directory is read-only can stage
+	  uploads on a writable disc.  The seven test files that upload or clear
+	  point the key at a temporary directory they own.
+	- The keyboard browser job no longer dies with "hash- or arrayref
+	  expected (not a simple scalar, use allow_nonref to allow this)".  The
+	  fixture's focus() quoted its selector with encode_json, and that is
+	  whatever JSON backend JSON::MaybeXS found - Cpanel::JSON::XS, JSON::XS
+	  or JSON::PP - a coder without allow_nonref refuses a bare string, and
+	  the default moved across their releases.  Every test file that called
+	  focus() died at that line on the runner while passing on a machine with
+	  a lenient backend.  Selectors are now quoted by the fixture itself, so
+	  nothing in the browser tests asks a JSON backend what a string is.
 	- t/integration.t: restore %INC after the Test::Without::Module block, so
 	  the "Subroutine ... redefined" noise from recompiling HTML::OSM is gone.
 	[ New Features ]
@@ -73,6 +101,19 @@ Revision history for Database-BI
 	- README: the Phase 4.4 decision is recorded - this stays a single-user
 	  local application, so there are no accounts, sessions, per-user ownership
 	  or row-level security.  The roadmap lists only work that is still open.
+	- A language with no template directory now falls back to the default one,
+	  as the documentation promises.  _resolve_language looked for
+	  templates/web/<code>/ only when the code it had resolved differed from
+	  the configured one, so setting language => 'de' before adding
+	  templates/web/de/ - the ordinary case, and the one where the browser asks
+	  for that same language - skipped the check and handed the renderer a
+	  directory that is not there: "Template ... not found", and a 500 on every
+	  page.  The check now covers whatever code was resolved, falling back to
+	  the default language when that can be served and keeping the resolved one
+	  when nothing can, so the error still names what was asked for.
+	  t/language-fallback.t covers a servable language, an unservable configured
+	  one, an unservable one from Accept-Language, and a servable one from
+	  Accept-Language while the configuration names one that cannot be served.
 
 	[ Tests ]
 	- t/launcher.t reads every script the distribution ships (every
@@ -88,12 +129,133 @@ Revision history for Database-BI
 	  Hiding the module with Test::Without::Module does not do it: its @INC
 	  hook is bypassed during in-process dispatch, so the installed copy is
 	  found again.
+	- t/edge_cases.t covers the uploads_dir resolution: an absolute value is
+	  used as given, a relative one resolves against the application home, and
+	  an unset one keeps .uploads there.
 	- t/map.t covers the canvas as well as GET /map: a saved canvas holding a
 	  map card and a table card is opened in both renderer states and must keep
 	  its page, carry the matching note on the map card, still count its
 	  markers and still render the table card beside it.  A usable renderer is
 	  checked first, so the assertions cannot pass on a card that never drew a
 	  map.
+	- Every test file gives the app a model directory of its own, so a test run
+	  never creates, reads or writes the shared .bi/ in the checkout.  The
+	  writers were worse than they looked: t/unit.t's GET /map?loc= geocode
+	  cache wrote the workspace's .bi/models.json; t/catalog.t redirected only
+	  after two /catalog requests had already read the shared store; and the
+	  browser fixture passed model_dir to the constructor, which is an app
+	  attribute rather than the config value the store reads, so every
+	  t/browser-*.t file wrote the same shared analyses store.  Under
+	  HARNESS_OPTIONS=j... those runs also raced on the same files.  Each file
+	  now owns a temporary store before its first request, and a full run
+	  leaves an existing .bi/ byte for byte as it found it.
+	- t/browser-canvas-map-degraded.t is the same canvas in a real browser: the
+	  renderer note has to be visible on the card (not merely in the markup - a
+	  hidden, collapsed or transparent note fails), the marker count and the
+	  table card have to survive, and nothing may be drawn.  Both states are
+	  produced by a stand-in _map_renderer_version in the server child, which
+	  reads the state the test writes, so one browser session shows missing,
+	  older and usable in turn.  BI::Test::Browser gained app_setup for that:
+	  a coderef run in the child before the server starts.
+	- The tests that assert rendered map HTML now need HTML::OSM 0.12, not merely
+	  an installed copy: t/map.t skips as a whole below that floor, and the
+	  marker assertions in t/integration.t and t/unit.t skip individually.  A
+	  CPAN smoker with the 0.11 release installed showed why - 0.017.0 passed
+	  search => 0 to it, Params::Validate::Strict refused the unknown parameter
+	  and /map answered 500, so t/edge_cases.t, t/integration.t, t/map.t,
+	  t/tutorial.t and t/unit.t all failed (30 subtests).  The 0.018.0 gate
+	  turns those requests into 200 plus the renderer note, but the assertions
+	  about markers, popups and Leaflet assets would still have failed against a
+	  page that deliberately draws nothing.  Both cases are now green: with an
+	  HTML::OSM 0.11 stand-in in front of @INC the suite passes and only the
+	  map-rendering assertions are skipped, and with 0.12 installed the suite is
+	  unchanged at 1882 tests.
+	- .github/workflows/browser.yml gained a no-renderer job: it installs the
+	  dependencies, insists HTML::OSM is not loadable (removing it if something
+	  pulled it in), and runs t/browser-map-page-renderer.t with the module
+	  absent.  The missing-renderer page cannot be reached on a machine that has
+	  the module and cannot be faked once it is loaded, so without a job that
+	  pins the absence that branch is covered only by luck: the keyboard job
+	  happens to run without it today because HTML::OSM is a recommends.
+	- .github/workflows/browser.yml gained a second job of that kind for the
+	  canvas map card: no-renderer-canvas runs t/browser-canvas-map-degraded.t
+	  on a machine where HTML::OSM is verifiably not loadable.  The test builds
+	  its missing and too-old states with the server-side stand-in, so it passes
+	  anywhere; what the job adds is the machine itself - the state the card's
+	  "not installed" note describes, and the one on which an application that
+	  started to require the module, or to construct it unconditionally as
+	  0.017.0 did, fails instead of passing on a runner that has it.
+	- BI::Test::Browser's data_dir, model_dir, platform, language and app_config
+	  are now real config values, written into the file MOJO_CONFIG names
+	  before the application is built.  data_dir and model_dir were applied to
+	  the app after startup(), so anything startup() resolved from them - the
+	  directory open_table opens by default and the home page's scan target -
+	  never saw them; platform and language were constructor arguments, which
+	  is worse, because Database::BI declares them as config keys rather than
+	  attributes and so nothing read them at all.  Every t/browser-*.t file was
+	  therefore reading the checkout's data/ whatever directory it named; a
+	  test with a directory of fixtures saw the repository's tables.
+	  t/browser-config.t (formerly t/browser-data-dir.t) is the regression
+	  test: the table in the named directory is on the home page and opens
+	  through /view, a table that exists only in data/ is not offered, and the
+	  app's own config holds each named value - including a non-default
+	  platform and a structured app_config entry - so a value a test names is
+	  not silently dropped (four of the earlier five assertions fail against
+	  the old fixture).
+	- t/browser-fixture.t checks the fixture without a browser: a selector is
+	  quoted into a JavaScript literal that survives quotes, backslashes and
+	  control characters, no call in the fixture hands encode_json a bare
+	  scalar, and the config file it writes carries every key a test can name
+	  with its value and structure intact.  That first rule is the one the CI
+	  failure broke, and it would break again silently on a machine whose JSON
+	  backend tolerates a bare scalar.
+	- t/browser-map-page-renderer.t does the same for GET /map itself: the page
+	  is opened in the browser with no renderer and with one older than 0.12,
+	  and the renderer note must be visible there (a hidden, collapsed or
+	  transparent note fails - replacing the note's banner with a hidden one
+	  was checked to fail the test), the summary must still count the markers,
+	  no #map element or map panel may be drawn and the breadcrumb must
+	  survive.  The usable-renderer state is the control: the same URL must
+	  draw a sized #map inside the panel and carry no renderer note, so the
+	  note assertions are proven able to fail.
+	- t/recommended-versions.t holds the tests to the version floors the
+	  distribution already declares: every load of a recommended module in
+	  t/*.t and t/lib/**/*.pm has to be gated, in the same statement, by
+	  M->VERSION(n) with n no lower than the Makefile.PL recommends entry.
+	  "Is it installed" is what the false failures in this release had in
+	  common - an HTML::OSM 0.11 that loaded fine and then met a page it could
+	  not draw - and Test::Without::Module, skip-if-absent and
+	  eval { require ... } all answer it.  A Test::Needs spec has to name the
+	  same floor: { 'M' => 0 } and the bare list accept any installed copy, and
+	  drift the same way.  cpanfile and Makefile.PL must still agree on the set;
+	  a recommended module with no floor (Redis) is reported rather than exempted
+	  silently, as is one a test hides with Test::Without::Module, where hiding
+	  it is the point and there is no version to name; and the checker is run
+	  over probe files it writes, so a regex that stopped matching fails instead
+	  of passing.
+	- Two loads that t/recommended-versions.t found were fixed rather than
+	  exempted.  t/map.t compared a bare HTML::OSM->VERSION against 0.12 on the
+	  next line, which reads as an installation check with the floor somewhere
+	  else; it now gates the load on 0.12 like every other file.  And
+	  BI::Test::Browser's "current renderer" stand-in answered "usable" for any
+	  installed HTML::OSM, so on a machine with 0.11 it would have claimed the
+	  state the tests that ask for it skip on; it now requires 0.12 and reports
+	  the installed version like the real probe.
+	- The browser fixture can run the application in a language the
+	  distribution does not ship.  Naming language => 'fr' used to be a config
+	  value with nothing behind it: the controller resolves a language code and
+	  then renders templates/<platform>/<code>/, so a code with no directory is
+	  a page that cannot be found rather than a translation, and only
+	  templates/web/en is shipped.  The fixture now builds the app a home for
+	  such a language - the checkout's templates, with the default language
+	  copied as the named one, the copy's pages wrapping their own layout and
+	  its layout marking <html> with data-language-dir - and starts the app
+	  against it through MOJO_HOME, so nothing is written into the checkout.
+	  t/browser-language.t verifies the running app: the browser asks for a
+	  language the deployment does not have, so the configured language is what
+	  answers and the page can only be French because the config said so; a
+	  default-language run of the same pages is the control.  t/browser-fixture.t
+	  checks the template tree itself, without a browser.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]

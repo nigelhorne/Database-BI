@@ -290,6 +290,11 @@ my %ledger = (
 my $t = Test::Mojo->new('Database::BI');
 require Database::BI::Model::DataSource;	# no-op: already in %INC; stash intact
 
+# The model store (.bi/) is shared state in the checkout: give this file its
+# own directory, so a parallel run cannot create, read or write it underneath.
+# Without it the /map?loc= geocode cache writes the workspace's .bi/models.json.
+$t->app->config->{model_dir} = tempdir(CLEANUP => 1);
+
 # ---------------------------------------------------------------------------
 # DataSource — direct constructor and accessor tests
 # ---------------------------------------------------------------------------
@@ -1544,9 +1549,11 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		            ->status_is(200, '200 for valid loc= geocode')
 		            ->content_type_like(qr{text/html}, 'response is HTML');
 		# Place names appear only inside map_body (Leaflet popup HTML), which
-		# requires HTML::OSM.  Skip this single assertion when the module is absent.
+		# needs HTML::OSM 0.12 or later: below that floor the page reports the
+		# renderer and draws nothing.  Skip this single assertion then.
 		SKIP: {
-			eval { require HTML::OSM } or skip 'HTML::OSM not available (no marker HTML)', 1;
+			eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
+				or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 1;
 			$res->content_like(qr/$MAP_PLACE/i, 'place name appears in response');
 		}
 		delete $ledger{'GET./map.200.loc'};

@@ -905,9 +905,11 @@ default, set it before starting:
 
 Setting C<language =E<gt> 'de'> in C<database_bi.conf> tells the controller
 to look for templates in C<templates/web/de/>.  If that directory does not
-exist, the controller automatically falls back to the default language.  To
-add German support: (1) create C<templates/web/de/>, (2) copy and translate
-the C<.html.tt> files from C<templates/web/en/>, then (3) set the config.
+exist, the controller automatically falls back to the default language, and
+the same fallback applies when a browser asks for a language no directory
+serves.  To add German support: (1) create C<templates/web/de/>, (2) copy and
+translate the C<.html.tt> files from C<templates/web/en/>, then (3) set the
+config.
 
 =item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx>
 
@@ -1169,7 +1171,17 @@ sub startup ($self) {
 	#
 	# Joins are handled by Database::Join in the controller pipeline;
 	# open_table returns a single DataSource per table.
-	my $data_dir = $self->home->child($self->config->{data_dir})->to_string;
+	#
+	# Resolved with the rule the controller's _data_dir_for applies: a relative
+	# value is relative to the application home, an absolute one is used as
+	# given.  Mojo::File->child appends an absolute path instead of replacing
+	# the base, so home->child($absolute) named a directory that cannot exist,
+	# and /view - which opens its table without a directory of its own - read
+	# from it and served an empty page.
+	my $configured = $self->config->{data_dir} // 'data';
+	my $data_path  = Mojo::File->new($configured);
+	$data_path = $self->home->child($configured) unless $data_path->is_abs;
+	my $data_dir = $data_path->to_string;
 
 	# In-process CHI cache: shared across all requests in the same worker process.
 	# The Memory driver needs no external services and works out of the box.
