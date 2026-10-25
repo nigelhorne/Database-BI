@@ -2,16 +2,24 @@
 # Lint the workflows themselves.
 #
 # A workflow file is accepted or refused whole, before any job runs, and the
-# refusal names a line rather than the mistake.  0.017.1's browser.yml put
+# refusal names a line rather than the mistake.  Database-BI's browser.yml put
 # ${{ runner.temp }} in a job-level env, where the contexts available are
 # github, needs, strategy, matrix, vars, inputs and secrets; GitHub answered
 #
 #   Invalid workflow file: .github/workflows/browser.yml#L1
 #   (Line: 83, Col: 30): Unrecognized named-value: 'runner'
 #
-# and ran none of the four jobs that file holds.  Nothing in the test suite
+# and ran none of the four jobs that file held.  Nothing in the test suites
 # reads .github/ - it could only be found by pushing - so the workflows need a
 # check of their own.
+#
+# This file is carried unchanged by every distribution whose workflows are
+# copies of another's - the contract job's four callers, the siblings it checks
+# out, and the eight that the location-predicate fuzz assembles - so a workflow
+# that one of them gets wrong is caught in that repository too, under the same
+# rules.  It is a copy rather than one reusable workflow because the workflows
+# it checks include the callers themselves: a caller that cannot be parsed
+# could not reach a workflow it calls, which is the failure it exists for.
 #
 # actionlint reads the expressions for each context (job-level env, step env,
 # if:, with:), which is the rule that broke, and the rest of what a workflow
@@ -26,13 +34,15 @@
 # turns a green run red without a commit.  The workflows are found rather than
 # listed, so a workflow added later is covered without being added here as well.
 #
-# Switching shellcheck on found 24 things in the workflows, and they are fixed
-# rather than silenced: 16 unquoted command substitutions of the documented
-# `eval "$(perl -Mlocal::lib)"` idiom (SC2046), six unquoted writes to
-# $GITHUB_ENV and $GITHUB_PATH (SC2086), and two `find ... | xargs` pipelines
-# that split on whitespace in a filename (SC2038, now -print0 and -0).  The one
-# `# shellcheck disable=SC2086` in mutate.yml went with them: the command it was
-# silencing is an array now, so the flag it disabled is gone.
+# Switching shellcheck on found these in the workflows, and they are fixed
+# rather than silenced: unquoted command substitutions of the documented
+# `eval "$(perl -Mlocal::lib)"` idiom (SC2046); unquoted variables, among them
+# the writes to $GITHUB_ENV and $GITHUB_PATH and the directories held in
+# $GITHUB_WORKSPACE (SC2086); `find ... | xargs` pipelines that split on
+# whitespace in a filename (SC2038, now -print0 and -0); and a `while read`
+# that would mangle a backslash (SC2162, now read -r).  Database-BI's one
+# `# shellcheck disable=SC2086` went with them: the command it was silencing is
+# an array now, so the flag it disabled is gone.
 name: Workflow lint
 
 'on':
