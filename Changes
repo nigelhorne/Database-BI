@@ -559,6 +559,21 @@ Revision history for Database-BI
 	  HTML::OSM 0.12 too and only a skip line is a skip.  Its summary opens with
 	  the version it verified, as the absent-renderer jobs open with their
 	  absence, so a green run states which of the two machines it was.
+	- t/workflow-browser.t holds that job to the three files it runs.  Nothing
+	  else would notice them being narrowed: a file dropped from the step still
+	  passes when run on its own, the absent-renderer jobs run different ones,
+	  and the keyboard job's glob reaches the two card files but not
+	  t/browser-map-page-renderer.t, whose control skips itself wherever the
+	  module is missing - so trimming the step would leave every job green
+	  while GET /map stopped being drawn anywhere in CI.  What is read is the
+	  command lines in the renderer job's own block, comments removed and a
+	  continuation joined back on, so a file named only in the explanation
+	  above the prove line does not count, and only a prove or yath command
+	  counts at all.  The parsers are run over workflows the test writes first,
+	  and over a copy of this one with a file taken out, so a pattern that had
+	  stopped matching - or a check that could no longer fail - fails there
+	  instead of finding nothing to complain about.  .github is not in the
+	  MANIFEST, so an installed copy of the distribution skips it.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]
