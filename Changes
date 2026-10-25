@@ -540,19 +540,25 @@ Revision history for Database-BI
 	  declared and done_testing() was not seen".  The script is read through a
 	  local and then compared, so a missing one is one more failure instead of
 	  the end of the run.
-	- CI now runs the map card tests with the renderer installed, so the drawing
-	  assertions those two files skip on a machine without HTML::OSM are
-	  exercised.  A map card has its Leaflet element, its marker script and its
-	  redraw only when the server has HTML::OSM, and no job installed it - which
-	  is why the keyboard job was failing rather than skipping - so a green
-	  suite said nothing about the drawing either way.  The new renderer job in
-	  .github/workflows/browser.yml pins 'HTML::OSM@0.12', the release this
-	  distribution asks for, instead of taking whatever the runner image ships,
-	  and refuses to run in any other state: it fails if the copy that loads is
-	  older or absent, if either test file skips instead of running, and if the
-	  drawing assertions skip.  Its summary opens with the version it verified,
-	  as the absent-renderer jobs open with their absence, so a green run states
-	  which of the two machines it was.
+	- CI now runs the map tests with the renderer installed, so the drawing
+	  assertions they skip on a machine without HTML::OSM are exercised, and so
+	  is the map page's own control.  A map has its Leaflet element, its marker
+	  script and its redraw only when the server has HTML::OSM, and no job
+	  installed it - which is why the keyboard job was failing rather than
+	  skipping - so a green suite said nothing about the drawing either way.
+	  t/browser-map-page-renderer.t's usable-renderer control - the state the
+	  two absent-renderer jobs compare their notes against - had never run in CI
+	  either, because it skips itself where the module is missing.  The renderer
+	  job in .github/workflows/browser.yml runs that page test and the two card
+	  files, pins 'HTML::OSM@0.12', the release this distribution asks for,
+	  instead of taking whatever the runner image ships, and refuses to run in
+	  any other state: it fails if the copy that loads is older or absent, if
+	  any of the three files skips instead of running, and if an assertion skips
+	  for want of a renderer.  That last check matches the skip marker rather
+	  than the module name, because the note text these pages assert about names
+	  HTML::OSM 0.12 too and only a skip line is a skip.  Its summary opens with
+	  the version it verified, as the absent-renderer jobs open with their
+	  absence, so a green run states which of the two machines it was.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]

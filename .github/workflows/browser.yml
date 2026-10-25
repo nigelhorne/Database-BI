@@ -2,7 +2,9 @@
 # The browser tests: the canvas and chart controls driven with real key
 # presses, the offline-asset test run against real vendored D3 and Leaflet, the
 # map page and the canvas map cards run with the optional renderer and geocoder
-# deliberately absent, and the map card tests run with the renderer installed.
+# deliberately absent, and the map page and card tests run with the renderer
+# installed.  Every one of those states is reachable on a developer's machine by
+# accident, which is why they are pinned rather than left to the runner.
 #
 # These are a workflow of their own rather than a job in perl-ci.yml.  The Perl
 # matrix is about the application under different Perls; this is about the page
@@ -20,10 +22,11 @@
 #                       not loadable - the job fails if it is
 #   no-renderer-canvas  the same absence for the canvas map card, in
 #                       t/browser-canvas-map-degraded.t
-#   renderer            the mirror of those two: t/browser-map-panel.t and
-#                       t/browser-seed-canvas.t with HTML::OSM 0.12 installed
-#                       and verified - the only run in which the map card's
-#                       drawing assertions are exercised rather than skipped
+#   renderer            the mirror of those two: t/browser-map-page-renderer.t,
+#                       t/browser-map-panel.t and t/browser-seed-canvas.t with
+#                       HTML::OSM 0.12 installed and verified - the only run in
+#                       which the map's drawing assertions are exercised rather
+#                       than skipped, on the page and on the canvas
 #   no-geocoder         t/browser-map-geocoder.t and t/browser-canvas-map-
 #                       geocoder.t with Geo::Coder::Free verifiably not
 #                       loadable - the job fails if it is
@@ -397,18 +400,21 @@ jobs:
       - uses: ./.github/actions/browser-report
         if: always()
 
-  # The mirror of the two jobs above.  A map card only carries its Leaflet
-  # element, its own marker script and its redraw when the server has HTML::OSM,
-  # so without the module those assertions skip - correctly, and in every job
-  # that exists today, because none installs it.  t/browser-map-panel.t and
+  # The mirror of the two jobs above.  A map only carries its Leaflet element,
+  # its own marker script and its redraw when the server has HTML::OSM, so
+  # without the module those assertions skip - correctly, and in every job that
+  # exists today, because none installs it.  t/browser-map-panel.t and
   # t/browser-seed-canvas.t were failing on the keyboard runner for exactly that
-  # reason: they read #map-0 and #map-1 as if a card always has one.  The skip is
-  # honest, but a check that never runs is not coverage, so this job is the run
-  # where it does: the same files with the renderer really installed.  The
-  # version is pinned to the release this distribution asks for (0.017.1 needs
-  # HTML::OSM 0.12 or later) instead of taken from the runner, and the job fails
-  # if the copy that loads is older or absent - so a green run here means the
-  # drawing assertions ran, not that they skipped politely.
+  # reason: they read #map-0 and #map-1 as if a card always has one, and
+  # t/browser-map-page-renderer.t's usable-renderer control - the page the two
+  # absent-renderer jobs compare their notes against - has never run in CI
+  # either.  The skip is honest, but a check that never runs is not coverage, so
+  # this job is the run where it does: the same three files with the renderer
+  # really installed.  The version is pinned to the release this distribution
+  # asks for (0.017.1 needs HTML::OSM 0.12 or later) instead of taken from the
+  # runner, and the job fails if the copy that loads is older or absent - so a
+  # green run here means the drawing assertions ran, not that they skipped
+  # politely.
   renderer:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -478,26 +484,30 @@ jobs:
         run: |
           eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           "$BI_FIREFOX" --version
-          # t/browser-map-panel.t goes from the table's Map panel to the map
-          # page and then a canvas it saves and edits; t/browser-seed-canvas.t
-          # makes a canvas from every chart route.  With a renderer these are
-          # the runs where the map card has its Leaflet element, its own marker
-          # script and its redraw - the five assertions that are skipped where
-          # it does not.
-          prove -l -v t/browser-map-panel.t t/browser-seed-canvas.t \
-            2>&1 | tee "$RUNNER_TEMP/renderer-run.txt"
+          # t/browser-map-page-renderer.t is the page, in both degraded states
+          # and with the control the other two jobs never reach: GET /map drawn
+          # inside the panel, sized, with no note and the same marker count.
+          # t/browser-map-panel.t goes from the table's Map panel to that page
+          # and then a canvas it saves and edits; t/browser-seed-canvas.t makes
+          # a canvas from every chart route.  With a renderer these are the runs
+          # where the map has its Leaflet element, its own marker script and its
+          # redraw, on the page and on the card.
+          prove -l -v t/browser-map-page-renderer.t t/browser-map-panel.t \
+            t/browser-seed-canvas.t 2>&1 | tee "$RUNNER_TEMP/renderer-run.txt"
           # A file that skipped instead of running (no AUTHOR_TESTING, no
-          # browser) and a drawing assertion that skipped both mean this run
-          # proved less than its name says, so neither may pass.  The one skip
-          # these files make with a renderer is the Leaflet stand-in block, which
-          # the page skips when the real library did load - that is why this
-          # looks for the drawing message rather than for the word skip.
+          # browser) and an assertion that skipped for want of a renderer both
+          # mean this run proved less than its name says, so neither may pass.
+          # The skip marker is what the second check matches rather than the
+          # module name on its own: the note text these pages assert about
+          # mentions HTML::OSM 0.12 as well, and only a skip line is a skip.
+          # The one skip they make with a renderer is the Leaflet stand-in
+          # block, whose reason names Leaflet instead.
           if grep -q 'skipped:' "$RUNNER_TEMP/renderer-run.txt"; then
             echo "::error::a test file skipped instead of running, so this job proved nothing"
             exit 1
           fi
-          if grep -q 'HTML::OSM 0.12 or later is needed' "$RUNNER_TEMP/renderer-run.txt"; then
-            echo "::error::the drawing assertions skipped, so this job did not exercise what it exists for"
+          if grep -qE '#[[:space:]]*skip[[:space:]]+HTML::OSM' "$RUNNER_TEMP/renderer-run.txt"; then
+            echo "::error::an assertion skipped for want of a renderer, so this job did not exercise what it exists for"
             exit 1
           fi
 
