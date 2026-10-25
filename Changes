@@ -469,10 +469,48 @@ Revision history for Database-BI
 	  tip and remove button, the Size menu and its PATCH, the Map panel, the
 	  tutorial's side trip, New canvas from every chart route, the fixture-
 	  backed directory, and the configured, default and fallback-language
-	  pages.  t/browser-fixture.t checks the writer without a browser: the
-	  report is headed with the test file it came from, a second fixture gets a
-	  file of its own rather than overwriting the first, and nothing is
-	  written when the job asked for no report.
+	  pages.  Each summary opens with the machine the run was on, as the
+	  offline-assets summary opens with the libraries it used: the two
+	  no-renderer jobs state the module they verified absent, the no-geocoder
+	  job the same for its module, and the keyboard job what its runner
+	  happened to have - measured from cpanfile's recommends where it already
+	  reports that table, so the line describes the runner rather than the
+	  job's intention.  A job that says nothing gets "not stated by this job"
+	  rather than a line that reads like a plain runner.
+	  t/browser-fixture.t checks the writer without a browser: the report is
+	  headed with the test file it came from, a second fixture gets a file of
+	  its own rather than overwriting the first, and nothing is written when
+	  the job asked for no report.
+	- .github/workflows/actionlint.yml lints every workflow on push and pull
+	  request, so a job-level context mistake fails a run instead of the whole
+	  file being refused.  browser.yml above put ${{ runner.temp }} in a
+	  job-level env, where only github, needs, strategy, matrix, vars, inputs
+	  and secrets may be read; GitHub answered "Invalid workflow file: ...
+	  (Line: 83, Col: 30): Unrecognized named-value: 'runner'" and ran none of
+	  the four jobs in it, while every local check passed because nothing in
+	  the suite reads .github/.  actionlint is downloaded from its pinned
+	  release (1.7.12, sha256 verified) instead of through a marketplace
+	  action, and lints the workflows it finds rather than a list kept in the
+	  file, so a workflow added later is covered without being added twice; the
+	  step also fails when it finds no workflow at all, rather than reporting a
+	  green run of nothing.  The rule that broke is checked: the same lint run,
+	  given a workflow with runner.temp at job level, exits 1 and names the
+	  line.
+	- The lint job also runs shellcheck over every run: block, pinned to 0.10.0
+	  and checksum-verified like actionlint: the runner image's copy is a
+	  different version, and a linter that changes with the image turns a green
+	  run red without a commit.  It found 24 things in the workflows, all fixed
+	  rather than silenced.  The documented `eval "$(perl -Mlocal::lib)"` idiom
+	  was written unquoted in 16 places (SC2046) - the splitting it invites is
+	  not what the idiom means, and a path with a space in PERL5LIB would have
+	  broken it.  Six writes to $GITHUB_ENV and $GITHUB_PATH were unquoted
+	  (SC2086), in dashboard.yml and mutate.yml.  Two `find ... | xargs`
+	  pipelines split on whitespace in a filename (SC2038), so a mutant stub
+	  whose name held a space would have been passed to git add as two paths;
+	  they use -print0 and -0 now.  mutate.yml's `# shellcheck disable=SC2086`
+	  went with them: the mutator command it silenced is an array, and the empty
+	  strings that relied on splitting to vanish are empty arrays, so the flag
+	  that was disabled no longer exists.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]

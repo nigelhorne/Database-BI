@@ -79,8 +79,10 @@ jobs:
       BI_REQUIRE_BROWSER: 1
       AUTHOR_TESTING: 1
       # Where BI::Test::Browser writes what each test file proved; the last
-      # step of the job publishes it to the summary.
-      BI_BROWSER_REPORT_DIR: ${{ runner.temp }}/browser-report
+      # step of the job publishes it to the summary.  The workspace rather than
+      # runner.temp, which is not a context a job-level env may read: GitHub
+      # rejects the whole file with "Unrecognized named-value: 'runner'".
+      BI_BROWSER_REPORT_DIR: ${{ github.workspace }}/browser-report
     steps:
       - uses: actions/checkout@v7
 
@@ -100,7 +102,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           cpanm --notest --installdeps --verbose .
 
       # What this job leaves to the runner.  Recommended modules are optional, by
@@ -112,13 +114,17 @@ jobs:
       - name: Report the optional modules this runner has
         shell: bash
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
 
           # The list and the floors come from cpanfile, which
           # t/recommended-versions.t keeps in step with Makefile.PL, so this
           # cannot drift from the metadata it is describing.
           report=$(mktemp)
-          perl <<'PERL' > "$report"
+          # The same probe as one line, which the job summary opens with: this
+          # job pins nothing, so the pages it drove were driven on whatever this
+          # machine has.
+          condition=$(mktemp)
+          perl - "$condition" <<'PERL' > "$report"
             use strict;
             use warnings;
 
@@ -133,6 +139,7 @@ jobs:
             print "| optional module | version needed | on this runner |\n";
             print "| --- | --- | --- |\n";
 
+            my @found;
             for my $entry (@optional) {
               my ($module, $floor) = @$entry;
               $floor = undef if defined $floor && !length $floor;
@@ -157,17 +164,26 @@ jobs:
 
               printf "| %s | %s | %s |\n",
                 $module, (defined $floor ? $floor : 'any'), $state;
+
+              push @found, "$module $state";
             }
 
             print "\nA module that is absent, or older than the version needed, "
               . "makes the browser tests skip the assertions that need it.\n";
+
+            # The one-line form of the table, for the job summary.
+            open my $cf, '>', $ARGV[0] or die "$ARGV[0]: $!";
+            print {$cf} join(', ', @found), "\n";
+            close $cf or die "$ARGV[0]: $!";
           PERL
 
           cat "$report"
+          printf 'BI_BROWSER_REPORT_CONDITION=%s\n' \
+            "optional modules not pinned: $(cat "$condition")" >> "${GITHUB_ENV:-/dev/null}"
           if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
             { printf '\n'; cat "$report"; } >> "$GITHUB_STEP_SUMMARY"
           fi
-          rm -f "$report"
+          rm -f "$report" "$condition"
 
       - name: Install Firefox
         id: setup-firefox
@@ -188,7 +204,7 @@ jobs:
           # about, and the pages are the app's own.
           MOZ_DISABLE_CONTENT_SANDBOX: '1'
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           "$BI_FIREFOX" --version
           prove -l -v -j2 t/browser-*.t
 
@@ -219,7 +235,8 @@ jobs:
       NONINTERACTIVE_TESTING: 1
       BI_REQUIRE_BROWSER: 1
       AUTHOR_TESTING: 1
-      BI_BROWSER_REPORT_DIR: ${{ runner.temp }}/browser-report
+      # See the keyboard job: runner.temp cannot be read from a job-level env.
+      BI_BROWSER_REPORT_DIR: ${{ github.workspace }}/browser-report
     steps:
       - uses: actions/checkout@v7
 
@@ -239,7 +256,7 @@ jobs:
       - name: Install dependencies, without the optional renderer
         shell: bash
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           cpanm --notest --installdeps --verbose .
 
           # --installdeps does not install recommends, so HTML::OSM should not
@@ -256,6 +273,12 @@ jobs:
           fi
           echo "HTML::OSM is absent, as this job requires"
 
+          # What the summary opens with, measured where the absence is enforced:
+          # a green run of this job is a run on a machine with no renderer at
+          # all, which is the state the degraded page describes.
+          printf 'BI_BROWSER_REPORT_CONDITION=%s\n' \
+            'HTML::OSM not installed (verified by this job)' >> "${GITHUB_ENV:-/dev/null}"
+
       - name: Install Firefox
         id: setup-firefox
         uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1
@@ -268,7 +291,7 @@ jobs:
           BI_FIREFOX: ${{ steps.setup-firefox.outputs.firefox-path }}
           MOZ_DISABLE_CONTENT_SANDBOX: '1'
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           "$BI_FIREFOX" --version
           # Without HTML::OSM the usable-renderer control skips itself, so the
           # run is the two degraded states only - the note on the page, nothing
@@ -299,7 +322,8 @@ jobs:
       NONINTERACTIVE_TESTING: 1
       BI_REQUIRE_BROWSER: 1
       AUTHOR_TESTING: 1
-      BI_BROWSER_REPORT_DIR: ${{ runner.temp }}/browser-report
+      # See the keyboard job: runner.temp cannot be read from a job-level env.
+      BI_BROWSER_REPORT_DIR: ${{ github.workspace }}/browser-report
     steps:
       - uses: actions/checkout@v7
 
@@ -319,7 +343,7 @@ jobs:
       - name: Install dependencies, without the optional renderer
         shell: bash
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           cpanm --notest --installdeps --verbose .
 
           # --installdeps does not install recommends, so HTML::OSM should not
@@ -338,6 +362,12 @@ jobs:
           fi
           echo "HTML::OSM is absent, as this job requires"
 
+          # What the summary opens with, measured where the absence is enforced:
+          # a green run of this job is a run on a machine with no renderer at
+          # all, which is the state the degraded page describes.
+          printf 'BI_BROWSER_REPORT_CONDITION=%s\n' \
+            'HTML::OSM not installed (verified by this job)' >> "${GITHUB_ENV:-/dev/null}"
+
       - name: Install Firefox
         id: setup-firefox
         uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1
@@ -350,7 +380,7 @@ jobs:
           BI_FIREFOX: ${{ steps.setup-firefox.outputs.firefox-path }}
           MOZ_DISABLE_CONTENT_SANDBOX: '1'
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           "$BI_FIREFOX" --version
           # Without HTML::OSM the usable-renderer control skips itself, so the
           # run is the missing and too-old cards only - the visible note, no
@@ -385,7 +415,8 @@ jobs:
       NONINTERACTIVE_TESTING: 1
       BI_REQUIRE_BROWSER: 1
       AUTHOR_TESTING: 1
-      BI_BROWSER_REPORT_DIR: ${{ runner.temp }}/browser-report
+      # See the keyboard job: runner.temp cannot be read from a job-level env.
+      BI_BROWSER_REPORT_DIR: ${{ github.workspace }}/browser-report
     steps:
       - uses: actions/checkout@v7
 
@@ -405,7 +436,7 @@ jobs:
       - name: Install dependencies, without the optional geocoder
         shell: bash
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           cpanm --notest --installdeps --verbose .
 
           # Geo::Coder::Free is a recommends, so --installdeps should not
@@ -423,6 +454,11 @@ jobs:
           fi
           echo "Geo::Coder::Free is absent, as this job requires"
 
+          # As in the renderer jobs: the summary says which machine it was, so a
+          # green run cannot be read as having covered a geocoder it never had.
+          printf 'BI_BROWSER_REPORT_CONDITION=%s\n' \
+            'Geo::Coder::Free not installed (verified by this job)' >> "${GITHUB_ENV:-/dev/null}"
+
       - name: Install Firefox
         id: setup-firefox
         uses: browser-actions/setup-firefox@0bc507ddf224827e3b1af68e014d5e42ab93e795 # v1
@@ -435,7 +471,7 @@ jobs:
           BI_FIREFOX: ${{ steps.setup-firefox.outputs.firefox-path }}
           MOZ_DISABLE_CONTENT_SANDBOX: '1'
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           "$BI_FIREFOX" --version
           # The page and the canvas are checked in both states.  GET /map must
           # carry the visible note, draw nothing and still say how many markers
@@ -494,7 +530,7 @@ jobs:
       - name: Install dependencies
         shell: bash
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           cpanm --notest --installdeps --verbose .
 
       - name: Install Firefox
@@ -541,7 +577,7 @@ jobs:
           BI_REQUIRE_VENDORED_ASSETS: 1
           MOZ_DISABLE_CONTENT_SANDBOX: '1'
         run: |
-          eval $(perl -I ~/perl5/lib/perl5 -Mlocal::lib)
+          eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           "$BI_FIREFOX" --version
           prove -l -v t/browser-offline-assets.t
 

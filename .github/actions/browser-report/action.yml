@@ -8,9 +8,11 @@
 # and the claims it made with proved() - whenever BI_BROWSER_REPORT_DIR names a
 # directory, and this action turns those files into the job summary.
 #
-# It is an action rather than the same step written out in each job because a
-# summary that drifted between jobs would be the one thing a reader trusts
-# without checking.
+# The summary opens with the machine the run was on - "HTML::OSM not installed
+# (verified by this job)", or what the keyboard runner happened to have - because
+# the same page means different things with and without the optional modules.
+# The job tells it here through BI_BROWSER_REPORT_CONDITION, measured where the
+# absence is enforced, so the line describes the runner rather than the intent.
 name: Browser report
 description: Publish the pages, cards and claims the browser tests reported
 
@@ -26,6 +28,10 @@ runs:
         summary="$RUNNER_TEMP/browser-report.md"
         {
           printf '## Pages and cards proved\n\n'
+          # First, because it changes what the pages below mean.  A job that did
+          # not say defaults to saying so, rather than looking as if it had a
+          # plain runner.
+          printf -- '- machine: %s\n\n' "${BI_BROWSER_REPORT_CONDITION:-not stated by this job}"
           # One '### <test file>' section per file, each listing what it proved,
           # the pages it loaded and the cards on them; a file that opens more
           # than one application has a section per fixture.
