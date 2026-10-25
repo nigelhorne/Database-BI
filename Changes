@@ -143,6 +143,16 @@ Revision history for Database-BI
 	  t/language-fallback.t covers a servable language, an unservable configured
 	  one, an unservable one from Accept-Language, and a servable one from
 	  Accept-Language while the configuration names one that cannot be served.
+	- README: a "Continuous Integration" section - which workflow does what, and
+	  how to run the two linters the lint job uses over the workflows locally,
+	  with the versions that job pins.  A workflow file is refused by GitHub
+	  whole and before any job in it starts, and nothing in t/ reads .github/,
+	  so the check has to be available before a push: the section states the
+	  failure that prompted it (a job-level env: reading runner.temp, where the
+	  only contexts are github, needs, strategy, matrix, vars, inputs and
+	  secrets), says that the linter finds the project through .git so it has to
+	  be run from the checkout, and explains why the shellcheck findings were
+	  fixed rather than silenced with # shellcheck disable.
 
 	[ Tests ]
 	- t/launcher.t reads every script the distribution ships (every
