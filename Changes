@@ -521,6 +521,38 @@ Revision history for Database-BI
 	  went with them: the mutator command it silenced is an array, and the empty
 	  strings that relied on splitting to vanish are empty arrays, so the flag
 	  that was disabled no longer exists.
+	- The keyboard job's browser run no longer fails on a machine without
+	  HTML::OSM, which its runner is.  t/browser-seed-canvas.t's map case and
+	  four assertions in t/browser-map-panel.t read #map-0 and #map-1 as if a
+	  map card always has a Leaflet element; with no renderer the card is the
+	  note saying HTML::OSM 0.12 is needed and no element is written at all,
+	  which is a different state from Leaflet's script failing to arrive - the
+	  one those files already handled, where the element and its own script are
+	  server-written and only the drawing is missing.  The map case now checks
+	  the renderer note (data-key error_map_renderer_*) where there is no
+	  renderer, so the route is still proved on that machine, and the four
+	  drawing assertions are skipped with a message naming HTML::OSM 0.12
+	  rather than failed.  t/browser-map-panel.t also stopped dying when a card
+	  has no script: it read
+	  querySelector('#visual-1 .visual-card-body script').textContent, which
+	  throws on null and ended the file before its plan was written - four
+	  failed assertions were reported as "Tests were run but no plan was
+	  declared and done_testing() was not seen".  The script is read through a
+	  local and then compared, so a missing one is one more failure instead of
+	  the end of the run.
+	- CI now runs the map card tests with the renderer installed, so the drawing
+	  assertions those two files skip on a machine without HTML::OSM are
+	  exercised.  A map card has its Leaflet element, its marker script and its
+	  redraw only when the server has HTML::OSM, and no job installed it - which
+	  is why the keyboard job was failing rather than skipping - so a green
+	  suite said nothing about the drawing either way.  The new renderer job in
+	  .github/workflows/browser.yml pins 'HTML::OSM@0.12', the release this
+	  distribution asks for, instead of taking whatever the runner image ships,
+	  and refuses to run in any other state: it fails if the copy that loads is
+	  older or absent, if either test file skips instead of running, and if the
+	  drawing assertions skip.  Its summary opens with the version it verified,
+	  as the absent-renderer jobs open with their absence, so a green run states
+	  which of the two machines it was.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]
