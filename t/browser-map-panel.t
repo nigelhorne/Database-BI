@@ -40,9 +40,9 @@ path($csv)->spurt(
 	. "Beta,51.92,0.75,53.5,-2.5,two\n"
 );
 
-my $browser = BI::Test::Browser->new;
-my $ua      = $browser->ua;
-my $BASE    = $browser->base;
+my $browser = new_ok('BI::Test::Browser');
+my $ua      = $browser->ua();
+my $BASE    = $browser->base();
 
 # Drawing a map card needs HTML::OSM 0.12 or later on the server.  Without it
 # the card carries the note saying so and no map element at all - which is a
@@ -134,8 +134,12 @@ unlike $query, qr/[?&]loc=/, 'and not the place column from the other mode';
 like $query, qr/[?&]l=path%3A/, 'for the table the panel was opened from';
 like $query, qr/[?&]back=/, 'with a way back to that table';
 
-my $summary = $browser->js("return document.querySelector('.map-summary') && document.querySelector('.map-summary').textContent;");
-like($summary // '', qr/Plotting 2 markers for 2 of 2 rows from columns latitude and longitude/,
+my $summary = $browser->wait_for(sub {
+	my $t = $browser->js("return document.querySelector('.map-summary') ? document.querySelector('.map-summary').textContent.trim() : '';");
+	return $t if defined $t && length $t;
+	return undef;
+}, timeout => 10) // '';
+like($summary, qr/Plotting 2 markers for 2 of 2 rows from columns latitude and longitude/,
 	'the map page plotted the two coordinate rows');
 
 # ---------------------------------------------------------------------------
