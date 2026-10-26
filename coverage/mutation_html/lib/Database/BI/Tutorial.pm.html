@@ -468,812 +468,815 @@ Approximate LCSAJ segments: 9<br>
 </span><span class="">  127: 		lead  =&gt; &#39;A filter hides rows that do not match a rule.&#39;,
 </span><span class="">  128: 		steps =&gt; [
 </span><span class="">  129: 			&#39;Find the filter row below the toolbar.&#39;,
-</span><span class="">  130: 			&#39;Choose a column. Choose how to compare, such as equals or contains. Type a value.&#39;,
-</span><span class="">  131: 			&#39;Press Enter or click Apply filter.&#39;,
-</span><span class="">  132: 			&#39;Each filter is shown as a small label. Click the x on a label to remove that filter.&#39;,
-</span><span class="">  133: 			&#39;For more rules, click Merge / Filter... and use the Filter results section.&#39;,
-</span><span class="">  134: 		],
-</span><span class="">  135: 		tip   =&gt; &#39;A filter does not change your file. It only changes what you see and what you export.&#39;,
-</span><span class="">  136: 		routes =&gt; [ &#39;/view/:table&#39; ],
-</span><span class="">  137: 	},
-</span><span class="">  138: 	{
-</span><span class="">  139: 		id    =&gt; &#39;dedup&#39;,
-</span><span class="">  140: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  141: 		title =&gt; &#39;Hide duplicate rows&#39;,
-</span><span class="">  142: 		lead  =&gt; &#39;A duplicate row is exactly the same as another row in every column.&#39;,
-</span><span class="">  143: 		steps =&gt; [
-</span><span class="">  144: 			&#39;Click Hide duplicates in the toolbar.&#39;,
-</span><span class="">  145: 			&#39;The table now shows one copy of each row.&#39;,
-</span><span class="">  146: 			&#39;Click Show duplicates to see every row again.&#39;,
-</span><span class="">  147: 		],
-</span><span class="">  148: 		tip   =&gt; &#39;Export uses the same rows that you see. Check this button before you export.&#39;,
-</span><span class="">  149: 		routes =&gt; [],
-</span><span class="">  150: 	},
-</span><span class="">  151: 	{
-</span><span class="">  152: 		id    =&gt; &#39;join&#39;,
-</span><span class="">  153: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  154: 		title =&gt; &#39;Add columns from another file&#39;,
-</span><span class="">  155: 		lead  =&gt; &#39;A merge joins two tables by a value that both tables share. A customer number is one example.&#39;,
-</span><span class="">  156: 		steps =&gt; [
-</span><span class="">  157: 			&#39;Open the main table.&#39;,
-</span><span class="">  158: 			&#39;Click Merge / Filter...&#39;,
-</span><span class="">  159: 			&#39;Choose the second table. You can also type its path.&#39;,
-</span><span class="">  160: 			&#39;Choose the column in the main table and the matching column in the second table.&#39;,
-</span><span class="">  161: 			&#39;Choose which rows to keep. The option Keep all rows from the left table is a safe first choice.&#39;,
-</span><span class="">  162: 			&#39;Click Apply.&#39;,
-</span><span class="">  163: 		],
-</span><span class="">  164: 		tip   =&gt; &#39;A merge can make the table much wider. Start with a second table that has only a few columns.&#39;,
-</span><span class="">  165: 		walkthrough =&gt; {
-</span><span class="">  166: 			title =&gt; &#39;Walk through: add customer names to sales&#39;,
-</span><span class="">  167: 			intro =&gt; &#39;This example merges the sales and customer tables inside the store database.&#39;,
-</span><span class="">  168: 			steps =&gt; [
-</span><span class="">  169: 				{ do =&gt; &#39;On the home page, click store.&#39;, see =&gt; &#39;The schema page lists customer, product and sales.&#39; },
-</span><span class="">  170: 				{ do =&gt; &#39;Click sales. The table opens with four rows.&#39;, see =&gt; &#39;The rows show four sales, each with a customer_id from 1 to 3.&#39; },
-</span><span class="">  171: 				{ do =&gt; &#39;Click Merge / Filter...&#39;, see =&gt; &#39;The panel asks for a table, two columns and a row rule.&#39; },
-</span><span class="">  172: 				{ do =&gt; &#39;Under Table from the data directory, choose store / customer.&#39;, see =&gt; &#39;The matching column list fills with id, name and email.&#39; },
-</span><span class="">  173: 				{ do =&gt; &#39;Choose customer_id for the left key and id for the right key.&#39;, see =&gt; &#39;The panel describes a match from customer_id to id.&#39; },
-</span><span class="">  174: 				{ do =&gt; &#39;Choose Keep all rows from the left table and click Apply.&#39;, see =&gt; &#39;The result has four rows and new name and email columns.&#39; },
-</span><span class="">  175: 			],
-</span><span class="">  176: 			result =&gt; &#39;Alice Smith appears twice; Bob Jones and Carol White appear once, so every sale now names its customer.&#39;,
-</span><span class="">  177: 		},
-</span><span class="">  178: 		routes =&gt; [ &#39;/join&#39; ],
-</span><span class="">  179: 	},
-</span><span class="">  180: 	{
-</span><span class="">  181: 		id    =&gt; &#39;combine&#39;,
-</span><span class="">  182: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  183: 		title =&gt; &#39;Put one file under another&#39;,
-</span><span class="">  184: 		lead  =&gt; &#39;Combine stacks the rows of a second file under the rows of the first file.&#39;,
-</span><span class="">  185: 		steps =&gt; [
-</span><span class="">  186: 			&#39;Open the first table.&#39;,
-</span><span class="">  187: 			&#39;Click Combine data...&#39;,
-</span><span class="">  188: 			&#39;Choose the second table or type its path.&#39;,
-</span><span class="">  189: 			&#39;Click Combine.&#39;,
-</span><span class="">  190: 		],
-</span><span class="">  191: 		tip   =&gt; &#39;The files do not need the same columns. A missing value is left blank.&#39;,
-</span><span class="">  192: 		routes =&gt; [ &#39;/combine&#39; ],
-</span><span class="">  193: 	},
-</span><span class="">  194: 	{
-</span><span class="">  195: 		id    =&gt; &#39;calc&#39;,
-</span><span class="">  196: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  197: 		title =&gt; &#39;Make a new column with a calculation&#39;,
-</span><span class="">  198: 		lead  =&gt; &#39;A calculated column is a new column made from a formula.&#39;,
-</span><span class="">  199: 		steps =&gt; [
-</span><span class="">  200: 			&#39;Open the table and click Calc fields...&#39;,
-</span><span class="">  201: 			&#39;Type a name for the new column, for example margin.&#39;,
-</span><span class="">  202: 			&#39;Type the formula, for example revenue - cost. Use the column names that you see in the table.&#39;,
-</span><span class="">  203: 			&#39;Click Save &amp; apply. The new column appears in the table.&#39;,
-</span><span class="">  204: 		],
-</span><span class="">  205: 		tip   =&gt; &#39;The program remembers the field for this data file. It is applied the next time you open the file.&#39;,
-</span><span class="">  206: 		walkthrough =&gt; {
-</span><span class="">  207: 			title =&gt; &#39;Walk through: add a tax column&#39;,
-</span><span class="">  208: 			intro =&gt; &#39;This example adds a column to the sales table.&#39;,
-</span><span class="">  209: 			steps =&gt; [
-</span><span class="">  210: 				{ do =&gt; &#39;Open the sales table and click Calc fields...&#39;, see =&gt; &#39;The panel asks for a column name and an expression.&#39; },
-</span><span class="">  211: 				{ do =&gt; &#39;Type tax_amount in the Column name box.&#39;, see =&gt; &#39;The name is ready for the new column.&#39; },
-</span><span class="">  212: 				{ do =&gt; &#39;Type amount * 1.2 in the Expression box.&#39;, see =&gt; &#39;The formula uses the amount column that is already in the table.&#39; },
-</span><span class="">  213: 				{ do =&gt; &#39;Click Save &amp; apply.&#39;, see =&gt; &#39;A tax_amount column appears at the right of the table.&#39; },
-</span><span class="">  214: 				{ do =&gt; &#39;Use tax_amount in a chart or pivot table.&#39;, see =&gt; &#39;The chart sums the calculated values like any other number column.&#39; },
-</span><span class="">  215: 			],
-</span><span class="">  216: 			result =&gt; &#39;The calculation is saved for this data file, so tax_amount is there the next time you open sales.&#39;,
-</span><span class="">  217: 		},
-</span><span class="">  218: 		routes =&gt; [],
-</span><span class="">  219: 	},
-</span><span class="">  220: 	{
-</span><span class="">  221: 		id    =&gt; &#39;groups&#39;,
-</span><span class="">  222: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  223: 		title =&gt; &#39;Group values into your own labels&#39;,
-</span><span class="">  224: 		lead  =&gt; &#39;A group gives several values one shared name.&#39;,
-</span><span class="">  225: 		steps =&gt; [
-</span><span class="">  226: 			&#39;Click Group values...&#39;,
-</span><span class="">  227: 			&#39;Choose the source column.&#39;,
-</span><span class="">  228: 			&#39;Click Add group. Type a label, for example Northern.&#39;,
-</span><span class="">  229: 			&#39;Type the values for this group, one on each line. Click Save group.&#39;,
-</span><span class="">  230: 			&#39;Use the new col_group column in a chart or pivot table.&#39;,
-</span><span class="">  231: 		],
-</span><span class="">  232: 		tip   =&gt; &#39;A value that is not in a group becomes (other).&#39;,
-</span><span class="">  233: 		routes =&gt; [],
-</span><span class="">  234: 	},
-</span><span class="">  235: 	{
-</span><span class="">  236: 		id    =&gt; &#39;dates&#39;,
-</span><span class="">  237: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  238: 		title =&gt; &#39;Tell the program how your dates look&#39;,
-</span><span class="">  239: 		lead  =&gt; &#39;Dates can be written in many ways. The program needs to know which way your file uses.&#39;,
-</span><span class="">  240: 		steps =&gt; [
-</span><span class="">  241: 			&#39;Click Date format...&#39;,
-</span><span class="">  242: 			&#39;Choose the date column.&#39;,
-</span><span class="">  243: 			&#39;Choose the format that matches your data, for example D/M/YYYY.&#39;,
-</span><span class="">  244: 			&#39;Click Save &amp; apply.&#39;,
-</span><span class="">  245: 		],
-</span><span class="">  246: 		tip   =&gt; &#39;After you set the format, This year, This quarter and This month work in the date panel.&#39;,
-</span><span class="">  247: 		routes =&gt; [],
-</span><span class="">  248: 	},
-</span><span class="">  249: 	{
-</span><span class="">  250: 		id    =&gt; &#39;folder&#39;,
-</span><span class="">  251: 		part  =&gt; &#39;Work with a table&#39;,
-</span><span class="">  252: 		title =&gt; &#39;Browse records in folders&#39;,
-</span><span class="">  253: 		lead  =&gt; &#39;Folder view groups rows by the first letters of a code column.&#39;,
-</span><span class="">  254: 		steps =&gt; [
-</span><span class="">  255: 			&#39;Click Folder view...&#39;,
-</span><span class="">  256: 			&#39;Choose the code column. Order numbers such as A10 and B3 are a good example.&#39;,
-</span><span class="">  257: 			&#39;Click Open.&#39;,
-</span><span class="">  258: 			&#39;Click a folder to see the rows in it.&#39;,
-</span><span class="">  259: 		],
-</span><span class="">  260: 		tip   =&gt; &#39;Folder view is a fast way to find a record when you know the start of its code.&#39;,
-</span><span class="">  261: 		routes =&gt; [ &#39;/folder&#39; ],
-</span><span class="">  262: 	},
-</span><span class="">  263: 
-</span><span class="">  264: 	# ---------------------------------------------------------------
-</span><span class="">  265: 	# Charts and summaries
+</span><span class="">  130: 			&#39;Choose a column. The comparison options change to match the column type.&#39;,
+</span><span class="">  131: 			&#39;For a date column a date picker appears. For a number column a number box appears. For text, type a value.&#39;,
+</span><span class="">  132: 			&#39;To keep rows between two dates, choose Date range and pick a start and an end date.&#39;,
+</span><span class="">  133: 			&#39;Press Enter or click Apply filter.&#39;,
+</span><span class="">  134: 			&#39;Each active filter is shown as a small label in the toolbar. Click the x on a label to remove it.&#39;,
+</span><span class="">  135: 			&#39;For more rules, click Merge / Filter... and use the Filter results section.&#39;,
+</span><span class="">  136: 		],
+</span><span class="">  137: 		tip   =&gt; &#39;A filter does not change your file. It only changes what you see and what you export.&#39;,
+</span><span class="">  138: 		routes =&gt; [ &#39;/view/:table&#39; ],
+</span><span class="">  139: 	},
+</span><span class="">  140: 	{
+</span><span class="">  141: 		id    =&gt; &#39;dedup&#39;,
+</span><span class="">  142: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  143: 		title =&gt; &#39;Hide duplicate rows&#39;,
+</span><span class="">  144: 		lead  =&gt; &#39;A duplicate row is exactly the same as another row in every column.&#39;,
+</span><span class="">  145: 		steps =&gt; [
+</span><span class="">  146: 			&#39;Click Hide duplicates in the toolbar.&#39;,
+</span><span class="">  147: 			&#39;The table now shows one copy of each row.&#39;,
+</span><span class="">  148: 			&#39;Click Show duplicates to see every row again.&#39;,
+</span><span class="">  149: 		],
+</span><span class="">  150: 		tip   =&gt; &#39;Export uses the same rows that you see. Check this button before you export.&#39;,
+</span><span class="">  151: 		routes =&gt; [],
+</span><span class="">  152: 	},
+</span><span class="">  153: 	{
+</span><span class="">  154: 		id    =&gt; &#39;join&#39;,
+</span><span class="">  155: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  156: 		title =&gt; &#39;Add columns from another file&#39;,
+</span><span class="">  157: 		lead  =&gt; &#39;A merge joins two tables by a value that both tables share. A customer number is one example.&#39;,
+</span><span class="">  158: 		steps =&gt; [
+</span><span class="">  159: 			&#39;Open the main table.&#39;,
+</span><span class="">  160: 			&#39;Click Merge / Filter...&#39;,
+</span><span class="">  161: 			&#39;Choose the second table. You can also type its path.&#39;,
+</span><span class="">  162: 			&#39;Choose the column in the main table and the matching column in the second table.&#39;,
+</span><span class="">  163: 			&#39;Choose which rows to keep. The option Keep all rows from the left table is a safe first choice.&#39;,
+</span><span class="">  164: 			&#39;Click Apply.&#39;,
+</span><span class="">  165: 		],
+</span><span class="">  166: 		tip   =&gt; &#39;A merge can make the table much wider. Start with a second table that has only a few columns.&#39;,
+</span><span class="">  167: 		walkthrough =&gt; {
+</span><span class="">  168: 			title =&gt; &#39;Walk through: add customer names to sales&#39;,
+</span><span class="">  169: 			intro =&gt; &#39;This example merges the sales and customer tables inside the store database.&#39;,
+</span><span class="">  170: 			steps =&gt; [
+</span><span class="">  171: 				{ do =&gt; &#39;On the home page, click store.&#39;, see =&gt; &#39;The schema page lists customer, product and sales.&#39; },
+</span><span class="">  172: 				{ do =&gt; &#39;Click sales. The table opens with four rows.&#39;, see =&gt; &#39;The rows show four sales, each with a customer_id from 1 to 3.&#39; },
+</span><span class="">  173: 				{ do =&gt; &#39;Click Merge / Filter...&#39;, see =&gt; &#39;The panel asks for a table, two columns and a row rule.&#39; },
+</span><span class="">  174: 				{ do =&gt; &#39;Under Table from the data directory, choose store / customer.&#39;, see =&gt; &#39;The matching column list fills with id, name and email.&#39; },
+</span><span class="">  175: 				{ do =&gt; &#39;Choose customer_id for the left key and id for the right key.&#39;, see =&gt; &#39;The panel describes a match from customer_id to id.&#39; },
+</span><span class="">  176: 				{ do =&gt; &#39;Choose Keep all rows from the left table and click Apply.&#39;, see =&gt; &#39;The result has four rows and new name and email columns.&#39; },
+</span><span class="">  177: 			],
+</span><span class="">  178: 			result =&gt; &#39;Alice Smith appears twice; Bob Jones and Carol White appear once, so every sale now names its customer.&#39;,
+</span><span class="">  179: 		},
+</span><span class="">  180: 		routes =&gt; [ &#39;/join&#39; ],
+</span><span class="">  181: 	},
+</span><span class="">  182: 	{
+</span><span class="">  183: 		id    =&gt; &#39;combine&#39;,
+</span><span class="">  184: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  185: 		title =&gt; &#39;Put one file under another&#39;,
+</span><span class="">  186: 		lead  =&gt; &#39;Combine stacks the rows of a second file under the rows of the first file.&#39;,
+</span><span class="">  187: 		steps =&gt; [
+</span><span class="">  188: 			&#39;Open the first table.&#39;,
+</span><span class="">  189: 			&#39;Click Combine data...&#39;,
+</span><span class="">  190: 			&#39;Choose the second table or type its path.&#39;,
+</span><span class="">  191: 			&#39;Click Combine.&#39;,
+</span><span class="">  192: 		],
+</span><span class="">  193: 		tip   =&gt; &#39;The files do not need the same columns. A missing value is left blank.&#39;,
+</span><span class="">  194: 		routes =&gt; [ &#39;/combine&#39; ],
+</span><span class="">  195: 	},
+</span><span class="">  196: 	{
+</span><span class="">  197: 		id    =&gt; &#39;calc&#39;,
+</span><span class="">  198: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  199: 		title =&gt; &#39;Make a new column with a calculation&#39;,
+</span><span class="">  200: 		lead  =&gt; &#39;A calculated column is a new column made from a formula.&#39;,
+</span><span class="">  201: 		steps =&gt; [
+</span><span class="">  202: 			&#39;Open the table and click Calc fields...&#39;,
+</span><span class="">  203: 			&#39;Type a name for the new column, for example margin.&#39;,
+</span><span class="">  204: 			&#39;Type the formula, for example revenue - cost. Use the column names that you see in the table.&#39;,
+</span><span class="">  205: 			&#39;Click Save &amp; apply. The new column appears in the table.&#39;,
+</span><span class="">  206: 		],
+</span><span class="">  207: 		tip   =&gt; &#39;The program remembers the field for this data file. It is applied the next time you open the file.&#39;,
+</span><span class="">  208: 		walkthrough =&gt; {
+</span><span class="">  209: 			title =&gt; &#39;Walk through: add a tax column&#39;,
+</span><span class="">  210: 			intro =&gt; &#39;This example adds a column to the sales table.&#39;,
+</span><span class="">  211: 			steps =&gt; [
+</span><span class="">  212: 				{ do =&gt; &#39;Open the sales table and click Calc fields...&#39;, see =&gt; &#39;The panel asks for a column name and an expression.&#39; },
+</span><span class="">  213: 				{ do =&gt; &#39;Type tax_amount in the Column name box.&#39;, see =&gt; &#39;The name is ready for the new column.&#39; },
+</span><span class="">  214: 				{ do =&gt; &#39;Type amount * 1.2 in the Expression box.&#39;, see =&gt; &#39;The formula uses the amount column that is already in the table.&#39; },
+</span><span class="">  215: 				{ do =&gt; &#39;Click Save &amp; apply.&#39;, see =&gt; &#39;A tax_amount column appears at the right of the table.&#39; },
+</span><span class="">  216: 				{ do =&gt; &#39;Use tax_amount in a chart or pivot table.&#39;, see =&gt; &#39;The chart sums the calculated values like any other number column.&#39; },
+</span><span class="">  217: 			],
+</span><span class="">  218: 			result =&gt; &#39;The calculation is saved for this data file, so tax_amount is there the next time you open sales.&#39;,
+</span><span class="">  219: 		},
+</span><span class="">  220: 		routes =&gt; [],
+</span><span class="">  221: 	},
+</span><span class="">  222: 	{
+</span><span class="">  223: 		id    =&gt; &#39;groups&#39;,
+</span><span class="">  224: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  225: 		title =&gt; &#39;Group values into your own labels&#39;,
+</span><span class="">  226: 		lead  =&gt; &#39;A group gives several values one shared name.&#39;,
+</span><span class="">  227: 		steps =&gt; [
+</span><span class="">  228: 			&#39;Click Group values...&#39;,
+</span><span class="">  229: 			&#39;Choose the source column.&#39;,
+</span><span class="">  230: 			&#39;Click Add group. Type a label, for example Northern.&#39;,
+</span><span class="">  231: 			&#39;Type the values for this group, one on each line. Click Save group.&#39;,
+</span><span class="">  232: 			&#39;Use the new col_group column in a chart or pivot table.&#39;,
+</span><span class="">  233: 		],
+</span><span class="">  234: 		tip   =&gt; &#39;A value that is not in a group becomes (other).&#39;,
+</span><span class="">  235: 		routes =&gt; [],
+</span><span class="">  236: 	},
+</span><span class="">  237: 	{
+</span><span class="">  238: 		id    =&gt; &#39;dates&#39;,
+</span><span class="">  239: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  240: 		title =&gt; &#39;Tell the program how your dates look&#39;,
+</span><span class="">  241: 		lead  =&gt; &#39;Dates can be written in many ways. The program needs to know which way your file uses.&#39;,
+</span><span class="">  242: 		steps =&gt; [
+</span><span class="">  243: 			&#39;Click Date format...&#39;,
+</span><span class="">  244: 			&#39;Choose the date column.&#39;,
+</span><span class="">  245: 			&#39;Choose the format that matches your data, for example D/M/YYYY.&#39;,
+</span><span class="">  246: 			&#39;Click Save &amp; apply.&#39;,
+</span><span class="">  247: 		],
+</span><span class="">  248: 		tip   =&gt; &#39;After you set the format, This year, This quarter and This month work in the date panel.&#39;,
+</span><span class="">  249: 		routes =&gt; [],
+</span><span class="">  250: 	},
+</span><span class="">  251: 	{
+</span><span class="">  252: 		id    =&gt; &#39;folder&#39;,
+</span><span class="">  253: 		part  =&gt; &#39;Work with a table&#39;,
+</span><span class="">  254: 		title =&gt; &#39;Browse records in folders&#39;,
+</span><span class="">  255: 		lead  =&gt; &#39;Folder view groups rows by the first letters of a code column.&#39;,
+</span><span class="">  256: 		steps =&gt; [
+</span><span class="">  257: 			&#39;Click Folder view...&#39;,
+</span><span class="">  258: 			&#39;Choose the code column. Order numbers such as A10 and B3 are a good example.&#39;,
+</span><span class="">  259: 			&#39;Click Open.&#39;,
+</span><span class="">  260: 			&#39;Click a folder to see the rows in it.&#39;,
+</span><span class="">  261: 		],
+</span><span class="">  262: 		tip   =&gt; &#39;Folder view is a fast way to find a record when you know the start of its code.&#39;,
+</span><span class="">  263: 		routes =&gt; [ &#39;/folder&#39; ],
+</span><span class="">  264: 	},
+</span><span class="">  265: 
 </span><span class="">  266: 	# ---------------------------------------------------------------
-</span><span class="">  267: 	{
-</span><span class="">  268: 		id    =&gt; &#39;first-chart&#39;,
-</span><span class="">  269: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  270: 		title =&gt; &#39;Make your first chart&#39;,
-</span><span class="">  271: 		lead  =&gt; &#39;A chart shows a pattern that is hard to see in a long table.&#39;,
-</span><span class="">  272: 		steps =&gt; [
-</span><span class="">  273: 			&#39;Open a table.&#39;,
-</span><span class="">  274: 			&#39;Click a chart button in the toolbar. Bar chart... is a good first choice.&#39;,
-</span><span class="">  275: 			&#39;Choose a category column and a number column.&#39;,
-</span><span class="">  276: 			&#39;Click Plot.&#39;,
-</span><span class="">  277: 			&#39;Use Export SVG or Export PNG to save the chart. Use Copy link to share the page.&#39;,
-</span><span class="">  278: 		],
-</span><span class="">  279: 		tip   =&gt; &#39;If the chart is empty, check that you chose a number column for the value.&#39;,
-</span><span class="">  280: 		routes =&gt; [],
-</span><span class="">  281: 	},
-</span><span class="">  282: 	{
-</span><span class="">  283: 		id    =&gt; &#39;chart-types&#39;,
-</span><span class="">  284: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  285: 		title =&gt; &#39;Choose the right chart&#39;,
-</span><span class="">  286: 		lead  =&gt; &#39;Each chart answers a different question. This table can help you choose.&#39;,
-</span><span class="">  287: 		steps =&gt; [],
-</span><span class="">  288: 		table =&gt; {
-</span><span class="">  289: 			caption =&gt; &#39;Chart types and what they are good for&#39;,
-</span><span class="">  290: 			head    =&gt; [ &#39;Chart&#39;, &#39;Good for&#39;, &#39;What to choose&#39; ],
-</span><span class="">  291: 			rows    =&gt; [
-</span><span class="">  292: 				[ &#39;Line chart&#39;,      &#39;A value over time&#39;,                  &#39;A date or number for X, and a number for Y&#39; ],
-</span><span class="">  293: 				[ &#39;Pie chart&#39;,       &#39;Parts of one whole&#39;,                 &#39;A category and a number, with few categories&#39; ],
-</span><span class="">  294: 				[ &#39;Heatmap&#39;,         &#39;Two groups compared by colour&#39;,      &#39;Two category columns, and a count or sum&#39; ],
-</span><span class="">  295: 				[ &#39;Bar chart&#39;,       &#39;Sizes of different groups&#39;,          &#39;A category and a number&#39; ],
-</span><span class="">  296: 				[ &#39;Stacked bar chart&#39;, &#39;Groups and their parts&#39;,           &#39;A category, a segment, and a number&#39; ],
-</span><span class="">  297: 				[ &#39;Scatter plot&#39;,    &#39;A link between two numbers&#39;,         &#39;Two number columns&#39; ],
-</span><span class="">  298: 				[ &#39;Combo chart&#39;,     &#39;A bar value and a line value together&#39;, &#39;X, a bar number, and a line number&#39; ],
-</span><span class="">  299: 				[ &#39;Treemap&#39;,         &#39;Big and small groups in boxes&#39;,      &#39;A category and an optional number&#39; ],
-</span><span class="">  300: 				[ &#39;Histogram&#39;,       &#39;How numbers are spread out&#39;,         &#39;A number column and a bin count&#39; ],
-</span><span class="">  301: 				[ &#39;Map&#39;,             &#39;Where the rows are in the world&#39;,    &#39;Latitude and longitude, or a place column&#39; ],
-</span><span class="">  302: 			],
-</span><span class="">  303: 		},
-</span><span class="">  304: 		tip   =&gt; &#39;A bar chart is a good first choice for most data.&#39;,
-</span><span class="">  305: 		routes =&gt; [],
-</span><span class="">  306: 	},
-</span><span class="">  307: 	{
-</span><span class="">  308: 		id    =&gt; &#39;line-chart&#39;,
-</span><span class="">  309: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  310: 		title =&gt; &#39;Line chart&#39;,
-</span><span class="">  311: 		chart =&gt; 1,
-</span><span class="">  312: 		lead  =&gt; &#39;A line chart shows how a number changes along a series, often over time.&#39;,
-</span><span class="">  313: 		steps =&gt; [
-</span><span class="">  314: 			&#39;Open the table and click Line graph...&#39;,
-</span><span class="">  315: 			&#39;Choose the X axis. A date column or a number column works well.&#39;,
-</span><span class="">  316: 			&#39;Choose the Y axis. This must be a number column.&#39;,
-</span><span class="">  317: 			&#39;Click Plot.&#39;,
-</span><span class="">  318: 		],
-</span><span class="">  319: 		tip   =&gt; &#39;Use Copy link to share the chart. Use Export SVG or Export PNG to save the picture.&#39;,
-</span><span class="">  320: 		routes =&gt; [ &#39;/graph&#39;, &#39;/line&#39; ],
-</span><span class="">  321: 	},
-</span><span class="">  322: 	{
-</span><span class="">  323: 		id    =&gt; &#39;pie-chart&#39;,
-</span><span class="">  324: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  325: 		title =&gt; &#39;Pie chart&#39;,
-</span><span class="">  326: 		chart =&gt; 1,
-</span><span class="">  327: 		lead  =&gt; &#39;A pie chart shows the parts of one whole.&#39;,
-</span><span class="">  328: 		steps =&gt; [
-</span><span class="">  329: 			&#39;Open the table and click Pie chart...&#39;,
-</span><span class="">  330: 			&#39;Choose the column for Slice by. This gives the slices.&#39;,
-</span><span class="">  331: 			&#39;Choose Value. Count (rows) counts each row; a number column sums its values.&#39;,
-</span><span class="">  332: 			&#39;Set Top N slices if you want only the largest slices. The rest become Other.&#39;,
-</span><span class="">  333: 			&#39;Click Plot.&#39;,
-</span><span class="">  334: 		],
-</span><span class="">  335: 		tip   =&gt; &#39;Click a slice to open the matching rows in the table.&#39;,
-</span><span class="">  336: 		walkthrough =&gt; {
-</span><span class="">  337: 			title =&gt; &#39;Walk through: population share by region&#39;,
-</span><span class="">  338: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  339: 			steps =&gt; [
-</span><span class="">  340: 				{ do =&gt; &#39;Open the virginia_counties table and click Pie chart...&#39;, see =&gt; &#39;The pie panel opens.&#39; },
-</span><span class="">  341: 				{ do =&gt; &#39;Choose region for Slice by.&#39;, see =&gt; &#39;Seven regions will become slices.&#39; },
-</span><span class="">  342: 				{ do =&gt; &#39;Choose population for Value.&#39;, see =&gt; &#39;Each slice will show the total population for that region.&#39; },
-</span><span class="">  343: 				{ do =&gt; &#39;Click Plot.&#39;, see =&gt; &#39;A pie chart appears. Northern Virginia is the largest slice.&#39; },
-</span><span class="">  344: 			],
-</span><span class="">  345: 			result =&gt; &#39;Northern Virginia holds the most people. Its slice is larger than all Southside and Southwest counties combined.&#39;,
-</span><span class="">  346: 		},
-</span><span class="">  347: 		try    =&gt; { href =&gt; &#39;/pie?l=table:virginia_counties&amp;cat=region&amp;val=population&#39;, label =&gt; &#39;Try population by region&#39; },
-</span><span class="">  348: 		routes =&gt; [ &#39;/pie&#39; ],
-</span><span class="">  349: 	},
-</span><span class="">  350: 	{
-</span><span class="">  351: 		id    =&gt; &#39;heatmap-chart&#39;,
-</span><span class="">  352: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  353: 		title =&gt; &#39;Heatmap&#39;,
-</span><span class="">  354: 		chart =&gt; 1,
-</span><span class="">  355: 		lead  =&gt; &#39;A heatmap compares two groups with colour.&#39;,
-</span><span class="">  356: 		steps =&gt; [
-</span><span class="">  357: 			&#39;Open the table and click Heatmap...&#39;,
-</span><span class="">  358: 			&#39;Choose X axis (columns).&#39;,
-</span><span class="">  359: 			&#39;Choose Y axis (rows).&#39;,
-</span><span class="">  360: 			&#39;Leave Value on Count (rows), or choose a number column to sum.&#39;,
-</span><span class="">  361: 			&#39;Click Plot.&#39;,
-</span><span class="">  362: 		],
-</span><span class="">  363: 		tip   =&gt; &#39;A darker colour means a larger count or sum.&#39;,
-</span><span class="">  364: 		routes =&gt; [ &#39;/heatmap&#39; ],
-</span><span class="">  365: 	},
-</span><span class="">  366: 	{
-</span><span class="">  367: 		id    =&gt; &#39;bar-chart&#39;,
-</span><span class="">  368: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  369: 		title =&gt; &#39;Bar chart&#39;,
-</span><span class="">  370: 		chart =&gt; 1,
-</span><span class="">  371: 		lead  =&gt; &#39;A bar chart compares the sizes of different groups.&#39;,
-</span><span class="">  372: 		steps =&gt; [
-</span><span class="">  373: 			&#39;Open the table and click Bar chart...&#39;,
-</span><span class="">  374: 			&#39;Choose Category (bars).&#39;,
-</span><span class="">  375: 			&#39;Leave Value on Count (rows), or choose a number column to sum.&#39;,
-</span><span class="">  376: 			&#39;Use Sort bars and Orientation if you want a different order or direction.&#39;,
-</span><span class="">  377: 			&#39;Click Plot.&#39;,
-</span><span class="">  378: 		],
-</span><span class="">  379: 		tip   =&gt; &#39;A bar chart is a good first choice for most data.&#39;,
-</span><span class="">  380: 		walkthrough =&gt; {
-</span><span class="">  381: 			title =&gt; &#39;Walk through: top Virginia counties by population&#39;,
-</span><span class="">  382: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  383: 			steps =&gt; [
-</span><span class="">  384: 				{ do =&gt; &#39;Open the virginia_counties table and click Bar chart...&#39;, see =&gt; &#39;The bar panel opens.&#39; },
-</span><span class="">  385: 				{ do =&gt; &#39;Choose county for Category.&#39;, see =&gt; &#39;There are 95 counties. Set a limit in the next step.&#39; },
-</span><span class="">  386: 				{ do =&gt; &#39;Choose population for Value. Set Top N to 10 and Sort to By value.&#39;, see =&gt; &#39;The form is ready.&#39; },
-</span><span class="">  387: 				{ do =&gt; &#39;Click Plot.&#39;, see =&gt; &#39;Ten bars appear. Fairfax County stands far above the rest.&#39; },
-</span><span class="">  388: 			],
-</span><span class="">  389: 			result =&gt; &#39;The ten most populous counties appear, sorted largest first. Fairfax County has more people than the bottom 30 counties together.&#39;,
-</span><span class="">  390: 		},
-</span><span class="">  391: 		try    =&gt; { href =&gt; &#39;/bar?l=table:virginia_counties&amp;cat=county&amp;val=population&amp;sort=value&amp;topn=10&#39;, label =&gt; &#39;Try top 10 counties by population&#39; },
-</span><span class="">  392: 		routes =&gt; [ &#39;/bar&#39; ],
-</span><span class="">  393: 	},
-</span><span class="">  394: 	{
-</span><span class="">  395: 		id    =&gt; &#39;stacked-chart&#39;,
-</span><span class="">  396: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  397: 		title =&gt; &#39;Stacked bar chart&#39;,
-</span><span class="">  398: 		chart =&gt; 1,
-</span><span class="">  399: 		lead  =&gt; &#39;A stacked bar chart shows groups and their parts.&#39;,
-</span><span class="">  400: 		steps =&gt; [
-</span><span class="">  401: 			&#39;Open the table and click Stacked bar...&#39;,
-</span><span class="">  402: 			&#39;Choose Category (X axis).&#39;,
-</span><span class="">  403: 			&#39;Choose Segment (series). This gives the parts of each bar.&#39;,
-</span><span class="">  404: 			&#39;Leave Value on Count (rows), or choose a number column to sum.&#39;,
-</span><span class="">  405: 			&#39;Click Plot.&#39;,
-</span><span class="">  406: 		],
-</span><span class="">  407: 		tip   =&gt; &#39;Click a part of the legend to hide or show that segment.&#39;,
-</span><span class="">  408: 		routes =&gt; [ &#39;/stacked&#39; ],
-</span><span class="">  409: 	},
-</span><span class="">  410: 	{
-</span><span class="">  411: 		id    =&gt; &#39;scatter-chart&#39;,
-</span><span class="">  412: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  413: 		title =&gt; &#39;Scatter plot&#39;,
-</span><span class="">  414: 		chart =&gt; 1,
-</span><span class="">  415: 		lead  =&gt; &#39;A scatter plot shows a link between two numbers.&#39;,
-</span><span class="">  416: 		steps =&gt; [
-</span><span class="">  417: 			&#39;Open the table and click Scatter...&#39;,
-</span><span class="">  418: 			&#39;Choose X axis (horizontal, numeric).&#39;,
-</span><span class="">  419: 			&#39;Choose Y axis (vertical, numeric).&#39;,
-</span><span class="">  420: 			&#39;Optional: choose Colour by to colour the points by a group. Use Bubble size to size them by a number.&#39;,
-</span><span class="">  421: 			&#39;Click Plot.&#39;,
-</span><span class="">  422: 		],
-</span><span class="">  423: 		tip   =&gt; &#39;If a column is not numeric, it does not appear in the axis lists.&#39;,
-</span><span class="">  424: 		walkthrough =&gt; {
-</span><span class="">  425: 			title =&gt; &#39;Walk through: county location and size&#39;,
-</span><span class="">  426: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  427: 			steps =&gt; [
-</span><span class="">  428: 				{ do =&gt; &#39;Open the virginia_counties table and click Scatter...&#39;, see =&gt; &#39;The scatter panel opens.&#39; },
-</span><span class="">  429: 				{ do =&gt; &#39;Choose lon for X axis and lat for Y axis.&#39;, see =&gt; &#39;Each dot will sit at its map position.&#39; },
-</span><span class="">  430: 				{ do =&gt; &#39;Choose region for Colour by.&#39;, see =&gt; &#39;Each region gets its own colour.&#39; },
-</span><span class="">  431: 				{ do =&gt; &#39;Choose population for Bubble size. Click Plot.&#39;, see =&gt; &#39;Northern Virginia circles are much bigger than the rest.&#39; },
-</span><span class="">  432: 			],
-</span><span class="">  433: 			result =&gt; &#39;The chart mirrors Virginia shape. Large bubbles in the northeast show the high-population Northern Virginia counties.&#39;,
-</span><span class="">  434: 		},
-</span><span class="">  435: 		try    =&gt; { href =&gt; &#39;/scatter?l=table:virginia_counties&amp;x=lon&amp;y=lat&amp;series=region&amp;size=population&#39;, label =&gt; &#39;Try Virginia counties scatter plot&#39; },
-</span><span class="">  436: 		routes =&gt; [ &#39;/scatter&#39; ],
-</span><span class="">  437: 	},
-</span><span class="">  438: 	{
-</span><span class="">  439: 		id    =&gt; &#39;combo-chart&#39;,
-</span><span class="">  440: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  441: 		title =&gt; &#39;Combo chart&#39;,
-</span><span class="">  442: 		chart =&gt; 1,
-</span><span class="">  443: 		lead  =&gt; &#39;A combo chart puts a bar value and a line value on the same X axis.&#39;,
-</span><span class="">  444: 		steps =&gt; [
-</span><span class="">  445: 			&#39;Open the table and click Combo chart...&#39;,
-</span><span class="">  446: 			&#39;Choose X axis.&#39;,
-</span><span class="">  447: 			&#39;Choose Bar column (numeric).&#39;,
-</span><span class="">  448: 			&#39;Choose Line column (numeric).&#39;,
-</span><span class="">  449: 			&#39;Click Plot.&#39;,
-</span><span class="">  450: 		],
-</span><span class="">  451: 		tip   =&gt; &#39;Use a combo chart when two numbers are measured in different units.&#39;,
-</span><span class="">  452: 		routes =&gt; [ &#39;/combo&#39; ],
-</span><span class="">  453: 	},
-</span><span class="">  454: 	{
-</span><span class="">  455: 		id    =&gt; &#39;treemap-chart&#39;,
-</span><span class="">  456: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  457: 		title =&gt; &#39;Treemap&#39;,
-</span><span class="">  458: 		chart =&gt; 1,
-</span><span class="">  459: 		lead  =&gt; &#39;A treemap shows big and small groups as boxes.&#39;,
-</span><span class="">  460: 		steps =&gt; [
-</span><span class="">  461: 			&#39;Open the table and click Treemap...&#39;,
-</span><span class="">  462: 			&#39;Choose Category column.&#39;,
-</span><span class="">  463: 			&#39;Leave Value (tile size) on Count (rows), or choose a number column to sum.&#39;,
-</span><span class="">  464: 			&#39;Set Top N tiles if you want only the largest groups.&#39;,
-</span><span class="">  465: 			&#39;Click Plot.&#39;,
-</span><span class="">  466: 		],
-</span><span class="">  467: 		tip   =&gt; &#39;A treemap is useful when one level has many groups.&#39;,
-</span><span class="">  468: 		routes =&gt; [ &#39;/treemap&#39; ],
-</span><span class="">  469: 	},
-</span><span class="">  470: 	{
-</span><span class="">  471: 		id    =&gt; &#39;histogram-chart&#39;,
-</span><span class="">  472: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  473: 		title =&gt; &#39;Histogram&#39;,
-</span><span class="">  474: 		chart =&gt; 1,
-</span><span class="">  475: 		lead  =&gt; &#39;A histogram shows how numbers are spread out.&#39;,
-</span><span class="">  476: 		steps =&gt; [
-</span><span class="">  477: 			&#39;Open the table and click Histogram...&#39;,
-</span><span class="">  478: 			&#39;Choose Numeric column.&#39;,
-</span><span class="">  479: 			&#39;Set Number of bins. More bins show more detail.&#39;,
-</span><span class="">  480: 			&#39;Click Plot.&#39;,
-</span><span class="">  481: 		],
-</span><span class="">  482: 		tip   =&gt; &#39;A histogram works best with a number column that has many different values.&#39;,
-</span><span class="">  483: 		routes =&gt; [ &#39;/histogram&#39; ],
-</span><span class="">  484: 	},
-</span><span class="">  485: 	{
-</span><span class="">  486: 		id    =&gt; &#39;map-chart&#39;,
-</span><span class="">  487: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  488: 		title =&gt; &#39;Map&#39;,
-</span><span class="">  489: 		chart =&gt; 1,
-</span><span class="">  490: 		lead  =&gt; &#39;A map shows where the rows are in the world.&#39;,
-</span><span class="">  491: 		steps =&gt; [
-</span><span class="">  492: 			&#39;Open the table and click Map...&#39;,
-</span><span class="">  493: 			&#39;Keep Coordinate columns, then choose the latitude and longitude columns.&#39;,
-</span><span class="">  494: 			&#39;If your table has places instead, choose Place-name column and pick that column.&#39;,
-</span><span class="">  495: 			&#39;Click Open map.&#39;,
-</span><span class="">  496: 		],
-</span><span class="">  497: 		tip   =&gt; &#39;Rows at one place become one marker. Click a marker to see what it stands for.&#39;,
-</span><span class="">  498: 		walkthrough =&gt; {
-</span><span class="">  499: 			title =&gt; &#39;Walk through: Virginia counties on a map&#39;,
-</span><span class="">  500: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  501: 			steps =&gt; [
-</span><span class="">  502: 				{ do =&gt; &#39;Open the virginia_counties table and click Map...&#39;, see =&gt; &#39;The map panel opens.&#39; },
-</span><span class="">  503: 				{ do =&gt; &#39;Keep Coordinate columns. Choose lat for Latitude and lon for Longitude.&#39;, see =&gt; &#39;The form shows lat and lon selected.&#39; },
-</span><span class="">  504: 				{ do =&gt; &#39;Click Open map.&#39;, see =&gt; &#39;A map appears with 95 markers, one for each Virginia county.&#39; },
-</span><span class="">  505: 				{ do =&gt; &#39;Click any marker.&#39;, see =&gt; &#39;A popup shows the county name, population and region.&#39; },
-</span><span class="">  506: 			],
-</span><span class="">  507: 			result =&gt; &#39;All 95 Virginia counties appear as markers. Markers near one another cluster at low zoom.&#39;,
-</span><span class="">  508: 		},
-</span><span class="">  509: 		try    =&gt; { href =&gt; &#39;/map?l=table:virginia_counties&amp;lat=lat&amp;lon=lon&#39;, label =&gt; &#39;Try the Virginia counties map&#39; },
-</span><span class="">  510: 		routes =&gt; [ &#39;/map&#39; ],
-</span><span class="">  511: 	},
-</span><span class="">  512: 	{
-</span><span class="">  513: 		id    =&gt; &#39;pivot&#39;,
-</span><span class="">  514: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  515: 		title =&gt; &#39;Summarise with a pivot table&#39;,
-</span><span class="">  516: 		lead  =&gt; &#39;A pivot table puts one group down the side and another group across the top. Each cell is a summary.&#39;,
-</span><span class="">  517: 		steps =&gt; [
-</span><span class="">  518: 			&#39;Click Pivot table...&#39;,
-</span><span class="">  519: 			&#39;Add a row group. For example, choose region.&#39;,
-</span><span class="">  520: 			&#39;Add a measure. For example, choose Sum of amount.&#39;,
-</span><span class="">  521: 			&#39;Click Build pivot.&#39;,
-</span><span class="">  522: 			&#39;Click Show subtotals and grand total if you want totals.&#39;,
-</span><span class="">  523: 		],
-</span><span class="">  524: 		tip   =&gt; &#39;Start with one row group and one measure. Add more only when you need them.&#39;,
-</span><span class="">  525: 		walkthrough =&gt; {
-</span><span class="">  526: 			title =&gt; &#39;Walk through: sales by region and product&#39;,
-</span><span class="">  527: 			intro =&gt; &#39;This example uses the sales table in the data folder.&#39;,
-</span><span class="">  528: 			steps =&gt; [
-</span><span class="">  529: 				{ do =&gt; &#39;Open the sales table and click Pivot table...&#39;, see =&gt; &#39;The panel opens with one empty row group and one measure.&#39; },
-</span><span class="">  530: 				{ do =&gt; &#39;In the first row group, choose region.&#39;, see =&gt; &#39;region becomes the group down the side.&#39; },
-</span><span class="">  531: 				{ do =&gt; &#39;Click Add column and choose product.&#39;, see =&gt; &#39;Each product will become a column across the top.&#39; },
-</span><span class="">  532: 				{ do =&gt; &#39;In the measure row, choose amount and keep Sum.&#39;, see =&gt; &#39;The measure is called amount_sum unless you type another alias.&#39; },
-</span><span class="">  533: 				{ do =&gt; &#39;Tick Show subtotals and grand total, then click Build pivot.&#39;, see =&gt; &#39;The pivot shows a total for each region and one grand total.&#39; },
-</span><span class="">  534: 			],
-</span><span class="">  535: 			result =&gt; &#39;Regions run down the side, products run across the top, and each cell holds the sum of amount.&#39;,
-</span><span class="">  536: 		},
-</span><span class="">  537: 		routes =&gt; [ &#39;/pivot&#39; ],
-</span><span class="">  538: 	},
-</span><span class="">  539: 	{
-</span><span class="">  540: 		id    =&gt; &#39;stats&#39;,
-</span><span class="">  541: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  542: 		title =&gt; &#39;See statistics for each column&#39;,
-</span><span class="">  543: 		lead  =&gt; &#39;Statistics give you a quick summary of every column.&#39;,
-</span><span class="">  544: 		steps =&gt; [
-</span><span class="">  545: 			&#39;Open a table and click Column stats.&#39;,
-</span><span class="">  546: 			&#39;Read one row for each column.&#39;,
-</span><span class="">  547: 			&#39;Rows is the number of rows. Non-null is the number of cells with a value. Null is the number of blank cells.&#39;,
-</span><span class="">  548: 			&#39;Distinct is the number of different values.&#39;,
-</span><span class="">  549: 			&#39;For a number column you also see Min, Max, Mean and Median. Mean is the average. Median is the middle value.&#39;,
-</span><span class="">  550: 		],
-</span><span class="">  551: 		tip   =&gt; &#39;Statistics use the rows that are visible after joins and filters.&#39;,
-</span><span class="">  552: 		walkthrough =&gt; {
-</span><span class="">  553: 			title =&gt; &#39;Walk through: column statistics for Virginia counties&#39;,
-</span><span class="">  554: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  555: 			steps =&gt; [
-</span><span class="">  556: 				{ do =&gt; &#39;Open the virginia_counties table and click Column stats.&#39;, see =&gt; &#39;The stats page shows one row per column.&#39; },
-</span><span class="">  557: 				{ do =&gt; &#39;Find the population row.&#39;, see =&gt; &#39;Min is 2214 and Max is 1150309.&#39; },
-</span><span class="">  558: 				{ do =&gt; &#39;Look at the Distinct count for region.&#39;, see =&gt; &#39;There are 7 distinct regions.&#39; },
-</span><span class="">  559: 				{ do =&gt; &#39;Look at Mean and Median for population.&#39;, see =&gt; &#39;Mean is much higher than Median. A few large counties pull the average up.&#39; },
-</span><span class="">  560: 			],
-</span><span class="">  561: 			result =&gt; &#39;Population is highly uneven. The maximum county is over 500 times larger than the minimum.&#39;,
-</span><span class="">  562: 		},
-</span><span class="">  563: 		try    =&gt; { href =&gt; &#39;/stats?l=table:virginia_counties&#39;, label =&gt; &#39;Try statistics on Virginia counties&#39; },
-</span><span class="">  564: 		routes =&gt; [ &#39;/stats&#39; ],
-</span><span class="">  565: 	},
-</span><span class="">  566: 	{
-</span><span class="">  567: 		id    =&gt; &#39;insights&#39;,
-</span><span class="">  568: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  569: 		title =&gt; &#39;Find outliers and trends automatically&#39;,
-</span><span class="">  570: 		lead  =&gt; &#39;Insights scans your data and flags unusual values, changes over time, and repeating patterns.&#39;,
-</span><span class="">  571: 		steps =&gt; [
-</span><span class="">  572: 			&#39;Open a table and click Insights.&#39;,
-</span><span class="">  573: 			&#39;Each card shows one finding: an outlier, a period change, a top mover, or a seasonal pattern.&#39;,
-</span><span class="">  574: 			&#39;An outlier is a value far outside the normal range for its group.&#39;,
-</span><span class="">  575: 			&#39;A period change compares the most recent month to the one before it.&#39;,
-</span><span class="">  576: 			&#39;A top mover is the category that changed the most between two periods.&#39;,
-</span><span class="">  577: 			&#39;Seasonality means the same pattern repeats from one period to the next.&#39;,
-</span><span class="">  578: 			&#39;Click View in chart on any card to open the chart that shows it.&#39;,
-</span><span class="">  579: 		],
-</span><span class="">  580: 		tip   =&gt; &#39;Insights need a date column and a number column to detect period changes and top movers.&#39;,
-</span><span class="">  581: 		routes =&gt; [ &#39;/insights&#39; ],
-</span><span class="">  582: 	},
-</span><span class="">  583: 
-</span><span class="">  584: 	# ---------------------------------------------------------------
-</span><span class="">  585: 	# Save and share
+</span><span class="">  267: 	# Charts and summaries
+</span><span class="">  268: 	# ---------------------------------------------------------------
+</span><span class="">  269: 	{
+</span><span class="">  270: 		id    =&gt; &#39;first-chart&#39;,
+</span><span class="">  271: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  272: 		title =&gt; &#39;Make your first chart&#39;,
+</span><span class="">  273: 		lead  =&gt; &#39;A chart shows a pattern that is hard to see in a long table.&#39;,
+</span><span class="">  274: 		steps =&gt; [
+</span><span class="">  275: 			&#39;Open a table.&#39;,
+</span><span class="">  276: 			&#39;Click a chart button in the toolbar. Bar chart... is a good first choice.&#39;,
+</span><span class="">  277: 			&#39;Choose a category column and a number column.&#39;,
+</span><span class="">  278: 			&#39;Click Plot.&#39;,
+</span><span class="">  279: 			&#39;Use Export SVG or Export PNG to save the chart. Use Copy link to share the page.&#39;,
+</span><span class="">  280: 		],
+</span><span class="">  281: 		tip   =&gt; &#39;If the chart is empty, check that you chose a number column for the value.&#39;,
+</span><span class="">  282: 		routes =&gt; [],
+</span><span class="">  283: 	},
+</span><span class="">  284: 	{
+</span><span class="">  285: 		id    =&gt; &#39;chart-types&#39;,
+</span><span class="">  286: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  287: 		title =&gt; &#39;Choose the right chart&#39;,
+</span><span class="">  288: 		lead  =&gt; &#39;Each chart answers a different question. This table can help you choose.&#39;,
+</span><span class="">  289: 		steps =&gt; [],
+</span><span class="">  290: 		table =&gt; {
+</span><span class="">  291: 			caption =&gt; &#39;Chart types and what they are good for&#39;,
+</span><span class="">  292: 			head    =&gt; [ &#39;Chart&#39;, &#39;Good for&#39;, &#39;What to choose&#39; ],
+</span><span class="">  293: 			rows    =&gt; [
+</span><span class="">  294: 				[ &#39;Line chart&#39;,      &#39;A value over time&#39;,                  &#39;A date or number for X, and a number for Y&#39; ],
+</span><span class="">  295: 				[ &#39;Pie chart&#39;,       &#39;Parts of one whole&#39;,                 &#39;A category and a number, with few categories&#39; ],
+</span><span class="">  296: 				[ &#39;Heatmap&#39;,         &#39;Two groups compared by colour&#39;,      &#39;Two category columns, and a count or sum&#39; ],
+</span><span class="">  297: 				[ &#39;Bar chart&#39;,       &#39;Sizes of different groups&#39;,          &#39;A category and a number&#39; ],
+</span><span class="">  298: 				[ &#39;Stacked bar chart&#39;, &#39;Groups and their parts&#39;,           &#39;A category, a segment, and a number&#39; ],
+</span><span class="">  299: 				[ &#39;Scatter plot&#39;,    &#39;A link between two numbers&#39;,         &#39;Two number columns&#39; ],
+</span><span class="">  300: 				[ &#39;Combo chart&#39;,     &#39;A bar value and a line value together&#39;, &#39;X, a bar number, and a line number&#39; ],
+</span><span class="">  301: 				[ &#39;Treemap&#39;,         &#39;Big and small groups in boxes&#39;,      &#39;A category and an optional number&#39; ],
+</span><span class="">  302: 				[ &#39;Histogram&#39;,       &#39;How numbers are spread out&#39;,         &#39;A number column and a bin count&#39; ],
+</span><span class="">  303: 				[ &#39;Map&#39;,             &#39;Where the rows are in the world&#39;,    &#39;Latitude and longitude, or a place column&#39; ],
+</span><span class="">  304: 			],
+</span><span class="">  305: 		},
+</span><span class="">  306: 		tip   =&gt; &#39;A bar chart is a good first choice for most data.&#39;,
+</span><span class="">  307: 		routes =&gt; [],
+</span><span class="">  308: 	},
+</span><span class="">  309: 	{
+</span><span class="">  310: 		id    =&gt; &#39;line-chart&#39;,
+</span><span class="">  311: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  312: 		title =&gt; &#39;Line chart&#39;,
+</span><span class="">  313: 		chart =&gt; 1,
+</span><span class="">  314: 		lead  =&gt; &#39;A line chart shows how a number changes along a series, often over time.&#39;,
+</span><span class="">  315: 		steps =&gt; [
+</span><span class="">  316: 			&#39;Open the table and click Line graph...&#39;,
+</span><span class="">  317: 			&#39;Choose the X axis. A date column or a number column works well.&#39;,
+</span><span class="">  318: 			&#39;Choose the Y axis. This must be a number column.&#39;,
+</span><span class="">  319: 			&#39;Click Plot.&#39;,
+</span><span class="">  320: 		],
+</span><span class="">  321: 		tip   =&gt; &#39;Use Copy link to share the chart. Use Export SVG or Export PNG to save the picture.&#39;,
+</span><span class="">  322: 		routes =&gt; [ &#39;/graph&#39;, &#39;/line&#39; ],
+</span><span class="">  323: 	},
+</span><span class="">  324: 	{
+</span><span class="">  325: 		id    =&gt; &#39;pie-chart&#39;,
+</span><span class="">  326: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  327: 		title =&gt; &#39;Pie chart&#39;,
+</span><span class="">  328: 		chart =&gt; 1,
+</span><span class="">  329: 		lead  =&gt; &#39;A pie chart shows the parts of one whole.&#39;,
+</span><span class="">  330: 		steps =&gt; [
+</span><span class="">  331: 			&#39;Open the table and click Pie chart...&#39;,
+</span><span class="">  332: 			&#39;Choose the column for Slice by. This gives the slices.&#39;,
+</span><span class="">  333: 			&#39;Choose Value. Count (rows) counts each row; a number column sums its values.&#39;,
+</span><span class="">  334: 			&#39;Set Top N slices if you want only the largest slices. The rest become Other.&#39;,
+</span><span class="">  335: 			&#39;Click Plot.&#39;,
+</span><span class="">  336: 		],
+</span><span class="">  337: 		tip   =&gt; &#39;Click a slice to open the matching rows in the table.&#39;,
+</span><span class="">  338: 		walkthrough =&gt; {
+</span><span class="">  339: 			title =&gt; &#39;Walk through: population share by region&#39;,
+</span><span class="">  340: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  341: 			steps =&gt; [
+</span><span class="">  342: 				{ do =&gt; &#39;Open the virginia_counties table and click Pie chart...&#39;, see =&gt; &#39;The pie panel opens.&#39; },
+</span><span class="">  343: 				{ do =&gt; &#39;Choose region for Slice by.&#39;, see =&gt; &#39;Seven regions will become slices.&#39; },
+</span><span class="">  344: 				{ do =&gt; &#39;Choose population for Value.&#39;, see =&gt; &#39;Each slice will show the total population for that region.&#39; },
+</span><span class="">  345: 				{ do =&gt; &#39;Click Plot.&#39;, see =&gt; &#39;A pie chart appears. Northern Virginia is the largest slice.&#39; },
+</span><span class="">  346: 			],
+</span><span class="">  347: 			result =&gt; &#39;Northern Virginia holds the most people. Its slice is larger than all Southside and Southwest counties combined.&#39;,
+</span><span class="">  348: 		},
+</span><span class="">  349: 		try    =&gt; { href =&gt; &#39;/pie?l=table:virginia_counties&amp;cat=region&amp;val=population&#39;, label =&gt; &#39;Try population by region&#39; },
+</span><span class="">  350: 		routes =&gt; [ &#39;/pie&#39; ],
+</span><span class="">  351: 	},
+</span><span class="">  352: 	{
+</span><span class="">  353: 		id    =&gt; &#39;heatmap-chart&#39;,
+</span><span class="">  354: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  355: 		title =&gt; &#39;Heatmap&#39;,
+</span><span class="">  356: 		chart =&gt; 1,
+</span><span class="">  357: 		lead  =&gt; &#39;A heatmap compares two groups with colour.&#39;,
+</span><span class="">  358: 		steps =&gt; [
+</span><span class="">  359: 			&#39;Open the table and click Heatmap...&#39;,
+</span><span class="">  360: 			&#39;Choose X axis (columns).&#39;,
+</span><span class="">  361: 			&#39;Choose Y axis (rows).&#39;,
+</span><span class="">  362: 			&#39;Leave Value on Count (rows), or choose a number column to sum.&#39;,
+</span><span class="">  363: 			&#39;Click Plot.&#39;,
+</span><span class="">  364: 		],
+</span><span class="">  365: 		tip   =&gt; &#39;A darker colour means a larger count or sum.&#39;,
+</span><span class="">  366: 		routes =&gt; [ &#39;/heatmap&#39; ],
+</span><span class="">  367: 	},
+</span><span class="">  368: 	{
+</span><span class="">  369: 		id    =&gt; &#39;bar-chart&#39;,
+</span><span class="">  370: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  371: 		title =&gt; &#39;Bar chart&#39;,
+</span><span class="">  372: 		chart =&gt; 1,
+</span><span class="">  373: 		lead  =&gt; &#39;A bar chart compares the sizes of different groups.&#39;,
+</span><span class="">  374: 		steps =&gt; [
+</span><span class="">  375: 			&#39;Open the table and click Bar chart...&#39;,
+</span><span class="">  376: 			&#39;Choose Category (bars).&#39;,
+</span><span class="">  377: 			&#39;Leave Value on Count (rows), or choose a number column to sum.&#39;,
+</span><span class="">  378: 			&#39;Use Sort bars and Orientation if you want a different order or direction.&#39;,
+</span><span class="">  379: 			&#39;Click Plot.&#39;,
+</span><span class="">  380: 		],
+</span><span class="">  381: 		tip   =&gt; &#39;A bar chart is a good first choice for most data.&#39;,
+</span><span class="">  382: 		walkthrough =&gt; {
+</span><span class="">  383: 			title =&gt; &#39;Walk through: top Virginia counties by population&#39;,
+</span><span class="">  384: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  385: 			steps =&gt; [
+</span><span class="">  386: 				{ do =&gt; &#39;Open the virginia_counties table and click Bar chart...&#39;, see =&gt; &#39;The bar panel opens.&#39; },
+</span><span class="">  387: 				{ do =&gt; &#39;Choose county for Category.&#39;, see =&gt; &#39;There are 95 counties. Set a limit in the next step.&#39; },
+</span><span class="">  388: 				{ do =&gt; &#39;Choose population for Value. Set Top N to 10 and Sort to By value.&#39;, see =&gt; &#39;The form is ready.&#39; },
+</span><span class="">  389: 				{ do =&gt; &#39;Click Plot.&#39;, see =&gt; &#39;Ten bars appear. Fairfax County stands far above the rest.&#39; },
+</span><span class="">  390: 			],
+</span><span class="">  391: 			result =&gt; &#39;The ten most populous counties appear, sorted largest first. Fairfax County has more people than the bottom 30 counties together.&#39;,
+</span><span class="">  392: 		},
+</span><span class="">  393: 		try    =&gt; { href =&gt; &#39;/bar?l=table:virginia_counties&amp;cat=county&amp;val=population&amp;sort=value&amp;topn=10&#39;, label =&gt; &#39;Try top 10 counties by population&#39; },
+</span><span class="">  394: 		routes =&gt; [ &#39;/bar&#39; ],
+</span><span class="">  395: 	},
+</span><span class="">  396: 	{
+</span><span class="">  397: 		id    =&gt; &#39;stacked-chart&#39;,
+</span><span class="">  398: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  399: 		title =&gt; &#39;Stacked bar chart&#39;,
+</span><span class="">  400: 		chart =&gt; 1,
+</span><span class="">  401: 		lead  =&gt; &#39;A stacked bar chart shows groups and their parts.&#39;,
+</span><span class="">  402: 		steps =&gt; [
+</span><span class="">  403: 			&#39;Open the table and click Stacked bar...&#39;,
+</span><span class="">  404: 			&#39;Choose Category (X axis).&#39;,
+</span><span class="">  405: 			&#39;Choose Segment (series). This gives the parts of each bar.&#39;,
+</span><span class="">  406: 			&#39;Leave Value on Count (rows), or choose a number column to sum.&#39;,
+</span><span class="">  407: 			&#39;Click Plot.&#39;,
+</span><span class="">  408: 		],
+</span><span class="">  409: 		tip   =&gt; &#39;Click a part of the legend to hide or show that segment.&#39;,
+</span><span class="">  410: 		routes =&gt; [ &#39;/stacked&#39; ],
+</span><span class="">  411: 	},
+</span><span class="">  412: 	{
+</span><span class="">  413: 		id    =&gt; &#39;scatter-chart&#39;,
+</span><span class="">  414: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  415: 		title =&gt; &#39;Scatter plot&#39;,
+</span><span class="">  416: 		chart =&gt; 1,
+</span><span class="">  417: 		lead  =&gt; &#39;A scatter plot shows a link between two numbers.&#39;,
+</span><span class="">  418: 		steps =&gt; [
+</span><span class="">  419: 			&#39;Open the table and click Scatter...&#39;,
+</span><span class="">  420: 			&#39;Choose X axis (horizontal, numeric).&#39;,
+</span><span class="">  421: 			&#39;Choose Y axis (vertical, numeric).&#39;,
+</span><span class="">  422: 			&#39;Optional: choose Colour by to colour the points by a group. Use Bubble size to size them by a number.&#39;,
+</span><span class="">  423: 			&#39;Click Plot.&#39;,
+</span><span class="">  424: 		],
+</span><span class="">  425: 		tip   =&gt; &#39;If a column is not numeric, it does not appear in the axis lists.&#39;,
+</span><span class="">  426: 		walkthrough =&gt; {
+</span><span class="">  427: 			title =&gt; &#39;Walk through: county location and size&#39;,
+</span><span class="">  428: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  429: 			steps =&gt; [
+</span><span class="">  430: 				{ do =&gt; &#39;Open the virginia_counties table and click Scatter...&#39;, see =&gt; &#39;The scatter panel opens.&#39; },
+</span><span class="">  431: 				{ do =&gt; &#39;Choose lon for X axis and lat for Y axis.&#39;, see =&gt; &#39;Each dot will sit at its map position.&#39; },
+</span><span class="">  432: 				{ do =&gt; &#39;Choose region for Colour by.&#39;, see =&gt; &#39;Each region gets its own colour.&#39; },
+</span><span class="">  433: 				{ do =&gt; &#39;Choose population for Bubble size. Click Plot.&#39;, see =&gt; &#39;Northern Virginia circles are much bigger than the rest.&#39; },
+</span><span class="">  434: 			],
+</span><span class="">  435: 			result =&gt; &#39;The chart mirrors Virginia shape. Large bubbles in the northeast show the high-population Northern Virginia counties.&#39;,
+</span><span class="">  436: 		},
+</span><span class="">  437: 		try    =&gt; { href =&gt; &#39;/scatter?l=table:virginia_counties&amp;x=lon&amp;y=lat&amp;series=region&amp;size=population&#39;, label =&gt; &#39;Try Virginia counties scatter plot&#39; },
+</span><span class="">  438: 		routes =&gt; [ &#39;/scatter&#39; ],
+</span><span class="">  439: 	},
+</span><span class="">  440: 	{
+</span><span class="">  441: 		id    =&gt; &#39;combo-chart&#39;,
+</span><span class="">  442: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  443: 		title =&gt; &#39;Combo chart&#39;,
+</span><span class="">  444: 		chart =&gt; 1,
+</span><span class="">  445: 		lead  =&gt; &#39;A combo chart puts a bar value and a line value on the same X axis.&#39;,
+</span><span class="">  446: 		steps =&gt; [
+</span><span class="">  447: 			&#39;Open the table and click Combo chart...&#39;,
+</span><span class="">  448: 			&#39;Choose X axis.&#39;,
+</span><span class="">  449: 			&#39;Choose Bar column (numeric).&#39;,
+</span><span class="">  450: 			&#39;Choose Line column (numeric).&#39;,
+</span><span class="">  451: 			&#39;Click Plot.&#39;,
+</span><span class="">  452: 		],
+</span><span class="">  453: 		tip   =&gt; &#39;Use a combo chart when two numbers are measured in different units.&#39;,
+</span><span class="">  454: 		routes =&gt; [ &#39;/combo&#39; ],
+</span><span class="">  455: 	},
+</span><span class="">  456: 	{
+</span><span class="">  457: 		id    =&gt; &#39;treemap-chart&#39;,
+</span><span class="">  458: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  459: 		title =&gt; &#39;Treemap&#39;,
+</span><span class="">  460: 		chart =&gt; 1,
+</span><span class="">  461: 		lead  =&gt; &#39;A treemap shows big and small groups as boxes.&#39;,
+</span><span class="">  462: 		steps =&gt; [
+</span><span class="">  463: 			&#39;Open the table and click Treemap...&#39;,
+</span><span class="">  464: 			&#39;Choose Category column.&#39;,
+</span><span class="">  465: 			&#39;Leave Value (tile size) on Count (rows), or choose a number column to sum.&#39;,
+</span><span class="">  466: 			&#39;Set Top N tiles if you want only the largest groups.&#39;,
+</span><span class="">  467: 			&#39;Click Plot.&#39;,
+</span><span class="">  468: 		],
+</span><span class="">  469: 		tip   =&gt; &#39;A treemap is useful when one level has many groups.&#39;,
+</span><span class="">  470: 		routes =&gt; [ &#39;/treemap&#39; ],
+</span><span class="">  471: 	},
+</span><span class="">  472: 	{
+</span><span class="">  473: 		id    =&gt; &#39;histogram-chart&#39;,
+</span><span class="">  474: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  475: 		title =&gt; &#39;Histogram&#39;,
+</span><span class="">  476: 		chart =&gt; 1,
+</span><span class="">  477: 		lead  =&gt; &#39;A histogram shows how numbers are spread out.&#39;,
+</span><span class="">  478: 		steps =&gt; [
+</span><span class="">  479: 			&#39;Open the table and click Histogram...&#39;,
+</span><span class="">  480: 			&#39;Choose Numeric column.&#39;,
+</span><span class="">  481: 			&#39;Set Number of bins. More bins show more detail.&#39;,
+</span><span class="">  482: 			&#39;Click Plot.&#39;,
+</span><span class="">  483: 		],
+</span><span class="">  484: 		tip   =&gt; &#39;A histogram works best with a number column that has many different values.&#39;,
+</span><span class="">  485: 		routes =&gt; [ &#39;/histogram&#39; ],
+</span><span class="">  486: 	},
+</span><span class="">  487: 	{
+</span><span class="">  488: 		id    =&gt; &#39;map-chart&#39;,
+</span><span class="">  489: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  490: 		title =&gt; &#39;Map&#39;,
+</span><span class="">  491: 		chart =&gt; 1,
+</span><span class="">  492: 		lead  =&gt; &#39;A map shows where the rows are in the world.&#39;,
+</span><span class="">  493: 		steps =&gt; [
+</span><span class="">  494: 			&#39;Open the table and click Map...&#39;,
+</span><span class="">  495: 			&#39;Keep Coordinate columns, then choose the latitude and longitude columns.&#39;,
+</span><span class="">  496: 			&#39;If your table has places instead, choose Place-name column and pick that column.&#39;,
+</span><span class="">  497: 			&#39;Click Open map.&#39;,
+</span><span class="">  498: 		],
+</span><span class="">  499: 		tip   =&gt; &#39;Rows at one place become one marker. Click a marker to see what it stands for.&#39;,
+</span><span class="">  500: 		walkthrough =&gt; {
+</span><span class="">  501: 			title =&gt; &#39;Walk through: Virginia counties on a map&#39;,
+</span><span class="">  502: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  503: 			steps =&gt; [
+</span><span class="">  504: 				{ do =&gt; &#39;Open the virginia_counties table and click Map...&#39;, see =&gt; &#39;The map panel opens.&#39; },
+</span><span class="">  505: 				{ do =&gt; &#39;Keep Coordinate columns. Choose lat for Latitude and lon for Longitude.&#39;, see =&gt; &#39;The form shows lat and lon selected.&#39; },
+</span><span class="">  506: 				{ do =&gt; &#39;Click Open map.&#39;, see =&gt; &#39;A map appears with 95 markers, one for each Virginia county.&#39; },
+</span><span class="">  507: 				{ do =&gt; &#39;Click any marker.&#39;, see =&gt; &#39;A popup shows the county name, population and region.&#39; },
+</span><span class="">  508: 			],
+</span><span class="">  509: 			result =&gt; &#39;All 95 Virginia counties appear as markers. Markers near one another cluster at low zoom.&#39;,
+</span><span class="">  510: 		},
+</span><span class="">  511: 		try    =&gt; { href =&gt; &#39;/map?l=table:virginia_counties&amp;lat=lat&amp;lon=lon&#39;, label =&gt; &#39;Try the Virginia counties map&#39; },
+</span><span class="">  512: 		routes =&gt; [ &#39;/map&#39; ],
+</span><span class="">  513: 	},
+</span><span class="">  514: 	{
+</span><span class="">  515: 		id    =&gt; &#39;pivot&#39;,
+</span><span class="">  516: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  517: 		title =&gt; &#39;Summarise with a pivot table&#39;,
+</span><span class="">  518: 		lead  =&gt; &#39;A pivot table puts one group down the side and another group across the top. Each cell is a summary.&#39;,
+</span><span class="">  519: 		steps =&gt; [
+</span><span class="">  520: 			&#39;Click Pivot table...&#39;,
+</span><span class="">  521: 			&#39;Add a row group. For example, choose region.&#39;,
+</span><span class="">  522: 			&#39;Add a measure. For example, choose Sum of amount.&#39;,
+</span><span class="">  523: 			&#39;Click Build pivot.&#39;,
+</span><span class="">  524: 			&#39;Click Show subtotals and grand total if you want totals.&#39;,
+</span><span class="">  525: 		],
+</span><span class="">  526: 		tip   =&gt; &#39;Start with one row group and one measure. Add more only when you need them.&#39;,
+</span><span class="">  527: 		walkthrough =&gt; {
+</span><span class="">  528: 			title =&gt; &#39;Walk through: sales by region and product&#39;,
+</span><span class="">  529: 			intro =&gt; &#39;This example uses the sales table in the data folder.&#39;,
+</span><span class="">  530: 			steps =&gt; [
+</span><span class="">  531: 				{ do =&gt; &#39;Open the sales table and click Pivot table...&#39;, see =&gt; &#39;The panel opens with one empty row group and one measure.&#39; },
+</span><span class="">  532: 				{ do =&gt; &#39;In the first row group, choose region.&#39;, see =&gt; &#39;region becomes the group down the side.&#39; },
+</span><span class="">  533: 				{ do =&gt; &#39;Click Add column and choose product.&#39;, see =&gt; &#39;Each product will become a column across the top.&#39; },
+</span><span class="">  534: 				{ do =&gt; &#39;In the measure row, choose amount and keep Sum.&#39;, see =&gt; &#39;The measure is called amount_sum unless you type another alias.&#39; },
+</span><span class="">  535: 				{ do =&gt; &#39;Tick Show subtotals and grand total, then click Build pivot.&#39;, see =&gt; &#39;The pivot shows a total for each region and one grand total.&#39; },
+</span><span class="">  536: 			],
+</span><span class="">  537: 			result =&gt; &#39;Regions run down the side, products run across the top, and each cell holds the sum of amount.&#39;,
+</span><span class="">  538: 		},
+</span><span class="">  539: 		routes =&gt; [ &#39;/pivot&#39; ],
+</span><span class="">  540: 	},
+</span><span class="">  541: 	{
+</span><span class="">  542: 		id    =&gt; &#39;stats&#39;,
+</span><span class="">  543: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  544: 		title =&gt; &#39;See statistics for each column&#39;,
+</span><span class="">  545: 		lead  =&gt; &#39;Statistics give you a quick summary of every column.&#39;,
+</span><span class="">  546: 		steps =&gt; [
+</span><span class="">  547: 			&#39;Open a table and click Column stats.&#39;,
+</span><span class="">  548: 			&#39;Read one row for each column.&#39;,
+</span><span class="">  549: 			&#39;Rows is the number of rows. Non-null is the number of cells with a value. Null is the number of blank cells.&#39;,
+</span><span class="">  550: 			&#39;Distinct is the number of different values.&#39;,
+</span><span class="">  551: 			&#39;For a number column you also see Min, Max, Mean and Median. Mean is the average. Median is the middle value.&#39;,
+</span><span class="">  552: 		],
+</span><span class="">  553: 		tip   =&gt; &#39;Statistics use the rows that are visible after joins and filters.&#39;,
+</span><span class="">  554: 		walkthrough =&gt; {
+</span><span class="">  555: 			title =&gt; &#39;Walk through: column statistics for Virginia counties&#39;,
+</span><span class="">  556: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  557: 			steps =&gt; [
+</span><span class="">  558: 				{ do =&gt; &#39;Open the virginia_counties table and click Column stats.&#39;, see =&gt; &#39;The stats page shows one row per column.&#39; },
+</span><span class="">  559: 				{ do =&gt; &#39;Find the population row.&#39;, see =&gt; &#39;Min is 2214 and Max is 1150309.&#39; },
+</span><span class="">  560: 				{ do =&gt; &#39;Look at the Distinct count for region.&#39;, see =&gt; &#39;There are 7 distinct regions.&#39; },
+</span><span class="">  561: 				{ do =&gt; &#39;Look at Mean and Median for population.&#39;, see =&gt; &#39;Mean is much higher than Median. A few large counties pull the average up.&#39; },
+</span><span class="">  562: 			],
+</span><span class="">  563: 			result =&gt; &#39;Population is highly uneven. The maximum county is over 500 times larger than the minimum.&#39;,
+</span><span class="">  564: 		},
+</span><span class="">  565: 		try    =&gt; { href =&gt; &#39;/stats?l=table:virginia_counties&#39;, label =&gt; &#39;Try statistics on Virginia counties&#39; },
+</span><span class="">  566: 		routes =&gt; [ &#39;/stats&#39; ],
+</span><span class="">  567: 	},
+</span><span class="">  568: 	{
+</span><span class="">  569: 		id    =&gt; &#39;insights&#39;,
+</span><span class="">  570: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  571: 		title =&gt; &#39;Find outliers and trends automatically&#39;,
+</span><span class="">  572: 		lead  =&gt; &#39;Insights scans your data and flags unusual values, changes over time, and repeating patterns.&#39;,
+</span><span class="">  573: 		steps =&gt; [
+</span><span class="">  574: 			&#39;Open a table and click Insights.&#39;,
+</span><span class="">  575: 			&#39;Each card shows one finding: an outlier, a period change, a top mover, or a seasonal pattern.&#39;,
+</span><span class="">  576: 			&#39;An outlier is a value far outside the normal range for its group.&#39;,
+</span><span class="">  577: 			&#39;A period change compares the most recent month to the one before it.&#39;,
+</span><span class="">  578: 			&#39;A top mover is the category that changed the most between two periods.&#39;,
+</span><span class="">  579: 			&#39;Seasonality means the same pattern repeats from one period to the next.&#39;,
+</span><span class="">  580: 			&#39;Click View in chart on any card to open the chart that shows it.&#39;,
+</span><span class="">  581: 		],
+</span><span class="">  582: 		tip   =&gt; &#39;Insights need a date column and a number column to detect period changes and top movers.&#39;,
+</span><span class="">  583: 		routes =&gt; [ &#39;/insights&#39; ],
+</span><span class="">  584: 	},
+</span><span class="">  585: 
 </span><span class="">  586: 	# ---------------------------------------------------------------
-</span><span class="">  587: 	{
-</span><span class="">  588: 		id    =&gt; &#39;export&#39;,
-</span><span class="">  589: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  590: 		title =&gt; &#39;Save the data as a new file&#39;,
-</span><span class="">  591: 		lead  =&gt; &#39;Export writes the rows that you see to a new file.&#39;,
-</span><span class="">  592: 		steps =&gt; [
-</span><span class="">  593: 			&#39;Click Export...&#39;,
-</span><span class="">  594: 			&#39;Choose the folder and type a file name.&#39;,
-</span><span class="">  595: 			&#39;The ending of the name chooses the format: .csv, .sql or .json.&#39;,
-</span><span class="">  596: 			&#39;Click Save. The program writes a new file. Your source file is not changed.&#39;,
-</span><span class="">  597: 		],
-</span><span class="">  598: 		tip   =&gt; &#39;Export includes your joins, filters and duplicate setting.&#39;,
-</span><span class="">  599: 		routes =&gt; [ &#39;/export&#39; ],
-</span><span class="">  600: 	},
-</span><span class="">  601: 	{
-</span><span class="">  602: 		id    =&gt; &#39;catalog&#39;,
-</span><span class="">  603: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  604: 		title =&gt; &#39;See all your data files at a glance&#39;,
-</span><span class="">  605: 		lead  =&gt; &#39;The dataset catalog lists every file in the data folder and shows which canvases use it.&#39;,
-</span><span class="">  606: 		steps =&gt; [
-</span><span class="">  607: 			&#39;Open the home page and click Dataset catalog.&#39;,
-</span><span class="">  608: 			&#39;Each row shows the file name, type, size, and when it was last changed.&#39;,
-</span><span class="">  609: 			&#39;The Used by column lists the canvases that include this file.&#39;,
-</span><span class="">  610: 			&#39;Click a file name to open it as a table.&#39;,
-</span><span class="">  611: 			&#39;Use the catalog to check which canvases will be affected if a file changes.&#39;,
-</span><span class="">  612: 		],
-</span><span class="">  613: 		tip   =&gt; &#39;A file that appears in Used by is linked to a canvas. Moving or renaming it will break that canvas.&#39;,
-</span><span class="">  614: 		try   =&gt; { href =&gt; &#39;/catalog&#39;, label =&gt; &#39;Open the dataset catalog&#39; },
-</span><span class="">  615: 		routes =&gt; [ &#39;/catalog&#39; ],
-</span><span class="">  616: 	},
-</span><span class="">  617: 	{
-</span><span class="">  618: 		id    =&gt; &#39;canvas&#39;,
-</span><span class="">  619: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  620: 		title =&gt; &#39;Save a canvas with several charts&#39;,
-</span><span class="">  621: 		lead  =&gt; &#39;A canvas is a saved page that can hold tables and charts side by side.&#39;,
-</span><span class="">  622: 		steps =&gt; [
-</span><span class="">  623: 			&#39;Open a table and set up the view that you want.&#39;,
-</span><span class="">  624: 			&#39;Click New canvas...&#39;,
-</span><span class="">  625: 			&#39;Type a name and click Save.&#39;,
-</span><span class="">  626: 			&#39;Click Open canvas. The current table or chart is the first card.&#39;,
-</span><span class="">  627: 			&#39;Click Add visual... to add another view from a data file.&#39;,
-</span><span class="">  628: 			&#39;Drag a card by its header to move it. Use the Size menu to change its width and height.&#39;,
-</span><span class="">  629: 		],
-</span><span class="">  630: 		tip   =&gt; &#39;The home page lists your saved canvases under Saved canvases. A banner appears if a data file has changed since the canvas was saved.&#39;,
-</span><span class="">  631: 		walkthrough =&gt; {
-</span><span class="">  632: 			title =&gt; &#39;Walk through: arrange and filter a canvas&#39;,
-</span><span class="">  633: 			intro =&gt; &#39;This example starts from a canvas with at least two visuals. Open one from the home page.&#39;,
-</span><span class="">  634: 			steps =&gt; [
-</span><span class="">  635: 				{ do =&gt; &#39;Click a bar or a slice in one chart.&#39;, see =&gt; &#39;The other cards show only rows for that value, and a chip names the filter.&#39; },
-</span><span class="">  636: 				{ do =&gt; &#39;Click Clear on the filter chip.&#39;, see =&gt; &#39;Every card returns to the full data set.&#39; },
-</span><span class="">  637: 				{ do =&gt; &#39;Open the Size menu in a card header and choose Half width.&#39;, see =&gt; &#39;The card takes half a row, and the cards beside it move to fit.&#39; },
-</span><span class="">  638: 				{ do =&gt; &#39;Click Bookmarks, type a name and click Save.&#39;, see =&gt; &#39;A link to this exact view appears under the button.&#39; },
-</span><span class="">  639: 				{ do =&gt; &#39;Click Print.&#39;, see =&gt; &#39;The browser print window opens with the canvas ready for paper or PDF.&#39; },
-</span><span class="">  640: 			],
-</span><span class="">  641: 			result =&gt; &#39;You filtered and arranged one dashboard, and saved a named view without changing any data file.&#39;,
-</span><span class="">  642: 		},
-</span><span class="">  643: 		routes =&gt; [ &#39;/a/:id&#39; ],
-</span><span class="">  644: 	},
-</span><span class="">  645: 	{
-</span><span class="">  646: 		id    =&gt; &#39;share&#39;,
-</span><span class="">  647: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  648: 		title =&gt; &#39;Share a link to a view&#39;,
-</span><span class="">  649: 		lead  =&gt; &#39;A link can open the same table, filters and chart for another person.&#39;,
-</span><span class="">  650: 		steps =&gt; [
-</span><span class="">  651: 			&#39;Open a chart, or a table that has at least one filter.&#39;,
-</span><span class="">  652: 			&#39;Click Copy link. The program puts the address on your clipboard.&#39;,
-</span><span class="">  653: 			&#39;Paste the address into an email or a chat message.&#39;,
-</span><span class="">  654: 		],
-</span><span class="">  655: 		tip   =&gt; &#39;On a table, Copy link appears when a filter is active. On a chart, it is always there. The other person needs access to the file.&#39;,
-</span><span class="">  656: 		routes =&gt; [],
-</span><span class="">  657: 	},
-</span><span class="">  658: 	{
-</span><span class="">  659: 		id    =&gt; &#39;share-canvas&#39;,
-</span><span class="">  660: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  661: 		title =&gt; &#39;Share a canvas with a signed link&#39;,
-</span><span class="">  662: 		lead  =&gt; &#39;A canvas share link lets anyone with the link view the canvas for 30 days.&#39;,
-</span><span class="">  663: 		steps =&gt; [
-</span><span class="">  664: 			&#39;Open a saved canvas.&#39;,
-</span><span class="">  665: 			&#39;Click Share in the canvas toolbar.&#39;,
-</span><span class="">  666: 			&#39;Click Copy share link. The link is now on your clipboard.&#39;,
-</span><span class="">  667: 			&#39;Send the link by email or in a message.&#39;,
-</span><span class="">  668: 			&#39;The link stops working after 30 days. Click Share again to create a new one.&#39;,
-</span><span class="">  669: 		],
-</span><span class="">  670: 		tip   =&gt; &#39;The link gives read-only access. The person can see every visual but cannot change the canvas or the data.&#39;,
-</span><span class="">  671: 		routes =&gt; [],
-</span><span class="">  672: 	},
-</span><span class="">  673: 
-</span><span class="">  674: 	# ---------------------------------------------------------------
-</span><span class="">  675: 	# Help
+</span><span class="">  587: 	# Save and share
+</span><span class="">  588: 	# ---------------------------------------------------------------
+</span><span class="">  589: 	{
+</span><span class="">  590: 		id    =&gt; &#39;export&#39;,
+</span><span class="">  591: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  592: 		title =&gt; &#39;Save the data as a new file&#39;,
+</span><span class="">  593: 		lead  =&gt; &#39;Export writes the rows that you see to a new file.&#39;,
+</span><span class="">  594: 		steps =&gt; [
+</span><span class="">  595: 			&#39;Click Export...&#39;,
+</span><span class="">  596: 			&#39;Choose the folder and type a file name.&#39;,
+</span><span class="">  597: 			&#39;The ending of the name chooses the format: .csv, .sql or .json.&#39;,
+</span><span class="">  598: 			&#39;Click Save. The program writes a new file. Your source file is not changed.&#39;,
+</span><span class="">  599: 		],
+</span><span class="">  600: 		tip   =&gt; &#39;Export includes your joins, filters and duplicate setting.&#39;,
+</span><span class="">  601: 		routes =&gt; [ &#39;/export&#39; ],
+</span><span class="">  602: 	},
+</span><span class="">  603: 	{
+</span><span class="">  604: 		id    =&gt; &#39;catalog&#39;,
+</span><span class="">  605: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  606: 		title =&gt; &#39;See all your data files at a glance&#39;,
+</span><span class="">  607: 		lead  =&gt; &#39;The dataset catalog lists every file in the data folder and shows which canvases use it.&#39;,
+</span><span class="">  608: 		steps =&gt; [
+</span><span class="">  609: 			&#39;Open the home page and click Dataset catalog.&#39;,
+</span><span class="">  610: 			&#39;Each row shows the file name, type, size, and when it was last changed.&#39;,
+</span><span class="">  611: 			&#39;The Used by column lists the canvases that include this file.&#39;,
+</span><span class="">  612: 			&#39;Click a file name to open it as a table.&#39;,
+</span><span class="">  613: 			&#39;Use the catalog to check which canvases will be affected if a file changes.&#39;,
+</span><span class="">  614: 		],
+</span><span class="">  615: 		tip   =&gt; &#39;A file that appears in Used by is linked to a canvas. Moving or renaming it will break that canvas.&#39;,
+</span><span class="">  616: 		try   =&gt; { href =&gt; &#39;/catalog&#39;, label =&gt; &#39;Open the dataset catalog&#39; },
+</span><span class="">  617: 		routes =&gt; [ &#39;/catalog&#39; ],
+</span><span class="">  618: 	},
+</span><span class="">  619: 	{
+</span><span class="">  620: 		id    =&gt; &#39;canvas&#39;,
+</span><span class="">  621: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  622: 		title =&gt; &#39;Save a canvas with several charts&#39;,
+</span><span class="">  623: 		lead  =&gt; &#39;A canvas is a saved page that can hold tables and charts side by side.&#39;,
+</span><span class="">  624: 		steps =&gt; [
+</span><span class="">  625: 			&#39;Open a table and set up the view that you want.&#39;,
+</span><span class="">  626: 			&#39;Click New canvas...&#39;,
+</span><span class="">  627: 			&#39;Type a name and click Save.&#39;,
+</span><span class="">  628: 			&#39;Click Open canvas. The current table or chart is the first card.&#39;,
+</span><span class="">  629: 			&#39;Click Add visual... to add another view from a data file.&#39;,
+</span><span class="">  630: 			&#39;Drag a card by its header to move it. Use the Size menu to change its width and height.&#39;,
+</span><span class="">  631: 		],
+</span><span class="">  632: 		tip   =&gt; &#39;The home page lists your saved canvases under Saved canvases. A banner appears if a data file has changed since the canvas was saved.&#39;,
+</span><span class="">  633: 		walkthrough =&gt; {
+</span><span class="">  634: 			title =&gt; &#39;Walk through: arrange and filter a canvas&#39;,
+</span><span class="">  635: 			intro =&gt; &#39;This example starts from a canvas with at least two visuals. Open one from the home page.&#39;,
+</span><span class="">  636: 			steps =&gt; [
+</span><span class="">  637: 				{ do =&gt; &#39;Click a bar or a slice in one chart.&#39;, see =&gt; &#39;The other cards show only rows for that value, and a chip names the filter.&#39; },
+</span><span class="">  638: 				{ do =&gt; &#39;Click Clear on the filter chip.&#39;, see =&gt; &#39;Every card returns to the full data set.&#39; },
+</span><span class="">  639: 				{ do =&gt; &#39;Open the Size menu in a card header and choose Half width.&#39;, see =&gt; &#39;The card takes half a row, and the cards beside it move to fit.&#39; },
+</span><span class="">  640: 				{ do =&gt; &#39;Click Bookmarks, type a name and click Save.&#39;, see =&gt; &#39;A link to this exact view appears under the button.&#39; },
+</span><span class="">  641: 				{ do =&gt; &#39;Click Print.&#39;, see =&gt; &#39;The browser print window opens with the canvas ready for paper or PDF.&#39; },
+</span><span class="">  642: 			],
+</span><span class="">  643: 			result =&gt; &#39;You filtered and arranged one dashboard, and saved a named view without changing any data file.&#39;,
+</span><span class="">  644: 		},
+</span><span class="">  645: 		routes =&gt; [ &#39;/a/:id&#39; ],
+</span><span class="">  646: 	},
+</span><span class="">  647: 	{
+</span><span class="">  648: 		id    =&gt; &#39;share&#39;,
+</span><span class="">  649: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  650: 		title =&gt; &#39;Share a link to a view&#39;,
+</span><span class="">  651: 		lead  =&gt; &#39;A link can open the same table, filters and chart for another person.&#39;,
+</span><span class="">  652: 		steps =&gt; [
+</span><span class="">  653: 			&#39;Open a chart, or a table that has at least one filter.&#39;,
+</span><span class="">  654: 			&#39;Click Copy link. The program puts the address on your clipboard.&#39;,
+</span><span class="">  655: 			&#39;Paste the address into an email or a chat message.&#39;,
+</span><span class="">  656: 		],
+</span><span class="">  657: 		tip   =&gt; &#39;On a table, Copy link appears when a filter is active. On a chart, it is always there. The other person needs access to the file.&#39;,
+</span><span class="">  658: 		routes =&gt; [],
+</span><span class="">  659: 	},
+</span><span class="">  660: 	{
+</span><span class="">  661: 		id    =&gt; &#39;share-canvas&#39;,
+</span><span class="">  662: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  663: 		title =&gt; &#39;Share a canvas with a signed link&#39;,
+</span><span class="">  664: 		lead  =&gt; &#39;A canvas share link lets anyone with the link view the canvas for 30 days.&#39;,
+</span><span class="">  665: 		steps =&gt; [
+</span><span class="">  666: 			&#39;Open a saved canvas.&#39;,
+</span><span class="">  667: 			&#39;Click Share in the canvas toolbar.&#39;,
+</span><span class="">  668: 			&#39;Click Copy share link. The link is now on your clipboard.&#39;,
+</span><span class="">  669: 			&#39;Send the link by email or in a message.&#39;,
+</span><span class="">  670: 			&#39;The link stops working after 30 days. Click Share again to create a new one.&#39;,
+</span><span class="">  671: 		],
+</span><span class="">  672: 		tip   =&gt; &#39;The link gives read-only access. The person can see every visual but cannot change the canvas or the data.&#39;,
+</span><span class="">  673: 		routes =&gt; [],
+</span><span class="">  674: 	},
+</span><span class="">  675: 
 </span><span class="">  676: 	# ---------------------------------------------------------------
-</span><span class="">  677: 	{
-</span><span class="">  678: 		id    =&gt; &#39;keyboard&#39;,
-</span><span class="">  679: 		part  =&gt; &#39;Help&#39;,
-</span><span class="">  680: 		title =&gt; &#39;Use the program with the keyboard&#39;,
-</span><span class="">  681: 		lead  =&gt; &#39;Every control can be used without a mouse.&#39;,
-</span><span class="">  682: 		steps =&gt; [
-</span><span class="">  683: 			&#39;Press Tab to move to the next control. Press Shift+Tab to move back.&#39;,
-</span><span class="">  684: 			&#39;Press Enter or Space to press a button or open a link.&#39;,
-</span><span class="">  685: 			&#39;On a column heading, press Enter to sort. Press Shift+Left or Shift+Right to move the column.&#39;,
-</span><span class="">  686: 			&#39;On a chart, press Tab until the resize grip has focus. Use the arrow keys to resize. Hold Shift for bigger steps.&#39;,
-</span><span class="">  687: 			&#39;On a canvas, focus a card header and use the arrow keys to move the card. Hold Shift to move it to the edge.&#39;,
-</span><span class="">  688: 		],
-</span><span class="">  689: 		tip   =&gt; &#39;The page says each change out loud for screen readers.&#39;,
-</span><span class="">  690: 		routes =&gt; [],
-</span><span class="">  691: 	},
-</span><span class="">  692: 
-</span><span class="">  693: 	# ---------------------------------------------------------------
-</span><span class="">  694: 	# For maintainers
+</span><span class="">  677: 	# Help
+</span><span class="">  678: 	# ---------------------------------------------------------------
+</span><span class="">  679: 	{
+</span><span class="">  680: 		id    =&gt; &#39;keyboard&#39;,
+</span><span class="">  681: 		part  =&gt; &#39;Help&#39;,
+</span><span class="">  682: 		title =&gt; &#39;Use the program with the keyboard&#39;,
+</span><span class="">  683: 		lead  =&gt; &#39;Every control can be used without a mouse.&#39;,
+</span><span class="">  684: 		steps =&gt; [
+</span><span class="">  685: 			&#39;Press Tab to move to the next control. Press Shift+Tab to move back.&#39;,
+</span><span class="">  686: 			&#39;Press Enter or Space to press a button or open a link.&#39;,
+</span><span class="">  687: 			&#39;On a column heading, press Enter to sort. Press Shift+Left or Shift+Right to move the column.&#39;,
+</span><span class="">  688: 			&#39;On a chart, press Tab until the resize grip has focus. Use the arrow keys to resize. Hold Shift for bigger steps.&#39;,
+</span><span class="">  689: 			&#39;On a canvas, focus a card header and use the arrow keys to move the card. Hold Shift to move it to the edge.&#39;,
+</span><span class="">  690: 		],
+</span><span class="">  691: 		tip   =&gt; &#39;The page says each change out loud for screen readers.&#39;,
+</span><span class="">  692: 		routes =&gt; [],
+</span><span class="">  693: 	},
+</span><span class="">  694: 
 </span><span class="">  695: 	# ---------------------------------------------------------------
-</span><span class="">  696: 	{
-</span><span class="">  697: 		id    =&gt; &#39;alerts&#39;,
-</span><span class="">  698: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class="">  699: 		title =&gt; &#39;Alert when a number crosses a limit&#39;,
-</span><span class="">  700: 		lead  =&gt; &#39;The bi-alert script checks a canvas measure and signals when it crosses a threshold.&#39;,
-</span><span class="">  701: 		steps =&gt; [
-</span><span class="">  702: 			&#39;Find the script at script/bi-alert in the application folder.&#39;,
-</span><span class="">  703: 			&#39;Run bi-alert --help to see all options.&#39;,
-</span><span class="">  704: 			&#39;Pass --analysis with the canvas id and --threshold with the measure, comparison and value.&#39;,
-</span><span class="">  705: 			&#39;For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.&#39;,
-</span><span class="">  706: 			&#39;Pass --dry-run to print what would be checked without running the check.&#39;,
-</span><span class="">  707: 			&#39;Wire the script into a cron job or a monitoring system to get automatic alerts.&#39;,
-</span><span class="">  708: 		],
-</span><span class="">  709: 		tip   =&gt; &#39;Exit code 0 means the threshold was not crossed. Exit code 1 means it was. Exit code 2 means an error.&#39;,
-</span><span class="">  710: 		routes =&gt; [],
-</span><span class="">  711: 	},
-</span><span class="">  712: 	{
-</span><span class="">  713: 		id    =&gt; &#39;developers&#39;,
-</span><span class="">  714: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class="">  715: 		title =&gt; &#39;Where this page lives&#39;,
-</span><span class="">  716: 		lead  =&gt; &#39;This tutorial is part of the application. It is not in the Perl documentation.&#39;,
-</span><span class="">  717: 		steps =&gt; [
-</span><span class="">  718: 			&#39;The text of this page is a list of chapters in lib/Database/BI/Tutorial.pm.&#39;,
-</span><span class="">  719: 			&#39;The page itself is templates/web/en/tutorial.html.tt. The route is GET /tutorial.&#39;,
-</span><span class="">  720: 			&#39;To add a chapter, add one entry to the list. Give it a title, a short lead, the steps, and the routes that it covers.&#39;,
-</span><span class="">  721: 			&#39;Each page finds its Help link through the action map in the same module. Add a new page action there.&#39;,
-</span><span class="">  722: 			&#39;Run prove -l t/tutorial.t. The test fails if a GET page has no chapter and no reason to be exempt.&#39;,
-</span><span class="">  723: 			&#39;Read README.md for how to start the program and run the full test suite.&#39;,
-</span><span class="">  724: 		],
-</span><span class="">  725: 		tip   =&gt; &#39;Keep the words simple. The test also checks that no step is a very long sentence.&#39;,
-</span><span class="">  726: 		routes =&gt; [],
-</span><span class="">  727: 	},
-</span><span class="">  728: );
-</span><span class="">  729: 
-</span><span class="">  730: my @FAQ = (
-</span><span class="">  731: 	{
-</span><span class="">  732: 		question =&gt; &#39;The file is not in the list. What can I do?&#39;,
-</span><span class="">  733: 		answer   =&gt; &#39;Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.&#39;,
-</span><span class="">  734: 	},
-</span><span class="">  735: 	{
-</span><span class="">  736: 		question =&gt; &#39;The program will not open my file.&#39;,
-</span><span class="">  737: 		answer   =&gt; &#39;Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.&#39;,
-</span><span class="">  738: 	},
-</span><span class="">  739: 	{
-</span><span class="">  740: 		question =&gt; &#39;My chart is empty.&#39;,
-</span><span class="">  741: 		answer   =&gt; &#39;Check that you chose a number column for the value. Check also that your filters still show some rows.&#39;,
-</span><span class="">  742: 	},
-</span><span class="">  743: 	{
-</span><span class="">  744: 		question =&gt; &#39;A merge added blank cells.&#39;,
-</span><span class="">  745: 		answer   =&gt; &#39;The two tables had no matching value in the key columns. Check the spelling and the type of the values.&#39;,
-</span><span class="">  746: 	},
-</span><span class="">  747: 	{
-</span><span class="">  748: 		question =&gt; &#39;My changes disappeared.&#39;,
-</span><span class="">  749: 		answer   =&gt; &#39;A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.&#39;,
-</span><span class="">  750: 	},
-</span><span class="">  751: );
-</span><span class="">  752: 
-</span><span class="">  753: my @GLOSSARY = (
-</span><span class="">  754: 	{ term =&gt; &#39;Berkeley DB&#39;, meaning =&gt; &#39;A database file that ends in .db.&#39; },
-</span><span class="">  755: 	{ term =&gt; &#39;Browser&#39;,     meaning =&gt; &#39;The program that shows web pages, for example Firefox or Chrome.&#39; },
-</span><span class="">  756: 	{ term =&gt; &#39;Canvas&#39;,      meaning =&gt; &#39;A saved page with several tables and charts.&#39; },
-</span><span class="">  757: 	{ term =&gt; &#39;Cell&#39;,        meaning =&gt; &#39;One value in a table, at one row and one column.&#39; },
-</span><span class="">  758: 	{ term =&gt; &#39;Chart&#39;,       meaning =&gt; &#39;A picture of numbers, for example a bar chart.&#39; },
-</span><span class="">  759: 	{ term =&gt; &#39;Column&#39;,      meaning =&gt; &#39;One kind of value in a table, for example the price column.&#39; },
-</span><span class="">  760: 	{ term =&gt; &#39;Combine&#39;,     meaning =&gt; &#39;Put the rows of one file under the rows of another file.&#39; },
-</span><span class="">  761: 	{ term =&gt; &#39;CSV&#39;,         meaning =&gt; &#39;A text file with values separated by commas.&#39; },
-</span><span class="">  762: 	{ term =&gt; &#39;Data file&#39;,   meaning =&gt; &#39;A file with rows and columns that the program can read.&#39; },
-</span><span class="">  763: 	{ term =&gt; &#39;Duplicate&#39;,   meaning =&gt; &#39;A row that is exactly the same as another row.&#39; },
-</span><span class="">  764: 	{ term =&gt; &#39;Export&#39;,      meaning =&gt; &#39;Write the rows that you see to a new file.&#39; },
-</span><span class="">  765: 	{ term =&gt; &#39;Expression&#39;,  meaning =&gt; &#39;A small formula, for example revenue - cost.&#39; },
-</span><span class="">  766: 	{ term =&gt; &#39;Filter&#39;,      meaning =&gt; &#39;A rule that hides rows which do not match.&#39; },
-</span><span class="">  767: 	{ term =&gt; &#39;Geocode&#39;,     meaning =&gt; &#39;Change a place name into a latitude and a longitude.&#39; },
-</span><span class="">  768: 	{ term =&gt; &#39;Join&#39;,        meaning =&gt; &#39;Add columns from a second table by matching a shared value.&#39; },
-</span><span class="">  769: 	{ term =&gt; &#39;Pivot table&#39;, meaning =&gt; &#39;A grid that summarises rows and columns.&#39; },
-</span><span class="">  770: 	{ term =&gt; &#39;PSV&#39;,         meaning =&gt; &#39;A text file with values separated by pipe characters.&#39; },
-</span><span class="">  771: 	{ term =&gt; &#39;Row&#39;,         meaning =&gt; &#39;One record in a table.&#39; },
-</span><span class="">  772: 	{ term =&gt; &#39;Server&#39;,      meaning =&gt; &#39;The program on a computer that sends pages to your browser.&#39; },
-</span><span class="">  773: 	{ term =&gt; &#39;SQLite&#39;,      meaning =&gt; &#39;A database file that can hold more than one table.&#39; },
-</span><span class="">  774: 	{ term =&gt; &#39;TSV&#39;,         meaning =&gt; &#39;A text file with values separated by tab characters.&#39; },
-</span><span class="">  775: 	{ term =&gt; &#39;URL&#39;,         meaning =&gt; &#39;The address of a web page, shown in the address bar.&#39; },
-</span><span class="">  776: 	{ term =&gt; &#39;XLSX&#39;,        meaning =&gt; &#39;An Excel spreadsheet file.&#39; },
-</span><span class="">  777: 	{ term =&gt; &#39;XML&#39;,         meaning =&gt; &#39;A text file with data inside tags.&#39; },
-</span><span class="">  778: );
-</span><span class="">  779: 
-</span><span class="">  780: # Routes that are GET pages but are not chapters.  Every entry needs a reason:
-</span><span class="">  781: # it is a decision to leave a page out of the tutorial, not an accident.
-</span><span class="">  782: # Actions that render a page, mapped to the chapter that helps with that page.
-</span><span class="">  783: # The layout turns this into a &quot;Help: ...&quot; link beside the main Tutorial link,
-</span><span class="">  784: # so a reader on the pie chart screen lands on the pie chart chapter.  A new
-</span><span class="">  785: # page action belongs here; t/tutorial.t checks that every covered GET route
-</span><span class="">  786: # has an entry.
-</span><span class="">  787: my %ACTION_CHAPTERS = (
-</span><span class="">  788: 	index          =&gt; &#39;open-file&#39;,
-</span><span class="">  789: 	browse         =&gt; &#39;other-files&#39;,
-</span><span class="">  790: 	open_file      =&gt; &#39;read-table&#39;,
-</span><span class="">  791: 	import_url     =&gt; &#39;web-table&#39;,
-</span><span class="">  792: 	view           =&gt; &#39;read-table&#39;,
-</span><span class="">  793: 	join_tables    =&gt; &#39;join&#39;,
-</span><span class="">  794: 	combine_tables =&gt; &#39;combine&#39;,
-</span><span class="">  795: 	export_data    =&gt; &#39;export&#39;,
-</span><span class="">  796: 	tables_view    =&gt; &#39;other-files&#39;,
-</span><span class="">  797: 	graph_view     =&gt; &#39;line-chart&#39;,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  798: 	pie_view       =&gt; &#39;pie-chart&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  799: 	heatmap_view   =&gt; &#39;heatmap-chart&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  800: 	bar_view       =&gt; &#39;bar-chart&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  801: 	folder_view    =&gt; &#39;folder&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  802: 	pivot_view     =&gt; &#39;pivot&#39;,
-</span><span class="">  803: 	stats_view     =&gt; &#39;stats&#39;,
-</span><span class="">  804: 	insights_view  =&gt; &#39;insights&#39;,
-</span><span class="">  805: 	scatter_view   =&gt; &#39;scatter-chart&#39;,
-</span><span class="">  806: 	stacked_view   =&gt; &#39;stacked-chart&#39;,
-</span><span class="">  807: 	combo_view     =&gt; &#39;combo-chart&#39;,
-</span><span class="">  808: 	treemap_view   =&gt; &#39;treemap-chart&#39;,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  809: 	histogram_view =&gt; &#39;histogram-chart&#39;,
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  810: 	map_view       =&gt; &#39;map-chart&#39;,
-</span><span class="">  811: 	canvas_render  =&gt; &#39;canvas&#39;,
-</span><span class="">  812: 	catalog_view   =&gt; &#39;catalog&#39;,
-</span><span class="">  813: );
-</span><span class="">  814: 
-</span><span class="">  815: my %EXEMPT_ROUTES = (
-</span><span class="">  816: 	&#39;/a/:id/visual/:n/:fmt&#39;    =&gt; &#39;per-visual CSV/PNG download; not a navigable page&#39;,
-</span><span class="">  817: 	&#39;/api/analyses&#39;            =&gt; &#39;JSON for the saved-canvas list&#39;,
-</span><span class="">  818: 	&#39;/api/analyses/:id&#39;        =&gt; &#39;JSON for one saved canvas&#39;,
-</span><span class="">  819: 	&#39;/api/analyses/:id/export&#39; =&gt; &#39;JSON export of one saved canvas&#39;,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  820: 	&#39;/api/columns&#39;             =&gt; &#39;JSON list of columns for the join and filter panels&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  821: 	&#39;/api/dirs&#39;                =&gt; &#39;JSON folder list for the browse and export panels&#39;,
-</span><span class="">  822: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
-</span><span class="">  823: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
-</span><span class="">  824: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
-</span><span class="">  825: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
-</span><span class="">  826: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
-</span><span class="">  827: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
-</span><span class="">  828: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
-</span><span class="">  829: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
-</span><span class="">  830: );
-</span><span class="">  831: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  832: sub intro     { return \@INTRO }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  833: sub chapters  { return \@CHAPTERS }
-</span><span class="">  834: sub faq       { return \@FAQ }
-</span><span class="">  835: sub glossary  { return \@GLOSSARY }
-</span><span class="">  836: 
-</span><span class="">  837: sub parts {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">838 → 840 → 854</span></span>  838: 	my @parts;
-</span><span class="">  839: 
-</span><span class="">  840: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  841: 		my $name = $chapter-&gt;{part};
+</span><span class="">  696: 	# For maintainers
+</span><span class="">  697: 	# ---------------------------------------------------------------
+</span><span class="">  698: 	{
+</span><span class="">  699: 		id    =&gt; &#39;alerts&#39;,
+</span><span class="">  700: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class="">  701: 		title =&gt; &#39;Alert when a number crosses a limit&#39;,
+</span><span class="">  702: 		lead  =&gt; &#39;The bi-alert script checks a canvas measure and signals when it crosses a threshold.&#39;,
+</span><span class="">  703: 		steps =&gt; [
+</span><span class="">  704: 			&#39;Find the script at script/bi-alert in the application folder.&#39;,
+</span><span class="">  705: 			&#39;Run bi-alert --help to see all options.&#39;,
+</span><span class="">  706: 			&#39;Pass --analysis with the canvas id and --threshold with the measure, comparison and value.&#39;,
+</span><span class="">  707: 			&#39;For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.&#39;,
+</span><span class="">  708: 			&#39;Pass --dry-run to print what would be checked without running the check.&#39;,
+</span><span class="">  709: 			&#39;Wire the script into a cron job or a monitoring system to get automatic alerts.&#39;,
+</span><span class="">  710: 		],
+</span><span class="">  711: 		tip   =&gt; &#39;Exit code 0 means the threshold was not crossed. Exit code 1 means it was. Exit code 2 means an error.&#39;,
+</span><span class="">  712: 		routes =&gt; [],
+</span><span class="">  713: 	},
+</span><span class="">  714: 	{
+</span><span class="">  715: 		id    =&gt; &#39;developers&#39;,
+</span><span class="">  716: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class="">  717: 		title =&gt; &#39;Where this page lives&#39;,
+</span><span class="">  718: 		lead  =&gt; &#39;This tutorial is part of the application. It is not in the Perl documentation.&#39;,
+</span><span class="">  719: 		steps =&gt; [
+</span><span class="">  720: 			&#39;The text of this page is a list of chapters in lib/Database/BI/Tutorial.pm.&#39;,
+</span><span class="">  721: 			&#39;The page itself is templates/web/en/tutorial.html.tt. The route is GET /tutorial.&#39;,
+</span><span class="">  722: 			&#39;To add a chapter, add one entry to the list. Give it a title, a short lead, the steps, and the routes that it covers.&#39;,
+</span><span class="">  723: 			&#39;Each page finds its Help link through the action map in the same module. Add a new page action there.&#39;,
+</span><span class="">  724: 			&#39;Run prove -l t/tutorial.t. The test fails if a GET page has no chapter and no reason to be exempt.&#39;,
+</span><span class="">  725: 			&#39;Read README.md for how to start the program and run the full test suite.&#39;,
+</span><span class="">  726: 		],
+</span><span class="">  727: 		tip   =&gt; &#39;Keep the words simple. The test also checks that no step is a very long sentence.&#39;,
+</span><span class="">  728: 		routes =&gt; [],
+</span><span class="">  729: 	},
+</span><span class="">  730: );
+</span><span class="">  731: 
+</span><span class="">  732: my @FAQ = (
+</span><span class="">  733: 	{
+</span><span class="">  734: 		question =&gt; &#39;The file is not in the list. What can I do?&#39;,
+</span><span class="">  735: 		answer   =&gt; &#39;Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.&#39;,
+</span><span class="">  736: 	},
+</span><span class="">  737: 	{
+</span><span class="">  738: 		question =&gt; &#39;The program will not open my file.&#39;,
+</span><span class="">  739: 		answer   =&gt; &#39;Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.&#39;,
+</span><span class="">  740: 	},
+</span><span class="">  741: 	{
+</span><span class="">  742: 		question =&gt; &#39;My chart is empty.&#39;,
+</span><span class="">  743: 		answer   =&gt; &#39;Check that you chose a number column for the value. Check also that your filters still show some rows.&#39;,
+</span><span class="">  744: 	},
+</span><span class="">  745: 	{
+</span><span class="">  746: 		question =&gt; &#39;A merge added blank cells.&#39;,
+</span><span class="">  747: 		answer   =&gt; &#39;The two tables had no matching value in the key columns. Check the spelling and the type of the values.&#39;,
+</span><span class="">  748: 	},
+</span><span class="">  749: 	{
+</span><span class="">  750: 		question =&gt; &#39;My changes disappeared.&#39;,
+</span><span class="">  751: 		answer   =&gt; &#39;A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.&#39;,
+</span><span class="">  752: 	},
+</span><span class="">  753: );
+</span><span class="">  754: 
+</span><span class="">  755: my @GLOSSARY = (
+</span><span class="">  756: 	{ term =&gt; &#39;Berkeley DB&#39;, meaning =&gt; &#39;A database file that ends in .db.&#39; },
+</span><span class="">  757: 	{ term =&gt; &#39;Browser&#39;,     meaning =&gt; &#39;The program that shows web pages, for example Firefox or Chrome.&#39; },
+</span><span class="">  758: 	{ term =&gt; &#39;Canvas&#39;,      meaning =&gt; &#39;A saved page with several tables and charts.&#39; },
+</span><span class="">  759: 	{ term =&gt; &#39;Cell&#39;,        meaning =&gt; &#39;One value in a table, at one row and one column.&#39; },
+</span><span class="">  760: 	{ term =&gt; &#39;Chart&#39;,       meaning =&gt; &#39;A picture of numbers, for example a bar chart.&#39; },
+</span><span class="">  761: 	{ term =&gt; &#39;Column&#39;,      meaning =&gt; &#39;One kind of value in a table, for example the price column.&#39; },
+</span><span class="">  762: 	{ term =&gt; &#39;Combine&#39;,     meaning =&gt; &#39;Put the rows of one file under the rows of another file.&#39; },
+</span><span class="">  763: 	{ term =&gt; &#39;CSV&#39;,         meaning =&gt; &#39;A text file with values separated by commas.&#39; },
+</span><span class="">  764: 	{ term =&gt; &#39;Data file&#39;,   meaning =&gt; &#39;A file with rows and columns that the program can read.&#39; },
+</span><span class="">  765: 	{ term =&gt; &#39;Duplicate&#39;,   meaning =&gt; &#39;A row that is exactly the same as another row.&#39; },
+</span><span class="">  766: 	{ term =&gt; &#39;Export&#39;,      meaning =&gt; &#39;Write the rows that you see to a new file.&#39; },
+</span><span class="">  767: 	{ term =&gt; &#39;Expression&#39;,  meaning =&gt; &#39;A small formula, for example revenue - cost.&#39; },
+</span><span class="">  768: 	{ term =&gt; &#39;Filter&#39;,      meaning =&gt; &#39;A rule that hides rows which do not match.&#39; },
+</span><span class="">  769: 	{ term =&gt; &#39;Geocode&#39;,     meaning =&gt; &#39;Change a place name into a latitude and a longitude.&#39; },
+</span><span class="">  770: 	{ term =&gt; &#39;Join&#39;,        meaning =&gt; &#39;Add columns from a second table by matching a shared value.&#39; },
+</span><span class="">  771: 	{ term =&gt; &#39;Pivot table&#39;, meaning =&gt; &#39;A grid that summarises rows and columns.&#39; },
+</span><span class="">  772: 	{ term =&gt; &#39;PSV&#39;,         meaning =&gt; &#39;A text file with values separated by pipe characters.&#39; },
+</span><span class="">  773: 	{ term =&gt; &#39;Row&#39;,         meaning =&gt; &#39;One record in a table.&#39; },
+</span><span class="">  774: 	{ term =&gt; &#39;Server&#39;,      meaning =&gt; &#39;The program on a computer that sends pages to your browser.&#39; },
+</span><span class="">  775: 	{ term =&gt; &#39;SQLite&#39;,      meaning =&gt; &#39;A database file that can hold more than one table.&#39; },
+</span><span class="">  776: 	{ term =&gt; &#39;TSV&#39;,         meaning =&gt; &#39;A text file with values separated by tab characters.&#39; },
+</span><span class="">  777: 	{ term =&gt; &#39;URL&#39;,         meaning =&gt; &#39;The address of a web page, shown in the address bar.&#39; },
+</span><span class="">  778: 	{ term =&gt; &#39;XLSX&#39;,        meaning =&gt; &#39;An Excel spreadsheet file.&#39; },
+</span><span class="">  779: 	{ term =&gt; &#39;XML&#39;,         meaning =&gt; &#39;A text file with data inside tags.&#39; },
+</span><span class="">  780: );
+</span><span class="">  781: 
+</span><span class="">  782: # Routes that are GET pages but are not chapters.  Every entry needs a reason:
+</span><span class="">  783: # it is a decision to leave a page out of the tutorial, not an accident.
+</span><span class="">  784: # Actions that render a page, mapped to the chapter that helps with that page.
+</span><span class="">  785: # The layout turns this into a &quot;Help: ...&quot; link beside the main Tutorial link,
+</span><span class="">  786: # so a reader on the pie chart screen lands on the pie chart chapter.  A new
+</span><span class="">  787: # page action belongs here; t/tutorial.t checks that every covered GET route
+</span><span class="">  788: # has an entry.
+</span><span class="">  789: my %ACTION_CHAPTERS = (
+</span><span class="">  790: 	index          =&gt; &#39;open-file&#39;,
+</span><span class="">  791: 	browse         =&gt; &#39;other-files&#39;,
+</span><span class="">  792: 	open_file      =&gt; &#39;read-table&#39;,
+</span><span class="">  793: 	import_url     =&gt; &#39;web-table&#39;,
+</span><span class="">  794: 	view           =&gt; &#39;read-table&#39;,
+</span><span class="">  795: 	join_tables    =&gt; &#39;join&#39;,
+</span><span class="">  796: 	combine_tables =&gt; &#39;combine&#39;,
+</span><span class="">  797: 	export_data    =&gt; &#39;export&#39;,
+</span><span class="">  798: 	tables_view    =&gt; &#39;other-files&#39;,
+</span><span class="">  799: 	graph_view     =&gt; &#39;line-chart&#39;,
+</span><span class="">  800: 	pie_view       =&gt; &#39;pie-chart&#39;,
+</span><span class="">  801: 	heatmap_view   =&gt; &#39;heatmap-chart&#39;,
+</span><span class="">  802: 	bar_view       =&gt; &#39;bar-chart&#39;,
+</span><span class="">  803: 	folder_view    =&gt; &#39;folder&#39;,
+</span><span class="">  804: 	pivot_view     =&gt; &#39;pivot&#39;,
+</span><span class="">  805: 	stats_view     =&gt; &#39;stats&#39;,
+</span><span class="">  806: 	insights_view  =&gt; &#39;insights&#39;,
+</span><span class="">  807: 	scatter_view   =&gt; &#39;scatter-chart&#39;,
+</span><span class="">  808: 	stacked_view   =&gt; &#39;stacked-chart&#39;,
+</span><span class="">  809: 	combo_view     =&gt; &#39;combo-chart&#39;,
+</span><span class="">  810: 	treemap_view   =&gt; &#39;treemap-chart&#39;,
+</span><span class="">  811: 	histogram_view =&gt; &#39;histogram-chart&#39;,
+</span><span class="">  812: 	map_view       =&gt; &#39;map-chart&#39;,
+</span><span class="">  813: 	canvas_render  =&gt; &#39;canvas&#39;,
+</span><span class="">  814: 	catalog_view   =&gt; &#39;catalog&#39;,
+</span><span class="">  815: );
+</span><span class="">  816: 
+</span><span class="">  817: my %EXEMPT_ROUTES = (
+</span><span class="">  818: 	&#39;/a/:id/visual/:n/:fmt&#39;    =&gt; &#39;per-visual CSV/PNG download; not a navigable page&#39;,
+</span><span class="">  819: 	&#39;/api/analyses&#39;            =&gt; &#39;JSON for the saved-canvas list&#39;,
+</span><span class="">  820: 	&#39;/api/analyses/:id&#39;        =&gt; &#39;JSON for one saved canvas&#39;,
+</span><span class="">  821: 	&#39;/api/analyses/:id/export&#39; =&gt; &#39;JSON export of one saved canvas&#39;,
+</span><span class="">  822: 	&#39;/api/columns&#39;             =&gt; &#39;JSON list of columns for the join and filter panels&#39;,
+</span><span class="">  823: 	&#39;/api/dirs&#39;                =&gt; &#39;JSON folder list for the browse and export panels&#39;,
+</span><span class="">  824: 	&#39;/api/range&#39;               =&gt; &#39;JSON min/max ISO dates for the filter date-picker constraints&#39;,
+</span><span class="">  825: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
+</span><span class="">  826: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
+</span><span class="">  827: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
+</span><span class="">  828: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
+</span><span class="">  829: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
+</span><span class="">  830: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
+</span><span class="">  831: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
+</span><span class="">  832: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
+</span><span class="">  833: );
+</span><span class="">  834: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  835: sub intro     { return \@INTRO }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  836: sub chapters  { return \@CHAPTERS }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  837: sub faq       { return \@FAQ }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  838: sub glossary  { return \@GLOSSARY }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  839: 
+</span><span class="">  840: sub parts {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">841 → 843 → 857</span></span>  841: 	my @parts;
 </span><span class="">  842: 
-</span><span class="">  843: 		if (!@parts || $parts[-1]{name} ne $name) {
-</span><span class="">  844: 			push @parts, {
-</span><span class="">  845: 				name     =&gt; $name,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  846: 				id       =&gt; _slug($name),
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  847: 				chapters =&gt; [],
-</span><span class="">  848: 			};
-</span><span class="">  849: 		}
-</span><span class="">  850: 
-</span><span class="">  851: 		push @{ $parts[-1]{chapters} }, $chapter;
-</span><span class="">  852: 	}
+</span><span class="">  843: 	for my $chapter (@CHAPTERS) {
+</span><span class="">  844: 		my $name = $chapter-&gt;{part};
+</span><span class="">  845: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  846: 		if (!@parts || $parts[-1]{name} ne $name) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  847: 			push @parts, {
+</span><span class="">  848: 				name     =&gt; $name,
+</span><span class="">  849: 				id       =&gt; _slug($name),
+</span><span class="">  850: 				chapters =&gt; [],
+</span><span class="">  851: 			};
+</span><span class="">  852: 		}
 </span><span class="">  853: 
-</span><span class="">  854: 	return \@parts;
-</span><span class="">  855: }
+</span><span class="">  854: 		push @{ $parts[-1]{chapters} }, $chapter;
+</span><span class="">  855: 	}
 </span><span class="">  856: 
-</span><span class="">  857: sub covered_routes {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">858 → 860 → 866</span></span>  858: 	my %routes;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  859: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  860: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  861: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
-</span><span class="">  862: 			$routes{$route} = $chapter-&gt;{id};
-</span><span class="">  863: 		}
-</span><span class="">  864: 	}
-</span><span class="">  865: 
-</span><span class="">  866: 	return \%routes;
-</span><span class="">  867: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  857: 	return \@parts;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  858: }
+</span><span class="">  859: 
+</span><span class="">  860: sub covered_routes {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">861 → 863 → 869</span></span>  861: 	my %routes;
+</span><span class="">  862: 
+</span><span class="">  863: 	for my $chapter (@CHAPTERS) {
+</span><span class="">  864: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
+</span><span class="">  865: 			$routes{$route} = $chapter-&gt;{id};
+</span><span class="">  866: 		}
+</span><span class="">  867: 	}
 </span><span class="">  868: 
-</span><span class="">  869: sub exempt_routes {
-</span><span class="">  870: 	return { %EXEMPT_ROUTES };
-</span><span class="">  871: }
-</span><span class="">  872: 
-</span><span class="">  873: sub chapter_for_action {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">874 → 879 → 883</span></span>  874: 	my $action = $_[1];
-</span><span class="">  875: 	return unless defined $action;
-</span><span class="">  876: 
-</span><span class="">  877: 	my $id = $ACTION_CHAPTERS{$action} or return;
-</span><span class="">  878: 
-</span><span class="">  879: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  880: 		return $chapter if $chapter-&gt;{id} eq $id;
-</span><span class="">  881: 	}
-</span><span class="">  882: 
-</span><span class="">  883: 	return;
-</span><span class="">  884: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  869: 	return \%routes;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  870: }
+</span><span class="">  871: 
+</span><span class="">  872: sub exempt_routes {
+</span><span class="">  873: 	return { %EXEMPT_ROUTES };
+</span><span class="">  874: }
+</span><span class="">  875: 
+</span><span class="">  876: sub chapter_for_action {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">877 → 882 → 886</span></span>  877: 	my $action = $_[1];
+</span><span class="">  878: 	return unless defined $action;
+</span><span class="">  879: 
+</span><span class="">  880: 	my $id = $ACTION_CHAPTERS{$action} or return;
+</span><span class="">  881: 
+</span><span class="">  882: 	for my $chapter (@CHAPTERS) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  883: 		return $chapter if $chapter-&gt;{id} eq $id;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  884: 	}
 </span><span class="">  885: 
-</span><span class="">  886: sub _slug {
-</span><span class="">  887: 	my ($text) = @_;
+</span><span class="">  886: 	return;
+</span><span class="">  887: }
 </span><span class="">  888: 
-</span><span class="">  889: 	my $slug = lc $text;
-</span><span class="">  890: 	$slug =~ s/[^a-z0-9]+/-/g;
-</span><span class="">  891: 	$slug =~ s/\A-+|-+\z//g;
-</span><span class="">  892: 
-</span><span class="">  893: 	return $slug;
-</span><span class="">  894: }
+</span><span class="">  889: sub _slug {
+</span><span class="">  890: 	my ($text) = @_;
+</span><span class="">  891: 
+</span><span class="">  892: 	my $slug = lc $text;
+</span><span class="">  893: 	$slug =~ s/[^a-z0-9]+/-/g;
+</span><span class="">  894: 	$slug =~ s/\A-+|-+\z//g;
 </span><span class="">  895: 
-</span><span class="">  896: 1;
-</span><span class="">  897: 
-</span><span class="">  898: =head1 NAME
-</span><span class="">  899: 
-</span><span class="">  900: Database::BI::Tutorial - the chapters of the in-application tutorial
-</span><span class="">  901: 
-</span><span class="">  902: =head1 DESCRIPTION
-</span><span class="">  903: 
-</span><span class="">  904: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
-</span><span class="">  905: data in this module.  A chapter is one feature: a title, a short lead, numbered
-</span><span class="">  906: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
-</span><span class="">  907: order, so adding a feature means adding a hash here, not editing HTML.
-</span><span class="">  908: 
-</span><span class="">  909: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
-</span><span class="">  910: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
-</span><span class="">  911: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
-</span><span class="">  912: chapter so a reader can find it.
-</span><span class="">  913: 
-</span><span class="">  914: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
-</span><span class="">  915: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
-</span><span class="">  916: short: the same test fails a lead, step, tip or walk-through sentence longer
-</span><span class="">  917: than 25 words.
-</span><span class="">  918: 
-</span><span class="">  919: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
-</span><span class="">  920: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
-</span><span class="">  921: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
-</span><span class="">  922: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
-</span><span class="">  923: there.
-</span><span class="">  924: 
-</span><span class="">  925: =head1 AUTHOR
-</span><span class="">  926: 
-</span><span class="">  927: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class="">  928: 
-</span><span class="">  929: =head1 LICENCE AND COPYRIGHT
-</span><span class="">  930: 
-</span><span class="">  931: Copyright 2026 Nigel Horne.
-</span><span class="">  932: 
-</span><span class="">  933: Usage is subject to the GPL2 licence terms.
-</span><span class="">  934: 
-</span><span class="">  935: =cut
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  896: 	return $slug;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  897: }
+</span><span class="">  898: 
+</span><span class="">  899: 1;
+</span><span class="">  900: 
+</span><span class="">  901: =head1 NAME
+</span><span class="">  902: 
+</span><span class="">  903: Database::BI::Tutorial - the chapters of the in-application tutorial
+</span><span class="">  904: 
+</span><span class="">  905: =head1 DESCRIPTION
+</span><span class="">  906: 
+</span><span class="">  907: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
+</span><span class="">  908: data in this module.  A chapter is one feature: a title, a short lead, numbered
+</span><span class="">  909: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
+</span><span class="">  910: order, so adding a feature means adding a hash here, not editing HTML.
+</span><span class="">  911: 
+</span><span class="">  912: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
+</span><span class="">  913: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
+</span><span class="">  914: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
+</span><span class="">  915: chapter so a reader can find it.
+</span><span class="">  916: 
+</span><span class="">  917: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
+</span><span class="">  918: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
+</span><span class="">  919: short: the same test fails a lead, step, tip or walk-through sentence longer
+</span><span class="">  920: than 25 words.
+</span><span class="">  921: 
+</span><span class="">  922: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
+</span><span class="">  923: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
+</span><span class="">  924: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
+</span><span class="">  925: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
+</span><span class="">  926: there.
+</span><span class="">  927: 
+</span><span class="">  928: =head1 AUTHOR
+</span><span class="">  929: 
+</span><span class="">  930: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  931: 
+</span><span class="">  932: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  933: 
+</span><span class="">  934: Copyright 2026 Nigel Horne.
+</span><span class="">  935: 
+</span><span class="">  936: Usage is subject to the GPL2 licence terms.
+</span><span class="">  937: 
+</span><span class="">  938: =cut
 </span></pre>
 
 <script>
