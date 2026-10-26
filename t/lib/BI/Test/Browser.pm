@@ -1076,7 +1076,7 @@ sub _write_report {
 		$dir,
 		$self->{report_index} > 1 ? "$name.$self->{report_index}.md" : "$name.md",
 	);
-	open(my $fh, '>', $file) or die "Cannot write $file: $!";
+	open(my $fh, '>:raw', $file) or die "Cannot write $file: $!";
 	print {$fh} map { "$_\n" } @lines;
 	close($fh) or die "Cannot close $file: $!";
 
