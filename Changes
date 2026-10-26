@@ -1,3 +1,5 @@
+Revision history for Database-BI
+
 0.017.1
 	[ Bug Fixes ]
 	- script/database-bi: shebang is perl again; the script starts morbo
@@ -43,8 +45,6 @@
 	  summary and geo endpoints (previously README-only).
 	[ Tests ]
 	- t/launcher.t: asserts perl shebang on every shipped script.
-	- .github/workflows/contract.yml: now delegates to the shared body in
-	  Geo-Coder-Free instead of duplicating it.
 	- t/map.t and t/integration.t: drive both renderer states via the
 	  controller's _map_renderer_version probe.
 	- t/edge_cases.t: covers uploads_dir resolution (absolute, relative, unset).
@@ -55,7 +55,6 @@
 	  require HTML::OSM 0.12 (not merely installed).
 	- browser.yml: no-renderer, no-renderer-canvas, no-geocoder and renderer
 	  jobs added; each pins or verifies one optional module.
-	- .github/workflows/contract.yml: runs t/contract-workflows.t.
 	- BI::Test::Browser: config keys written before app startup; fixture
 	  builds a language home for non-shipped locales; app_setup coderef
 	  supported.
