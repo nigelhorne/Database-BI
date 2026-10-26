@@ -2443,12 +2443,17 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 
 	Readonly my $CSV_BODY => "product,region,amount\nWidget,North,100\nGadget,South,200\n";
 
+	# Captures the 'user' option on each Net::SFTP::Foreign->new call so
+	# Phase 7 can verify it is forwarded from the user@host path component.
+	my $captured_sftp_user;
+
 	{
 		no strict 'refs';
 		no warnings 'redefine';
 		*{'Net::SFTP::Foreign::new'} = sub {
 			my ($class, $host, %opts) = @_;
 			return undef unless defined $host && $host eq 'mockhost';
+			$captured_sftp_user = $opts{user};
 			return bless { _stub_host => $host }, $class;
 		};
 		*{'Net::SFTP::Foreign::error'} = sub { '' };
@@ -2500,10 +2505,15 @@ subtest 'Transaction 39 -- Remote file path lifecycle' => sub {
 	  ->content_like(qr/product/i, 'Phase 6: column header present after sniff rename');
 
 	# Phase 7: user@hostname syntax passes credentials to Net::SFTP::Foreign.
+	# DataSource splits "testuser@mockhost" into user="testuser", host="mockhost"
+	# and forwards user => $user to Net::SFTP::Foreign->new.
+	$captured_sftp_user = undef;
 	my $user_path = '/../testuser@mockhost/tmp/remote_sales.csv';
 	$t->get_ok('/open?path=' . url_escape($user_path))
 	  ->status_is(200, 'Phase 7: user@hostname syntax opens correctly')
 	  ->content_like(qr/Widget/, 'Phase 7: data visible with user@hostname path');
+	is($captured_sftp_user, 'testuser',
+		'Phase 7: username extracted from user@hostname and forwarded to Net::SFTP::Foreign');
 
 	# Tear down: restore original Net::SFTP::Foreign methods.
 	{
