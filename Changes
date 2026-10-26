@@ -1,5 +1,25 @@
 Revision history for Database-BI
 
+0.018.0	Mon Oct 26 12:00:00 PM EDT 2026
+	[ Enhancements ]
+	- Filter bar and Merge/Filter panel now detect the column type (date,
+	  numeric, or string) from the rendered table data and adapt the UI
+	  accordingly:
+	  - Date columns: calendar date-picker inputs; operators labelled
+	    "on date", "before", "on or before", "after", "on or after",
+	    "not on date", "date range", "is empty", "is not empty".
+	    The "date range" operator shows two date-pickers with a separator.
+	  - Numeric columns: number input; operators <, <=, >, >=, equals,
+	    not equals, is empty, is not empty.
+	  - String columns: text input; operators equals, not equal to,
+	    matches (contains), starts with, is empty, is not empty.
+	- Backend: lt/le/gt/ge filter operators now use string comparison when
+	  the filter value is an ISO date (YYYY-MM-DD), so "before 2026-06-01"
+	  works correctly on date columns.  Numeric values continue to use
+	  numeric comparison.
+	- New "between" filter operator for date range queries:
+	  spec format col:between:YYYY-MM-DD:YYYY-MM-DD.
+
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]
 	- script/database-bi: shebang is perl again; the script starts morbo
