@@ -1238,6 +1238,7 @@ sub startup ($self) {
 	$r->get('/open')->to('Dashboard#open_file');
 	$r->get('/join')->to('Dashboard#join_tables');
 	$r->get('/api/columns')->to('Dashboard#columns_api');
+	$r->get('/api/range')->to('Dashboard#range_api');
 	$r->get('/import')->to('Dashboard#import_url');
 	$r->get('/combine')->to('Dashboard#combine_tables');
 	$r->get('/export')->to('Dashboard#export_data');

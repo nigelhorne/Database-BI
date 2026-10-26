@@ -744,28 +744,42 @@ sub _get_columns {
 # constant within a single filter application.
 sub _is_iso_date { $_[0] =~ /\A\d{4}-\d{2}-\d{2}\z/ }
 
+# Convert M/D/YYYY or YYYY-MM-DD to YYYY-MM-DD; returns undef for other formats.
+sub _to_iso_date {
+	my ($v) = @_;
+	return $v if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;
+	if (my ($m, $d, $y) = $v =~ m{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}) {
+		return sprintf '%04d-%02d-%02d', $y, $m, $d;
+	}
+	return;
+}
+
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
 	return $records unless length($col // '') && defined $op && length $op;
 	$val //= '';
 	my $lval    = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
-	my $is_date = _is_iso_date($val);
+	my $is_date = _is_iso_date($val)
+		|| ($op eq 'between' && $val =~ /\A\d{4}-\d{2}-\d{2}:/);
 	return [grep {
-		my $cell = $_->{$col} // '';
-		$op eq 'eq'       ? lc($cell) eq $lval                              :
-		$op eq 'ne'       ? lc($cell) ne $lval                              :
-		$op eq 'contains' ? index(lc($cell), $lval) != -1                   :
-		$op eq 'starts'   ? index(lc($cell), $lval) == 0                    :
-		$op eq 'lt'       ? ($is_date ? $cell lt $val : $cell <  $val)      :
-		$op eq 'le'       ? ($is_date ? $cell le $val : $cell <= $val)      :
-		$op eq 'gt'       ? ($is_date ? $cell gt $val : $cell >  $val)      :
-		$op eq 'ge'       ? ($is_date ? $cell ge $val : $cell >= $val)      :
-		$op eq 'empty'    ? $cell eq ''                                      :
-		$op eq 'notempty' ? $cell ne ''                                      :
+		my $cell  = $_->{$col} // '';
+		# Normalise M/D/YYYY cells to ISO for date comparisons so that the
+		# ISO values produced by <input type="date"> match against either format.
+		my $ncell = $is_date ? (_to_iso_date($cell) // $cell) : $cell;
+		$op eq 'eq'       ? ($is_date ? $ncell eq $val   : lc($cell) eq $lval) :
+		$op eq 'ne'       ? ($is_date ? $ncell ne $val   : lc($cell) ne $lval) :
+		$op eq 'contains' ? index(lc($cell), $lval) != -1                      :
+		$op eq 'starts'   ? index(lc($cell), $lval) == 0                       :
+		$op eq 'lt'       ? ($is_date ? $ncell lt $val   : $cell <  $val)      :
+		$op eq 'le'       ? ($is_date ? $ncell le $val   : $cell <= $val)      :
+		$op eq 'gt'       ? ($is_date ? $ncell gt $val   : $cell >  $val)      :
+		$op eq 'ge'       ? ($is_date ? $ncell ge $val   : $cell >= $val)      :
+		$op eq 'empty'    ? $cell eq ''                                         :
+		$op eq 'notempty' ? $cell ne ''                                         :
 		$op eq 'between'  ? do {
 			my ($lo, $hi) = split /:/, $val, 2;
-			length($lo // '') && length($hi // '') && $cell ge $lo && $cell le $hi
+			length($lo // '') && length($hi // '') && $ncell ge $lo && $ncell le $hi
 		} :
 		1
 	} @$records];
@@ -4337,6 +4351,61 @@ sub columns_api ($self) {
 	my @cols = _get_columns($source, $recs);
 
 	$self->render(json => { columns => \@cols });
+}
+
+=head2 range_api
+
+C<GET /api/range> -- Return the min and max ISO date values for one column.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ?l=    string   Required. Data source spec ("table:name", "path:/abs/path", etc.).
+  ?col=  string   Required. Column name to compute the range for.
+
+=head4 OUTPUT
+
+  200 application/json   { "min": "YYYY-MM-DD", "max": "YYYY-MM-DD" }
+  200 application/json   { "min": null, "max": null }  (no parseable dates)
+  400 application/json   { "error": "..." }
+
+=head3 FORMAL SPECIFICATION
+
+  range_api == lambda self .
+    let src = _open_spec(param('l')) in
+    pre  src /= undef /\ col /= ''
+    post render_json({ min: min_date(src, col), max: max_date(src, col) })
+
+=cut
+
+sub range_api ($self) {
+	my $spec_str = $self->param('l') // '';
+	my $col      = $self->param('col') // '';
+	return $self->render(json => { error => 'l required'   }, status => 400) unless length $spec_str;
+	return $self->render(json => { error => 'col required' }, status => 400) unless length $col;
+
+	my ($source) = $self->_open_spec($spec_str);
+	return $self->render(json => { min => undef, max => undef }) unless $source;
+
+	my $records = eval { $source->fetch_all } // [];
+
+	my $iso_re = qr/\A\d{4}-\d{2}-\d{2}\z/;
+	my $mdy_re = qr|\A(\d{1,2})/(\d{1,2})/(\d{4})\z|;
+	my @dates;
+	for my $rec (@$records) {
+		my $v = $rec->{$col} // '';
+		next unless length $v;
+		if ($v =~ $iso_re) {
+			push @dates, $v;
+		} elsif (my @m = ($v =~ $mdy_re)) {
+			push @dates, sprintf '%04d-%02d-%02d', $m[2], $m[0], $m[1];
+		}
+	}
+
+	return $self->render(json => { min => undef, max => undef }) unless @dates;
+	@dates = sort @dates;
+	$self->render(json => { min => $dates[0], max => $dates[-1] });
 }
 
 =head2 join_tables

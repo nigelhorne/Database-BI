@@ -276,7 +276,7 @@
 </div>
 
 [%- IF left_spec -%]
-<div class="dash-add-filter" id="dash-add-filter">
+<div class="dash-add-filter" id="dash-add-filter" data-spec="[% left_spec | html %]">
   <select id="dash-f-col" aria-label="Column to filter">
     <option value="">&#x2014; filter column &#x2014;</option>
     [%- FOREACH col IN columns -%]
@@ -1453,6 +1453,69 @@ function parseAccounting(v) {
   return isNaN(n) ? NaN : (neg ? -Math.abs(n) : n);
 }
 
+// Scan the rendered rows of a named column and return {min, max} ISO dates,
+// or null when the column has no parseable date values.
+// Used as an instant first estimate; /api/range supplies the full-dataset answer.
+function biDateRangeDOM(colName) {
+  var tbl = document.getElementById('bi-table');
+  if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return null;
+  var headers = Array.from(tbl.tHead.rows[0].cells);
+  var colIdx  = -1;
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i].textContent.trim() === colName) { colIdx = i; break; }
+  }
+  if (colIdx < 0) return null;
+  var isoRE = /^(\d{4})-(\d{2})-(\d{2})$/;
+  var mdyRE = /^(\d{1,2})\/(\d{1,2})\/(\d{4})$/;
+  var dates = [];
+  Array.from(tbl.tBodies[0].rows).forEach(function (r) {
+    var cell = r.cells[colIdx];
+    if (!cell) return;
+    var v = cell.textContent.trim();
+    var m;
+    if (isoRE.test(v)) {
+      dates.push(v);
+    } else if ((m = mdyRE.exec(v))) {
+      dates.push(m[3] + '-' + ('0' + m[1]).slice(-2) + '-' + ('0' + m[2]).slice(-2));
+    }
+  });
+  if (!dates.length) return null;
+  dates.sort();
+  return { min: dates[0], max: dates[dates.length - 1] };
+}
+
+// Apply {min, max} to an array of date inputs.
+function biApplyRange(inputs, range) {
+  var lo = range ? range.min : '';
+  var hi = range ? range.max : '';
+  inputs.forEach(function (inp) { inp.min = lo; inp.max = hi; });
+}
+
+// Set min/max on date inputs for colName: disable inputs while fetching the
+// full-dataset range from /api/range so the calendar can't open with a
+// page-only estimate; re-enable (with correct min/max) when the response
+// arrives.  Falls back to the DOM estimate on fetch error.
+function biSetDateRange(colName, inputs) {
+  var domRange = biDateRangeDOM(colName);
+  var spec = (document.getElementById('dash-add-filter') || {}).dataset;
+  var lSpec = spec ? (spec.spec || '') : '';
+  if (!lSpec || !colName) {
+    biApplyRange(inputs, domRange);
+    return;
+  }
+  inputs.forEach(function (inp) { inp.disabled = true; inp.title = 'Loading date range…'; });
+  fetch('/api/range?l=' + encodeURIComponent(lSpec) + '&col=' + encodeURIComponent(colName))
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (d) {
+      biApplyRange(inputs, (d && d.min && d.max) ? d : domRange);
+      inputs.forEach(function (inp) { inp.disabled = false; inp.title = ''; });
+    })
+    .catch(function () {
+      biApplyRange(inputs, domRange);
+      inputs.forEach(function (inp) { inp.disabled = false; inp.title = ''; });
+    });
+}
+
 // Detect the data type of a named column by sampling the rendered table rows.
 // Returns 'date', 'numeric', or 'string'.
 function biDetectColType(colName) {
@@ -2034,6 +2097,10 @@ function biDetectColType(colName) {
       opSel.value = keepOp || ops[0][0];
     }
 
+    function applyRowDateRange(col) {
+      biSetDateRange(col, [dateInp, fromInp, toInp]);
+    }
+
     // Pre-build ops with prefill column type if known, otherwise string.
     var initialOps = OPS_STRING;
     if (prefill.col) {
@@ -2041,6 +2108,7 @@ function biDetectColType(colName) {
       initialOps  = rowColType === 'date' ? OPS_DATE
                   : rowColType === 'numeric' ? OPS_NUMERIC
                   : OPS_STRING;
+      if (rowColType === 'date') applyRowDateRange(prefill.col);
     }
     rebuildRowOps(initialOps, prefill.op || 'eq');
 
@@ -2105,11 +2173,14 @@ function biDetectColType(colName) {
               : rowColType === 'numeric' ? OPS_NUMERIC
               : OPS_STRING;
       rebuildRowOps(ops, opSel.value);
+      if (rowColType === 'date') applyRowDateRange(colSel.value);
       toggleValInp();
       checkApply();
     });
     opSel.addEventListener('change', toggleValInp);
     toggleValInp();
+    fromInp.addEventListener('change', function () { if (fromInp.value) toInp.min   = fromInp.value; });
+    toInp.addEventListener('change',   function () { if (toInp.value)   fromInp.max = toInp.value;   });
 
     var rmBtn = document.createElement('button');
     rmBtn.type = 'button';
@@ -2431,6 +2502,10 @@ function biDetectColType(colName) {
       quickTo.style.display   = (isDate && isBetween)               ? '' : 'none';
     }
 
+    function applyQuickDateRange(col) {
+      biSetDateRange(col, [quickDate, quickFrom, quickTo]);
+    }
+
     quickColSel.addEventListener('change', function () {
       var col = quickColSel.value;
       quickColType = col ? biDetectColType(col) : 'string';
@@ -2438,10 +2513,13 @@ function biDetectColType(colName) {
               : quickColType === 'numeric' ? Q_OPS_NUMERIC
               : Q_OPS_STRING;
       rebuildQuickOps(ops, quickOpSel.value);
+      if (quickColType === 'date') applyQuickDateRange(col);
       toggleQuickInputs();
     });
     quickOpSel.addEventListener('change', toggleQuickInputs);
     toggleQuickInputs();
+    quickFrom.addEventListener('change', function () { if (quickFrom.value) quickTo.min = quickFrom.value; });
+    quickTo.addEventListener('change',   function () { if (quickTo.value)   quickFrom.max = quickTo.value; });
 
     applyBtn.addEventListener('click', function () {
       var col = quickColSel.value;
