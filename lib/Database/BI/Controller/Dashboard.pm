@@ -728,6 +728,8 @@ sub _get_columns {
 #       lt (strict), le (inclusive), gt (strict), ge (inclusive)
 #     Unary (val is ignored):
 #       empty (cell eq ''), notempty (cell ne '')
+#     Range (val = lo:hi, string comparison -- correct for ISO YYYY-MM-DD dates):
+#       between -- lo le cell le hi
 #   Boundary rules for numeric operators:
 #     le/ge include the boundary value; lt/gt exclude it.
 #   contains/starts with empty val ('') match every record (index always 0).
@@ -740,24 +742,31 @@ sub _get_columns {
 # precompute, every case-insensitive operator (eq, ne, contains, starts) would
 # call lc($val) O(N) times for N records -- a pure O(N) waste since $val is
 # constant within a single filter application.
+sub _is_iso_date { $_[0] =~ /\A\d{4}-\d{2}-\d{2}\z/ }
+
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
 	return $records unless length($col // '') && defined $op && length $op;
 	$val //= '';
-	my $lval = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
+	my $lval    = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
+	my $is_date = _is_iso_date($val);
 	return [grep {
 		my $cell = $_->{$col} // '';
-		$op eq 'eq'       ? lc($cell) eq $lval                :
-		$op eq 'ne'       ? lc($cell) ne $lval                :
-		$op eq 'contains' ? index(lc($cell), $lval) != -1     :
-		$op eq 'starts'   ? index(lc($cell), $lval) == 0      :
-		$op eq 'lt'       ? $cell <  $val                     :
-		$op eq 'le'       ? $cell <= $val                     :
-		$op eq 'gt'       ? $cell >  $val                     :
-		$op eq 'ge'       ? $cell >= $val                     :
-		$op eq 'empty'    ? $cell eq ''                        :
-		$op eq 'notempty' ? $cell ne ''                        :
+		$op eq 'eq'       ? lc($cell) eq $lval                              :
+		$op eq 'ne'       ? lc($cell) ne $lval                              :
+		$op eq 'contains' ? index(lc($cell), $lval) != -1                   :
+		$op eq 'starts'   ? index(lc($cell), $lval) == 0                    :
+		$op eq 'lt'       ? ($is_date ? $cell lt $val : $cell <  $val)      :
+		$op eq 'le'       ? ($is_date ? $cell le $val : $cell <= $val)      :
+		$op eq 'gt'       ? ($is_date ? $cell gt $val : $cell >  $val)      :
+		$op eq 'ge'       ? ($is_date ? $cell ge $val : $cell >= $val)      :
+		$op eq 'empty'    ? $cell eq ''                                      :
+		$op eq 'notempty' ? $cell ne ''                                      :
+		$op eq 'between'  ? do {
+			my ($lo, $hi) = split /:/, $val, 2;
+			length($lo // '') && length($hi // '') && $cell ge $lo && $cell le $hi
+		} :
 		1
 	} @$records];
 }
@@ -897,7 +906,7 @@ sub _filter_specs_to_criteria {
 				? ($criteria{$col} = { '>=' => $val })
 				: push @residual, $spec;
 		} else {
-			# empty, notempty, unknown operator: always residual.
+			# empty, notempty, between, unknown operator: always residual.
 			push @residual, $spec;
 		}
 	}

@@ -718,6 +718,27 @@ subtest '_apply_filter_spec -- empty and notempty operators' => sub {
 	is $notempty->[0]{note}, 'has text', 'notempty returns the non-blank row';
 };
 
+subtest '_apply_filter_spec -- between operator (date range, string comparison)' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
+	my @rows = map { { date => $_ } } qw(2026-01-01 2026-06-15 2026-12-31 2027-01-01);
+
+	my $in = $fn->(\@rows, 'date:between:2026-01-01:2026-12-31');
+	is scalar(@$in), 3,                      'between includes lo, hi, and middle';
+	is $in->[0]{date}, '2026-01-01',         'lo boundary included';
+	is $in->[2]{date}, '2026-12-31',         'hi boundary included';
+
+	my $out = $fn->(\@rows, 'date:between:2026-03-01:2026-09-30');
+	is scalar(@$out), 1,                     'between narrows to matching rows';
+	is $out->[0]{date}, '2026-06-15',        'only mid-range row returned';
+
+	my $none = $fn->(\@rows, 'date:between:2028-01-01:2028-12-31');
+	is scalar(@$none), 0,                    'between with no matches returns empty';
+
+	# Degenerate: missing hi -- split gives lo only; hi is undef so length check fails
+	my $bad = $fn->(\@rows, 'date:between:2026-01-01');
+	is scalar(@$bad), 0,                     'between with no hi value returns empty';
+};
+
 subtest '_apply_filter_spec -- unknown operator passes all rows through' => sub {
 	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
 	my $records = [{ x => 1 }, { x => 2 }];

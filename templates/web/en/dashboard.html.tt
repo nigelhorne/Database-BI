@@ -10,11 +10,17 @@
     margin: 0.4rem 0 0.6rem;
   }
   .dash-add-filter select,
-  .dash-add-filter input[type="text"] {
+  .dash-add-filter input[type="text"],
+  .dash-add-filter input[type="number"],
+  .dash-add-filter input[type="date"] {
     padding: 0.25rem 0.45rem;
     border: 1px solid #bbb;
     border-radius: 4px;
     font-size: 0.82rem;
+  }
+  .dash-f-range-sep {
+    font-size: 0.82rem;
+    color: #666;
   }
   .btn-dash-filter-apply {
     padding: 0.28rem 0.75rem;
@@ -286,10 +292,16 @@
     <option value="le">less or equal</option>
     <option value="gt">greater than</option>
     <option value="ge">greater or equal</option>
+    <option value="between">date range</option>
     <option value="empty">is empty</option>
     <option value="notempty">is not empty</option>
   </select>
-  <input type="text" id="dash-f-val" placeholder="value" aria-label="Filter value">
+  <input type="text"   id="dash-f-val"  placeholder="value"  aria-label="Filter value">
+  <input type="number" id="dash-f-num"  placeholder="number" aria-label="Numeric value" style="display:none">
+  <input type="date"   id="dash-f-date" aria-label="Date"    style="display:none">
+  <input type="date"   id="dash-f-from" style="display:none" aria-label="From date">
+  <span id="dash-f-range-sep" class="dash-f-range-sep" style="display:none">&mdash;</span>
+  <input type="date"   id="dash-f-to"   style="display:none" aria-label="To date">
   <button id="dash-f-apply" class="btn-dash-filter-apply">Apply filter</button>
 </div>
 [%- END -%]
@@ -1446,6 +1458,30 @@ function parseAccounting(v) {
   return isNaN(n) ? NaN : (neg ? -Math.abs(n) : n);
 }
 
+// Detect the data type of a named column by sampling the rendered table rows.
+// Returns 'date', 'numeric', or 'string'.
+function biDetectColType(colName) {
+  var tbl = document.getElementById('bi-table');
+  if (!tbl || !tbl.tHead || !tbl.tBodies[0]) return 'string';
+  var headers = Array.from(tbl.tHead.rows[0].cells);
+  var colIdx  = -1;
+  for (var i = 0; i < headers.length; i++) {
+    if (headers[i].textContent.trim() === colName) { colIdx = i; break; }
+  }
+  if (colIdx < 0) return 'string';
+  var rows = Array.from(tbl.tBodies[0].rows).slice(0, 30);
+  var vals = rows.map(function (r) {
+    return r.cells[colIdx] ? r.cells[colIdx].textContent.trim() : '';
+  }).filter(function (v) { return v !== ''; });
+  if (vals.length === 0) return 'string';
+  var dateRE  = /^\d{4}-\d{2}-\d{2}$|^\d{1,2}\/\d{1,2}\/\d{4}$|^\d{1,2}-[A-Za-z]{3}-\d{4}$/;
+  var dateCnt = vals.filter(function (v) { return dateRE.test(v); }).length;
+  if (dateCnt / vals.length >= 0.7) return 'date';
+  var numCnt  = vals.filter(function (v) { return !isNaN(parseAccounting(v)); }).length;
+  if (numCnt / vals.length >= 0.7) return 'numeric';
+  return 'string';
+}
+
 (function () {
   var table     = document.getElementById('bi-table');
   if (!table) return;
@@ -1951,19 +1987,11 @@ function parseAccounting(v) {
   var rightLabel = '';
   var joinSpec   = '';
 
-  // Operator definitions.
-  var OPS = [
-    ['eq',       'equals'],
-    ['ne',       'not equals'],
-    ['contains', 'contains'],
-    ['starts',   'starts with'],
-    ['lt',       '<'],
-    ['le',       '<='],
-    ['gt',       '>'],
-    ['ge',       '>='],
-    ['empty',    'is empty'],
-    ['notempty', 'is not empty'],
-  ];
+  // Operator definitions -- three sets, chosen by column type.
+  var OPS_STRING  = [['eq','equals'],['ne','not equals'],['contains','contains'],['starts','starts with'],['lt','less than'],['le','less or equal'],['gt','greater than'],['ge','greater or equal'],['empty','is empty'],['notempty','is not empty']];
+  var OPS_NUMERIC = [['eq','equals'],['ne','not equals'],['lt','<'],['le','<='],['gt','>'],['ge','>='],['empty','is empty'],['notempty','is not empty']];
+  var OPS_DATE    = [['eq','on date'],['ne','not on date'],['lt','before'],['le','on or before'],['gt','after'],['ge','on or after'],['between','date range'],['empty','is empty'],['notempty','is not empty']];
+  var OPS = OPS_STRING; // default for join panel (kept for external callers)
 
   // --- Filter row management ---
 
@@ -1995,28 +2023,96 @@ function parseAccounting(v) {
     var colSel = document.createElement('select');
     colSel.className = 'filter-col-sel';
     populateColSelect(colSel, prefill.col || '');
-    colSel.addEventListener('change', checkApply);
 
     var opSel = document.createElement('select');
     opSel.className = 'filter-op-sel';
-    OPS.forEach(function (pair) {
-      var opt = document.createElement('option');
-      opt.value = pair[0]; opt.textContent = pair[1];
-      opSel.appendChild(opt);
-    });
-    opSel.value = prefill.op || 'eq';
+
+    var rowColType = 'string';
+
+    function rebuildRowOps(ops, keepOp) {
+      opSel.innerHTML = '';
+      ops.forEach(function (pair) {
+        var opt = document.createElement('option');
+        opt.value = pair[0]; opt.textContent = pair[1];
+        opSel.appendChild(opt);
+      });
+      opSel.value = keepOp || ops[0][0];
+    }
+
+    // Pre-build ops with prefill column type if known, otherwise string.
+    var initialOps = OPS_STRING;
+    if (prefill.col) {
+      rowColType  = biDetectColType(prefill.col);
+      initialOps  = rowColType === 'date' ? OPS_DATE
+                  : rowColType === 'numeric' ? OPS_NUMERIC
+                  : OPS_STRING;
+    }
+    rebuildRowOps(initialOps, prefill.op || 'eq');
 
     var valInp = document.createElement('input');
     valInp.type = 'text';
     valInp.className = 'filter-val-inp';
     valInp.placeholder = 'value';
-    valInp.value = prefill.val !== undefined ? prefill.val : '';
+    valInp.value = (prefill.op !== 'between' && rowColType !== 'date' && rowColType !== 'numeric' && prefill.val !== undefined) ? prefill.val : '';
+
+    var numInp = document.createElement('input');
+    numInp.type = 'number';
+    numInp.className = 'filter-num-inp';
+    numInp.placeholder = 'number';
+    numInp.style.display = 'none';
+    if (rowColType === 'numeric' && prefill.val !== undefined) numInp.value = prefill.val;
+
+    var dateInp = document.createElement('input');
+    dateInp.type = 'date';
+    dateInp.className = 'filter-date-inp';
+    dateInp.style.display = 'none';
+    if (rowColType === 'date' && prefill.op !== 'between' && prefill.val) dateInp.value = prefill.val;
+
+    var fromInp = document.createElement('input');
+    fromInp.type = 'date';
+    fromInp.className = 'filter-from-inp';
+    fromInp.style.display = 'none';
+
+    var sepSpan = document.createElement('span');
+    sepSpan.textContent = '—';
+    sepSpan.className = 'filter-range-sep';
+    sepSpan.style.cssText = 'display:none;font-size:0.82rem;color:#666';
+
+    var toInp = document.createElement('input');
+    toInp.type = 'date';
+    toInp.className = 'filter-to-inp';
+    toInp.style.display = 'none';
+
+    if (prefill.op === 'between' && prefill.val) {
+      var bparts = prefill.val.split(':');
+      fromInp.value = bparts[0] || '';
+      toInp.value   = bparts[1] || '';
+    }
 
     function toggleValInp() {
-      var hide = opSel.value === 'empty' || opSel.value === 'notempty';
-      valInp.style.display = hide ? 'none' : '';
+      var op        = opSel.value;
+      var isBetween = op === 'between';
+      var isUnary   = op === 'empty' || op === 'notempty';
+      var isDate    = rowColType === 'date';
+      var isNumeric = rowColType === 'numeric';
+      valInp.style.display  = (!isDate && !isNumeric && !isUnary) ? '' : 'none';
+      numInp.style.display  = (isNumeric && !isUnary)             ? '' : 'none';
+      dateInp.style.display = (isDate && !isUnary && !isBetween)  ? '' : 'none';
+      fromInp.style.display = (isDate && isBetween)               ? '' : 'none';
+      sepSpan.style.display = (isDate && isBetween)               ? '' : 'none';
+      toInp.style.display   = (isDate && isBetween)               ? '' : 'none';
       checkApply();
     }
+
+    colSel.addEventListener('change', function () {
+      rowColType = colSel.value ? biDetectColType(colSel.value) : 'string';
+      var ops = rowColType === 'date' ? OPS_DATE
+              : rowColType === 'numeric' ? OPS_NUMERIC
+              : OPS_STRING;
+      rebuildRowOps(ops, opSel.value);
+      toggleValInp();
+      checkApply();
+    });
     opSel.addEventListener('change', toggleValInp);
     toggleValInp();
 
@@ -2029,6 +2125,11 @@ function parseAccounting(v) {
     row.appendChild(colSel);
     row.appendChild(opSel);
     row.appendChild(valInp);
+    row.appendChild(numInp);
+    row.appendChild(dateInp);
+    row.appendChild(fromInp);
+    row.appendChild(sepSpan);
+    row.appendChild(toInp);
     row.appendChild(rmBtn);
     filterRows.appendChild(row);
     checkApply();
@@ -2149,9 +2250,20 @@ function parseAccounting(v) {
     document.querySelectorAll('#filter-rows .filter-row').forEach(function (row) {
       var col = row.querySelector('.filter-col-sel').value;
       var op  = row.querySelector('.filter-op-sel').value;
-      var valEl = row.querySelector('.filter-val-inp');
-      var val = (valEl && valEl.style.display !== 'none') ? valEl.value : '';
       if (!col || !op) return;
+      var val;
+      if (op === 'between') {
+        var fromEl = row.querySelector('.filter-from-inp');
+        var toEl   = row.querySelector('.filter-to-inp');
+        val = (fromEl && toEl) ? fromEl.value + ':' + toEl.value : ':';
+      } else {
+        var numEl  = row.querySelector('.filter-num-inp');
+        var dateEl = row.querySelector('.filter-date-inp');
+        var txtEl  = row.querySelector('.filter-val-inp');
+        if (numEl && numEl.style.display !== 'none')  { val = numEl.value;  }
+        else if (dateEl && dateEl.style.display !== 'none') { val = dateEl.value; }
+        else { val = (txtEl && txtEl.style.display !== 'none') ? txtEl.value : ''; }
+      }
       var fInp = document.createElement('input');
       fInp.type = 'hidden'; fInp.name = 'f';
       fInp.setAttribute('data-dyn', '1');
@@ -2285,16 +2397,82 @@ function parseAccounting(v) {
   // Apply a new filter condition from the quick-filter bar.
   var applyBtn = document.getElementById('dash-f-apply');
   if (applyBtn) {
+    var quickColSel = document.getElementById('dash-f-col');
+    var quickOpSel  = document.getElementById('dash-f-op');
+    var quickVal    = document.getElementById('dash-f-val');
+    var quickNum    = document.getElementById('dash-f-num');
+    var quickDate   = document.getElementById('dash-f-date');
+    var quickFrom   = document.getElementById('dash-f-from');
+    var quickSep    = document.getElementById('dash-f-range-sep');
+    var quickTo     = document.getElementById('dash-f-to');
+
+    var Q_OPS_STRING  = [['eq','equals'],['ne','not equals'],['contains','contains'],['starts','starts with'],['lt','less than'],['le','less or equal'],['gt','greater than'],['ge','greater or equal'],['empty','is empty'],['notempty','is not empty']];
+    var Q_OPS_NUMERIC = [['eq','equals'],['ne','not equals'],['lt','<'],['le','<='],['gt','>'],['ge','>='],['empty','is empty'],['notempty','is not empty']];
+    var Q_OPS_DATE    = [['eq','on date'],['ne','not on date'],['lt','before'],['le','on or before'],['gt','after'],['ge','on or after'],['between','date range'],['empty','is empty'],['notempty','is not empty']];
+
+    var quickColType = 'string';
+
+    function rebuildQuickOps(ops, keepOp) {
+      quickOpSel.innerHTML = '';
+      ops.forEach(function (pair) {
+        var opt = document.createElement('option');
+        opt.value = pair[0]; opt.textContent = pair[1];
+        quickOpSel.appendChild(opt);
+      });
+      quickOpSel.value = keepOp || ops[0][0];
+    }
+
+    function toggleQuickInputs() {
+      var op        = quickOpSel.value;
+      var isBetween = op === 'between';
+      var isUnary   = op === 'empty' || op === 'notempty';
+      var isDate    = quickColType === 'date';
+      var isNumeric = quickColType === 'numeric';
+      quickVal.style.display  = (!isDate && !isNumeric && !isUnary) ? '' : 'none';
+      quickNum.style.display  = (isNumeric && !isUnary)             ? '' : 'none';
+      quickDate.style.display = (isDate && !isUnary && !isBetween)  ? '' : 'none';
+      quickFrom.style.display = (isDate && isBetween)               ? '' : 'none';
+      quickSep.style.display  = (isDate && isBetween)               ? '' : 'none';
+      quickTo.style.display   = (isDate && isBetween)               ? '' : 'none';
+    }
+
+    quickColSel.addEventListener('change', function () {
+      var col = quickColSel.value;
+      quickColType = col ? biDetectColType(col) : 'string';
+      var ops = quickColType === 'date' ? Q_OPS_DATE
+              : quickColType === 'numeric' ? Q_OPS_NUMERIC
+              : Q_OPS_STRING;
+      rebuildQuickOps(ops, quickOpSel.value);
+      toggleQuickInputs();
+    });
+    quickOpSel.addEventListener('change', toggleQuickInputs);
+    toggleQuickInputs();
+
     applyBtn.addEventListener('click', function () {
-      var col = document.getElementById('dash-f-col').value;
-      var op  = document.getElementById('dash-f-op').value;
-      var val = document.getElementById('dash-f-val').value;
+      var col = quickColSel.value;
+      var op  = quickOpSel.value;
       if (!col || !op) return;
+      var val;
+      if (op === 'between') {
+        var from = quickFrom.value;
+        var to   = quickTo.value;
+        if (!from || !to) return;
+        val = from + ':' + to;
+      } else if (quickColType === 'date' && quickDate.style.display !== 'none') {
+        val = quickDate.value;
+      } else if (quickColType === 'numeric' && quickNum.style.display !== 'none') {
+        val = quickNum.value;
+      } else {
+        val = quickVal.value;
+      }
       var u = new URL(location.href);
       u.searchParams.append('f', col + ':' + op + ':' + val);
       location.href = u.toString();
     });
-    document.getElementById('dash-f-val').addEventListener('keydown', function (e) {
+    quickVal.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') applyBtn.click();
+    });
+    quickNum.addEventListener('keydown', function (e) {
       if (e.key === 'Enter') applyBtn.click();
     });
   }
