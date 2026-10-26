@@ -1,579 +1,81 @@
-Revision history for Database-BI
-
 0.017.1
 	[ Bug Fixes ]
-	- script/database-bi no longer starts an endless chain of morbo managers
-	  that ends in "Can't exec ...: Argument list too long".  0.017.0's shebang
-	  named morbo, and morbo starts the application as "perl
-	  script/database-bi daemon"; perl hands a script whose #! line does not
-	  mention perl to the interpreter that line names (perlrun), so every
-	  worker became another morbo.  Each generation exported the whole of @INC
-	  as PERL5LIB, so the environment grew until exec failed with E2BIG, and
-	  every generation kept the listening socket, leaving dozens of stale
-	  servers holding the port.  The shebang is perl again and the script
-	  starts the reloading server itself when it is given no arguments.
-	- GET /map: an HTML::OSM older than 0.12 is now detected before the map is
-	  built, so the page shows a warning instead of a 500: the markers are
-	  still counted, nothing is drawn and the rest of the page is untouched.
-	  0.017.0 passed search => 0 and max_zoom to the constructor
-	  unconditionally, and HTML::OSM rejects unknown keys.  The warning names
-	  both versions - "needs HTML::OSM 0.12 or later, but the installed
-	  HTML::OSM is 0.11" - where 0.017.0 said "0.10 or later" and "could not
-	  be loaded" for an install that had loaded fine.
-	- GET /map: ?agg= was accepted and ignored.  It has been removed from the
-	  route and the documentation instead of staying a no-op; rows at one
-	  coordinate still collapse to one marker whose popup reports the count.
-	  A measure-based aggregation is a roadmap item.
-	- The schema-warnings banner on /join can now fire.  Database::BI::Model::
-	  DataSource delegates schema() to its inner backend, and the controller
-	  compares the declared types across each join step, reporting a column
-	  whose type differs (for example INTEGER in one file, TEXT in the other)
-	  with both types and both file names.  Database::Join's own
-	  warn_schema_type_mismatch cannot fire here, because every join passes a
-	  collision_prefix for the right table.
+	- script/database-bi: shebang is perl again; the script starts morbo
+	  itself when given no arguments.  0.017.0's morbo shebang caused each
+	  worker to spawn another morbo, growing PERL5LIB until exec failed with
+	  E2BIG.
+	- GET /map: HTML::OSM older than 0.12 now produces a warning page instead
+	  of a 500.  0.017.0 passed search => 0 and max_zoom unconditionally;
+	  older HTML::OSM rejected the unknown keys.
+	- GET /map: ?agg= removed (it was accepted and ignored).
+	- /join: schema-type mismatch warnings now fire correctly.  DataSource
+	  delegates schema() to its inner backend; the controller compares types
+	  across join steps and reports differing columns.
 	- data_dir may be absolute.  A relative value is still resolved against
-	  the application home, but an absolute one was appended to it, so
-	  table=, /view, /join and the column APIs looked in a path that could not
-	  exist.  t/map.t covers the absolute case.  /view was still broken: it
-	  opens its table without a directory of its own, so it used the copy
-	  open_table was given in startup(), which was still built by appending the
-	  absolute path to the home directory - the page listed the table but
-	  showed no rows.  Both now resolve with the same rule, so an absolute
-	  data_dir is used as given everywhere.
-	- Database::BI::Extract: removed _get_or_build_extract, which no route
-	  called, and corrected the class documentation and the 0.015.0 claim that
-	  the web application materialises extracts.  The class itself is
-	  unchanged and still usable on its own.
-	- script/bi-alert no longer claims to mail a digest; it never did.  The
-	  digest goes to STDOUT and the exit status is the alert (0 = not crossed,
-	  1 = crossed, 2 = error), which is what cron acts on.  Delivery is the
-	  caller's job - pipe STDOUT into mail, a webhook or a ticket creator - so
-	  --dry-run is documented as accepted for compatibility rather than as a
-	  switch that suppresses a mail nobody sent.
-	- The test suite is deterministic under a parallel harness
-	  (HARNESS_OPTIONS=j10): t/integration.t's "Upload -> open -> filter"
-	  pipeline failed about one run in four with a 404 from GET /open.
-	  Every test file staged its uploads in the same <app_home>/.uploads,
-	  and POST /uploads/clear - exercised by t/basic.t and t/transaction.t -
-	  deletes every subdirectory there, including an upload another process
-	  had just written and was about to open.  The staging directory is now
-	  the uploads_dir config key: .uploads under the application home when it
-	  is unset, resolved against that home when relative and used as given
-	  when absolute.  Database::BI::_uploads_dir resolves it in one place, so
-	  POST /upload, POST /uploads/clear and the startup eviction always agree,
-	  and a deployment whose application directory is read-only can stage
-	  uploads on a writable disc.  The seven test files that upload or clear
-	  point the key at a temporary directory they own.
-	- The keyboard browser job no longer dies with "hash- or arrayref
-	  expected (not a simple scalar, use allow_nonref to allow this)".  The
-	  fixture's focus() quoted its selector with encode_json, and that is
-	  whatever JSON backend JSON::MaybeXS found - Cpanel::JSON::XS, JSON::XS
-	  or JSON::PP - a coder without allow_nonref refuses a bare string, and
-	  the default moved across their releases.  Every test file that called
-	  focus() died at that line on the runner while passing on a machine with
-	  a lenient backend.  Selectors are now quoted by the fixture itself, so
-	  nothing in the browser tests asks a JSON backend what a string is.
-	- t/integration.t: restore %INC after the Test::Without::Module block, so
-	  the "Subroutine ... redefined" noise from recompiling HTML::OSM is gone.
-	- Every page declares its language.  The layout writes the resolved language
-	  into <html lang> and each action has to hand it over: index() did not, and
-	  neither did 35 other renders of templates/<platform>/<language>/..., so the
-	  home page, /view, /browse, /map and the rest served <html lang=""> while the
-	  tutorial served lang="en".  A screen reader, a translation tool and anything
-	  that indexes the page read that attribute, and an empty one says the page is
-	  in no language at all.  t/unit.t asserts it on GET /, t/browser-language.t on
-	  the running pages in each language it covers - the configured one, the
-	  default-language control and the fallback to English for a language with no
-	  template tree - including /view, which is a route of its own and can only
-	  carry the value that action passed, so the home page cannot stand in for
-	  it, and /bar, whose body is not in the template at all: its SVG and script
-	  are generated by HTML::D3 and inserted, so <html lang> is written before
-	  the page body exists; and the new t/html-lang.t over every render in
-	  lib/*/Controller/*.pm, which reads the source because a new action is
-	  exactly the one no test has fetched yet.  That checker is itself run over
-	  probe files, so a pattern that had stopped matching fails instead of finding
-	  nothing to complain about.
-	- The version of Geo::Coder::Free the application asks for is 0.48, the one
-	  the distribution recommends, and the messages that quote it now say so.
-	  Database::BI::Model::Geocode's floor constant said 0.47, so a machine with
-	  0.47 passed the runtime check and was then asked for the per-lookup read
-	  counts 0.48 introduced, and the sentence a user was given named 0.47 as the
-	  version to install - one the check would have rejected again had they
-	  installed it.  The constant is 0.48, and the two messages that quote the
-	  floor are given it (a caller that pins min_geocoder_version still gets its
-	  own number back); the constructor POD's default and the Makefile.PL comment
-	  move with it.  t/geocode.t's assertion of the message text moves too - it
-	  had been holding the wrong floor in place.
+	  the application home; an absolute one was previously appended to it.
+	- Database::BI::Extract: removed unused _get_or_build_extract; corrected
+	  class docs (the web app does not materialise extracts).
+	- script/bi-alert: corrected docs -- it writes to STDOUT, not email.
+	  --dry-run is accepted for compatibility only.
+	- Parallel test runs (HARNESS_OPTIONS=j10) are now deterministic.  Upload
+	  staging moved to a per-deployment uploads_dir config key (.uploads by
+	  default); test files each use their own temp directory.
+	- Browser fixture: selector quoting no longer depends on the JSON
+	  backend's allow_nonref setting.
+	- t/integration.t: %INC restored after Test::Without::Module block,
+	  eliminating "Subroutine ... redefined" noise.
+	- Every page now sets <html lang> from the resolved language.  36 render
+	  calls were missing the stash key.
+	- Geo::Coder::Free minimum raised to 0.48 throughout (floor constant,
+	  error messages, docs).  The floor was 0.47, but 0.48 introduced the
+	  per-lookup read counts the application uses.
+	- _resolve_language now falls back to the default language when the
+	  resolved code has no template directory, as documented.
 	[ New Features ]
-	- GET /map: ?size=<column> draws bubble markers (L.circleMarker) whose pixel
-	  radius is scaled across the plotted values (6 to 30 px), so a circle over
-	  the same place does not grow when the map is zoomed.
-	- GET /map: ?series=<column>&scheme=<name> colours markers by category from
-	  tableau10, category10, set2, set3 or paired, with a category legend.
-	  ?color= (threshold rules) and ?series= are mutually exclusive; combining
-	  them, or naming an unknown scheme or column, is a 400.
+	- GET /map: ?size=<col> draws bubble markers scaled 6-30 px.
+	- GET /map: ?series=<col>&scheme=<name> colours markers by category with
+	  a legend.  Mutually exclusive with ?color=.
 	[ Documentation ]
-	- README and POD: complete /map parameter reference (zoom, max_zoom, tiles,
-	  heat, weight, size, color, color_rule, color_default, series, scheme),
-	  the map config keys, and the colour-rule semantics: rules are tried in
-	  order, the first match wins, the comparison is numeric when both sides
-	  look numeric and otherwise only eq/ne are meaningful, and a colour is
-	  hex or a CSS name.
-	- README and POD: state that the map page never shows the HTML::OSM
-	  Nominatim search box (search => 0 is always passed) and that HTML::OSM
-	  0.12 is the floor.
-	- README and POD: new "Command-line tools" section covering
-	  script/database-bi, script/bi-geocode and script/bi-alert.
-	- POD: sections for the canvas route, the analyses CRUD/import/export API,
-	  sharing and embedding, the catalog, insights, ask, summary and geo
-	  endpoints, which were previously documented only in the README.
-	- README: the Phase 4.4 decision is recorded - this stays a single-user
-	  local application, so there are no accounts, sessions, per-user ownership
-	  or row-level security.  The roadmap lists only work that is still open.
-	- A language with no template directory now falls back to the default one,
-	  as the documentation promises.  _resolve_language looked for
-	  templates/web/<code>/ only when the code it had resolved differed from
-	  the configured one, so setting language => 'de' before adding
-	  templates/web/de/ - the ordinary case, and the one where the browser asks
-	  for that same language - skipped the check and handed the renderer a
-	  directory that is not there: "Template ... not found", and a 500 on every
-	  page.  The check now covers whatever code was resolved, falling back to
-	  the default language when that can be served and keeping the resolved one
-	  when nothing can, so the error still names what was asked for.
-	  t/language-fallback.t covers a servable language, an unservable configured
-	  one, an unservable one from Accept-Language, and a servable one from
-	  Accept-Language while the configuration names one that cannot be served.
-	- README: a "Continuous Integration" section - which workflow does what, and
-	  how to run the two linters the lint job uses over the workflows locally,
-	  with the versions that job pins.  A workflow file is refused by GitHub
-	  whole and before any job in it starts, and nothing in t/ reads .github/,
-	  so the check has to be available before a push: the section states the
-	  failure that prompted it (a job-level env: reading runner.temp, where the
-	  only contexts are github, needs, strategy, matrix, vars, inputs and
-	  secrets), says that the linter finds the project through .git so it has to
-	  be run from the checkout, and explains why the shellcheck findings were
-	  fixed rather than silenced with # shellcheck disable.
-
+	- Complete /map parameter reference; HTML::OSM 0.12 floor;
+	  Nominatim search always suppressed.
+	- "Command-line tools" section covering all three scripts.
+	- Canvas, analyses API, sharing/embedding, catalog, insights, ask,
+	  summary and geo endpoints (previously README-only).
 	[ Tests ]
-	- t/launcher.t reads every script the distribution ships (every
-	  executable file in MANIFEST, and everything under script/ and bin/) and
-	  asserts a perl shebang, so a server shebang - the cause of the runaway
-	  morbo chain above - cannot come back unnoticed.  It also keeps the
-	  launcher's contract: with no arguments it starts the reloading server,
-	  with a command word it hands over to the application.
-	- .github/workflows/contract.yml is now a caller of the shared body in
-	  Geo-Coder-Free (.github/workflows/contract-body.yml), not a copy of the
-	  whole job.  The four copies had already drifted - this one pinned the Perl
-	  setup to a different commit from the other three - so the schedule and the
-	  name, repository and ref to check out are all that is left here; the
-	  checkouts, the workspace check and the run itself are made once and shared.
-	- t/map.t and t/integration.t now drive both renderer states - HTML::OSM
-	  missing, and HTML::OSM older than 0.12 - through the probe the controller
-	  uses (_map_renderer_version), so the page an operator without the
-	  optional dependency sees is exercised, not just the message text.
-	  Hiding the module with Test::Without::Module does not do it: its @INC
-	  hook is bypassed during in-process dispatch, so the installed copy is
-	  found again.
-	- t/edge_cases.t covers the uploads_dir resolution: an absolute value is
-	  used as given, a relative one resolves against the application home, and
-	  an unset one keeps .uploads there.
-	- t/map.t covers the canvas as well as GET /map: a saved canvas holding a
-	  map card and a table card is opened in both renderer states and must keep
-	  its page, carry the matching note on the map card, still count its
-	  markers and still render the table card beside it.  A usable renderer is
-	  checked first, so the assertions cannot pass on a card that never drew a
-	  map.
-	- Every test file gives the app a model directory of its own, so a test run
-	  never creates, reads or writes the shared .bi/ in the checkout.  The
-	  writers were worse than they looked: t/unit.t's GET /map?loc= geocode
-	  cache wrote the workspace's .bi/models.json; t/catalog.t redirected only
-	  after two /catalog requests had already read the shared store; and the
-	  browser fixture passed model_dir to the constructor, which is an app
-	  attribute rather than the config value the store reads, so every
-	  t/browser-*.t file wrote the same shared analyses store.  Under
-	  HARNESS_OPTIONS=j... those runs also raced on the same files.  Each file
-	  now owns a temporary store before its first request, and a full run
-	  leaves an existing .bi/ byte for byte as it found it.
-	- t/browser-canvas-map-degraded.t is the same canvas in a real browser: the
-	  renderer note has to be visible on the card (not merely in the markup - a
-	  hidden, collapsed or transparent note fails), the marker count and the
-	  table card have to survive, and nothing may be drawn.  Both states are
-	  produced by a stand-in _map_renderer_version in the server child, which
-	  reads the state the test writes, so one browser session shows missing,
-	  older and usable in turn.  BI::Test::Browser gained app_setup for that:
-	  a coderef run in the child before the server starts.
-	- The tests that assert rendered map HTML now need HTML::OSM 0.12, not merely
-	  an installed copy: t/map.t skips as a whole below that floor, and the
-	  marker assertions in t/integration.t and t/unit.t skip individually.  A
-	  CPAN smoker with the 0.11 release installed showed why - 0.017.0 passed
-	  search => 0 to it, Params::Validate::Strict refused the unknown parameter
-	  and /map answered 500, so t/edge_cases.t, t/integration.t, t/map.t,
-	  t/tutorial.t and t/unit.t all failed (30 subtests).  The 0.018.0 gate
-	  turns those requests into 200 plus the renderer note, but the assertions
-	  about markers, popups and Leaflet assets would still have failed against a
-	  page that deliberately draws nothing.  Both cases are now green: with an
-	  HTML::OSM 0.11 stand-in in front of @INC the suite passes and only the
-	  map-rendering assertions are skipped, and with 0.12 installed the suite is
-	  unchanged at 1882 tests.
-	- .github/workflows/browser.yml gained a no-renderer job: it installs the
-	  dependencies, insists HTML::OSM is not loadable (removing it if something
-	  pulled it in), and runs t/browser-map-page-renderer.t with the module
-	  absent.  The missing-renderer page cannot be reached on a machine that has
-	  the module and cannot be faked once it is loaded, so without a job that
-	  pins the absence that branch is covered only by luck: the keyboard job
-	  happens to run without it today because HTML::OSM is a recommends.
-	- .github/workflows/browser.yml gained a second job of that kind for the
-	  canvas map card: no-renderer-canvas runs t/browser-canvas-map-degraded.t
-	  on a machine where HTML::OSM is verifiably not loadable.  The test builds
-	  its missing and too-old states with the server-side stand-in, so it passes
-	  anywhere; what the job adds is the machine itself - the state the card's
-	  "not installed" note describes, and the one on which an application that
-	  started to require the module, or to construct it unconditionally as
-	  0.017.0 did, fails instead of passing on a runner that has it.
-	- .github/workflows/browser.yml gained the same job for the optional
-	  geocoder: no-geocoder runs t/browser-map-geocoder.t and t/browser-canvas-
-	  map-geocoder.t on a machine where Geo::Coder::Free is verifiably not
-	  loadable, removing it first if a dependency pulled it in and failing the
-	  job if it is still there.  The tests build their missing and too-old
-	  states with the server-side stand-in, so they pass anywhere; what the job
-	  adds is the machine - the state both "not installed" notes describe, and
-	  the one on which an application that started to require the module at
-	  compile time, rather than probing for it per request as _load_geocoder
-	  does, fails instead of passing on a runner that happens to have it.  Both
-	  fronts are pinned: GET /map is one template's page and a canvas card is
-	  the same _map_data rendered into a canvas, so covering only the card would
-	  leave the page's note to a keyboard job that happens not to have the
-	  module.  It is a separate job from the renderer ones so a failure names
-	  the module and the page or card it is about, and the workflow's header
-	  now lists each job and what it pins.
-	- .github/workflows/contract.yml runs t/contract-workflows.t from the
-	  producer checkout, which guards the job's structure: every caller of the
-	  shared body names it and itself, hands over the repository and ref to
-	  check out, passes the workspace secret through and carries none of the
-	  job's own work, and the body checks out every distribution on the same
-	  DISTRIBUTIONS list it checks for.  This distribution's copy had stopped at
-	  the workspace check - "workspace/Geo-Coder-Free was not checked out" -
-	  before the contract ran, and no test could see it: the job was copied into
-	  four distributions and kept in step by hand.
-	- BI::Test::Browser's data_dir, model_dir, platform, language and app_config
-	  are now real config values, written into the file MOJO_CONFIG names
-	  before the application is built.  data_dir and model_dir were applied to
-	  the app after startup(), so anything startup() resolved from them - the
-	  directory open_table opens by default and the home page's scan target -
-	  never saw them; platform and language were constructor arguments, which
-	  is worse, because Database::BI declares them as config keys rather than
-	  attributes and so nothing read them at all.  Every t/browser-*.t file was
-	  therefore reading the checkout's data/ whatever directory it named; a
-	  test with a directory of fixtures saw the repository's tables.
-	  t/browser-config.t (formerly t/browser-data-dir.t) is the regression
-	  test: the table in the named directory is on the home page and opens
-	  through /view, a table that exists only in data/ is not offered, and the
-	  app's own config holds each named value - including a non-default
-	  platform and a structured app_config entry - so a value a test names is
-	  not silently dropped (four of the earlier five assertions fail against
-	  the old fixture).
-	- t/browser-fixture.t checks the fixture without a browser: a selector is
-	  quoted into a JavaScript literal that survives quotes, backslashes and
-	  control characters, no call in the fixture hands encode_json a bare
-	  scalar, and the config file it writes carries every key a test can name
-	  with its value and structure intact.  That first rule is the one the CI
-	  failure broke, and it would break again silently on a machine whose JSON
-	  backend tolerates a bare scalar.
-	- t/browser-map-page-renderer.t does the same for GET /map itself: the page
-	  is opened in the browser with no renderer and with one older than 0.12,
-	  and the renderer note must be visible there (a hidden, collapsed or
-	  transparent note fails - replacing the note's banner with a hidden one
-	  was checked to fail the test), the summary must still count the markers,
-	  no #map element or map panel may be drawn and the breadcrumb must
-	  survive.  The usable-renderer state is the control: the same URL must
-	  draw a sized #map inside the panel and carry no renderer note, so the
-	  note assertions are proven able to fail.
-	- t/browser-map-geocoder.t does the same for the other optional module the map
-	  page needs: /map?loc=<column> is loaded in the browser with Geo::Coder::Free
-	  missing and with one older than the 0.48 floor, and the note has to name the
-	  version required and which problem it is ("not installed", "0.47 is
-	  installed"), be visible as the browser computes it inside the notes banner
-	  announced as a status, leave no map element and still be described by a
-	  summary that says nothing could be plotted.  The geocoder is answered from a
-	  file the test writes, through the model's _load_geocoder, so neither state
-	  needs the module installed or removed and one server shows both.  The
-	  control is the same file plotted by coordinate while the state file still
-	  says the geocoder is too old: that page carries the note about the row with
-	  no coordinate and no geocoder note, so the assertions above are about the
-	  geocoder rather than about any page that mentions it.  Hiding the notes
-	  banner fails the two visibility assertions, which a body-string test would
-	  not see.
-	- t/browser-canvas-map-geocoder.t covers the combination neither of the two
-	  above does: a canvas map card whose column has to be geocoded, on a
-	  machine where Geo::Coder::Free is missing or below the 0.48 floor.  The
-	  card has to carry the note, the note has to be visible as the browser
-	  computes it, inside the banner announced as a status, nothing may be
-	  drawn, and the card must not claim to have plotted markers.  The second
-	  card on the same canvas plots the same file by coordinate while the state
-	  file still says the geocoder is too old: it has to carry no geocoder note
-	  while carrying its own note about the row with no coordinate and
-	  counting its two markers, so the absence is the card's rather than the
-	  page's, and the assertions above are proven able to fail.  Both states
-	  come from the same stand-in as t/browser-map-geocoder.t, which is now
-	  exported from BI::Test::Browser as geocoder_state($state_file).
-	- t/browser-offline-assets.t no longer fails on a machine without the
-	  optional renderer.  Its map assertions check that the self-hosted Leaflet
-	  files are served into the map HTML::OSM draws, so on a runner where
-	  HTML::OSM is not installed - it is a recommends, and the offline-assets
-	  job installs no recommends - the page correctly drew nothing and the test
-	  called that a failure.  Those five assertions, and the canvas map card's
-	  three, are now N/A below 0.12, with a skip message that names the floor
-	  the guard requires; the page's marker summary, its freedom from CDN
-	  references and everything the chart card checks still run, so the file
-	  reports what it did and did not cover instead of failing for the state it
-	  is in.
-	- The note helpers in the four map browser tests return their note wrapped
-	  in an object, and the seeded recent list in t/browser-home-keys.t is
-	  quoted with the fixture's _js_string.  Both were backend-dependent: a
-	  missing note was JSON.stringify(null), the bare value null, and
-	  encode_json() of the already-encoded list was a bare scalar - either is
-	  refused by a JSON backend without allow_nonref.  The runner's
-	  Cpanel::JSON::XS is one, so the keyboard job died in
-	  t/browser-map-geocoder.t and t/browser-canvas-map-geocoder.t at
-	  decode_json("null") and in t/browser-home-keys.t at encode_json(), while
-	  a newer copy that allows non-refs passed them here.  An object is always
-	  decodable, and the quoter escapes the handful of characters that would
-	  end a JavaScript literal early; t/browser-fixture.t already checks the
-	  quoter, and the note helpers' undef-is-no-note contract is unchanged.
-	- t/recommended-versions.t holds the tests to the version floors the
-	  distribution already declares: every load of a recommended module in
-	  t/*.t and t/lib/**/*.pm has to be gated, in the same statement, by
-	  M->VERSION(n) with n no lower than the Makefile.PL recommends entry.
-	  "Is it installed" is what the false failures in this release had in
-	  common - an HTML::OSM 0.11 that loaded fine and then met a page it could
-	  not draw - and Test::Without::Module, skip-if-absent and
-	  eval { require ... } all answer it.  A Test::Needs spec has to name the
-	  same floor: { 'M' => 0 } and the bare list accept any installed copy, and
-	  drift the same way.  So does the message a test gives when it skips for
-	  want of such a module: a skipped run is all most readers ever see of the
-	  test, and "HTML::OSM is not installed here" reads the same on a machine
-	  with 0.11 on it as on one with no copy at all, so a message that reports a
-	  recommended module as missing or too old has to name the floor as well.
-	  Messages about something else ("already loaded", "has no $method()") and
-	  messages held in a variable are left alone, and a count of skipped
-	  assertions is not mistaken for a version.  cpanfile and Makefile.PL must
-	  still agree on the set; a recommended module with no floor (Redis) is
-	  reported rather than exempted silently, as is one a test hides with
-	  Test::Without::Module, where hiding it is the point and there is no
-	  version to name; and the checker is run over probe files it writes, so a
-	  regex that stopped matching fails instead of passing.  That last part
-	  caught the checker splitting statements on brackets inside regex escapes:
-	  a \( in one of its own patterns left every statement after it open to the
-	  end of the file, which made the whole tree look like one spec and failed
-	  the file.  Escapes and quoted strings are now removed before the depth of
-	  a statement is counted.
-	- t/recommended-versions.t holds the application to the same floors as the
-	  tests.  The M->VERSION(...) call in lib/ that decides whether an optional
-	  module is usable has to ask for the recommended version - written into the
-	  call, through a variable the file declares, or through its $MIN_*VERSION
-	  constant when the argument is an expression the check cannot follow - and
-	  the message shown when the module is missing or too old has to say that
-	  same version - written into the string, interpolated from a declared
-	  variable, or, when the template leaves it to a placeholder, taken from the
-	  file's floor constant, which is where the caller's default comes from.  That
-	  is the other half of the failure this file was written for: a test that skips
-	  on an old copy is visible in the run, while an application that accepts one
-	  reports nothing at all and fails later, on the feature that needed the newer
-	  version.  It found the 0.47/0.48 split above on its first run, and the
-	  messages and checks are held to each other as well as to Makefile.PL, so a
-	  message cannot name a version the check would reject.  The checker is run
-	  over probe files for each rule; the file's header states what is and is not
-	  read.
-	- Two loads that t/recommended-versions.t found were fixed rather than
-	  exempted.  t/map.t compared a bare HTML::OSM->VERSION against 0.12 on the
-	  next line, which reads as an installation check with the floor somewhere
-	  else; it now gates the load on 0.12 like every other file.  And
-	  BI::Test::Browser's "current renderer" stand-in answered "usable" for any
-	  installed HTML::OSM, so on a machine with 0.11 it would have claimed the
-	  state the tests that ask for it skip on; it now requires 0.12 and reports
-	  the installed version like the real probe.
-	- The browser fixture can run the application in a language the
-	  distribution does not ship.  Naming language => 'fr' used to be a config
-	  value with nothing behind it: the controller resolves a language code and
-	  then renders templates/<platform>/<code>/, so a code with no directory is
-	  a page that cannot be found rather than a translation, and only
-	  templates/web/en is shipped.  The fixture now builds the app a home for
-	  such a language - the checkout's templates, with the default language
-	  copied as the named one, the copy's pages wrapping their own layout and
-	  its layout marking <html> with data-language-dir - and starts the app
-	  against it through MOJO_HOME, so nothing is written into the checkout.
-	  t/browser-language.t verifies the running app: the browser asks for a
-	  language the deployment does not have, so the configured language is what
-	  answers and the page can only be French because the config said so; a
-	  default-language run of the same pages is the control.  t/browser-fixture.t
-	  checks the template tree itself, without a browser.
-	- The browser fixture can also run the application with a language that has
-	  no template tree behind it, which is the state the documented fallback
-	  exists for: language => 'de' with no templates/web/de/ used to reach the
-	  renderer and return a 500, and now answers in the default language.  Passing
-	  language_templates => 0 builds no home at all, so the app runs on the
-	  templates it ships while its config still names the language - the one state
-	  the copy-for-the-language mode cannot produce.  t/browser-language.t opens
-	  the home page and the tutorial in it: both must render, <html lang> must say
-	  en, the page must carry no marker from a copied directory and the home page
-	  must list the tables of the directory the test named.  It then opens the
-	  chart page, whose body is generated rather than written in a template - the
-	  SVG comes from HTML::D3 - so the fallback is proven where the layout's
-	  language has to survive a body the app built, and the page script around
-	  that chart has to have run for the page to be a page and not an error.
-	  The browser's Accept-Language asks for de as well as the config, so an
-	  English page cannot be a request that happened to ask for English;
-	  removing the directory check from _resolve_language fails the test.  t/browser-fixture.t checks the
-	  decision itself - no home for a language that was given no templates, a home
-	  for one that was - without starting anything.
-	- The keyboard browser job now reports which optional modules its runner
-	  actually has.  HTML::OSM and Geo::Coder::Free are recommends, so that job
-	  pins neither, and the branches that need one - drawing a map, geocoding a
-	  place column - run there only if the machine happens to have it at or above
-	  the declared version.  A step reads cpanfile, probes each recommended
-	  module (not installed / version / version too old) and writes a table to the
-	  log and the job summary, so a green run can be read for what it covered
-	  instead of being assumed to have covered everything.
-	- t/browser-offline-assets.t asserts the charts' drawn bars in the vendored
-	  run, where the real D3 loads: the bundle reports its version (the stand-in
-	  in the file has none), a bar per category is inside the generated SVG, and
-	  the page around that chart HTML says en in <html lang>.  Both charts get
-	  it - the /bar page, whose svg HTML::D3 names after the chart kind, and the
-	  canvas chart card, whose svg _render_visual_html names after the visual's
-	  index (#vis-0) so two bar cards cannot draw into one another.  The bars
-	  were already counted in both runs, but a bar drawn by the stand-in proves
-	  the page ran, not that real D3 draws what HTML::D3 generated.  These six
-	  are skipped, not passed, in a stand-in run.  t/browser-language.t owns
-	  <html lang> but its fixture has no network, so none of its chart pages
-	  draw and it cannot check the attribute and the drawn charts together.
-	- That run now says what it proved instead of only that it passed.  A green
-	  run of the file reads the same whether real D3 or the stand-in drew the
-	  charts, and the skips are the only trace of the difference.  The test
-	  writes which chart was drawn by which D3, how many bars, and the <html
-	  lang> that came with it to the file BI_OFFLINE_ASSET_REPORT names - naming
-	  the svg (#bar_chart, #vis-0), because the canvas names each card's chart
-	  after its visual index - and the offline-assets job publishes that file to
-	  the run's job summary.  A stand-in run reports that nothing was proved,
-	  and a run where the test never got that far warns that no report was
-	  written, so silence is not read as a proof.
-	- Every browser job publishes what it proved, not only the offline-asset
-	  one.  A green job says its files passed, which is not the same as saying
-	  which pages were driven: t/browser-chart-keys.t and t/browser-canvas-
-	  keys.t read alike whether one page was opened or five, and the chart and
-	  map cards on a canvas do not appear in the TAP at all.  BI::Test::Browser
-	  now writes a report per test file when BI_BROWSER_REPORT_DIR names a
-	  directory - the pages the file loaded, the canvas cards on them with
-	  their title and kind, and the claims it made with the new proved() - and
-	  the keyboard, no-renderer, no-renderer-canvas and no-geocoder jobs set
-	  that variable and publish the reports to their summaries through the new
-	  .github/actions/browser-report action.  One report per fixture, not only
-	  per file: t/browser-language.t opens three applications (the configured
-	  language, the control and the fallback) and one name would have had the
-	  last overwrite the other two.  The report is written as the fixture
-	  stops, so a run that fails part way still says how far it got, and
-	  nothing is written when the variable is unset, so a local run is
-	  unchanged.  The keyboard tests now say what they established, as the map
-	  and geocoder ones already did: the canvas card's three ways of being
-	  sized and positioned, the chart controls from the toolbar to the export,
-	  the pivot headers' sort and column move, the home page's keyboard-only
-	  tip and remove button, the Size menu and its PATCH, the Map panel, the
-	  tutorial's side trip, New canvas from every chart route, the fixture-
-	  backed directory, and the configured, default and fallback-language
-	  pages.  Each summary opens with the machine the run was on, as the
-	  offline-assets summary opens with the libraries it used: the two
-	  no-renderer jobs state the module they verified absent, the no-geocoder
-	  job the same for its module, and the keyboard job what its runner
-	  happened to have - measured from cpanfile's recommends where it already
-	  reports that table, so the line describes the runner rather than the
-	  job's intention.  A job that says nothing gets "not stated by this job"
-	  rather than a line that reads like a plain runner.
-	  t/browser-fixture.t checks the writer without a browser: the report is
-	  headed with the test file it came from, a second fixture gets a file of
-	  its own rather than overwriting the first, and nothing is written when
-	  the job asked for no report.
-	- .github/workflows/actionlint.yml lints every workflow on push and pull
-	  request, so a job-level context mistake fails a run instead of the whole
-	  file being refused.  browser.yml above put ${{ runner.temp }} in a
-	  job-level env, where only github, needs, strategy, matrix, vars, inputs
-	  and secrets may be read; GitHub answered "Invalid workflow file: ...
-	  (Line: 83, Col: 30): Unrecognized named-value: 'runner'" and ran none of
-	  the four jobs in it, while every local check passed because nothing in
-	  the suite reads .github/.  actionlint is downloaded from its pinned
-	  release (1.7.12, sha256 verified) instead of through a marketplace
-	  action, and lints the workflows it finds rather than a list kept in the
-	  file, so a workflow added later is covered without being added twice; the
-	  step also fails when it finds no workflow at all, rather than reporting a
-	  green run of nothing.  The rule that broke is checked: the same lint run,
-	  given a workflow with runner.temp at job level, exits 1 and names the
-	  line.
-	- The lint job also runs shellcheck over every run: block, pinned to 0.10.0
-	  and checksum-verified like actionlint: the runner image's copy is a
-	  different version, and a linter that changes with the image turns a green
-	  run red without a commit.  It found 24 things in the workflows, all fixed
-	  rather than silenced.  The documented `eval "$(perl -Mlocal::lib)"` idiom
-	  was written unquoted in 16 places (SC2046) - the splitting it invites is
-	  not what the idiom means, and a path with a space in PERL5LIB would have
-	  broken it.  Six writes to $GITHUB_ENV and $GITHUB_PATH were unquoted
-	  (SC2086), in dashboard.yml and mutate.yml.  Two `find ... | xargs`
-	  pipelines split on whitespace in a filename (SC2038), so a mutant stub
-	  whose name held a space would have been passed to git add as two paths;
-	  they use -print0 and -0 now.  mutate.yml's `# shellcheck disable=SC2086`
-	  went with them: the mutator command it silenced is an array, and the empty
-	  strings that relied on splitting to vanish are empty arrays, so the flag
-	  that was disabled no longer exists.
-	- The keyboard job's browser run no longer fails on a machine without
-	  HTML::OSM, which its runner is.  t/browser-seed-canvas.t's map case and
-	  four assertions in t/browser-map-panel.t read #map-0 and #map-1 as if a
-	  map card always has a Leaflet element; with no renderer the card is the
-	  note saying HTML::OSM 0.12 is needed and no element is written at all,
-	  which is a different state from Leaflet's script failing to arrive - the
-	  one those files already handled, where the element and its own script are
-	  server-written and only the drawing is missing.  The map case now checks
-	  the renderer note (data-key error_map_renderer_*) where there is no
-	  renderer, so the route is still proved on that machine, and the four
-	  drawing assertions are skipped with a message naming HTML::OSM 0.12
-	  rather than failed.  t/browser-map-panel.t also stopped dying when a card
-	  has no script: it read
-	  querySelector('#visual-1 .visual-card-body script').textContent, which
-	  throws on null and ended the file before its plan was written - four
-	  failed assertions were reported as "Tests were run but no plan was
-	  declared and done_testing() was not seen".  The script is read through a
-	  local and then compared, so a missing one is one more failure instead of
-	  the end of the run.
-	- CI now runs the map tests with the renderer installed, so the drawing
-	  assertions they skip on a machine without HTML::OSM are exercised, and so
-	  is the map page's own control.  A map has its Leaflet element, its marker
-	  script and its redraw only when the server has HTML::OSM, and no job
-	  installed it - which is why the keyboard job was failing rather than
-	  skipping - so a green suite said nothing about the drawing either way.
-	  t/browser-map-page-renderer.t's usable-renderer control - the state the
-	  two absent-renderer jobs compare their notes against - had never run in CI
-	  either, because it skips itself where the module is missing.  The renderer
-	  job in .github/workflows/browser.yml runs that page test and the two card
-	  files, pins 'HTML::OSM@0.12', the release this distribution asks for,
-	  instead of taking whatever the runner image ships, and refuses to run in
-	  any other state: it fails if the copy that loads is older or absent, if
-	  any of the three files skips instead of running, and if an assertion skips
-	  for want of a renderer.  That last check matches the skip marker rather
-	  than the module name, because the note text these pages assert about names
-	  HTML::OSM 0.12 too and only a skip line is a skip.  Its summary opens with
-	  the version it verified, as the absent-renderer jobs open with their
-	  absence, so a green run states which of the two machines it was.
-	- t/workflow-browser.t holds that job to the three files it runs.  Nothing
-	  else would notice them being narrowed: a file dropped from the step still
-	  passes when run on its own, the absent-renderer jobs run different ones,
-	  and the keyboard job's glob reaches the two card files but not
-	  t/browser-map-page-renderer.t, whose control skips itself wherever the
-	  module is missing - so trimming the step would leave every job green
-	  while GET /map stopped being drawn anywhere in CI.  What is read is the
-	  command lines in the renderer job's own block, comments removed and a
-	  continuation joined back on, so a file named only in the explanation
-	  above the prove line does not count, and only a prove or yath command
-	  counts at all.  The parsers are run over workflows the test writes first,
-	  and over a copy of this one with a file taken out, so a pattern that had
-	  stopped matching - or a check that could no longer fail - fails there
-	  instead of finding nothing to complain about.  .github is not in the
-	  MANIFEST, so an installed copy of the distribution skips it.
+	- t/launcher.t: asserts perl shebang on every shipped script.
+	- .github/workflows/contract.yml: now delegates to the shared body in
+	  Geo-Coder-Free instead of duplicating it.
+	- t/map.t and t/integration.t: drive both renderer states via the
+	  controller's _map_renderer_version probe.
+	- t/edge_cases.t: covers uploads_dir resolution (absolute, relative, unset).
+	- t/map.t: covers the canvas in both renderer states.
+	- Every test file now gives the app its own model_dir temp directory.
+	- t/browser-canvas-map-degraded.t: browser test for the degraded map card.
+	- Map-rendering assertions in t/map.t, t/integration.t and t/unit.t now
+	  require HTML::OSM 0.12 (not merely installed).
+	- browser.yml: no-renderer, no-renderer-canvas, no-geocoder and renderer
+	  jobs added; each pins or verifies one optional module.
+	- .github/workflows/contract.yml: runs t/contract-workflows.t.
+	- BI::Test::Browser: config keys written before app startup; fixture
+	  builds a language home for non-shipped locales; app_setup coderef
+	  supported.
+	- t/browser-fixture.t: checks fixture behaviour without a browser.
+	- t/browser-map-page-renderer.t, t/browser-map-geocoder.t,
+	  t/browser-canvas-map-geocoder.t: browser coverage for optional-module
+	  degraded states.
+	- t/browser-offline-assets.t: skips map assertions below HTML::OSM 0.12;
+	  adds D3-drawn bar assertions.
+	- t/recommended-versions.t: asserts tests and application code gate
+	  recommended modules at the declared version floor.
+	- t/browser-language.t: browser coverage for configured, default and
+	  fallback languages.
+	- .github/workflows/actionlint.yml: lints all workflows on push/PR
+	  (pinned actionlint 1.7.12 + shellcheck 0.10.0); fixed 24 shellcheck
+	  findings in existing workflows.
+	- browser.yml: keyboard job handles missing HTML::OSM without failing;
+	  browser-map-panel.t no longer dies when a card has no script.
+	- Every browser job publishes a coverage report to the job summary.
+	- t/workflow-browser.t: guards the renderer job's file list.
 
 0.017.0	Sat Oct 24 06:12:53 PM EDT 2026
 	[ New Features ]
