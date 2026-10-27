@@ -1154,6 +1154,7 @@ sub startup ($self) {
 	}
 	$self->plugin('Buffer', {
 		optimise_content => 1,
+		rewrite_links    => 0,	# URLs carry state (canvas IDs, filter params); rewriting same-path links breaks tests and could surprise users
 		vary_by          => ['accept-language'],
 		($page_chi ? (
 			cache          => $page_chi,
