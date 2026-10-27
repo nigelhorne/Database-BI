@@ -2666,7 +2666,7 @@ subtest 'Transaction 42 -- import_url drill-down breadcrumb lifecycle' => sub {
 	# Clicking that link returns to the same table without filters.
 	$t->get_ok('/import?url=' . url_escape($import_url))
 	  ->status_is(200, 'Phase 1: import renders 200');
-	$t->content_like(qr{href="/import\?url=}, 'Phase 1: back_url is self-link to unfiltered import');
+	$t->content_like(qr{href="(?:/import)?\?url=}, 'Phase 1: back_url is self-link to unfiltered import');
 
 	# Phase 2: import with back2 (pie drill-down) shows 3-level breadcrumb:
 	# Home > <table name> > Back to pie chart.

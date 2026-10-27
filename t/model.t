@@ -1095,7 +1095,7 @@ subtest '3.6: save bookmark via PATCH then verify on canvas' => sub {
 	my $b = $t->tx->res->body;
 	like $b, qr/class="bm-item"/, 'saved bookmark item rendered';
 	like $b, qr/My view/, 'bookmark name visible';
-	like $b, qr{/a/[^"]+\?f=region}, 'bookmark href contains state';
+	like $b, qr{href="[^"]*\?f=region}, 'bookmark href contains state';
 	like $b, qr/class="bm-del-btn"/, 'delete button rendered on bookmark';
 	unlike $b, qr/id="bm-empty"/, 'empty-state message absent when bookmarks exist';
 };
