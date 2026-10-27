@@ -1,7 +1,20 @@
 Revision history for Database-BI
 
-0.018.0	Mon Oct 26 12:00:00 PM EDT 2026
+0.018.0
 	[ Enhancements ]
+	- Response compression (gzip / Brotli / Zstandard), ETag/304 browser
+	  cache validation, and HTML whitespace minification are now handled by
+	  Mojolicious::Plugin::Buffer registered at startup.  No action code
+	  changes are required for ordinary HTML pages.
+	- New optional config keys: page_cache_dir (filesystem path) and
+	  page_cache_duration (CHI TTL string, default "5 minutes").  When
+	  page_cache_dir is set, /catalog and /tutorial are stored in a
+	  CHI File cache so repeated requests are served from disk rather than
+	  re-running the data-directory scan or re-building the tutorial page.
+	- Download responses (CSV, SQLite, JSON, XLSX exports; visual_download)
+	  now set stash(buffer => 0) to skip Buffer processing on binary and
+	  attachment responses.
+	- Mojolicious::Plugin::Buffer added to PREREQ_PM and cpanfile.
 	- Filter bar and Merge/Filter panel now detect the column type (date,
 	  numeric, or string) from the rendered table data and adapt the UI
 	  accordingly:

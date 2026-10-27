@@ -28,6 +28,7 @@ requires 'MIME::Base64', '3.11';   # For encode_base64url/decode_base64url in sh
 requires 'Mojo::Base';
 requires 'Mojo::JSON';
 requires 'Mojolicious', '9.49';
+requires 'Mojolicious::Plugin::Buffer';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Net::SFTP::Foreign';
 requires 'POSIX';   # For floor/ceil in Calc.pm (core module, listed for completeness)

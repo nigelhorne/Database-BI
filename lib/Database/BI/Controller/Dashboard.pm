@@ -3470,6 +3470,7 @@ sub _serialize_csv {
 # Exit:    Renders the Mojolicious response; does not return a meaningful value.
 # Side Effects: Writes HTTP response headers and body.
 sub _render_csv :Protected ($self, $records, $columns, $name) {
+	$self->stash(buffer => 0);
 	$self->res->headers->content_type('text/csv; charset=UTF-8');
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.csv"});
 	$self->render(data => _serialize_csv($records, $columns));
@@ -3482,6 +3483,7 @@ sub _render_csv :Protected ($self, $records, $columns, $name) {
 # Exit:    Renders the Mojolicious response.
 # Side Effects: Creates and unlinks a temporary file; writes HTTP response.
 sub _render_sqlite :Protected ($self, $records, $columns, $name) {
+	$self->stash(buffer => 0);
 	my $data = $self->_write_sqlite_db($records, $columns);
 	$self->res->headers->content_type('application/vnd.sqlite3');
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
@@ -3495,6 +3497,7 @@ sub _render_sqlite :Protected ($self, $records, $columns, $name) {
 # Exit:    Renders the Mojolicious response.
 # Side Effects: Writes HTTP response headers and body.
 sub _render_json :Protected ($self, $records, $columns, $name) {
+	$self->stash(buffer => 0);
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.json"});
 	$self->render(json => $records);
 }
@@ -3570,6 +3573,7 @@ there and no change to this action or to the template.
 =cut
 
 sub tutorial ($self) {
+	return if $self->buffer_is_cached;
 	my ($platform, $language) = $self->_resolve_template;
 
 	$self->render(
@@ -6602,6 +6606,7 @@ sub pivot_view ($self) {
 		return $self->_render_json(\@grid_records, \@export_cols, 'pivot')
 			if $format eq 'json';
 		if ($format eq 'xlsx') {
+			$self->stash(buffer => 0);
 			require Excel::Writer::XLSX;
 			my $out = '';
 			open my $fh, '>', \$out
@@ -8492,6 +8497,7 @@ sub _catalog_entry :Protected ($self, $mf, $analyses) {
 
 # GET /catalog
 sub catalog_view ($self) {
+	return if $self->buffer_is_cached;
 	my $dir       = _data_dir_for($self->app);
 	my $analyses  = $self->_read_analyses;
 
@@ -8678,6 +8684,7 @@ sub visual_download ($self) {
 		unless $n < scalar @visuals;
 
 	if ($format eq 'csv') {
+		$self->stash(buffer => 0);
 		# Run the pipeline and return CSV for this visual's data.
 		my (undef, $records, $columns) = $self->_run_pipeline_source;
 		return $self->render(text => 'Cannot open data source', status => 422)

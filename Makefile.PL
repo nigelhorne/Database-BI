@@ -44,6 +44,7 @@ WriteMakefile(
 		'Scalar::Util'			=> 0,		# Used in DataSource.pm (blessed, looks_like_number)
 		'DB_File'			=> 0,		# Used in DataSource.pm for Berkeley DB magic-byte detection
 		'Mojolicious'	=> '9.49',
+		'Mojolicious::Plugin::Buffer'          => 0,
 		'Mojolicious::Plugin::TemplateToolkit' => 0,
 		'Params::Get'	=> 0.17,
 		'Params::Validate::Strict'	=> '0.41',

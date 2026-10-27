@@ -1134,6 +1134,33 @@ sub startup ($self) {
 		},
 	});
 
+	# Response compression (gzip/Brotli), ETag/304 handling, and HTML
+	# whitespace minification.  Level 1 leaves <script>/<style> content
+	# alone; level 2 runs aggressive JS minification and is not safe with
+	# the inline JavaScript in the dashboard and home templates.
+	# vary_by adds Accept-Language to the cache key so VWF language
+	# detection stores one copy per language.
+	my $page_cache_dir = $self->config->{page_cache_dir};
+	my $page_chi;
+	if ($page_cache_dir) {
+		my $dir = Mojo::File->new($page_cache_dir);
+		$dir = $self->home->child($page_cache_dir) unless $dir->is_abs;
+		$dir->make_path;
+		$page_chi = CHI->new(
+			driver    => 'File',
+			root_dir  => $dir->to_string,
+			namespace => 'Database::BI::Pages',
+		);
+	}
+	$self->plugin('Buffer', {
+		optimise_content => 1,
+		vary_by          => ['accept-language'],
+		($page_chi ? (
+			cache          => $page_chi,
+			cache_duration => $self->config->{page_cache_duration} // '5 minutes',
+		) : ()),
+	});
+
 	# Every page names the tutorial chapter that helps with it.  The layout
 	# turns this into a "Help: ..." link beside the main Tutorial link, so a
 	# reader on the pie chart screen lands on the pie chart chapter.  It lives
