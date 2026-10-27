@@ -2,6 +2,7 @@ Revision history for Database-BI
 
 0.018.0
 	[ Enhancements ]
+	- Added a time range (e.g. last 90 days)
 	- Response compression (gzip / Brotli / Zstandard), ETag/304 browser
 	  cache validation, and HTML whitespace minification are now handled by
 	  Mojolicious::Plugin::Buffer registered at startup.  No action code
@@ -32,6 +33,44 @@ Revision history for Database-BI
 	  numeric comparison.
 	- New "between" filter operator for date range queries:
 	  spec format col:between:YYYY-MM-DD:YYYY-MM-DD.
+	- Relative time ranges: any data route accepts ?range=<name>&rcol=<column>
+	  and keeps only that window, resolved when the request arrives rather than
+	  frozen into dates.  Vocabulary: last_24_hours, today, yesterday,
+	  last_7_days, last_30_days, last_90_days, this_month, last_month,
+	  this_quarter, last_quarter, this_year, last_year.  An unknown range name,
+	  or a range with no rcol=, is a 400 rather than an unfiltered view.
+	- The range resolves to two bounds on that column (col:ge:lo,
+	  col:le:hi) and is applied through one filter-spec accessor,
+	  _filter_specs(), which every data pipeline folds over, so the table view,
+	  every chart, the pivot, the column statistics, the insights page, the
+	  exports and a saved canvas all honour it.  It is not mixed into the
+	  reader's own f= list, so the chips, the panel forms and the filter UI
+	  still show exactly the filters the reader wrote.
+	- Dashboard filter bar: a Time range menu with a column picker.  A window
+	  whose dates fall outside the dataset, read from /api/range, is disabled
+	  with the column's own range in its tooltip.  The active window is its own
+	  chip, and "Clear filters" clears it with the filters.
+	- Date filters compare against timestamp columns at the precision the
+	  filter names: a day bound (2026-10-27) now matches every row of that day
+	  in a YYYY-MM-DD[ T]HH:MM:SS column.  Before, a cell string longer than
+	  the bound sorted after it, so "le 2026-10-27" dropped the rows stamped on
+	  the 27th.  _is_iso_date() accepts an ISO timestamp and _date_key()
+	  compares a cell and a bound at the same precision; the string operators
+	  are unchanged.
+	- Saved canvases accept ?range=/?rcol= and apply the window to every card,
+	  before the per-card cross-filter.  The canvas toolbar has a control for
+	  it that carries the rest of the page's query string (cf/cv/dd/dl/c and
+	  the p.<name> values) through the change, and POST/PATCH
+	  /api/analyses/:id/visuals reads range/rcol from its query field, so a
+	  card added while a window is active is drawn through it.
+	- The tutorial's filter chapter mentions the time range, and the range is
+	  documented in the POD and README ("Relative time ranges").
+	[ Tests ]
+	- t/time-range.t: the window boundaries at fixed clocks, including month,
+	  quarter, year and leap-year rollovers; day-versus-timestamp comparisons;
+	  which rows each preset selects through /view, /bar, /export and /pivot;
+	  the 400s; the chip and the preset menu; and a canvas, both as saved and
+	  with a card added while a window is active.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]

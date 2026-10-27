@@ -150,6 +150,8 @@ Readonly my %MESSAGES => (
 	error_token_invalid         => 'Share token is invalid or has expired',
 	error_token_missing         => 'A share token is required to view this analysis',
 	freshness_stale_msg         => 'Source data has changed since this analysis was last saved',
+	error_range_name            => 'Unknown time range "%s"; expected one of: %s',
+	error_range_column          => 'A time range is applied to one column: add rcol=<column> to the URL',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -206,6 +208,38 @@ Readonly my %NAMED_COLOR_HEX => (
 # a corresponding entry in the lower-layer aggregate() implementations.
 Readonly my @MEASURE_FNS  => qw(sum avg min max count count_distinct);
 Readonly my %MEASURE_FN_OK => map { $_ => 1 } @MEASURE_FNS;
+
+# ---------------------------------------------------------------------------
+# Relative time ranges
+#
+# A relative time range is a named window worked out from the clock when the
+# request arrives -- "the last 30 days", "this quarter" -- so a link, a
+# bookmark or a saved canvas that carries one keeps meaning the same thing
+# every time it is opened instead of freezing the dates it first resolved to.
+#
+# The range is named in the URL (?range=<name>&rcol=<column>) and resolved to
+# two f= filters on that column, which every data route already applies, so the
+# table view, the charts, the pivot, the stats page, the insights page, the
+# exports and a saved canvas all see the same rows.
+#
+# The vocabulary is day-granular except last_24_hours, which is to the second.
+# ---------------------------------------------------------------------------
+
+Readonly my @TIME_RANGES => (
+	{ name => 'last_24_hours', label => 'Last 24 hours', hours => 24 },
+	{ name => 'today',         label => 'Today',         day   => 0 },
+	{ name => 'yesterday',     label => 'Yesterday',     day   => -1 },
+	{ name => 'last_7_days',   label => 'Last 7 days',   days  => 7 },
+	{ name => 'last_30_days',  label => 'Last 30 days',  days  => 30 },
+	{ name => 'last_90_days',  label => 'Last 90 days',  days  => 90 },
+	{ name => 'this_month',    label => 'This month',    month => 0 },
+	{ name => 'last_month',    label => 'Last month',    month => -1 },
+	{ name => 'this_quarter',  label => 'This quarter',  quarter => 0 },
+	{ name => 'last_quarter',  label => 'Last quarter',  quarter => -1 },
+	{ name => 'this_year',     label => 'This year',     year  => 0 },
+	{ name => 'last_year',     label => 'Last year',     year  => -1 },
+);
+Readonly my %TIME_RANGE => map { $_->{name} => $_ } @TIME_RANGES;
 
 # Allowed strptime-style date format patterns for the /dates/save endpoint.
 Readonly my %ALLOWED_DATE_PATTERNS => map { $_ => 1 }
@@ -742,16 +776,248 @@ sub _get_columns {
 # precompute, every case-insensitive operator (eq, ne, contains, starts) would
 # call lc($val) O(N) times for N records -- a pure O(N) waste since $val is
 # constant within a single filter application.
-sub _is_iso_date { $_[0] =~ /\A\d{4}-\d{2}-\d{2}\z/ }
+# _is_iso_date($value) -> bool
+#
+# Purpose: Report whether a filter value names a point in time rather than a
+#          plain string, so the date comparisons can be used instead of the
+#          string ones.  A bare date (YYYY-MM-DD) qualifies, and so does an ISO
+#          timestamp (YYYY-MM-DDTHH:MM:SS) or the same with a space separator,
+#          which is what CSV exports and SQLite text columns usually hold.
+sub _is_iso_date {
+	return $_[0] =~ /\A\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\z/;
+}
 
 # Convert M/D/YYYY or YYYY-MM-DD to YYYY-MM-DD; returns undef for other formats.
+# A value that is already ISO is returned unchanged, including its time part: a
+# timestamp cell is the caller's to compare, not this sub's to truncate.
 sub _to_iso_date {
 	my ($v) = @_;
-	return $v if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;
+	return $v if _is_iso_date($v);
 	if (my ($m, $d, $y) = $v =~ m{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}) {
 		return sprintf '%04d-%02d-%02d', $y, $m, $d;
 	}
 	return;
+}
+
+# _date_key($value, $precision) -> comparable key | undef
+#
+# Purpose: Put a cell and a filter bound on the same footing so that a
+#          lexicographic comparison answers the question the filter asked.
+#          $precision is 10 for a day and 19 for a second: a cell holding a
+#          timestamp is compared at the day it falls in when the bound is a
+#          day, and to the second when the bound carries a time.  A value that
+#          is not date-shaped at all returns undef, and the caller keeps the
+#          raw cell instead.
+sub _date_key {
+	my ($value, $precision) = @_;
+	return undef unless defined $value;
+	my ($day, $hour, $min, $sec) =
+		$value =~ /\A(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?\z/;
+	return undef unless defined $day;
+	return $day if $precision < 19;
+	return sprintf '%sT%s:%s:%s', $day, $hour // '00', $min // '00', $sec // '00';
+}
+
+# ---------------------------------------------------------------------------
+# Relative time ranges
+# ---------------------------------------------------------------------------
+
+# _iso_day($epoch) -> 'YYYY-MM-DD' in local time
+sub _iso_day {
+	my @lt = localtime($_[0]);
+	return sprintf '%04d-%02d-%02d', $lt[5] + 1900, $lt[4] + 1, $lt[3];
+}
+
+# _iso_second($epoch) -> 'YYYY-MM-DDTHH:MM:SS' in local time
+sub _iso_second {
+	my @lt = localtime($_[0]);
+	return sprintf '%04d-%02d-%02dT%02d:%02d:%02d',
+		$lt[5] + 1900, $lt[4] + 1, $lt[3], $lt[2], $lt[1], $lt[0];
+}
+
+# _midday($mday, $mon, $year) -> epoch
+#
+# Noon, so a boundary never lands in a daylight-saving gap, and mktime's own
+# normalisation (day 0 is the last day of the previous month, month -1 is
+# December, and so on) is what makes the month, quarter and year arithmetic
+# below one line each.  $mon is 0-based, $year is years since 1900, matching
+# localtime's own convention.
+sub _midday {
+	require POSIX;
+	return POSIX::mktime(12, 0, 0, $_[0], $_[1], $_[2]);
+}
+
+# _time_range_bounds($preset, $now) -> ($lo, $hi)
+#
+# Purpose: Resolve one preset to the window it names, as two strings that the
+#          filter engine can compare against: 'YYYY-MM-DD' for a day-granular
+#          window, 'YYYY-MM-DDTHH:MM:SS' for last_24_hours.
+# Entry:   $preset -- one entry of @TIME_RANGES.
+#          $now    -- epoch second; defaults to the clock, and a caller may
+#                     pass one so a test can name the day it is asking about.
+# Exit:    Two-element list, or an empty list for a preset with no window.
+# Notes:   "This month" and "this quarter" end today rather than at the end of
+#          the period, which is what the same names mean in a search bar; the
+#          completed period is last_month / last_quarter.
+sub _time_range_bounds {
+	my ($preset, $now) = @_;
+	$now = time() unless defined $now;
+
+	my @lt = localtime($now);
+	my ($mday, $mon, $year) = @lt[3, 4, 5];	# mon is 0-based
+
+	if ($preset->{hours}) {
+		return (_iso_second($now - $preset->{hours} * 3600), _iso_second($now));
+	}
+
+	my $today = _midday($mday, $mon, $year);
+
+	if (defined $preset->{day}) {
+		my $day = _midday($mday + $preset->{day}, $mon, $year);
+		return (_iso_day($day), _iso_day($day));
+	}
+
+	if (defined $preset->{days}) {
+		return (_iso_day(_midday($mday - $preset->{days} + 1, $mon, $year)),
+			_iso_day($today));
+	}
+
+	if (defined $preset->{month}) {
+		my $m = $mon + $preset->{month};
+		return $preset->{month} == 0
+			? (_iso_day(_midday(1, $mon, $year)), _iso_day($today))
+			: (_iso_day(_midday(1, $m, $year)), _iso_day(_midday(0, $m + 1, $year)));
+	}
+
+	if (defined $preset->{quarter}) {
+		my $q = int($mon / 3) * 3 + 3 * $preset->{quarter};
+		return $preset->{quarter} == 0
+			? (_iso_day(_midday(1, $q, $year)), _iso_day($today))
+			: (_iso_day(_midday(1, $q, $year)), _iso_day(_midday(0, $q + 3, $year)));
+	}
+
+	if (defined $preset->{year}) {
+		my $y = $preset->{year}; 	# 0 = this year, -1 = last year
+		my $start = _midday(1, 0, $year + $y);
+		return $preset->{year} == 0
+			? (_iso_day($start), _iso_day($today))
+			: (_iso_day($start), _iso_day(_midday(31, 11, $year + $y)));
+	}
+
+	return ();
+}
+
+# _time_range_specs($col, $lo, $hi) -> \@specs
+#
+# Purpose: Express a window as the f= filters the pipeline applies.
+# Notes:   Two bounds -- col:ge:lo and col:le:hi -- rather than one between
+#          spec.  A between value is "lo:hi" and its separator is a colon, so
+#          it cannot carry a bound with a time in it (last_24_hours ends in
+#          HH:MM:SS), and a colon in a column value would end the operator
+#          field early.  Two specs are inclusive at both ends exactly once,
+#          whatever precision the bounds carry.
+sub _time_range_specs {
+	my ($col, $lo, $hi) = @_;
+	return [] unless length($col // '') && length($lo // '') && length($hi // '');
+	return [ "$col:ge:$lo", "$col:le:$hi" ];
+}
+
+# _time_range_preset($name) -> \%preset | undef
+#
+# The named entry of the vocabulary above, or undef for a name that is not in
+# it.  A URL value reaches this, so it answers undef rather than croaking.
+sub _time_range_preset {
+	my ($name) = @_;
+	return $TIME_RANGE{$name // ''};
+}
+
+# _time_range_presets($now) -> \@presets
+#
+# Purpose: The menu a filter bar offers, with the dates each entry currently
+#          resolves to, so the page can show a range and, where it has asked
+#          for the dataset's own extent, disable an entry the data cannot
+#          answer.
+sub _time_range_presets {
+	my ($now) = @_;
+	return [ map {
+		my ($lo, $hi) = _time_range_bounds($_, $now);
+		{ name => $_->{name}, label => $_->{label}, lo => $lo, hi => $hi }
+	} @TIME_RANGES ];
+}
+
+# _apply_time_range($records, $name, $col) -> \@records
+#
+# Purpose: Apply a named relative range to a record set.  Used by the canvas,
+#          which renders its cards from its own pipeline rather than through a
+#          route's f= params.
+# Entry:   $name and $col are the URL values; neither is trusted.  An unknown
+#          name or an unusable column leaves the records alone, so a stale
+#          bookmark shows unfiltered data rather than an error page.
+sub _apply_time_range {
+	my ($records, $name, $col) = @_;
+	my $preset = $TIME_RANGE{$name // ''} or return $records;
+	return $records unless defined $col && length $col && $col !~ /:/;
+	my ($lo, $hi) = _time_range_bounds($preset);
+	for my $spec (@{ _time_range_specs($col, $lo, $hi) }) {
+		$records = _apply_filter_spec($records, $spec);
+	}
+	return $records;
+}
+
+# _time_range_request($c) -> bool
+#
+# Purpose: Turn the relative time range a request names -- ?range=<name> and
+#          ?rcol=<column> -- into the f= filters every data route already
+#          applies, and describe the range on the stash so a template can show
+#          a chip and the preset menu.  Registered as a before_dispatch hook in
+#          Database::BI::startup, so one implementation covers the table view,
+#          every chart, the pivot, stats, insights, the exports and the canvas,
+#          and a request that carries a range needs no per-route code.
+# Entry:   $c -- the controller for the request.
+# Exit:    Records the resolved bounds on the stash, where _filter_specs picks
+#          them up for whichever pipeline the route runs, and returns true --
+#          or renders 400 for a range that cannot be honoured and returns
+#          false, which stops the route from running against the wrong rows.
+#          The bounds are not written back into the request's f= params, so the
+#          reader's own filter list -- the chips, the panel forms and the
+#          filter UI -- never shows a range as dates it did not choose.
+sub _time_range_request ($c) {
+	my $name = $c->param('range');
+	my $col  = $c->param('rcol');
+
+	$c->stash(time_range_presets => _time_range_presets());
+	$c->stash(range_specs        => []);
+
+	return 1 unless defined $name && length $name;
+
+	my $preset = $TIME_RANGE{$name};
+	unless ($preset) {
+		$c->render(
+			text   => sprintf($MESSAGES{error_range_name}, $name,
+				join(', ', map { $_->{name} } @TIME_RANGES)),
+			status => 400,
+		);
+		return 0;
+	}
+	unless (defined $col && length $col && $col !~ /:/) {
+		$c->render(text => $MESSAGES{error_range_column}, status => 400);
+		return 0;
+	}
+
+	my ($lo, $hi) = _time_range_bounds($preset);
+	my $specs = _time_range_specs($col, $lo, $hi);
+
+	$c->stash(
+		time_range  => {
+			name  => $preset->{name},
+			label => $preset->{label},
+			col   => $col,
+			lo    => $lo,
+			hi    => $hi,
+		},
+		range_specs => $specs,
+	);
+	return 1;
 }
 
 sub _apply_filter_spec {
@@ -762,19 +1028,28 @@ sub _apply_filter_spec {
 	my $lval    = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
 	my $is_date = _is_iso_date($val)
 		|| ($op eq 'between' && $val =~ /\A\d{4}-\d{2}-\d{2}:/);
+	# Compare at the precision the bound names: a bound with a time in it asks
+	# about the second, a bare date asks about the day.  Without this, a date
+	# bound compared against a column of timestamps drops every row on the
+	# boundary day, because the cell string carries more characters than the
+	# bound and "2026-10-27T09:15:00" sorts after "2026-10-27".
+	my $prec = ($is_date && $val =~ /\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/) ? 19 : 10;
+	my $nval = $is_date ? (_date_key($val, $prec) // $val) : $val;
 	return [grep {
 		my $cell  = $_->{$col} // '';
 		# Normalise M/D/YYYY cells to ISO for date comparisons so that the
 		# ISO values produced by <input type="date"> match against either format.
-		my $ncell = $is_date ? (_to_iso_date($cell) // $cell) : $cell;
-		$op eq 'eq'       ? ($is_date ? $ncell eq $val   : lc($cell) eq $lval) :
-		$op eq 'ne'       ? ($is_date ? $ncell ne $val   : lc($cell) ne $lval) :
+		my $ncell = $is_date
+			? (_date_key(_to_iso_date($cell) // $cell, $prec) // $cell)
+			: $cell;
+		$op eq 'eq'       ? ($is_date ? $ncell eq $nval  : lc($cell) eq $lval) :
+		$op eq 'ne'       ? ($is_date ? $ncell ne $nval  : lc($cell) ne $lval) :
 		$op eq 'contains' ? index(lc($cell), $lval) != -1                      :
 		$op eq 'starts'   ? index(lc($cell), $lval) == 0                       :
-		$op eq 'lt'       ? ($is_date ? $ncell lt $val   : $cell <  $val)      :
-		$op eq 'le'       ? ($is_date ? $ncell le $val   : $cell <= $val)      :
-		$op eq 'gt'       ? ($is_date ? $ncell gt $val   : $cell >  $val)      :
-		$op eq 'ge'       ? ($is_date ? $ncell ge $val   : $cell >= $val)      :
+		$op eq 'lt'       ? ($is_date ? $ncell lt $nval  : $cell <  $val)      :
+		$op eq 'le'       ? ($is_date ? $ncell le $nval  : $cell <= $val)      :
+		$op eq 'gt'       ? ($is_date ? $ncell gt $nval  : $cell >  $val)      :
+		$op eq 'ge'       ? ($is_date ? $ncell ge $nval  : $cell >= $val)      :
 		$op eq 'empty'    ? $cell eq ''                                         :
 		$op eq 'notempty' ? $cell ne ''                                         :
 		$op eq 'between'  ? do {
@@ -806,11 +1081,38 @@ sub _apply_filters :Protected ($self, $records) {
 		my ($col, $op, $val) = split /:/, $s, 3;
 		next unless length($col // '') && defined $op && length $op;
 		push @parsed, { col => $col, op => $op, val => $val // '' };
+	}
+
+	# The range joins the request's own filters here, but it is not one of them:
+	# @specs -- which the page shows as chips, keeps in its panel forms and
+	# offers to its filter UI -- stays the reader's own list, so a relative range
+	# cannot be submitted as a frozen pair of dates and a reopened link cannot
+	# narrow twice.
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
+
 	my $json = encode_json(\@parsed);
 	$json =~ s{</}{<\\/}g;
 	return ($records, \@specs, $json);
+}
+
+# _filter_specs($self) -> \@specs
+#
+# Purpose: Every filter that applies to this request: the f= params the reader
+#          wrote, followed by the two bounds of the relative time range the
+#          request names, if any.  This is the list the data pipelines fold over
+#          -- charts, pivots, stats, insights and the exports as well as the
+#          table view -- so a range narrows all of them through one call site
+#          each, and a route that never heard of ranges still honours one.
+# Entry:   $self -- the controller; it needs only every_param() and stash().
+# Exit:    Returns an arrayref of "col:op:val" strings; possibly empty.
+sub _filter_specs {
+	my ($self) = @_;
+	return [
+		@{ $self->every_param('f') // [] },
+		@{ $self->stash('range_specs') // [] },
+	];
 }
 
 # _dedup_records(\@records, \@columns) -> \@unique_records
@@ -1067,7 +1369,7 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	# specs as possible to SQL criteria.  The push path is used only when ALL
 	# specs are SQL-pushable (no residual); otherwise the Perl fold handles the
 	# pre-filtered records the caller already passed in.
-	my @f_specs    = grep { /\S/ } @{ $self->every_param('f') // [] };
+	my @f_specs    = grep { /\S/ } @{ _filter_specs($self) };
 	my $has_filter = !!@f_specs;
 
 	# SQL::Statement 1.414 (the SQL engine under DBD::CSV) uses
@@ -1231,11 +1533,11 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# D::A 0.49+ and D::J 0.009.0 both support sort_by => [$col, $dir].
 	my @sort_args = $sort_col ? (sort_by => [$sort_col, $sort_dir]) : ();
 
-	# Collect and validate f= specs.
+	# Collect and validate the filters, the range's bounds included.
 	my @f_specs = grep {
 		my ($c, $o) = split /:/, $_, 3;
 		length($c // '') && defined $o && length $o;
-	} @{ $self->every_param('f') // [] };
+	} @{ _filter_specs($self) };
 
 	# Determine whether the source has a SQL backend that supports LIMIT/OFFSET.
 	# DBD::CSV / SQL::Statement do not implement LIMIT/OFFSET; passing them emits
@@ -2424,6 +2726,16 @@ sub _canvas_render_context :Protected ($self, $a, $query) {
 	my $cf_source = (defined $params && defined $params->param('cv'))
 		? int($params->param('cv')) : -1;
 
+	# The relative time range the canvas page names in its query string is part
+	# of the state a card is drawn through, like cf= and the bound parameters,
+	# so a visual added while a range is active shows the same rows as the
+	# cards already on screen.
+	$records = _apply_time_range(
+		$records,
+		$params ? $params->param('range') : undef,
+		$params ? $params->param('rcol')  : undef,
+	);
+
 	return {
 		src       => $src,
 		records   => $records,
@@ -3110,6 +3422,20 @@ sub canvas_render ($self) {
 			}
 		} sort keys %param_defs;
 
+		# Everything else the canvas is showing has to survive a change of time
+		# range, so the control carries the rest of this page's query string: the
+		# cross-filter (cf/vc), the drill path (dd/dl), the calculated columns
+		# (c) and the what-if parameter values (p.<name>).
+		my @canvas_range_hidden;
+		{
+			my $q = $self->req->query_params;
+			for my $name ($q->names) {
+				next if $name eq 'range' || $name eq 'rcol';
+				push @canvas_range_hidden,
+					map { { name => $name, value => $_ } } @{ $q->every_param($name) // [] };
+			}
+		}
+
 		my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
 		unless (defined $records) {
 			my ($platform, $language) = $self->_resolve_template;
@@ -3139,6 +3465,17 @@ sub canvas_render ($self) {
 		if ($@) {
 			(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
 			return $self->render(text => $e, status => 400);
+		}
+
+		# The relative time range the page names (?range=/?rcol=) narrows every
+		# card, before the per-card cross-filter.  The before_dispatch hook has
+		# already resolved it into the f= params the routes apply, but the canvas
+		# builds its own pipeline, so it applies the range itself from the same
+		# two specs.
+		if (my $range = $self->stash('time_range')) {
+			for my $spec (@{ $self->stash('range_specs') // [] }) {
+				$records = _apply_filter_spec($records, $spec);
+			}
 		}
 
 		# cross-filter state from URL params.
@@ -3340,6 +3677,15 @@ sub canvas_render ($self) {
 			canvas_params    => \@canvas_params,
 			canvas_bookmarks => \@canvas_bookmarks,
 			canvas_bookmarks_json => $bm_json,
+			canvas_time_range  => $self->stash('time_range'),
+			canvas_time_range_col => ($self->stash('time_range') ? $self->stash('time_range')->{col} : ''),
+			canvas_time_range_clear_url => (do {
+				my $u = $self->req->url->clone;
+				$u->query->remove('range')->remove('rcol');
+				$self->stash('time_range') ? $u->to_string : '';
+			}),
+			canvas_range_cols  => [ @$columns ],
+			canvas_range_hidden => \@canvas_range_hidden,
 			cf_active        => $cf_active    ? 1 : 0,
 			cf_display       => $cf_display,
 			cf_clear_url     => $cf_clear_url,
@@ -3391,7 +3737,7 @@ sub _run_export_pipeline :Protected ($self) {
 
 	my @columns = @{ $columns // [] };
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -4678,8 +5024,8 @@ sub combine_tables ($self) {
 		: ($left_recs, \@left_cols);
 	my @columns = @$cols_ref;
 
-	# Apply f= filters in memory before paginating (reduce-before-paginate).
-	for my $s (@{ $self->every_param('f') // [] }) {
+	# Apply the filters in memory before paginating (reduce-before-paginate).
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 	my $dedup = $self->param('d') ? 1 : 0;
@@ -5281,7 +5627,7 @@ sub graph_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters (pre-filter before building pairs, same as _run_export_pipeline).
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -5379,7 +5725,7 @@ sub graph_view ($self) {
 	# Try aggregate() push path for the global min/max/avg reference lines.
 	# Falls back to List::Util on the already-extracted @y_vals when push is
 	# not available (no source, filters active, or non-pushable column).
-	my @f_specs    = grep { /\S/ } @{ $self->every_param('f') // [] };
+	my @f_specs    = grep { /\S/ } @{ _filter_specs($self) };
 	my $has_filter = !!@f_specs;
 	if (!$ENV{BI_FORCE_PERL_AGG} && $src && !$has_filter
 		&& _measure_pushable($src, 'avg', $y_col, $records)) {
@@ -5462,7 +5808,7 @@ sub pie_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -5650,7 +5996,7 @@ sub heatmap_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -5820,7 +6166,7 @@ sub bar_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -6353,7 +6699,7 @@ sub pivot_view ($self) {
 		if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 	}
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -6729,7 +7075,7 @@ sub stats_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -7042,7 +7388,7 @@ sub scatter_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -7149,7 +7495,7 @@ sub stacked_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -7256,7 +7602,7 @@ sub combo_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -7367,7 +7713,7 @@ sub treemap_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -7477,7 +7823,7 @@ sub histogram_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -8114,7 +8460,7 @@ sub map_view ($self) {
 		return $self->render(text => $e, status => 400);
 	}
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -8799,7 +9145,7 @@ sub summary_api ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(json => { error => $e }, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -8864,7 +9210,7 @@ sub insights_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ $self->every_param('f') }) {
+	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
 	}
 

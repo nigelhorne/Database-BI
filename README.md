@@ -76,6 +76,12 @@ URL params or stored persistently via `POST /calc/save`.  Expressions
 support arithmetic, comparison, `IF`, string, numeric, and date
 functions, plus `bin(value,width)` for histogram grouping.  Calc fields
 are applied before aggregation on all chart and pivot routes.
+- **Relative time ranges** -- any data view, chart, pivot or saved canvas can be
+limited to a named window worked out from today -- the last 24 hours, the last
+7, 30 or 90 days, this or last month, quarter or year -- instead of typing
+dates.  The window is resolved on every request (`?range=` with `?rcol=`), so a
+bookmark or a canvas still means the same thing tomorrow, and the filter bar
+disables a window the data cannot answer.
 - **Saved canvases** -- the "Save as Canvas" panel saves the current data
 configuration as a named multi-visual canvas (`/a/:id`).  Visuals are
 arranged on a 12-column grid: drag a card by its header to any free cell
@@ -190,7 +196,9 @@ perl Makefile.PL
 - `GET /view/:table`
 
     Opens the named table from `data_dir`.  Accepts `?f=col:op:val`
-    (repeatable) to pre-filter results.
+    (repeatable) to pre-filter results, and `?range=name&rcol=column` to keep
+    only a relative window of rows (see [Relative time
+    ranges](#relative-time-ranges)).
 
 - `GET /browse`
 
@@ -212,6 +220,7 @@ perl Makefile.PL
     l=<spec>               left table spec (see below)
     j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
     f=<col>:<op>:<val>     result filter (repeatable)
+    range=<name>           relative time range, with rcol=<column> (see below)
     ```
 
     Spec formats:
@@ -530,8 +539,10 @@ perl Makefile.PL
 
     Renders a saved canvas (analysis) as a full multi-visual page.  Accepts
     cross-filter params `?cf=<col>&cv=<val>`, drill-through
-    params `?dd=<col>&dl=<level>`, and parameter overrides
-    `?p.<name>=<value>`.
+    params `?dd=<col>&dl=<level>`, parameter overrides
+    `?p.<name>=<value>`, and a relative time range
+    `?range=<name>&rcol=<column>` that narrows every card on the canvas (see
+    [Relative time ranges](#relative-time-ranges)).
 
 - `GET /api/analyses`
 
@@ -695,6 +706,56 @@ perl Makefile.PL
     optional LLM-polished prose when `ai=1` is passed and `ai_api_key` is
     set.  Only aggregate insight facts are sent to the LLM.  Results are cached
     in-process for one hour keyed on the analysis fingerprint.
+
+### Relative time ranges
+
+Every data route accepts a named window in place of a pair of dates:
+
+```
+GET /view/sales?range=last_30_days&rcol=sale_date
+GET /a/mycanvas?range=this_quarter&rcol=order_date
+```
+
+`range=` names the window and `rcol=` names the column it applies to.  The
+window is worked out when the request arrives, so a link, a bookmark or a
+saved canvas keeps meaning the same thing whenever it is opened rather than the
+dates it happened to resolve to when it was written.  The vocabulary is
+
+```
+last_24_hours   the 24 hours ending now, to the second
+today, yesterday
+last_7_days, last_30_days, last_90_days     including today
+this_month, last_month
+this_quarter, last_quarter
+this_year, last_year
+```
+
+A `this` period ends today; the completed one is `last_month`,
+`last_quarter` and so on.
+
+The range is applied as two ordinary filters on that column -- `col:ge:lo`
+and `col:le:hi` -- so the table view, every chart, the pivot, the column
+statistics, the insights page, the exports and a saved canvas all show the same
+rows, and one chip in the toolbar names the window with an `x` to remove it.
+Filters the reader wrote are untouched: the range travels in the URL as itself,
+so submitting a panel form or reopening a link does not turn it into frozen
+dates.
+
+A window narrower than a day (`last_24_hours`) is compared to the second, so
+it is exact only on a column that holds a time as well as a date.  A
+day-granular window compared against a column of timestamps covers each day it
+reaches in full, which is what a date filter does on its own as well.
+
+The filter bar offers the same windows: choose one and the column it applies
+to.  Entries whose window falls entirely outside the data are disabled, with the
+column's own earliest and latest value -- from `GET /api/range` -- in the
+tooltip, so a window that can only show nothing says so before it is chosen.
+An unknown `range=` is a 400 rather than a silently unfiltered view, and a
+range with no `rcol=` is a 400 as well.
+
+On a saved canvas the range narrows every card, and a card added while one is
+active is drawn through it: `query` in `POST /api/analyses/:id/visuals`
+carries `range=`/`rcol=` as it carries `cf=`.
 
 ## Configuration
 
@@ -933,6 +994,11 @@ suitable for files that do not fit in the process's available memory.
 `Database::BI` evicts upload subdirectories whose modification time is
 older than 24 hours.  The "Clear upload cache" button (`POST
 /uploads/clear`) triggers an immediate full purge regardless of age.
+- A relative time range is resolved against the server's clock and compares the
+column as a string, like every other filter.  A column holding a time zone
+offset or a non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so
+`last_24_hours` is exact only for a column whose values are ISO
+`YYYY-MM-DDTHH:MM:SS` (a space instead of the `T` is accepted too).
 - `Sub::Protected`/:Protected enforcement relies on the CHECK compilation
 phase.  When a module is loaded dynamically at test time (e.g. via
 `Test::Mojo-`new(...)>), the CHECK phase has already passed and the
@@ -952,9 +1018,13 @@ aggregate/measure layer) are no longer listed.
 
 - **Multi-sheet XLSX** (Medium) -- `_detect_file_info` reads only the
 first worksheet.  A `?sheet=` URL param with a sheet-name picker would
-expose the full workbook.
-- **`between` and `in (a,b,c)` filter operators** (Low) -- Would
-reduce multi-filter chains for common range and set queries.
+expose the full workbook.- **`between` and `in (a,b,c)` filter operators** (Low) -- Would
+    reduce multi-filter chains for common range and set queries.
+- **Time-of-day windows** (Low) -- `last_24_hours` and any range ending today
+    are measured against a column's own time when it has one.  Ranges that are
+    named by the clock are not: there is no "the last hour" or "this morning"
+    in the vocabulary, and hour-granular binning would need a time column
+    declared as such rather than inferred.
 - **SSE streaming for large join results** (Low) -- The join pipeline
 blocks the HTTP response until all rows are assembled.  Mojolicious supports
 server-sent events, which could progressively stream rows to a JS table

@@ -202,10 +202,24 @@
 </ul>
 [%- END -%]
 
+[%- # A relative time range is part of this view, so every form that carries the
+    # view to another page has to carry it too.  The range travels as itself --
+    # ?range=<name>&rcol=<column> -- rather than as the dates it resolved to, so
+    # a link, a bookmark or a saved panel keeps meaning the same window.
+-%]
+[%- MACRO range_hidden BLOCK -%]
+[%- IF time_range -%]<input type="hidden" name="range" value="[% time_range.name | html %]"><input type="hidden" name="rcol" value="[% time_range.col | html %]">[%- END -%]
+[%- END -%]
+
 [%- IF left_spec -%]
 <div class="toolbar">
-  [%- IF filter_specs.size -%]
+  [%- IF filter_specs.size || time_range -%]
   <span class="filter-chips" id="filter-chip-row">
+    [%- IF time_range -%]
+    <span class="filter-chip filter-chip-range" id="range-chip"
+          data-range="[% time_range.name | html %]"
+          title="Rows are limited to a window worked out from today's date; this stays relative wherever the view is carried to">[% time_range.label | html %] &middot; [% time_range.col | html %]<button class="chip-remove" id="chip-remove-range" title="Remove this time range" aria-label="Remove time range">&#x2715;</button></span>
+    [%- END -%]
     [%- FOREACH fs IN filter_specs -%]
     <span class="filter-chip" data-spec="[% fs | html %]">[% fs | html %]<button class="chip-remove" title="Remove this filter" aria-label="Remove filter">&#x2715;</button></span>
     [%- END -%]
@@ -298,6 +312,25 @@
   <span id="dash-f-range-sep" class="dash-f-range-sep" style="display:none">&mdash;</span>
   <input type="date"   id="dash-f-to"   style="display:none" aria-label="To date">
   <button id="dash-f-apply" class="btn-dash-filter-apply">Apply filter</button>
+
+  <span class="dash-f-sep" role="separator" aria-hidden="true">&ensp;&bull;&ensp;</span>
+
+  <label for="dash-range-preset" class="dash-f-range-label">Time range</label>
+  <select id="dash-range-preset"
+          title="Show only the rows inside a window worked out from today's date, such as the last 30 days">
+    <option value="">&#x2014; no time range &#x2014;</option>
+    [%- FOREACH rp IN time_range_presets -%]
+    <option value="[% rp.name | html %]" data-lo="[% rp.lo | html %]" data-hi="[% rp.hi | html %]"[% IF time_range and time_range.name == rp.name %] selected[% END %]>[% rp.label | html %]</option>
+    [%- END -%]
+  </select>
+  <select id="dash-range-col" aria-label="Column the time range applies to">
+    <option value="">&#x2014; column &#x2014;</option>
+    [%- FOREACH col IN columns -%]
+    <option value="[% col | html %]"[% IF time_range and time_range.col == col %] selected[% END %]>[% col | html %]</option>
+    [%- END -%]
+  </select>
+  <button id="dash-range-apply" class="btn-dash-filter-apply" type="button"
+          title="Apply the time range to this view">Apply range</button>
 </div>
 [%- END -%]
 
@@ -365,6 +398,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]" class="f-preserved">
     [%- END -%]
+    [%- range_hidden -%]
 
     <h3 class="join-panel-title">Merge data / Filter results</h3>
 
@@ -457,6 +491,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
 
     <h3 class="combine-panel-title">Combine data</h3>
 
@@ -516,6 +551,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     [%- IF dedup -%]
     <input type="hidden" name="d" value="1">
     [%- END -%]
@@ -568,6 +604,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     [%- IF dedup -%]
     <input type="hidden" name="d" value="1">
     [%- END -%]
@@ -631,6 +668,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     [%- IF dedup -%]
     <input type="hidden" name="d" value="1">
     [%- END -%]
@@ -702,6 +740,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     [%- IF dedup -%]
     <input type="hidden" name="d" value="1">
     [%- END -%]
@@ -773,6 +812,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     <input type="hidden" name="back" id="stacked-back-inp" value="">
     <input type="hidden" name="back2" id="stacked-back2-inp" value="">
     <input type="hidden" name="back2_label" id="stacked-back2-label-inp" value="">
@@ -836,6 +876,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     <input type="hidden" name="back" id="scatter-back-inp" value="">
     <input type="hidden" name="back2" id="scatter-back2-inp" value="">
     <input type="hidden" name="back2_label" id="scatter-back2-label-inp" value="">
@@ -913,6 +954,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     <input type="hidden" name="back" id="combo-back-inp" value="">
     <input type="hidden" name="back2" id="combo-back2-inp" value="">
     <input type="hidden" name="back2_label" id="combo-back2-label-inp" value="">
@@ -963,6 +1005,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     <input type="hidden" name="back" id="treemap-back-inp" value="">
     <input type="hidden" name="back2" id="treemap-back2-inp" value="">
     <input type="hidden" name="back2_label" id="treemap-back2-label-inp" value="">
@@ -1015,6 +1058,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     <input type="hidden" name="back" id="histogram-back-inp" value="">
     <input type="hidden" name="back2" id="histogram-back2-inp" value="">
     <input type="hidden" name="back2_label" id="histogram-back2-label-inp" value="">
@@ -1058,6 +1102,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
     [%- IF dedup -%]
     <input type="hidden" name="d" value="1">
     [%- END -%]
@@ -1221,6 +1266,7 @@
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]">
     [%- END -%]
+    [%- range_hidden -%]
 
     <h3 class="graph-panel-title">&#x25A6; Pivot table</h3>
     <p class="graph-panel-desc">Group and aggregate data into a crosstab. Dimensions become the row and column headers; measures compute a value for each cell.</p>
@@ -1373,6 +1419,7 @@
   [%- FOREACH fs IN filter_specs -%]
   <input type="hidden" name="f" value="[% fs | html %]">
   [%- END -%]
+  [%- range_hidden -%]
   <input type="hidden" name="back" id="stats-form-back" value="">
   <input type="hidden" name="back_label" value="Back to table">
 </form>
@@ -1381,6 +1428,7 @@
   [%- FOREACH fs IN filter_specs -%]
   <input type="hidden" name="f" value="[% fs | html %]">
   [%- END -%]
+  [%- range_hidden -%]
   <input type="hidden" name="back" id="insights-form-back" value="">
   <input type="hidden" name="back_label" value="Back to table">
 </form>
@@ -2390,6 +2438,10 @@ function biDetectColType(colName) {
       e.preventDefault();
       var u = new URL(location.href);
       u.searchParams.delete('f');
+      // A relative range is a filter of this view, so clearing the filters
+      // clears it too rather than leaving an invisible window in force.
+      u.searchParams.delete('range');
+      u.searchParams.delete('rcol');
       location.href = u.toString();
     });
   }
@@ -2549,6 +2601,99 @@ function biDetectColType(colName) {
       if (e.key === 'Enter') applyBtn.click();
     });
   }
+}());
+
+// ---------------------------------------------------------------------------
+// Relative time range
+//
+// The named window travels in the URL as range= and rcol=, and the server
+// resolves it on every request, so the view stays relative wherever it is
+// carried to.  Nothing here computes a date: the resolved bounds are rendered
+// into each option, and they are used for one thing only -- telling the reader
+// which windows the data cannot answer, using the column's own earliest and
+// latest value from /api/range.
+// ---------------------------------------------------------------------------
+(function () {
+  var presetSel = document.getElementById('dash-range-preset');
+  var colSel    = document.getElementById('dash-range-col');
+  var applyBtn  = document.getElementById('dash-range-apply');
+  if (!presetSel || !colSel || !applyBtn) return;
+
+  var addPanel = document.getElementById('dash-add-filter');
+  var spec     = addPanel ? addPanel.getAttribute('data-spec') : '';
+
+  function go(name, col) {
+    var u = new URL(location.href);
+    if (name && col) {
+      u.searchParams.set('range', name);
+      u.searchParams.set('rcol', col);
+    } else {
+      u.searchParams.delete('range');
+      u.searchParams.delete('rcol');
+    }
+    location.href = u.toString();
+  }
+
+  function ask(name, col) {
+    if (!name)       { go('', '');  return; }
+    if (!col)        { colSel.focus(); return; }
+    go(name, col);
+  }
+
+  // A window that ends before the column's earliest value, or starts after its
+  // latest, has no rows to show.  /api/range answers from the whole dataset, so
+  // the menu can say so before the reader picks it rather than after.
+  function boundPresets() {
+    Array.from(presetSel.options).forEach(function (o) {
+      o.disabled = false;
+      o.removeAttribute('title');
+    });
+
+    var col = colSel.value;
+    if (!col || !spec) return;
+
+    fetch('/api/range?l=' + encodeURIComponent(spec) + '&col=' + encodeURIComponent(col))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        if (!d || !d.min || !d.max) return;
+        var min = String(d.min).slice(0, 10);
+        var max = String(d.max).slice(0, 10);
+        Array.from(presetSel.options).forEach(function (o) {
+          var lo = o.getAttribute('data-lo');
+          var hi = o.getAttribute('data-hi');
+          if (!lo || !hi) return;
+          if (hi.slice(0, 10) < min || lo.slice(0, 10) > max) {
+            o.disabled = true;
+            o.title = 'No rows in this window: ' + col + ' runs from ' + min + ' to ' + max;
+          }
+        });
+      })
+      .catch(function () {});
+  }
+
+  // A range needs a column.  Offer the first one that looks like a date, so
+  // the common case is one click rather than two.
+  if (!colSel.value) {
+    var dateCol = '';
+    for (var i = 0; i < colSel.options.length && !dateCol; i++) {
+      var v = colSel.options[i].value;
+      if (v && biDetectColType(v) === 'date') dateCol = v;
+    }
+    if (dateCol) colSel.value = dateCol;
+  }
+
+  presetSel.addEventListener('change', function () {
+    ask(presetSel.value, colSel.value);
+  });
+  colSel.addEventListener('change', boundPresets);
+  applyBtn.addEventListener('click', function () {
+    ask(presetSel.value, colSel.value);
+  });
+
+  var chip = document.getElementById('chip-remove-range');
+  if (chip) chip.addEventListener('click', function () { go('', ''); });
+
+  boundPresets();
 }());
 
 // Dedup button -- toggle d=1 in the URL and reload
@@ -4735,6 +4880,10 @@ function biDetectColType(colName) {
     urlP.getAll('c').forEach(function (v) { params.append('c', v); });
     urlP.getAll('f').forEach(function (v) { params.append('f', v); });
     if (urlP.get('d')) params.set('d', '1');
+    // A relative range travels as itself, so the file holds the same rows this
+    // view is showing rather than the ones a frozen date pair would match.
+    if (urlP.get('range')) params.set('range', urlP.get('range'));
+    if (urlP.get('rcol'))  params.set('rcol',  urlP.get('rcol'));
 
     fetch('/export', {
       method: 'POST',
