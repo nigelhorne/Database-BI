@@ -14,7 +14,7 @@
   .dash-add-filter input[type="number"],
   .dash-add-filter input[type="date"] {
     padding: 0.25rem 0.45rem;
-    border: 1px solid #bbb;
+    border: 1px solid var(--field-border);
     border-radius: 4px;
     font-size: 0.82rem;
   }
@@ -154,9 +154,12 @@
   .pivot-dim-row select,
   .pivot-measure-row select,
   .pivot-measure-row input[type="text"],
-  .pivot-measure-row input[type="number"] {
+  .pivot-measure-row input[type="number"],
+  .pivot-options-row select,
+  .pivot-options-row input[type="text"],
+  .pivot-options-row input[type="number"] {
     padding: 0.28rem 0.45rem;
-    border: 1px solid #bbb;
+    border: 1px solid var(--field-border);
     border-radius: 4px;
     font-size: 0.83rem;
   }
@@ -164,6 +167,10 @@
   .pivot-measure-row input[type="number"] { width: 58px; }
   .pivot-dim-list, .pivot-measure-list { display: flex; flex-direction: column; gap: 0.3rem; }
   .pivot-options-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    row-gap: 0.4rem;
     margin: 0.1rem 0 0.75rem;
     font-size: 0.88rem;
   }
@@ -181,31 +188,15 @@
   .pivot-alias-label { font-size: 0.75rem; color: #888; white-space: nowrap; }
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .pivot-section-head { color: #999; }
-    :root:not([data-theme="light"]) .pivot-dim-row select,
-    :root:not([data-theme="light"]) .pivot-measure-row select,
-    :root:not([data-theme="light"]) .pivot-measure-row input[type="text"],
-    :root:not([data-theme="light"]) .pivot-measure-row input[type="number"] {
-      background: #222; color: #ddd; border-color: #555;
-    }
     :root:not([data-theme="light"]) .btn-remove-pivot { border-color: #555; color: #aaa; }
     :root:not([data-theme="light"]) .pivot-alias-label { color: #888; }
   }
   :root[data-theme="dark"] .pivot-section-head { color: #999; }
-  :root[data-theme="dark"] .pivot-dim-row select,
-  :root[data-theme="dark"] .pivot-measure-row select,
-  :root[data-theme="dark"] .pivot-measure-row input[type="text"],
-  :root[data-theme="dark"] .pivot-measure-row input[type="number"] {
-    background: #222; color: #ddd; border-color: #555;
-  }
   :root[data-theme="dark"] .btn-remove-pivot { border-color: #555; color: #aaa; }
   :root[data-theme="dark"] .pivot-alias-label { color: #888; }
 </style>
 
-[%- IF back_url -%]
-<p class="back-link"><span><a href="/">&larr; Home</a> &rsaquo; <a href="[% back_url | html %]">[% back_label || 'Back' | html %]</a>[%- IF back2_url -%] &rsaquo; <a href="[% back2_url | html %]">[% back2_label || 'Back' | html %]</a>[%- END -%]</span>[%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</p>
-[%- ELSE -%]
-<p class="back-link"><span><a href="/">&larr; Choose another database</a></span>[%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</p>
-[%- END -%]
+<nav class="back-link" aria-label="Breadcrumb">[% PROCESS "web/en/layouts/breadcrumb.html.tt" %][%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</nav>
 [%- IF schema_warnings.size -%]
 <ul class="schema-warnings" role="alert">
   [%- FOREACH w IN schema_warnings -%]

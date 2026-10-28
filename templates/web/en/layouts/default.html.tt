@@ -14,6 +14,24 @@
       padding: 2rem;
     }
 
+    /* One look for every dropdown and text field on every page.  :where()
+       keeps this at zero specificity, so a component's own rule still sets
+       its size and spacing; components take their colours from these two
+       variables rather than naming their own, and a field with no rule of its
+       own gets this instead of the browser's default grey. */
+    :root {
+      --field-bg: #fff;
+      --field-border: #c0c8e0;
+    }
+    /* The :not() chain must stay on one line: a space inside it would make it
+       a descendant selector. */
+    :where(select, textarea, input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not([type="submit"]):not([type="button"]):not([type="reset"]):not([type="image"])) {
+      background-color: var(--field-bg);
+      border: 1px solid var(--field-border);
+      border-radius: 4px;
+      color: inherit;
+    }
+
     header {
       margin-bottom: 1.5rem;
       display: flex;
@@ -422,10 +440,10 @@
     .join-field input[type="text"],
     .join-field input[type="number"] {
       padding: 0.4rem 0.6rem;
-      border: 1px solid #c0c8e0;
+      border: 1px solid var(--field-border);
       border-radius: 5px;
       font-size: 0.875rem;
-      background: #fff;
+      background: var(--field-bg);
       width: 100%;
       box-sizing: border-box;
     }
@@ -1052,10 +1070,10 @@
     .filter-row select,
     .filter-row input[type="text"] {
       padding: 0.35rem 0.5rem;
-      border: 1px solid #c0c8e0;
+      border: 1px solid var(--field-border);
       border-radius: 5px;
       font-size: 0.85rem;
-      background: #fff;
+      background: var(--field-bg);
     }
 
     .btn-remove-filter {
@@ -1304,7 +1322,7 @@
       width: 100%;
       box-sizing: border-box;
       padding: 0.45rem 0.6rem;
-      border: 1px solid #ccc;
+      border: 1px solid var(--field-border);
       border-radius: 5px;
       font-size: 0.88rem;
     }
@@ -1327,7 +1345,7 @@
     .action-idx-input {
       width: 3.5rem;
       padding: 0.45rem 0.4rem;
-      border: 1px solid #ccc;
+      border: 1px solid var(--field-border);
       border-radius: 5px;
       font-size: 0.88rem;
       text-align: center;
@@ -1755,9 +1773,11 @@
         if (/\/scatter$/.test(path))       return 'scatter';
         if (/\/heatmap$/.test(path))       return 'heatmap';
         if (/\/stacked$/.test(path))       return 'stacked';
-        if (/\/combo$/.test(path))         return 'combo';        if (/\/treemap$/.test(path))     return 'treemap';
-        if (/\/histogram$/.test(path))   return 'histogram';
-        if (/\/map$/.test(path))         return 'map';
+        if (/\/combo$/.test(path))         return 'combo';
+        if (/\/treemap$/.test(path))       return 'treemap';
+        if (/\/histogram$/.test(path))     return 'histogram';
+        if (/\/wordcloud$/.test(path))     return 'wordcloud';
+        if (/\/map$/.test(path))           return 'map';
         return 'table';
       }());
       var encode = {};

@@ -41,6 +41,13 @@ Revision history for Database-BI
 	- Chart, pivot, stats and insights pages show a "Drawn from:" strip naming
 	  the time range, filters, cross-row columns, combined files and
 	  de-duplication, with a link back to change them.
+	- Every page has a full breadcrumb, from Home to the page itself, each
+	  step named after what it shows: Home > sales > Bar chart: amount by
+	  region > sales (region = East) > Pie chart: Count by region.  The
+	  trail is read from each page's back links, so it is no longer cut at
+	  two levels; a file opened from the browser sits under its folder, and
+	  a canvas is named.  Back links to another site are not followed, and
+	  the trail is at most eight steps.
 	[ Bug Fixes ]
 	- Two charts on one canvas no longer collide; the second card draws.
 	- A card's cross-row column no longer appears in the cards beside it.
@@ -62,6 +69,19 @@ Revision history for Database-BI
 	- Toolbar and filter-bar controls on the same row now line up top and
 	  bottom: they share one height and are centred, rather than aligned on
 	  their text baselines.
+	- The pivot panel's Limit to top, ranked by, Time bucket and "of column"
+	  fields are the same size as its Row, Column and Measure fields.
+	- Canvas controls line up: the Time range bar, parameter bar and toolbar
+	  share the table toolbar's height, the Time range menus and Apply
+	  button are styled, and card-header buttons are one height.
+	- Every dropdown and text field is white with one border colour, from a
+	  single rule in the layout; the table page's filter bar and pivot fields
+	  showed the browser's grey, and pivot fields turned near-black when the
+	  OS was in dark mode.
+	- An unknown canvas (/a/<id>) is an HTML page with the breadcrumb and
+	  navigation, not a line of plain text.
+	- Folder view levels keep the link back to the table they came from,
+	  and its crumb is an absolute link.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]

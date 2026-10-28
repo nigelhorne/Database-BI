@@ -1484,6 +1484,14 @@ sub startup ($self) {
 			(defined $d3_url && !ref $d3_url && length $d3_url)
 				? $d3_url : $DEFAULT_D3_URL);
 
+		# The breadcrumb trail (layouts/breadcrumb.html.tt), worked out from the
+		# request's own URL, so every page has one and a new page gets one
+		# without code of its own.
+		if (!defined $c->stash('trail')) {
+			require Database::BI::Controller::Dashboard;
+			$c->stash(trail => Database::BI::Controller::Dashboard::_breadcrumb_trail($c));
+		}
+
 		return if defined $c->stash('tutorial_chapter');
 
 		my $chapter = Database::BI::Tutorial->chapter_for_action($c->stash('action'));

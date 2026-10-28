@@ -16,6 +16,7 @@ use Database::BI::Tutorial;
 use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json);
 use Mojo::Parameters;
+use Mojo::URL;
 use Mojo::Util		qw(url_escape encode xml_escape);
 use File::Path		qw(remove_tree);
 use File::Spec;
@@ -422,6 +423,255 @@ sub _safe_back_url {
 	return undef unless defined $url && length($url);
 	return $url if $url =~ m{\A(?:/(?!/)|https?://)}i;
 	return undef;
+}
+
+# ---------------------------------------------------------------------------
+# Breadcrumb trail
+# ---------------------------------------------------------------------------
+#
+# Every page shows Home > ... > the page itself.  The trail is not passed in:
+# each page's URL already names the page it was opened from (a chart's back=,
+# a table's back2= when it was drilled into from a chart), and that URL names
+# its own, so the whole path is recovered by following the links up.  Each
+# step is named from its own URL by one function, so a crumb always reads the
+# same whichever page it appears on.
+
+# The chart and analysis routes, which name their parent with back=.
+Readonly my %CRUMB_KIND => (
+	graph     => 'Line graph',   line      => 'Line graph',
+	pie       => 'Pie chart',    heatmap   => 'Heatmap',
+	bar       => 'Bar chart',    stacked   => 'Stacked bar chart',
+	scatter   => 'Scatter plot', combo     => 'Combo chart',
+	treemap   => 'Treemap',      histogram => 'Histogram',
+	wordcloud => 'Word cloud',   map       => 'Map',
+	pivot     => 'Pivot table',  stats     => 'Column stats',
+	insights  => 'Insights',     folder    => 'Folder view',
+);
+
+# How a filter reads in a crumb: "region = East".
+Readonly my %CRUMB_OP => (
+	eq => '=', ne => '!=', contains => 'contains', starts => 'starts with',
+	lt => '<', le => '<=', gt => '>', ge => '>=', between => 'between',
+	empty => 'is empty', notempty => 'is not empty',
+);
+
+# A trail is never longer than this, whatever the URLs say.
+Readonly my $CRUMB_MAX_DEPTH => 8;
+
+# A column name or filter value that a crumb will repeat.  The URL is the
+# user's, so a crafted one could put any text in the trail; markup and
+# over-long values are left out and the crumb names the page more generally.
+Readonly my $CRUMB_TEXT_RE => qr/\A[^<>"\x00-\x1f]{1,64}\z/;
+
+# _breadcrumb_trail($c) -> \@crumbs
+#
+# Purpose: The pages between Home and this one, this one last: a list of
+#          { label, url }.  Home itself is not in the list; the template
+#          always puts it first.
+# Entry:   $c -- the controller for the request.  A plain function, called
+#          from the before_render hook in Database::BI, so every page gets a
+#          trail without per-action code.
+# Exit:    An arrayref, empty for Home and for a controller that is not this
+#          class (a 404 page rendered by Mojolicious itself).
+# Notes:   A parent is followed only when _safe_back_url accepts it and it is
+#          on this host; a loop or the depth cap ends the trail, so a crafted
+#          URL can make it short but never wrong or endless.
+sub _breadcrumb_trail {
+	my ($c) = @_;
+	return [] unless ref $c && $c->isa(__PACKAGE__);
+
+	my @trail;
+	my %seen;
+	my $url = Mojo::URL->new($c->req->url->path_query);
+	while ($url && @trail < $CRUMB_MAX_DEPTH) {
+		my $key = $url->path_query;
+		last if $seen{$key}++;
+		my $label = $c->_crumb_label($url);
+		last unless defined $label && length $label;
+		unshift @trail, { label => $label, url => $key };
+		$url = $c->_crumb_parent($url);
+	}
+	return \@trail;
+}
+
+# _crumb_local($self, $raw) -> Mojo::URL | undef
+#
+# A parent link as a URL on this site, or undef when there is none to follow:
+# empty, refused by _safe_back_url, on another host, or Home (which the trail
+# shows anyway).  Absolute links -- the panels pass window.location.href --
+# are reduced to their path and query.
+sub _crumb_local :Protected ($self, $raw) {
+	my $safe = _safe_back_url($raw) or return undef;
+	my $url  = Mojo::URL->new($safe);
+	if (defined $url->host) {
+		my $here = $self->req->url->to_abs;
+		return undef unless lc($url->host_port // '') eq lc($here->host_port // '');
+	}
+	my $path = $url->path->to_string;
+	return undef if $path eq '' || $path eq '/';
+	return Mojo::URL->new($url->path_query);
+}
+
+# _crumb_parent($self, $url) -> Mojo::URL | undef
+#
+# The page $url was opened from.  A chart names it with back=.  A table page
+# names it with back2= when it was drilled into from a chart, and otherwise
+# has a natural parent: the left table for a merge or a combine, the schema
+# page or the folder for a file, nothing for a table in data_dir.
+sub _crumb_parent :Protected ($self, $url) {
+	my $path = $url->path->to_string;
+	my $q    = $url->query;
+
+	if ($path =~ m{\A/([a-z]+)\z} && $CRUMB_KIND{$1}) {
+		return $self->_crumb_local($q->param('back'))
+			// $self->_crumb_local($self->_spec_to_url($q->param('l') // ''));
+	}
+	if ($path =~ m{\A/view/} || $path eq '/import') {
+		return $self->_crumb_local($q->param('back2'));
+	}
+	if ($path eq '/join' || $path eq '/combine') {
+		return $self->_crumb_local($q->param('back2'))
+			// $self->_crumb_local($self->_spec_to_url($q->param('l') // ''));
+	}
+	if ($path eq '/open') {
+		my $parent = $self->_crumb_local($q->param('back2'))
+			// $self->_crumb_local($q->param('back'));
+		return $parent if $parent;
+		my $file = $q->param('path') // '';
+		return undef unless length $file && $file !~ m{\A/\.\./};
+		return Mojo::URL->new('/browse?path=' . url_escape(Mojo::File->new($file)->dirname->to_string));
+	}
+	if ($path eq '/tables') {
+		my $spec = $q->param('l') // '';
+		return undef unless $spec =~ /\Apath:(.+)\z/;
+		return Mojo::URL->new('/browse?path=' . url_escape(Mojo::File->new($1)->dirname->to_string));
+	}
+	if ($path =~ m{\A/a/}) {
+		return $self->_crumb_local($q->param('back'));
+	}
+	return undef;
+}
+
+# _crumb_label($self, $url) -> $text | undef
+#
+# What a page is called in a trail.  undef for a page that has no place in
+# one, which ends the trail there.
+sub _crumb_label :Protected ($self, $url) {
+	my $path = $url->path->to_string;
+	my $q    = $url->query;
+	my $view = _crumb_view_suffix($q);
+
+	return _crumb_spec_name("table:$1") . $view if $path =~ m{\A/view/([^/]+)\z};
+
+	if ($path eq '/open') {
+		my $name = Mojo::File->new($q->param('path') // '')->basename;
+		my $it   = $q->param('it');
+		$name .= ": $it" if defined $it && length $it;
+		return length $name ? "$name$view" : undef;
+	}
+	if ($path eq '/join') {
+		my @names = map { _crumb_spec_name($_) } grep { length }
+			($q->param('l') // ''), map { (split /\|/, $_, 2)[0] // '' } @{ $q->every_param('j') };
+		return @names ? join(' + ', @names) . $view : undef;
+	}
+	if ($path eq '/combine') {
+		my @names = map { _crumb_spec_name($_) } grep { /\A(?:table|path|url|redis):/i }
+			($q->param('l') // ''), @{ $q->every_param('c') };
+		return @names ? join(' + ', @names) . $view : undef;
+	}
+	if ($path eq '/import') {
+		my $src = Mojo::URL->new($q->param('url') // '');
+		return defined $src->host ? $src->host . $view : undef;
+	}
+	if ($path =~ m{\A/([a-z]+)\z} && $CRUMB_KIND{$1}) {
+		my $what = _crumb_chart_subject($1, $q);
+		return $CRUMB_KIND{$1} . (length $what ? ": $what" : '');
+	}
+	if ($path eq '/tables') {
+		my $spec = $q->param('l') // '';
+		return length $spec ? _crumb_spec_name($spec) . ' schema' : undef;
+	}
+	if ($path eq '/browse') {
+		my $dir = $q->param('path') // '';
+		return length $dir ? 'Files: ' . Mojo::File->new($dir)->basename : 'Files';
+	}
+	return 'Catalog'  if $path eq '/catalog';
+	return 'Tutorial' if $path eq '/tutorial';
+	if ($path =~ m{\A/a/([A-Za-z0-9_-]+)}) {
+		my $a = $self->_read_analyses->{$1};
+		return (ref $a eq 'HASH' && length($a->{name} // '')) ? $a->{name} : 'Canvas';
+	}
+	return undef;
+}
+
+# _crumb_spec_name($spec) -> $name
+#
+# A data source as a person would name it: "sales" for table:sales,
+# "store: orders" for an internal table, the file name for path:, the host
+# for a web page.
+sub _crumb_spec_name {
+	my ($spec) = @_;
+	$spec //= '';
+	return "$1: $2" if $spec =~ m{\Atable:([^/]+)/(.+)\z};
+	return $1       if $spec =~ m{\Atable:(.+)\z};
+	return Mojo::File->new($1)->basename if $spec =~ m{\Apath:(.+)\z};
+	if ($spec =~ m{\Aurl:(.+)\z}i) {
+		my $host = Mojo::URL->new($1)->host;
+		return $host // $1;
+	}
+	return 'Redis' if $spec =~ /\Aredis:/i;
+	return $spec;
+}
+
+# _crumb_view_suffix($query) -> " (region = East, last 90 days)" | ''
+#
+# The part of a table's view that makes it a different page from the whole
+# table: its filters and its time range.  Two filters are shown; more are
+# counted, so a crumb stays short.
+sub _crumb_view_suffix {
+	my ($q) = @_;
+	my @bits;
+	for my $spec (@{ $q->every_param('f') }) {
+		my ($col, $op, $val) = split /:/, $spec, 3;
+		next unless length($col // '') && length($op // '');
+		next unless $col =~ $CRUMB_TEXT_RE;
+		next if length($val // '') && $val !~ $CRUMB_TEXT_RE;
+		my $word = $CRUMB_OP{$op} // $op;
+		push @bits, ($op eq 'empty' || $op eq 'notempty')
+			? "$col $word" : "$col $word " . (($val // '') =~ s/:/ and /r);
+	}
+	my $extra = @bits > 2 ? @bits - 2 : 0;
+	splice @bits, 2 if $extra;
+	push @bits, "+$extra more" if $extra;
+	if (my $range = $TIME_RANGE{ $q->param('range') // '' }) {
+		push @bits, lc $range->{label};
+	}
+	return @bits ? ' (' . join(', ', @bits) . ')' : '';
+}
+
+# _crumb_chart_subject($kind, $query) -> $text
+#
+# What a chart shows, from its own parameters: "amount by region",
+# "Count by region", "amount".  Empty for the pages that are about the
+# whole table (stats, insights).
+sub _crumb_chart_subject {
+	my ($kind, $q) = @_;
+	my %p = map {
+		my $v = $q->param($_) // '';
+		($_ => ($v =~ $CRUMB_TEXT_RE ? $v : ''));
+	} qw(x y cat val seg col rows bar_val line_val loc lat lon);
+
+	return "$p{y} by $p{x}" if ($kind eq 'graph' || $kind eq 'line' || $kind eq 'scatter') && length $p{x} && length $p{y};
+	return "$p{x} by $p{y}" if $kind eq 'heatmap' && length $p{x} && length $p{y};
+	return "$p{cat} by $p{seg}" if $kind eq 'stacked' && length $p{cat} && length $p{seg};
+	return $p{rows} =~ s/,/, /gr if $kind eq 'pivot';
+	return length $p{loc} ? $p{loc} : (length $p{lat} ? "$p{lat}, $p{lon}" : '') if $kind eq 'map';
+
+	my $dim     = (grep { length } @p{qw(cat x col)})[0] // '';
+	my $measure = (grep { length } @p{qw(val bar_val y)})[0] // '';
+	$measure = 'Count' if $measure eq '__count__';
+	$measure = 'Count' if !length $measure && ($kind eq 'pie' || $kind eq 'bar' || $kind eq 'treemap');
+	return length $measure && length $dim ? "$measure by $dim" : $dim;
 }
 
 # _resolve_template($self) -> ($platform, $language)
@@ -4605,8 +4855,22 @@ sub canvas_render ($self) {
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
-		unless exists $analyses->{$id};
+	unless (exists $analyses->{$id}) {
+		# An HTML page, not plain text, so the user keeps the breadcrumb and
+		# the site navigation.  No canvas_id: there is nothing to delete.
+		my ($platform, $language) = $self->_resolve_template;
+		return $self->render(
+			handler     => 'tt',
+			template    => "$platform/$language/canvas_error",
+			format      => 'html',
+			status      => 404,
+			title       => 'Canvas not found',
+			canvas_name => $id,
+			error_msg   => sprintf($MESSAGES{error_analysis_not_found}, $id),
+			error_specs => [],
+			language    => $language,
+		);
+	}
 	my $a = $analyses->{$id};
 
 	# freshness: compare each dataset's current mtime against
@@ -7872,6 +8136,8 @@ sub folder_view ($self) {
 	# re-uses the same data source without repeating params.
 	my $base_url = '/folder?l=' . url_escape($left_spec);
 	$base_url .= '&col=' . url_escape($key_col) if length($key_col);
+	# The table it came from travels too, so a folder level keeps the trail.
+	$base_url .= '&back=' . url_escape($back);
 
 	my (@folders, @items, @breadcrumb);
 
@@ -7935,6 +8201,13 @@ sub folder_view ($self) {
 		key_col    => $key_col,
 		prefix     => $prefix,
 		breadcrumb => \@breadcrumb,
+		# Inside a folder the trail goes on past this page, so its own crumb
+		# links to the top of the folder view.
+		(@breadcrumb ? (trail => do {
+			my $trail = _breadcrumb_trail($self);
+			$trail->[-1]{url} = $base_url if @$trail;
+			$trail;
+		}) : ()),
 		base_url   => $base_url,
 		back_url   => $back,
 		back_label => 'Back to table',
@@ -9668,12 +9941,30 @@ sub wordcloud_view ($self) {
 
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 	my $title = "Words in $col";
+
+	# The spec a canvas word-cloud card reads (_render_visual_html), so the
+	# layout's New canvas / Add to existing canvas buttons save this cloud as
+	# it is drawn, as they do for every other chart page.
+	my $stop = $self->param('stop');
+	my %chart_spec = (
+		kind    => 'wordcloud',
+		title   => $title,
+		encode  => { col => $col },
+		options => {
+			topn   => $topn,
+			minlen => $minlen,
+			((defined $stop && length $stop) ? (stop => $stop) : ()),
+		},
+	);
+
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/wordcloud",
 		format          => 'html',
 		title           => $title,
+		chart           => \%chart_spec,
+		chart_json      => $self->_chart_json(\%chart_spec),
 		cloud_html      => $cloud_html,
 		words           => \@tags,
 		col             => $col,

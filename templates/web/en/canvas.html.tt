@@ -57,6 +57,16 @@
 	cursor: pointer;
 }
 .visual-edit-btn:hover, .visual-cs-btn:hover { background: #f0f0f0; }
+/* The small controls in a card header share one height, so they line up with
+ * each other; the header centres them on the title. */
+.visual-edit-btn,
+.visual-cs-btn,
+.visual-size-select,
+.visual-dl-btn {
+	box-sizing: border-box;
+	height: 1.25rem;
+	line-height: 1;
+}
 .map-edit-panel { width: 330px; }
 .cs-edit-panel { width: 340px; }
 .visual-card-body {
@@ -75,7 +85,7 @@
 .canvas-map-wrap input[type="text"] {
 	margin: 0.35rem;
 	padding: 0.3rem 0.5rem;
-	border: 1px solid var(--border, #dee2e6);
+	border: 1px solid var(--field-border);
 	border-radius: 4px;
 }
 .canvas-map-wrap button {
@@ -228,11 +238,44 @@
 .param-bar input {
 	font-size: 0.85rem;
 	padding: 0.2rem 0.4rem;
-	border: 1px solid var(--border, #dee2e6);
+	border: 1px solid var(--field-border);
 	border-radius: 4px;
 	width: 8rem;
 }
 .param-bar input[type="number"] { width: 6rem; }
+/* The Time range bar's menus and its Apply button, styled like the parameter
+ * inputs and the toolbar buttons.  Every control on these bars and on the
+ * toolbar is 1.75rem high -- the table page's toolbar height -- so a row lines
+ * up top and bottom whatever its font size or icon glyph. */
+.param-bar select {
+	font-size: 0.85rem;
+	padding: 0.2rem 0.4rem;
+	border: 1px solid var(--field-border);
+	border-radius: 4px;
+	background: var(--field-bg);
+	color: inherit;
+}
+.param-bar .btn-add-visual {
+	padding: 0.28rem 0.75rem;
+	border: 1px solid #888;
+	border-radius: 6px;
+	background: transparent;
+	color: #444;
+	font-size: 0.82rem;
+	white-space: nowrap;
+	cursor: pointer;
+	transition: background 0.12s;
+}
+.param-bar .btn-add-visual:hover { background: #f0f0f0; }
+.param-bar input,
+.param-bar select,
+.param-bar button,
+.canvas-toolbar > button,
+.canvas-toolbar > .bm-wrap > button,
+.canvas-toolbar .btn-add-visual {
+	box-sizing: border-box;
+	height: 1.75rem;
+}
 /* Drill-down breadcrumb */
 .drill-crumb {
 	display: inline-flex;
@@ -277,7 +320,7 @@
 	flex: 1;
 	font-size: 0.82rem;
 	padding: 0.2rem 0.4rem;
-	border: 1px solid var(--border, #dee2e6);
+	border: 1px solid var(--field-border);
 	border-radius: 4px;
 }
 .bm-save-btn, .bm-del-btn {
@@ -340,9 +383,9 @@
 	font-size: 0.82rem;
 	font-weight: 400;
 	padding: 0.22rem 0.4rem;
-	border: 1px solid var(--border, #dee2e6);
+	border: 1px solid var(--field-border);
 	border-radius: 4px;
-	background: var(--card-bg, #fff);
+	background: var(--field-bg);
 	color: inherit;
 }
 .ac-field select[multiple] { padding: 0.15rem; }
@@ -620,9 +663,9 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	margin-left: 0.3rem;
 	max-width: 11.5rem;
 	min-width: 5rem;
-	border: 1px solid var(--border, #dee2e6);
+	border: 1px solid var(--field-border);
 	border-radius: 3px;
-	background: var(--header-bg, #f8f9fa);
+	background: var(--field-bg);
 	color: var(--body-color, #212529);
 	cursor: pointer;
 	flex-shrink: 1;
@@ -704,11 +747,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 }
 </style>
 
-[%- IF back_url.length -%]
-<p class="back-link"><a href="[% back_url | html %]">&larr; [% back_label | html %]</a> &rsaquo; <span>[% canvas_name | html %]</span></p>
-[%- ELSE -%]
-<p class="back-link"><a href="/">&larr; Home</a> &rsaquo; <span>[% canvas_name | html %]</span></p>
-[%- END -%]
+<nav class="back-link" aria-label="Breadcrumb">[% PROCESS "web/en/layouts/breadcrumb.html.tt" %]</nav>
 [%- IF freshness_stale -%]
 <div class="freshness-banner" role="alert" style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:0.4rem 0.75rem;margin-bottom:0.5rem;font-size:0.85rem;color:#664d03;">
 	&#9888; [% freshness_msg | html %]

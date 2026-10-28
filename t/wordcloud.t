@@ -263,7 +263,7 @@ subtest 'each word links to the rows that contain it' => sub {
 	my ($back_link) = grep { ($_->{href} // '') eq '/view/notes' }
 		@{ Mojo::DOM->new($body)->find('.back-link a')->to_array };
 	ok($back_link, 'the breadcrumb links to the page the cloud came from');
-	is($back_link ? $back_link->text : '', 'Back to table', 'and names it');
+	is($back_link ? $back_link->text : '', 'notes', 'and names it');
 
 	# A bare URL has no table to filter, so a click has nowhere to go: better a
 	# cloud that is only a picture than a link to "/?f=...".
@@ -376,6 +376,40 @@ subtest 'a saved canvas can hold a word-cloud card' => sub {
 		'a word in more rows is drawn larger');
 	unlike($html, qr/id="htmltagcloud"/,
 		'the card carries no page-wide id, so two clouds on a canvas cannot clash');
+};
+
+subtest 'the word cloud page offers to save itself to a canvas' => sub {
+	my $body = $t->get_ok('/wordcloud?l=table:notes&col=note&topn=3&minlen=4&stop=pear&back=/view/notes')
+		->status_is(200)->tx->res->body;
+	my $dom = Mojo::DOM->new($body);
+
+	ok($dom->at('#new-canvas-btn'),    'the page has a New canvas button');
+	ok($dom->at('#add-to-canvas-btn'), 'and an Add to existing canvas button');
+
+	my $panel = $dom->at('#new-canvas-panel');
+	ok($panel, 'the New canvas panel is on the page') or return;
+	my $spec = Mojo::JSON::decode_json($panel->{'data-chart'});
+	is($spec->{kind}, 'wordcloud', 'the spec is a word-cloud card');
+	is_deeply($spec->{encode}, { col => 'note' }, 'of the column the page draws');
+	is_deeply($spec->{options}, { topn => 3, minlen => 4, stop => 'pear' },
+		'with the page\'s own counts and stopwords');
+
+	# What the buttons send is that spec; a canvas has to draw it as a card.
+	my $created = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			name     => 'Saved from the page',
+			datasets => [ { spec => 'table:notes', alias => 'left' } ],
+			visuals  => [ { kind => $spec->{kind}, encode => $spec->{encode},
+				options => $spec->{options}, title => $spec->{title} } ],
+		})
+	)->status_is(201)->tx->res->json;
+	my $page = $t->get_ok("/a/$created->{id}")->status_is(200)->tx->res->body;
+	my @words = map { $_->[0] } @{ _card_words($page) };
+	ok(scalar(@words) && scalar(@words) <= 3, 'the canvas draws the cloud with topn=3');
+	ok(!(grep { $_ eq 'pear' } @words), 'and keeps the page\'s stopword out');
+	ok(!(grep { length($_) < 4 } @words), 'and its shortest-word limit');
+	$t->delete_ok("/api/analyses/$created->{id}");
 };
 
 subtest 'the card is drawn from the rows it is given, not the whole file' => sub {
