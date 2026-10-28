@@ -1060,6 +1060,48 @@ sub _apply_filter_spec {
 	} @$records];
 }
 
+# _reduce_records($self, $records, $columns) -> ($records, $columns)
+#
+# Purpose: The reduce half of every data pipeline, in one place: the request's
+#          filters -- the reader's own f= params, then the two bounds of the
+#          relative time range -- run over $records in order, with the columns
+#          list threaded through so a later stage can add columns and hand back
+#          the extended list.  Every route that reads rows and then filters
+#          them calls this rather than writing the loop out again, so a stage
+#          added here reaches all of them at once.
+# Entry:   $records -- arrayref of hashrefs, after the calculated-field pass.
+#          $columns -- arrayref of column names, or undef where the caller has
+#                      no list in scope; a stage that adds columns needs one,
+#                      so undef is only for the filters-only callers.
+# Exit:    ($records, $columns), reduced.  A malformed f= spec leaves the
+#          records alone rather than croaking, as _apply_filter_spec always has.
+# Notes:   This is stage 5 of the stage order in BI-Phase-7.md section 3, and
+#          it is where that document's stages 6 and 7 are meant to land: the
+#          cross-row pass and the second calculated-field pass.  Both belong
+#          here rather than at a call site, because they have to see *filtered*
+#          rows and have to run before pagination (an exported or second page
+#          then carries the same numbers as the first).
+#
+#          Three kinds of row-reading route deliberately do not reduce here,
+#          and each is a different case: the canvas builds its own per-card
+#          pipeline (_canvas_render_context), /view's table action filters
+#          inside _fetch_page before it paginates, and /api/ask samples rows
+#          without filtering them at all.
+#
+#          A plain function rather than a method, like _filter_specs and
+#          _apply_filter_spec beside it: the tests drive the reduce stage with a
+#          controller-shaped mock (build_controller), and only every_param and
+#          stash are ever wanted of $self.
+sub _reduce_records {
+	my ($self, $records, $columns) = @_;
+
+	for my $s (@{ _filter_specs($self) }) {
+		$records = _apply_filter_spec($records, $s);
+	}
+
+	return ($records, $columns);
+}
+
 # _apply_filters($self, $records) -> ($filtered_records, \@raw_specs, $json_string)
 #
 # Purpose: Read all "f=" query params, apply them in order via _apply_filter_spec,
@@ -1087,10 +1129,11 @@ sub _apply_filters :Protected ($self, $records) {
 	# @specs -- which the page shows as chips, keeps in its panel forms and
 	# offers to its filter UI -- stays the reader's own list, so a relative range
 	# cannot be submitted as a frozen pair of dates and a reopened link cannot
-	# narrow twice.
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	# narrow twice.  The application itself is _reduce_records, so this entry
+	# point and the routes that call it directly cannot drift apart; the columns
+	# list is not in scope here and every caller holds its own, so none is
+	# threaded through.
+	($records) = _reduce_records($self, $records, undef);
 
 	my $json = encode_json(\@parsed);
 	$json =~ s{</}{<\\/}g;
@@ -3737,9 +3780,7 @@ sub _run_export_pipeline :Protected ($self) {
 
 	my @columns = @{ $columns // [] };
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	$records = _dedup_records($records, \@columns) if $self->param('d');
 
@@ -5022,12 +5063,10 @@ sub combine_tables ($self) {
 	my ($records, $cols_ref) = @sources > 1
 		? _combine_tables(\@sources)
 		: ($left_recs, \@left_cols);
-	my @columns = @$cols_ref;
-
 	# Apply the filters in memory before paginating (reduce-before-paginate).
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	my @columns;
+	($records, $cols_ref) = _reduce_records($self, $records, $cols_ref);
+	@columns = @$cols_ref;
 	my $dedup = $self->param('d') ? 1 : 0;
 	$records = _dedup_records($records, \@columns) if $dedup;
 
@@ -5627,9 +5666,7 @@ sub graph_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters (pre-filter before building pairs, same as _run_export_pipeline).
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col", status => 400)
@@ -5808,9 +5845,7 @@ sub pie_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
@@ -5996,9 +6031,7 @@ sub heatmap_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col", status => 400)
@@ -6166,9 +6199,7 @@ sub bar_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Apply f= filters.
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
@@ -6699,9 +6730,7 @@ sub pivot_view ($self) {
 		if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 	}
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 
@@ -7075,9 +7104,7 @@ sub stats_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my $row_count = scalar @$records;
 	my $pipeline  = { source => $src, records => $records };
@@ -7388,9 +7415,7 @@ sub scatter_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col",      status => 400) unless $col_set{$x_col};
@@ -7495,9 +7520,7 @@ sub stacked_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400) unless $col_set{$cat_col};
@@ -7602,9 +7625,7 @@ sub combo_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col",    status => 400) unless $col_set{$x_col};
@@ -7713,9 +7734,7 @@ sub treemap_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400) unless $col_set{$cat_col};
@@ -7823,9 +7842,7 @@ sub histogram_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $col", status => 400) unless $col_set{$col};
@@ -8460,9 +8477,7 @@ sub map_view ($self) {
 		return $self->render(text => $e, status => 400);
 	}
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{ $columns };
 	my @popup = grep { length($_) && $_ ne $loc_col && $col_set{$_} }
@@ -9145,9 +9160,7 @@ sub summary_api ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(json => { error => $e }, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my $row_count = scalar @$records;
 	(my $label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
@@ -9210,9 +9223,7 @@ sub insights_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	for my $s (@{ _filter_specs($self) }) {
-		$records = _apply_filter_spec($records, $s);
-	}
+	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my $row_count = scalar @$records;
 	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;

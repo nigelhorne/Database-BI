@@ -1521,6 +1521,109 @@ subtest '_apply_filters -- malformed spec (no colon) skipped from JSON, records 
 };
 
 # ============================================================================
+# PART 6b: Dashboard -- _reduce_records, the shared filter stage
+#
+# _reduce_records is stage 5 of the pipeline (BI-Phase-7.md section 3) held in
+# one place: the reader's own f= params, then the two bounds a relative time
+# range resolves to, applied in order over the records, with the columns list
+# handed back so a later stage can extend it.  Every route that reads rows and
+# filters them calls it, so these subtests check the stage itself rather than
+# one route's copy of it -- and the last one checks that the copy is gone.
+# ============================================================================
+
+subtest '_reduce_records -- no filters: the records and the columns come back' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_reduce_records;
+	my $tx = $t->ua->build_tx(GET => '/');
+	my $c  = $t->app->build_controller($tx);
+
+	my $records = [{ region => 'North' }, { region => 'South' }];
+	my ($out, $cols) = $fn->($c, $records, ['region', 'score']);
+
+	is $out, $records, 'the same list comes back, not a filtered copy';
+	is_deeply $cols, ['region', 'score'], 'and the columns list is handed back as it came';
+};
+
+subtest '_reduce_records -- an undef columns list is handed back as undef' => sub {
+	# _apply_filters, the entry point seven routes reach the stage through, has
+	# no column list in scope; the stage must not invent one.
+	my $fn = \&Database::BI::Controller::Dashboard::_reduce_records;
+	my $tx = $t->ua->build_tx(GET => '/?f=region:eq:North');
+	my $c  = $t->app->build_controller($tx);
+
+	my ($out, $cols) = $fn->($c, [{ region => 'North' }, { region => 'South' }], undef);
+
+	is scalar(@$out), 1, 'the filter still applies';
+	is $cols, undef, 'and no columns list is invented for the caller';
+};
+
+subtest "_reduce_records -- the reader's own f= filters narrow the rows" => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_reduce_records;
+	my $tx = $t->ua->build_tx(GET => '/?f=region:eq:North&f=score:ge:50');
+	my $c  = $t->app->build_controller($tx);
+
+	my $records = [
+		{ region => 'North', score => 80 },
+		{ region => 'North', score => 10 },
+		{ region => 'South', score => 90 },
+	];
+	my ($out) = $fn->($c, $records, ['region', 'score']);
+
+	is scalar(@$out), 1, 'both filters are applied';
+	is $out->[0]{score}, 80, 'the one row that passes both is the one left';
+	is scalar(@$records), 3, "the caller's list is not mutated in place";
+};
+
+subtest '_reduce_records -- the relative range is applied after the f= filters' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_reduce_records;
+	my $tx = $t->ua->build_tx(GET => '/?f=region:eq:North&f=score:gt:0');
+	my $c  = $t->app->build_controller($tx);
+
+	# What _time_range_request puts on the stash for a ?range= request: the two
+	# bounds, not two more entries in the reader's own filter list.
+	$c->stash(range_specs => ['score:ge:50', 'score:le:100']);
+
+	my $records = [
+		{ region => 'North', score => 80 },
+		{ region => 'North', score => 40 },
+		{ region => 'North', score => 500 },
+		{ region => 'South', score => 60 },
+	];
+	my ($out) = $fn->($c, $records, ['region', 'score']);
+
+	is_deeply [map { $_->{score} } @$out], [80],
+		"the window narrows what the reader's filters left";
+	is_deeply Database::BI::Controller::Dashboard::_filter_specs($c),
+		['region:eq:North', 'score:gt:0', 'score:ge:50', 'score:le:100'],
+		"the reader's filters come first, the range's two bounds after them";
+};
+
+subtest '_reduce_records -- a malformed spec leaves the rows alone' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_reduce_records;
+	my $tx = $t->ua->build_tx(GET => '/?f=notacolonspec');
+	my $c  = $t->app->build_controller($tx);
+
+	my ($out) = $fn->($c, [{ x => 1 }, { x => 2 }], ['x']);
+	is scalar(@$out), 2, 'a spec with no colon leaves every row in place';
+};
+
+subtest '_reduce_records -- the stage has one implementation, not seventeen' => sub {
+	# The point of the seam is that the loop was written out in seventeen actions
+	# and is now written once.  A test of the behaviour cannot see a copy come
+	# back -- a copy behaves the same, which is how the copies drifted apart in
+	# the first place -- so this reads the module and counts.
+	my $source = Mojo::File->new(
+		File::Spec->catfile('lib', 'Database', 'BI', 'Controller', 'Dashboard.pm')
+	)->slurp;
+
+	my $loops = () = $source =~ /for my \$s \(\@\{ _filter_specs/g;
+	is $loops, 1, 'the filter loop is written once, inside _reduce_records';
+
+	my $calls = () = $source =~ /= _reduce_records\(\$self/g;
+	cmp_ok $calls, '>=', 16,
+		"every data route and _apply_filters reduce through it ($calls call sites)";
+};
+
+# ============================================================================
 # PART 7: pie_view HTTP smoke tests
 #
 # Exercises the two code paths added in 0.007.0:

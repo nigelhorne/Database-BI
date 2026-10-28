@@ -65,6 +65,16 @@ Revision history for Database-BI
 	  card added while a window is active is drawn through it.
 	- The tutorial's filter chapter mentions the time range, and the range is
 	  documented in the POD and README ("Relative time ranges").
+	- Internal: the filter stage every data route runs -- the reader's f=
+	  params and the relative time range's two bounds -- is now one function,
+	  _reduce_records, instead of the same loop written out in sixteen actions
+	  (plus a seventeenth copy inside _apply_filters, which now calls it too).
+	  No behaviour change: the same filters in the same order on the same rows.
+	  It is the seam the Phase 7 cross-row pass in BI-Phase-7.md attaches to.
+	  t/function.t now drives the stage directly -- no filters, an undef columns
+	  list, a chain of filters, the range's bounds after them, a malformed spec
+	  -- and counts the copies of the loop in the module, because a second copy
+	  would behave identically and only drift later.
 	[ Tests ]
 	- t/time-range.t: the window boundaries at fixed clocks, including month,
 	  quarter, year and leap-year rollovers; day-versus-timestamp comparisons;
