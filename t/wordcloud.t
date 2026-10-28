@@ -284,9 +284,9 @@ subtest 'the table page offers the cloud' => sub {
 sub _card_words {
 	my ($html) = @_;
 	my @words;
-	for my $span (@{ Mojo::DOM->new($html)->find('span.wordcloud-word')->to_array }) {
-		my ($size) = ($span->{style} // '') =~ /font-size:\s*(\d+)px/;
-		push @words, [ $span->all_text, $size // -1 ];
+	for my $word (@{ Mojo::DOM->new($html)->find('.wordcloud-word')->to_array }) {
+		my ($size) = ($word->{style} // '') =~ /font-size:\s*(\d+)px/;
+		push @words, [ $word->all_text, $size // -1 ];
 	}
 	return \@words;
 }
@@ -401,6 +401,53 @@ subtest 'the card refuses what the page refuses' => sub {
 	$t->get_ok("/api/analyses/$canvas_id")->status_is(200);
 	is(scalar @{ $t->tx->res->json->{visuals} }, 4,
 		'no refused card was appended');
+};
+
+subtest 'a word is a control that cross-filters the canvas' => sub {
+	$t->get_ok("/a/$canvas_id")->status_is(200);
+
+	my $dom   = Mojo::DOM->new($t->tx->res->body);
+	my @cards = @{ $dom->find('.visual-card')->to_array };
+	my @links = @{ $cards[0]->find('a.wordcloud-word')->to_array };
+	ok(scalar @links, 'the words of a word-cloud card are links, not labels');
+
+	my ($apple) = grep { $_->all_text eq 'apple' } @links;
+	ok($apple, 'each word is a control of its own');
+	is($apple->attr('data-cf-value'), 'apple',
+		'carrying the word as written, for the script to filter by');
+	is($apple->attr('href'), '?cf=note%3Acontains%3Aapple&cv=0',
+		'and a URL that filters this canvas to the rows that contain it, naming'
+			. ' this card as the filter source');
+	like($apple->attr('aria-label') // '', qr/\AFilter by note: apple\z/,
+		'which the word says, since a word alone does not say what a click does');
+	is($apple->attr('aria-describedby'), 'cf-help',
+		'and it points at the canvas help, so pressing Enter on it is explained');
+	my $help = $dom->at('#cf-help');
+	like($help->all_text, qr/word-cloud\s+card/, 'the help speaks of words as well as marks');
+	like($help->all_text, qr/rows that contain it/,
+		'and says what a word filters by, which a mark does not');
+
+	# An apostrophe is part of a word, so it has to survive both the attribute
+	# and the URL: data-cf-value is the word as written, the href percent-encoded.
+	my ($dont) = grep { $_->all_text eq "don't" } @{ $cards[2]->find('a.wordcloud-word')->to_array };
+	ok($dont, 'a word with an apostrophe is a control too');
+	is($dont->attr('data-cf-value'), "don't", 'the script reads it as one word');
+	is($dont->attr('href'), '?cf=note%3Acontains%3Adon%27t&cv=2',
+		'and the URL carries it whole');
+
+	# Follow the URL the card itself writes: the card that was clicked keeps its
+	# whole cloud, and every other card is the rows that contain the word.
+	$t->get_ok("/a/$canvas_id?cf=note%3Acontains%3Ared&cv=0")->status_is(200);
+	$dom = Mojo::DOM->new($t->tx->res->body);
+	my @after = @{ $dom->find('.visual-card')->to_array };
+	like($after[0]->at('.wordcloud-summary')->all_text, qr/13 words in 8 rows/,
+		'the card that was clicked is still drawn from all its rows');
+	like($after[1]->at('.wordcloud-summary')->all_text, qr/6 words in 3 rows/,
+		'and the cards beside it are the three rows that say "red"');
+	is($after[0]->{class} // '', 'visual-card cf-source',
+		'the clicking card is marked as the source of the filter');
+	like($dom->at('.cf-chip')->all_text, qr/note contains red/,
+		'and the chip says which word the canvas is filtered by');
 };
 
 subtest 'the canvas page draws the card and offers the view' => sub {

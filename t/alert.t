@@ -505,7 +505,39 @@ sub file_text {
 	return Mojo::File->new($path)->slurp;
 }
 
-{
+# --notify-cmd is shell text: bi-alert hands it to /bin/sh on Unix and to
+# cmd.exe on Windows, so the recorder used below is a POSIX shell script.
+# Reading the environment, copying STDIN to a file and appending one byte have
+# no one-line equivalent in cmd.exe, and a batch recorder would be a second
+# implementation this test cannot run where it is written -- so Windows skips
+# those subtests with this reason rather than failing on them.  "exit 7" is a
+# builtin in both shells, which is why the failure path is asserted there.
+my $RECORDER_SKIP = '--notify-cmd is shell text for /bin/sh; cmd.exe has no'
+	. ' equivalent one-liner, so the shell recorder is not run here';
+
+# The failure path needs no recorder: a command both shells read the same way
+# is enough.  Asserted on every platform, so Windows still checks that a
+# delivery that fails is reported and stops the crossing being recorded.
+subtest 'a delivery that fails is reported and records nothing' => sub {
+	my $dir   = tempdir(CLEANUP => 1);
+	my $state = File::Spec->catfile($dir, 'retry.json');
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+
+	my ($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $state,
+		'--notify-cmd', 'exit 7');
+
+	is($code, 1, 'a failed delivery leaves the exit status alone');
+	like($out, qr/--notify-cmd failed \(exit 7\)/, 'and says the command failed');
+	like($out, qr/not recorded/, 'and says the crossing was not recorded');
+	ok(!-f $state, 'so no state file is written');
+};
+
+subtest 'notify-cmd records what the run hands it' => sub {
+	plan skip_all => $RECORDER_SKIP if $^O eq 'MSWin32';
+
 	my $dir   = tempdir(CLEANUP => 1);
 	my $body  = File::Spec->catfile($dir, 'message.txt');
 	my $env   = File::Spec->catfile($dir, 'env.txt');
@@ -569,19 +601,17 @@ sub file_text {
 	like($out, qr/Notify: would run/, 'and says what it would have run');
 	is(file_text($calls), 'x', 'but runs nothing');
 
-	# A delivery that fails is reported, changes no exit status, and leaves the
-	# crossing unrecorded -- so the next run announces it again rather than the
-	# alert being lost for the whole period.
+	# A failed delivery leaves the crossing unrecorded, so the next run announces
+	# it again rather than the alert being lost for the whole period.  How the
+	# failure reads is asserted above, on every platform; what is checked here is
+	# the delivery that follows it.
 	my $retry_state = File::Spec->catfile($dir, 'retry.json');
 	my @retry = (
 		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
 		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $retry_state,
 	);
 	($out, $code) = run_alert_at($at, @retry, '--notify-cmd', 'exit 7');
-	is($code, 1, 'a failed delivery leaves the exit status alone');
-	like($out, qr/--notify-cmd failed \(exit 7\)/, 'and says the command failed');
-	like($out, qr/not recorded/, 'and says the crossing was not recorded');
-	ok(!-f $retry_state, 'so no state file is written');
+	ok(!-f $retry_state, 'a failed delivery records nothing to suppress the next run');
 
 	($out, $code) = run_alert_at($at, @retry, '--notify-cmd', $cmd);
 	is($code, 1, 'which is what lets the next run deliver it');
@@ -600,7 +630,7 @@ sub file_text {
 	like($env[1], qr/\ATHRESHOLD RECOVERED: count \(3\) gt 3/, 'with the verdict as its subject');
 	like(file_text($body), qr/THRESHOLD RECOVERED/, 'and the text carries the recovery');
 	is(file_text($calls), 'xxx', 'delivered once, as the crossing was');
-}
+};
 
 {
 	# An empty command is a mistake, not a way of saying "deliver nowhere".
@@ -698,29 +728,33 @@ sub file_text {
 	unlike($out, qr/THRESHOLD RECOVERED/, 'and does not recover anything twice');
 
 	# 14c. One run is one delivery, however many checks it announced.
-	my $dir   = tempdir(CLEANUP => 1);
-	my $body  = File::Spec->catfile($dir, 'message.txt');
-	my $env   = File::Spec->catfile($dir, 'env.txt');
-	my $calls = File::Spec->catfile($dir, 'calls.txt');
-	my $cmd   = qq{printenv BI_ALERT_EVENT > '$env'; }
-		. qq{printenv BI_ALERT_SUBJECT >> '$env'; }
-		. qq{cat > '$body'; printf x >> '$calls'};
+	subtest 'one run is one delivery' => sub {
+		plan skip_all => $RECORDER_SKIP if $^O eq 'MSWin32';
 
-	Mojo::File->new($clear_csv)->spurt($rows_four);
-	($out, $code) = run_alert_at($at + 120,
-		'--model-dir', $model_dir, '--data-dir', $data_dir,
-		'--analysis', $clear_id, '--analysis', $other_id,
-		'--threshold', 'count:gt:3', '--threshold', "$other_id:count:gt:0",
-		'--suppress', '1h', '--state-file', File::Spec->catfile($dir, 'state.json'),
-		'--notify-cmd', $cmd);
-	is($code, 1, 'a run announcing two crossings exits 1');
-	my @env = split /\n/, file_text($env);
-	is($env[0], 'crossed', 'the delivery is a crossing');
-	is($env[1], '2 threshold crossings', 'and its subject counts both');
-	is(file_text($calls), 'x', 'the command ran once for the whole run');
-	like(file_text($body), qr/THRESHOLD CROSSED: \[$clear_id\]/,
-		'and its text carries both announcements');
-	like(file_text($body), qr/THRESHOLD CROSSED: \[$other_id\]/, 'in one message');
+		my $dir   = tempdir(CLEANUP => 1);
+		my $body  = File::Spec->catfile($dir, 'message.txt');
+		my $env   = File::Spec->catfile($dir, 'env.txt');
+		my $calls = File::Spec->catfile($dir, 'calls.txt');
+		my $cmd   = qq{printenv BI_ALERT_EVENT > '$env'; }
+			. qq{printenv BI_ALERT_SUBJECT >> '$env'; }
+			. qq{cat > '$body'; printf x >> '$calls'};
+
+		Mojo::File->new($clear_csv)->spurt($rows_four);
+		($out, $code) = run_alert_at($at + 120,
+			'--model-dir', $model_dir, '--data-dir', $data_dir,
+			'--analysis', $clear_id, '--analysis', $other_id,
+			'--threshold', 'count:gt:3', '--threshold', "$other_id:count:gt:0",
+			'--suppress', '1h', '--state-file', File::Spec->catfile($dir, 'state.json'),
+			'--notify-cmd', $cmd);
+		is($code, 1, 'a run announcing two crossings exits 1');
+		my @env = split /\n/, file_text($env);
+		is($env[0], 'crossed', 'the delivery is a crossing');
+		is($env[1], '2 threshold crossings', 'and its subject counts both');
+		is(file_text($calls), 'x', 'the command ran once for the whole run');
+		like(file_text($body), qr/THRESHOLD CROSSED: \[$clear_id\]/,
+			'and its text carries both announcements');
+		like(file_text($body), qr/THRESHOLD CROSSED: \[$other_id\]/, 'in one message');
+	};
 
 	# 14d. A run with one analysis is the run it always was.
 	($out, $code) = run_alert_at($at + 120,

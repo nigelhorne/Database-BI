@@ -1299,6 +1299,40 @@ sub _cross_row_specs_from :Protected ($self, $columns, $raw) {
 	return { specs => \@specs, by => \@by, order => \@order };
 }
 
+# _card_plan($raw) -> \%plan | { error }
+#
+# Purpose: The cross-row plan a saved canvas card carries, in the spelling
+#          cs=/by=/order= use, so a card added and a card repaired store the
+#          same shape and the one parser above reads them both.
+# Entry:   $raw -- the request's cross_row value.  A hash that names no cs is
+#          the card saying it runs no plan of its own; _cross_row_specs_from
+#          reads that as no pass at all, and so does the renderer.
+# Exit:    { cs => [...], by => '', order => [...] } -- only the shape is
+#          checked here.  Which columns exist is a fact about the data file and
+#          is checked again on every render, so a plan written today is read
+#          against the columns the canvas has today.
+# Notes:   A part of the plan that is the wrong kind is an error rather than a
+#          silently empty list: a repair that stores nothing still answers 200,
+#          and the caller would have no way to know the card had not changed.
+sub _card_plan {
+	my ($raw) = @_;
+
+	for my $key (qw(cs order)) {
+		next unless defined $raw->{$key};
+		return { error => "cross_row.$key must be a list" }
+			if ref $raw->{$key} ne 'ARRAY';
+		return { error => "cross_row.$key must be a list of strings" }
+			if grep { ref } @{ $raw->{$key} };
+	}
+	return { error => 'cross_row.by must be a column name' } if ref $raw->{by};
+
+	return {
+		cs    => [ grep { defined $_ && length } @{ $raw->{cs} // [] } ],
+		by    => (defined $raw->{by} ? "$raw->{by}" : ''),
+		order => [ grep { defined $_ && length } @{ $raw->{order} // [] } ],
+	};
+}
+
 # _cross_row_ui_state($c) -> %stash_pairs
 #
 # Purpose: The cross-row state the table page shows: the specs it puts in
@@ -3378,13 +3412,10 @@ sub analyses_add_visual ($self) {
 	# about the data file, and it is checked again on every render for the same
 	# reason a saved canvas is.
 	if (my $raw = $body->{cross_row}) {
-		my @cs    = grep { defined $_ && !ref $_ && length } @{ $raw->{cs} // [] };
-		my @order = grep { defined $_ && !ref $_ && length } @{ $raw->{order} // [] };
-		$vis->{cross_row} = {
-			cs    => \@cs,
-			by    => ((!ref $raw->{by} && defined $raw->{by}) ? "$raw->{by}" : ''),
-			order => \@order,
-		};
+		my $plan = _card_plan($raw);
+		return $self->render(json => { error => $plan->{error} }, status => 400)
+			if $plan->{error};
+		$vis->{cross_row} = $plan;
 	}
 
 	$vis->{title} = $body->{title}
@@ -3448,6 +3479,17 @@ sub analyses_add_visual ($self) {
 # before it is stored, so an unknown column is a 400 and the saved visual is
 # left alone.  The optional C<query> is the canvas page's URL state, so a card
 # edited while the canvas is cross-filtered is redrawn with the others.
+#
+# C<cross_row> is repaired the same way, and on the same request: a card's plan
+# is stored data like its columns, so a card that was saved with a plan this
+# canvas cannot honour - or with none where one is now wanted - is fixed in
+# place, keeping its layout slot, its size and its title.  The two keys are
+# independent, so a repair that renames the column the pass produces writes
+# both in one request rather than leaving the card drawn against a column that
+# no longer exists.  A JSON C<null> is the card giving up its plan and taking
+# the page's again, which is the state a card added without one is in; an
+# empty plan (C<{ cs => [] }>) is the card running no pass even where the page
+# runs one, and leaving the key out is no request to change it at all.
 sub analyses_update_visual ($self) {
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
@@ -3469,11 +3511,32 @@ sub analyses_update_visual ($self) {
 	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
 		unless ref $body eq 'HASH';
 
-	return $self->render(json => { error => 'encode must be an object' }, status => 400)
-		unless ref $body->{encode} eq 'HASH';
+	my $has_encode = exists $body->{encode};
+	my $has_plan   = exists $body->{cross_row};
+	return $self->render(json => { error => 'encode or cross_row must be given' }, status => 400)
+		unless $has_encode || $has_plan;
 
 	my $vis = { %{ $a->{visuals}[$index] } };
-	$vis->{encode} = { %{ $body->{encode} } };
+
+	if ($has_encode) {
+		return $self->render(json => { error => 'encode must be an object' }, status => 400)
+			unless ref $body->{encode} eq 'HASH';
+		$vis->{encode} = { %{ $body->{encode} } };
+	}
+
+	if ($has_plan) {
+		if (defined $body->{cross_row}) {
+			return $self->render(json => { error => 'cross_row must be an object or null' }, status => 400)
+				unless ref $body->{cross_row} eq 'HASH';
+			my $plan = _card_plan($body->{cross_row});
+			return $self->render(json => { error => $plan->{error} }, status => 400)
+				if $plan->{error};
+			$vis->{cross_row} = $plan;
+		}
+		else {
+			delete $vis->{cross_row};
+		}
+	}
 
 	my $ctx = $self->_canvas_render_context($a, $body->{query});
 	return $self->render(json => { error => $ctx->{error} }, status => $ctx->{status})
@@ -3823,8 +3886,14 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 	}
 
 	if ($plan) {
+		# The pass writes its column onto the rows it is handed, and a card is
+		# handed the canvas's rows -- the same hashrefs every card draws from.  The
+		# numbers a pass produces are that card's, so it runs on copies: without
+		# them one card's running total is written into its neighbour's rows, and a
+		# card that asked for no plan at all reads a column it never asked for.
+		my $own = [ map { ref $_ eq 'HASH' ? { %$_ } : $_ } @$vis_recs ];
 		my ($crossed, $crossed_cols) = eval {
-			$self->_apply_cross_row($vis_recs, $columns, $plan)
+			$self->_apply_cross_row($own, $columns, $plan)
 		};
 		if (my $e = $@) {
 			$e =~ s/ at \S+ line \d+\.?\n?$//;
@@ -4336,17 +4405,41 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 
 		# HTML::TagCloud ranks the words and works out each one's level; the size
 		# it would give that level is 12px plus the level.  The size is written on
-		# the span here instead of using the module's style sheet, because that
+		# the word here instead of using the module's style sheet, because that
 		# sheet scopes itself through #htmltagcloud -- an id only one element on a
 		# page may carry, and a canvas may hold two word-cloud cards.  The level,
-		# the part that is actually arithmetic, stays the module's.
+		# the part that is actually arithmetic, stays the module's.  The module is
+		# handed the word as it is and the escaping happens on the way out, because
+		# the same word is both what the reader reads and, unescaped, the filter a
+		# click on it asks for.
 		require HTML::TagCloud;
 		my $ranked = HTML::TagCloud->new(levels => 18);
-		$ranked->add_static(xml_escape($_->{word}), $_->{count}) for @tags;
+		$ranked->add_static($_->{word}, $_->{count}) for @tags;
 
+		# A word is a control, not a label.  Clicking one cross-filters the canvas
+		# the way a chart mark does -- ?cf=...&cv=<card>, so every other card is
+		# narrowed and this one stays drawn in full -- but with C<contains> rather
+		# than C<eq>: a word is a token inside a cell, not the cell's whole value,
+		# so no row equals it.  The href carries the whole URL the click asks for,
+		# so a word filters even before the page's script runs; the script takes
+		# the click over only to keep the rest of the query string (a bound
+		# parameter, a drill path) and to record the undo step, as it does for a
+		# mark.  A card drawn with no index -- by anything that is not a canvas
+		# render -- names no source, so the filter applies to every card.
+		my $cv = (defined $vis_id && $vis_id =~ /\A\d+\z/) ? "&cv=$vis_id" : '';
 		my $spans = join(' ', map {
-			'<span class="wordcloud-word" style="font-size:' . (12 + $_->{level})
-				. 'px">' . $_->{name} . '</span>'
+			my $word  = $_->{name};
+			my $label = xml_escape("Filter by $col: $word");
+			# aria-describedby names the canvas's cross-filter help, which covers
+			# a word as well as a chart mark: the label says which word this is,
+			# the help says what pressing Enter on it does.
+			'<a class="wordcloud-word" href="?cf='
+				. _percent_encode("$col:contains:$word") . $cv . '"'
+				. ' data-cf-value="' . xml_escape($word) . '"'
+				. ' style="font-size:' . (12 + $_->{level}) . 'px"'
+				. ' aria-label="' . $label . '" title="' . $label . '"'
+				. ' aria-describedby="cf-help">'
+				. xml_escape($word) . '</a>'
 		} $ranked->tags(scalar @tags));
 
 		return {

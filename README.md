@@ -59,13 +59,6 @@ by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
 as it changes.  All chart pages include Copy-link and Export SVG/PNG buttons.
-- **Word cloud** -- `GET /wordcloud` reads a text column and draws the words that
-appear in the most rows with [HTML::TagCloud](https://metacpan.org/pod/HTML%3A%3ATagCloud).
-A word counts once per row, whatever its case; common English words are
-skipped.  `?topn=` and `?minlen=` size the cloud and `?stop=` adds words to
-skip.  With `?back=`, each word links to the rows that contain it.  A saved
-canvas can hold the same cloud as a card: **Add current view** then **Word
-cloud**, drawn from that card's own rows.
 - **Maps** -- `GET /map` plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded locally
 with [Geo::Coder::Free](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AFree) (one lookup per distinct place, remembered in the
@@ -522,20 +515,27 @@ perl Makefile.PL
 - `GET /wordcloud`
 
     Word cloud of a text column, drawn with HTML::TagCloud.  Each row contributes
-    its words once, so a word's size is the number of rows that use it.  The same
-    cloud is a card on a saved canvas (`kind=wordcloud`, `encode.col`, and
-    `options.topn`/`minlen`/`stop`), counted from that card's own rows.
-    Parameters:
+    its words once, so a word's size is the number of rows that use it rather than
+    the number of times one long note repeats it.  Common English words are
+    removed.  Parameters:
 
     ```
     l=<spec>     left table (required)
     col=<col>    text column to read (required)
-    topn=N       different words to show (default 50; range 1--500)
+    topn=N       number of different words to show (default 50; range 1--500)
     minlen=N     shortest word kept (default 3; range 1--64)
     stop=<words> extra words to ignore, comma or space separated (optional)
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=           result filters (repeatable)
     ```
+
+    With `back=`, each word links to the rows that contain it.
+
+    The same cloud is available as a card on a saved canvas: `POST
+    /api/analyses/:id/visuals` takes `kind = ` `wordcloud` with `encode.col`,
+    and the card counts the words of its own rows -- its filters, the page's
+    cross-filter and its own options -- so a canvas that is narrowed to one
+    region shows the words of that region.
 
 - `GET /map`
 
@@ -659,25 +659,31 @@ perl Makefile.PL
 
     A card may bring a cross-row plan of its own in `cross_row`, in the spelling
     the canvas page's `cs`, `by` and `order` use:
-    `{ cs: [ '<col>:<fn>:<name>[:<arg>]' ], by: '<col>', order: [ '<col>:<dir>' ] }`.
+    `{ cs = ` \[ _col:fn:name\[:arg\]_ ... \], by => _col_, order => \[ _col:dir_ ... \] }>.
     The card then runs that plan instead of the page's, so one card of a canvas can
-    show a running total while the cards beside it show raw rows, and `{ cs: [] }`
-    is a card that runs no cross-row pass at all -- which is how a card opts out of
-    the page's.  A card that sends no `cross_row` inherits the page's plan.  The
-    plan is checked against the canvas's columns on every render, not only here, so
-    a saved spec that no longer names a column is that card's error while a bad
-    page-level `cs` is the page's `400`.
+    show a running total while the cards beside it show raw rows, and
+    `{ cs = ` \[\] }> is a card that runs no cross-row pass at all -- which is how a
+    card opts out of the page's.  A card that sends no `cross_row` inherits the
+    page's plan.  The plan is checked against the canvas's columns on every render,
+    not only here, so a saved spec that no longer names a column is that card's
+    error while a bad page-level `cs` is the page's `400`.
 
 - `PATCH /api/analyses/:id/visuals/:visual`
 
     Changes the columns of one stored visual without removing it.  Body:
-    `{ encode, query }`; `encode` replaces the visual's encoding in place (for
-    a map, `{ loc }` or `{ lat, lon }`), and the optional `query` is the
+    `{ encode, cross_row, query }`, at least one of `encode` and `cross_row`.
+    `encode` replaces the visual's encoding in place (for
+    a map, `{ loc }` or `{ lat, lon }`), and `cross_row` replaces the card's own
+    cross-row plan in the spelling `POST .../visuals` takes, so a card saved with
+    a plan this canvas cannot honour is repaired in place instead of deleted and
+    added again.  `cross_row: null` gives the plan up and takes the page's again;
+    leaving the key out changes nothing.  The optional `query` is the
     canvas page's query string, read for `cf`, `c` and `p.<name>` so
     the redrawn card matches the page it is on.  The visual keeps its index, so
     its layout position, size and title are unchanged.  The replacement is
-    rendered before it is stored, so an unknown column or an undrawable map is a
-    `400` and the saved visual is left alone.  Returns
+    rendered before it is stored, so an unknown column, an undrawable map or a
+    plan naming a column the canvas does not have is a `400` and the saved visual
+    is left alone.  Returns
     `{ id, visual, kind, title, html, head, cf_col }`.
 
 - `DELETE /api/analyses/:id`
@@ -882,64 +888,6 @@ The same bucket is available by hand, because it is a calculated field:
 `hour(v)`, `minute(v)`, `second(v)` and `span(v, interval)`; see
 [Database::BI::Calc](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACalc) for the shapes each reads and the local-time rule.
 
-### Cross-Row Columns
-
-A measure folds a group into one number and a calculated field works one row out
-on its own.  `cs=` is the third shape: one row worked out from its neighbours,
-written back beside every row.
-
-```
-GET /view/orders?cs=amount:running_total:ytd&order=day:asc
-GET /view/orders?cs=amount:window_avg:ma7:7&order=day:asc&by=region
-GET /bar?l=table:orders&cat=region&val=share&cs=amount:pct_of_total:share
-```
-
-```
-cs=<column>:<function>:<alias>            write a column of that name
-cs=<column>:<function>:<alias>:<count>    a moving window needs its width
-by=<column>[,<column>...]                 partition; without it there is one
-order=<column>[:asc|desc]                 the order the rows are read in
-```
-
-The functions that need no order are `pct_of_total` (the row's share of its
-partition, so the shares sum to 1), `rank` (1 for the largest, ties sharing a
-rank while the next rank skips, as SQL `RANK()` does) and `zscore` (the
-sample standard deviation the `stdev` measure uses, so the two agree).  The
-ones that accumulate are `running_total`, `running_count`, `running_pct`,
-`window_sum`, `window_avg`, `lag`, `delta` and `pct_change`; each of those
-requires `order=`, because a running total of unordered rows is not a number
-anybody can act on.
-
-`order=` decides the order the window is read in, not the order the table is
-shown in: the table keeps its own sort, so a reader can sort by amount while
-the running total follows the date.  Ties keep their arrival order, so two runs
-over the same file give the same numbers.  `by=` partitions; rows whose
-partition column is empty are grouped together under the empty value rather
-than dropped -- the pivot drops such rows, a windowed column covers every
-displayed row.
-
-A cell that is not numeric gives an empty cell in the produced column rather
-than a placeholder, so a chart skips it and a measure fold does not read it as
-zero.  The pass runs after the filters, so a window is over what the filters
-left, and before the page is sliced, so page 2 continues page 1's running
-total; `/export` runs the same stages and carries the same column.  An unknown
-function, an unknown column, a window on a function that takes none, and a
-missing `order=` are each a 400 naming the parameter.
-
-In the browser, the toolbar's **Cross-row…** button opens the panel that writes
-these parameters: a number column, a function, the read order and direction, a
-partition, and a name for the new column.  A column in the view is shown as a
-chip beside the filters, so removing it is one click, and adding a second one
-keeps the first.  Every chart panel carries the columns to its route and the
-export panel sends them with the file, so the table, a chart of the column and
-the saved CSV all hold the same numbers.
-
-On a canvas (`/a/<id>`) the specs are read from the canvas page's URL and run
-once per card, after that card's own filters and the page's cross-filter.  Two
-cards narrowed to different regions therefore show different running totals,
-each starting again at its own first row; a spec the page cannot honour is a
-400 on the page rather than a message on every card.
-
 ## Configuration
 
 Place a `database_bi.conf` file in the application root to override
@@ -1121,13 +1069,13 @@ rather than a shell wrapper around this one:
 The command runs once per run, through the shell, and only when something is
 announced: a crossing (exit 1), or its end with `--recovery` (exit 3).  A
 suppressed repeat, an uncrossed threshold, an error and a `--dry-run` run it
-not at all, and twenty checks still send one mail.  The whole run's text
-arrives on standard input, and three variables say what it is --
-`BI_ALERT_EVENT` (`crossed` if any crossing was announced, otherwise
-`recovery`), `BI_ALERT_SUBJECT` (the verdict line when one thing was announced,
-otherwise a count such as `2 threshold crossings, 1 recovery`) and
-`BI_ALERT_MESSAGE_FILE` (the same text in a file, for a command that has to post
-a body: `curl -d @$BI_ALERT_MESSAGE_FILE ...`).  A delivery that fails is
+not at all, and twenty checks still send one mail.  The whole run's text arrives
+on standard input, and three variables say what it is -- `BI_ALERT_EVENT`
+(`crossed` if any crossing was announced, otherwise `recovery`),
+`BI_ALERT_SUBJECT` (the verdict line when one thing was announced, otherwise a
+count such as `2 threshold crossings, 1 recovery`) and
+`BI_ALERT_MESSAGE_FILE` (the same text in a file, for a command that has to
+post a body: `curl -d @$BI_ALERT_MESSAGE_FILE ...`).  A delivery that fails is
 reported on STDERR and leaves the exit status alone, but the announcements are
 not recorded, so the next run announces them again rather than the alert being
 lost for the rest of the period.

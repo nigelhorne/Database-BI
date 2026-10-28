@@ -4,14 +4,22 @@ Revision history for Database-BI
 	[ Enhancements ]
 	- Cross-row panel: pick a number column, a function, an order and a
 	  partition; the column joins the view, and charts and exports carry it.
+	- A canvas card's own cross-row plan can hold several columns: Add current
+	  view collects them as a removable list before the card is added.
 	- Word cloud (GET /wordcloud): a text column's words, counted once per
 	  row and drawn with HTML::TagCloud, each word linking back to its rows.
 	- A saved canvas card can be a word cloud (kind=wordcloud), counted from
 	  that card's own rows; Add current view offers it beside the charts.
+	- Clicking a word on a canvas word-cloud card cross-filters the canvas to
+	  the rows that contain it, the way clicking a chart mark does.
+	- PATCH /api/analyses/:id/visuals/:visual replaces a card's cross_row plan
+	  (null gives it up), so a saved card is repaired in place.
 	- A canvas card can carry its own cross-row plan (cross_row), replacing the
 	  page's, or none at all; Add current view sets it.
 	- Canvas cards run the cs= cross-row pass themselves, on their own
 	  filtered rows, so two cards can show different running totals.
+	- A card's cross-row pass runs on its own rows, so the column it produces
+	  no longer appears in a card beside it that never asked for one.
 	- Added a time range (e.g. last 90 days)
 	- Response compression (gzip / Brotli / Zstandard), ETag/304 browser
 	  cache validation, and HTML whitespace minification are now handled by

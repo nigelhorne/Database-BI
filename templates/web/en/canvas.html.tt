@@ -120,6 +120,10 @@
 	margin: 0 0.25rem;
 	color: #2c3e7a;
 	white-space: nowrap;
+	text-decoration: none;
+}
+.wordcloud-word:hover, .wordcloud-word:focus-visible {
+	text-decoration: underline;
 }
 .wordcloud-summary, .wordcloud-empty {
 	margin: 0.5rem 0 0;
@@ -344,6 +348,44 @@
 }
 .ac-cs legend { font-size: 0.78rem; font-weight: 600; padding: 0 0.25rem; }
 .ac-cs #ac-cs-fields[hidden] { display: none; }
+/* The columns a card will carry, one chip each, so a plan of several is
+ * something the reader can see and take apart before the card is added. */
+.ac-cs-addrow { display: flex; align-items: center; gap: 0.45rem; flex-wrap: wrap; margin: 0.1rem 0 0.45rem; }
+.ac-cs-add {
+	font-size: 0.78rem;
+	padding: 0.22rem 0.6rem;
+	border: 1px dashed var(--link, #0d6efd);
+	border-radius: 4px;
+	background: var(--card-bg, #fff);
+	color: var(--link, #0d6efd);
+	cursor: pointer;
+}
+.ac-cs-add:hover, .ac-cs-add:focus-visible { background: #eef2fb; }
+.ac-cs-list-title { margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 600; }
+.ac-cs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
+.ac-cs-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	background: #eef2fb;
+	border: 1px solid #ccd6ec;
+	border-radius: 999px;
+	padding: 0.1rem 0.15rem 0.1rem 0.55rem;
+	font-size: 0.78rem;
+}
+.ac-cs-remove {
+	border: 0;
+	background: none;
+	color: #2c3e7a;
+	cursor: pointer;
+	font-size: 0.95rem;
+	line-height: 1;
+	padding: 0 0.3rem;
+	border-radius: 999px;
+}
+.ac-cs-remove:hover, .ac-cs-remove:focus-visible { background: #dbe4f7; }
+.ac-cs-empty { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--muted, #6c757d); }
+.ac-cs-empty[hidden] { display: none; }
 .ac-note { font-size: 0.72rem; font-weight: 400; color: var(--muted, #6c757d); }
 .ac-actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
 .ac-actions button {
@@ -826,6 +868,18 @@
 						<label class="ac-field">Restart for each
 							<select id="ac-cs-by"></select>
 						</label>
+						[%- # One column at a time is described above and put in the list below:
+						    # a card may carry several, and each one can be taken out again
+						    # before the card is added.  The order and the partition belong to
+						    # the plan rather than to one column, so they are read when the
+						    # card is added. -%]
+						<div class="ac-cs-addrow">
+							<button type="button" class="ac-cs-add" id="ac-cs-add">Add this column</button>
+							<span class="ac-note">The order and the partition above apply to every column in the list.</span>
+						</div>
+						<p class="ac-cs-list-title" id="ac-cs-list-title">Columns this card will carry</p>
+						<ul class="ac-cs-list" id="ac-cs-list" aria-labelledby="ac-cs-list-title"></ul>
+						<p class="ac-cs-empty" id="ac-cs-empty">No columns yet: the column described above is the one this card carries.</p>
 					</div>
 					<span class="ac-note">A cross-row column is worked out from the rows around each row: a running total, a moving average, a rank, a percent of total. It counts the rows this card shows.</span>
 				</fieldset>
@@ -1031,8 +1085,9 @@ the arrow keys to move it one grid cell at a time.  Hold Shift with an arrow key
 edge of the canvas in that direction.  The new position is saved as you go, and reads out as
 the column and row it was moved to, along with any visual the move pushed down.</p>
 <p class="sr-only" id="canvas-live" role="status"></p>
-<p class="sr-only" id="cf-help">Filter by a chart mark: focus a bar, slice or point with
-Tab, then press Enter or Space to filter the canvas by its value.</p>
+<p class="sr-only" id="cf-help">Filter the canvas by what it shows.  Tab to a bar, slice
+or point and press Enter or Space to filter by its value, or Tab to a word in a word-cloud
+card and press Enter to filter by the rows that contain it.</p>
 [% END %]
 
 [% IF canvas_id.length %]
@@ -1783,6 +1838,20 @@ menu, so it reads without the menu being opened.</p>
 		return null;
 	}
 
+	/* The URL a cross-filter click asks for: one filter, replacing whatever
+	 * filter is in force, and the card that was clicked named as the source so
+	 * the server draws it in full and marks it.  Everything else in the query
+	 * string -- a bound parameter, a calculated column, a drill path -- is kept,
+	 * because a click on a mark says what to filter by, not what to forget. */
+	function cfUrl(cfCol, op, val, visId) {
+		var u = new URL(window.location.href);
+		u.searchParams.delete('cf');
+		u.searchParams.delete('cv');
+		u.searchParams.append('cf', cfCol + ':' + op + ':' + encodeURIComponent(val));
+		u.searchParams.set('cv', visId);
+		return u;
+	}
+
 	function initCrossFilters(root) {
 		if (typeof d3 === 'undefined') return;
 		var cards = cardsIn(root).filter(function (card) {
@@ -1792,6 +1861,25 @@ menu, so it reads without the menu being opened.</p>
 			var cfCol = card.getAttribute('data-cf-col');
 			var visId = card.getAttribute('data-visual');
 			if (!cfCol || visId === null) return;
+
+			/* A word-cloud card has no marks, so its words are the controls: a
+			 * word is a token inside a cell rather than the cell's value, so it
+			 * filters with contains and never drills -- a drill level is a value of
+			 * the drill column, and a word is not one.  The anchor's href already
+			 * asks for the same filter, so the card works without this handler;
+			 * what it adds is the rest of the query string and the undo step. */
+			Array.prototype.forEach.call(
+				card.querySelectorAll('a.wordcloud-word[data-cf-value]'),
+				function (word) {
+					word.addEventListener('click', function (event) {
+						event.preventDefault();
+						pushUndo(window.location.search);
+						window.location.href = cfUrl(cfCol, 'contains',
+							word.getAttribute('data-cf-value'), visId).toString();
+					});
+				}
+			);
+
 			var svg = card.querySelector('svg');
 			if (!svg) return;
 			/* What a mark does, in the words the state it is in calls for: filter
@@ -1829,12 +1917,8 @@ menu, so it reads without the menu being opened.</p>
 					window.location.href = u.toString();
 				} else if (!drillName) {
 					/* Normal cross-filter mode: replace any existing filter. */
-					u.searchParams.delete('cf');
-					u.searchParams.delete('cv');
-					u.searchParams.append('cf', cfCol + ':eq:' + encodeURIComponent(val));
-					u.searchParams.set('cv', visId);
 					pushUndo(window.location.search);
-					window.location.href = u.toString();
+					window.location.href = cfUrl(cfCol, 'eq', val, visId).toString();
 				}
 				/* drillName set but cfCol !== drillCol: ignore the choice. */
 			}
@@ -2168,6 +2252,9 @@ menu, so it reads without the menu being opened.</p>
 		var csOrderSel = document.getElementById('ac-cs-order');
 		var csDirSel   = document.getElementById('ac-cs-dir');
 		var csBySel    = document.getElementById('ac-cs-by');
+		var csAddBtn   = document.getElementById('ac-cs-add');
+		var csList     = document.getElementById('ac-cs-list');
+		var csEmpty    = document.getElementById('ac-cs-empty');
 		var mapLocSel = document.getElementById('ac-map-loc');
 		var mapLatSel = document.getElementById('ac-map-lat');
 		var mapLonSel = document.getElementById('ac-map-lon');
@@ -2243,15 +2330,23 @@ menu, so it reads without the menu being opened.</p>
 			return aggSel.value;   /* '' is the default: sum, or count rows */
 		}
 
-		/* ---- the card's own cross-row column ----
+		/* ---- the card's own cross-row columns ----
 		 *
 		 * The page's cs= belongs to the page.  A card either inherits it, has
 		 * none (so a canvas full of running totals can hold one card of raw
 		 * numbers), or brings a plan of its own, which the server stores as
 		 * { cs, by, order } on the visual and validates against the columns
 		 * every time the card is drawn.
+		 *
+		 * A plan is a list, so the fields describe one column at a time and Add
+		 * this column puts it in csSpecs, which is drawn as a removable chip per
+		 * column.  The list is what the card carries: what is on screen is what
+		 * is sent, and nothing is taken out of it behind the reader's back.  With
+		 * no list at all the fields themselves are the single column, so one
+		 * column needs no second click.
 		 */
 		var csAliasTouched = false;
+		var csSpecs = [];   /* { spec, alias, label, needsOrder } */
 
 		function csMeta() {
 			var opt = csFnSel ? csFnSel.options[csFnSel.selectedIndex] : null;
@@ -2272,16 +2367,36 @@ menu, so it reads without the menu being opened.</p>
 			return s;
 		}
 
+		/* A name a column of the view already has, or one already in the list,
+		 * cannot be used again: the pass refuses a name that shadows a column, and
+		 * two entries under one name would show one column where the reader asked
+		 * for two. */
+		function csAliasTaken(alias) {
+			for (var i = 0; i < csSpecs.length; i++) {
+				if (csSpecs[i].alias === alias) return true;
+			}
+			for (var j = 0; j < canvasColumns.length; j++) {
+				if (canvasColumns[j].name === alias) return true;
+			}
+			return false;
+		}
+
+		function csSuggestion() {
+			if (!csColSel.value) return '';
+			var base  = csSlug(csColSel.value + '_' + csFnSel.value);
+			var alias = base;
+			var n     = 1;
+			while (csAliasTaken(alias)) alias = base + '_' + (++n);
+			return alias;
+		}
+
 		function syncCs() {
 			if (!csModeSel || !csFields) return;
 			csFields.hidden = csModeSel.value !== 'own';
 			if (csFields.hidden) return;
 			var m = csMeta();
 			csWinField.hidden = !m.arg;
-			if (!csAliasTouched) {
-				csAliasInp.value = csColSel.value
-					? csSlug(csColSel.value + '_' + csFnSel.value) : '';
-			}
+			if (!csAliasTouched) csAliasInp.value = csSuggestion();
 		}
 
 		if (csModeSel) {
@@ -2291,14 +2406,11 @@ menu, so it reads without the menu being opened.</p>
 			csAliasInp.addEventListener('input', function () { csAliasTouched = true; });
 		}
 
-		/* The plan as the visual stores it, or null for "inherit the page".
-		 * A reader's mistake is reported in the panel, not left to the server:
-		 * the alias is a name the pass will refuse, and a stream function
-		 * cannot read rows without an order. */
-		function crossRowPlan() {
-			if (!csModeSel || csModeSel.value === 'inherit') return null;
-			if (csModeSel.value !== 'own') return {};   /* none: an empty plan */
-
+		/* The column the fields describe, or undefined after saying what is
+		 * missing.  The window and the name belong to the column; the order and
+		 * the partition belong to the plan, so they are read when the card is
+		 * added. */
+		function csDraft() {
 			var col = picked(csColSel, 'number column');
 			if (!col) return undefined;
 
@@ -2308,11 +2420,14 @@ menu, so it reads without the menu being opened.</p>
 				csAliasInp.focus();
 				return undefined;
 			}
+			if (csAliasTaken(alias)) {
+				setError('"' + alias + '" is already a column here. Give this one a name of its own.');
+				csAliasInp.focus();
+				return undefined;
+			}
 
 			var m    = csMeta();
-			var plan = { cs: [] };
 			var spec = col + ':' + csFnSel.value + ':' + alias;
-
 			if (m.arg) {
 				var win = parseInt(csWinInp.value, 10);
 				if (!(win > 0)) {
@@ -2322,13 +2437,109 @@ menu, so it reads without the menu being opened.</p>
 				}
 				spec += ':' + win;
 			}
-			plan.cs.push(spec);
 
-			if (m.order && !csOrderSel.value) {
-				setError('This function reads the rows in an order: choose the column to read them in order of.');
-				csOrderSel.focus();
-				return undefined;
+			var fn = csFnSel.options[csFnSel.selectedIndex];
+			return {
+				spec       : spec,
+				alias      : alias,
+				label      : (fn ? fn.textContent : csFnSel.value) + '(' + col + ') as ' + alias,
+				needsOrder : m.order,
+			};
+		}
+
+		/* The list as the reader sees it: one chip per column, each with its own
+		 * way out.  Redrawn from csSpecs rather than patched, so a chip cannot
+		 * disagree with what the card will be sent. */
+		function renderCsList() {
+			csList.innerHTML = '';
+			csEmpty.hidden = csSpecs.length > 0;
+			csSpecs.forEach(function (entry, index) {
+				var li = document.createElement('li');
+				li.className = 'ac-cs-chip';
+				li.setAttribute('data-spec', entry.spec);
+
+				var text = document.createElement('span');
+				text.className = 'ac-cs-chip-text';
+				text.textContent = entry.label;
+
+				var remove = document.createElement('button');
+				remove.type = 'button';
+				remove.className = 'ac-cs-remove';
+				remove.setAttribute('data-index', String(index));
+				remove.setAttribute('aria-label', 'Remove ' + entry.label);
+				remove.setAttribute('title', 'Remove this column');
+				remove.textContent = '\u00d7';
+
+				li.appendChild(text);
+				li.appendChild(remove);
+				csList.appendChild(li);
+			});
+		}
+
+		if (csAddBtn) {
+			csAddBtn.addEventListener('click', function () {
+				setError('');
+				var draft = csDraft();
+				if (!draft) return;
+				csSpecs.push(draft);
+				/* The next column starts with a name of its own: leaving the old one
+				 * in the box would suggest a name already in the list. */
+				csAliasTouched = false;
+				csAliasInp.value = '';
+				renderCsList();
+				syncCs();
+				csAddBtn.focus();
+			});
+		}
+
+		/* Removing one is a click on its own chip.  Focus goes to the chip that
+		 * takes its place, or back to the fields once the list is empty, so a
+		 * reader taking several out never loses the keyboard. */
+		if (csList) {
+			csList.addEventListener('click', function (event) {
+				var target = event.target;
+				while (target && target !== csList
+						&& !(target.classList && target.classList.contains('ac-cs-remove'))) {
+					target = target.parentNode;
+				}
+				if (!target || target === csList) return;
+				event.preventDefault();
+				var index = parseInt(target.getAttribute('data-index'), 10);
+				if (!(index >= 0)) return;
+				csSpecs.splice(index, 1);
+				renderCsList();
+				setError('');
+				var buttons = csList.querySelectorAll('.ac-cs-remove');
+				if (buttons.length) buttons[Math.min(index, buttons.length - 1)].focus();
+				else if (csColSel) csColSel.focus();
+			});
+		}
+
+		/* The plan as the visual stores it, or null for "inherit the page".
+		 * The list is the plan, and an empty list means the fields are the one
+		 * column, so the single-column case needs no second click.  A reader's
+		 * mistake is reported in the panel, not left to the server: a stream
+		 * function cannot read rows without an order. */
+		function crossRowPlan() {
+			if (!csModeSel || csModeSel.value === 'inherit') return null;
+			if (csModeSel.value !== 'own') return {};   /* none: an empty plan */
+
+			var entries = csSpecs.slice();
+			if (!entries.length) {
+				var draft = csDraft();
+				if (!draft) return undefined;
+				entries.push(draft);
 			}
+
+			for (var i = 0; i < entries.length; i++) {
+				if (entries[i].needsOrder && !csOrderSel.value) {
+					setError('"' + entries[i].label + '" reads the rows in an order: choose the column to read them in order of.');
+					csOrderSel.focus();
+					return undefined;
+				}
+			}
+
+			var plan = { cs: entries.map(function (entry) { return entry.spec; }) };
 			if (csOrderSel.value) {
 				plan.order = [csOrderSel.value + (csDirSel.value === 'desc' ? ':desc' : '')];
 			}
@@ -3020,10 +3231,12 @@ menu, so it reads without the menu being opened.</p>
 				appendCard(json);
 				form.reset();
 				/* The reset returns the aggregate to Sum and the cross-row section
-				 * to "inherit", so the boxes they were showing have to go with
-				 * them. */
+				 * to "inherit", so the boxes and the chips they were showing have to
+				 * go with them. */
 				syncFields();
 				csAliasTouched = false;
+				csSpecs = [];
+				renderCsList();
 				syncCs();
 				addBtn.disabled = false;
 				btn.disabled = false;
