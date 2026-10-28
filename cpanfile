@@ -18,6 +18,7 @@ requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.22';
 requires 'HTML::D3', '0.23';   # 0.20 added radius_range support for render_scatter_chart_snippet; 0.19 added scatter/stacked/combo/treemap/histogram snippets
+requires 'HTML::TagCloud', '0.38';   # word cloud page (/wordcloud)
 requires 'HTML::TableExtract';
 requires 'HTTP::Request';   # Used by Ask.pm and Summary.pm for LLM API calls (ships with libwww-perl but not core)
 requires 'IPC::System::Simple';   # For autodie (:all) in DataSource.pm at runtime

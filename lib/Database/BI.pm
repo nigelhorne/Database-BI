@@ -562,6 +562,29 @@ D3.js v7 histogram with server-side binning.  Parameters:
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=         result filters (repeatable)
 
+=item C<GET /wordcloud>
+
+Word cloud of a text column, drawn with HTML::TagCloud.  Each row contributes
+its words once, so a word's size is the number of rows that use it rather than
+the number of times one long note repeats it.  Common English words are
+removed.  Parameters:
+
+  l=<spec>     left table (required)
+  col=<col>    text column to read (required)
+  topn=N       number of different words to show (default 50; range 1--500)
+  minlen=N     shortest word kept (default 3; range 1--64)
+  stop=<words> extra words to ignore, comma or space separated (optional)
+  back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
+  f=           result filters (repeatable)
+
+With C<back=>, each word links to the rows that contain it.
+
+The same cloud is available as a card on a saved canvas: C<POST
+/api/analyses/:id/visuals> takes C<kind = > C<wordcloud> with C<encode.col>,
+and the card counts the words of its own rows -- its filters, the page's
+cross-filter and its own options -- so a canvas that is narrowed to one
+region shows the words of that region.
+
 =item C<GET /map>
 
 OpenStreetMap map of the filtered view, drawn with HTML::OSM.  A row's position
@@ -646,8 +669,11 @@ alone.
 Appends one visual to a saved canvas.  Body: C<{ kind, encode, options,
 title, query }>, with C<kind> one of C<table>, C<bar>, C<pie>, C<line>,
 C<graph>, C<scatter>, C<heatmap>, C<stacked>, C<combo>, C<treemap>,
-C<histogram> or C<map>.  A map's C<encode> names either C<loc> (a place column
-to geocode) or C<lat> and C<lon>.  The optional C<query> is the canvas page's
+C<histogram>, C<wordcloud> or C<map>.  A map's C<encode> names either C<loc> (a place column
+to geocode) or C<lat> and C<lon>.  A C<wordcloud> card's C<encode> names the
+text column to read in C<col>, and its C<options> take the same C<topn>,
+C<minlen> and C<stop> the C<GET /wordcloud> page takes, so the two count and
+rank words with one function.  The optional C<query> is the canvas page's
 query string: C<cf> (cross-filter), C<c> (calculated columns) and
 C<p.E<lt>nameE<gt>> (bound parameter values) are read from it, so a card added
 while the canvas is filtered or parameterised is drawn through the same state
@@ -676,6 +702,17 @@ or names the value menu's "Count (no column needed)".  A combo aggregates both
 its series with the one function.  A card's derived title says which function it
 used (C<median(amount) by region>); a plain sum keeps the title it has always
 had.
+
+A card may bring a cross-row plan of its own in C<cross_row>, in the spelling
+the canvas page's C<cs>, C<by> and C<order> use:
+C<{ cs = > [ I<col:fn:name[:arg]> ... ], by => I<col>, order => [ I<col:dir> ... ] }>.
+The card then runs that plan instead of the page's, so one card of a canvas can
+show a running total while the cards beside it show raw rows, and
+C<{ cs = > [] }> is a card that runs no cross-row pass at all -- which is how a
+card opts out of the page's.  A card that sends no C<cross_row> inherits the
+page's plan.  The plan is checked against the canvas's columns on every render,
+not only here, so a saved spec that no longer names a column is that card's
+error while a bad page-level C<cs> is the page's C<400>.
 
 =item C<PATCH /api/analyses/:id/visuals/:visual>
 
@@ -1398,6 +1435,18 @@ sub startup ($self) {
 		return Database::BI::Controller::Dashboard::_time_range_request($c);
 	});
 
+	# Cross-row columns (?cs=/by=/order=) are part of the view: the table page
+	# draws a chip for each one and its panel edits them, and every chart panel
+	# carries them to its route, which runs the same pass over the same rows.
+	# It is a hook rather than four stash lines in each of the seven actions that
+	# render the dashboard, so a new action cannot silently lose them.
+	$self->hook(before_dispatch => sub {
+		my $c = shift;
+
+		require Database::BI::Controller::Dashboard;
+		$c->stash(Database::BI::Controller::Dashboard::_cross_row_ui_state($c));
+	});
+
 	# Every page names the tutorial chapter that helps with it.  The layout
 	# turns this into a "Help: ..." link beside the main Tutorial link, so a
 	# reader on the pie chart screen lands on the pie chart chapter.  It lives
@@ -1536,6 +1585,7 @@ sub startup ($self) {
 	$r->get('/combo')         ->to('Dashboard#combo_view');
 	$r->get('/treemap')       ->to('Dashboard#treemap_view');
 	$r->get('/histogram')     ->to('Dashboard#histogram_view');
+	$r->get('/wordcloud')     ->to('Dashboard#wordcloud_view');
 	$r->get('/map')           ->to('Dashboard#map_view');
 	$r->get('/line')          ->to('Dashboard#graph_view');	# alias for /graph
 	$r->post('/api/ask')       ->to('Dashboard#ask_api');

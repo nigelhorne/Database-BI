@@ -514,8 +514,11 @@ sub file_text {
 
 	# The command records what it was given -- the two variables, the run's text
 	# from STDIN, and one byte per invocation, so the test can count deliveries
-	# rather than infer them.
-	my $cmd = qq{printenv BI_ALERT_EVENT BI_ALERT_SUBJECT > '$env'; }
+	# rather than infer them.  One printenv per name: macOS's takes a single
+	# name, so asking it for two there records only the first and the subject
+	# looks unset.  A variable that really is missing still leaves no line.
+	my $cmd = qq{printenv BI_ALERT_EVENT > '$env'; }
+		. qq{printenv BI_ALERT_SUBJECT >> '$env'; }
 		. qq{cat > '$body'; printf x >> '$calls'; echo child-stdout};
 
 	my @args = (
@@ -699,7 +702,8 @@ sub file_text {
 	my $body  = File::Spec->catfile($dir, 'message.txt');
 	my $env   = File::Spec->catfile($dir, 'env.txt');
 	my $calls = File::Spec->catfile($dir, 'calls.txt');
-	my $cmd   = qq{printenv BI_ALERT_EVENT BI_ALERT_SUBJECT > '$env'; }
+	my $cmd   = qq{printenv BI_ALERT_EVENT > '$env'; }
+		. qq{printenv BI_ALERT_SUBJECT >> '$env'; }
 		. qq{cat > '$body'; printf x >> '$calls'};
 
 	Mojo::File->new($clear_csv)->spurt($rows_four);

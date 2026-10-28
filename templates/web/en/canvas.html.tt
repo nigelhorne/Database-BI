@@ -108,6 +108,24 @@
 	padding: 0.5rem;
 	font-size: 0.85rem;
 }
+/* A word-cloud card: the size of a word is how many of the card's rows
+ * contain it, so the words are one wrapping line rather than a chart. */
+.wordcloud-cloud {
+	margin: 0;
+	line-height: 1.9;
+	text-align: center;
+}
+.wordcloud-word {
+	display: inline-block;
+	margin: 0 0.25rem;
+	color: #2c3e7a;
+	white-space: nowrap;
+}
+.wordcloud-summary, .wordcloud-empty {
+	margin: 0.5rem 0 0;
+	font-size: 0.8rem;
+	color: var(--muted, #6c757d);
+}
 .visual-table-wrap {
 	overflow: auto;
 }
@@ -316,6 +334,16 @@
 	color: inherit;
 }
 .ac-field select[multiple] { padding: 0.15rem; }
+/* The cross-row section of the panel: a group of its own, because it is the
+ * one choice in the panel that belongs to the card rather than to its view. */
+.ac-cs {
+	margin: 0.2rem 0 0.55rem;
+	padding: 0.45rem 0.5rem 0.15rem;
+	border: 1px solid var(--border, #dee2e6);
+	border-radius: 4px;
+}
+.ac-cs legend { font-size: 0.78rem; font-weight: 600; padding: 0 0.25rem; }
+.ac-cs #ac-cs-fields[hidden] { display: none; }
 .ac-note { font-size: 0.72rem; font-weight: 400; color: var(--muted, #6c757d); }
 .ac-actions { display: flex; gap: 0.4rem; margin-top: 0.6rem; }
 .ac-actions button {
@@ -678,6 +706,7 @@
 						<option value="combo">Combo chart</option>
 						<option value="treemap">Treemap</option>
 						<option value="histogram">Histogram</option>
+						<option value="wordcloud">Word cloud</option>
 						<option value="map">Map</option>
 					</select>
 				</label>
@@ -732,6 +761,16 @@
 				<label class="ac-field" data-for="histogram" data-label="Bins">Bins
 					<input id="ac-bins" type="number" min="1" max="200" value="10">
 				</label>
+				<label class="ac-field" data-for="wordcloud" data-label="Text column">Text column
+					<select id="ac-wc-col"></select>
+					<span class="ac-note">The words in this column are counted once per row.</span>
+				</label>
+				<label class="ac-field" data-for="wordcloud" data-label="Words to show">Words to show
+					<input id="ac-wc-topn" type="number" min="1" max="500" step="1" value="50">
+				</label>
+				<label class="ac-field" data-for="wordcloud" data-label="Shortest word">Shortest word
+					<input id="ac-wc-minlen" type="number" min="1" max="64" step="1" value="3">
+				</label>
 				<label class="ac-field" data-for="map" data-label="Place column (optional)">Place column (optional)
 					<select id="ac-map-loc"></select>
 					<span class="ac-note">Or choose latitude and longitude below.</span>
@@ -742,9 +781,54 @@
 				<label class="ac-field" data-for="map" data-label="Longitude">Longitude
 					<select id="ac-map-lon"></select>
 				</label>
-				<label class="ac-field" data-for="table bar pie line scatter heatmap stacked combo treemap histogram map" data-label="Title (optional)">Title (optional)
+				<label class="ac-field" data-for="table bar pie line scatter heatmap stacked combo treemap histogram wordcloud map" data-label="Title (optional)">Title (optional)
 					<input id="ac-title-inp" type="text" maxlength="200" autocomplete="off">
 				</label>
+				[%- # A cross-row column belongs to one card, not to the page: a running
+				    # total on this card is not a running total on every card.  Inherit
+				    # is the default, and sending no plan at all is how a card says so.
+				-%]
+				<fieldset class="ac-cs" id="ac-cs-group">
+					<legend>Cross-row column</legend>
+					<label class="ac-field">This card
+						<select id="ac-cs-mode">
+							<option value="inherit">Uses the page's cross-row columns</option>
+							<option value="none">Has no cross-row column</option>
+							<option value="own">Has a column of its own</option>
+						</select>
+					</label>
+					<div id="ac-cs-fields" hidden>
+						<label class="ac-field">Number column
+							<select id="ac-cs-col"></select>
+						</label>
+						<label class="ac-field">Work out
+							<select id="ac-cs-fn">
+								[%- FOREACH fn IN cross_row_menu -%]
+								<option value="[% fn.name | html %]" data-arg="[% fn.arg %]" data-order="[% fn.order %]">[% fn.label | html %]</option>
+								[%- END -%]
+							</select>
+						</label>
+						<label class="ac-field" id="ac-cs-window-field" hidden>Window (rows)
+							<input id="ac-cs-window" type="number" min="1" max="100000" step="1" value="7">
+						</label>
+						<label class="ac-field">New column name
+							<input id="ac-cs-alias" type="text" maxlength="64" autocomplete="off" placeholder="e.g. running_total">
+						</label>
+						<label class="ac-field">Read rows in order of
+							<select id="ac-cs-order"></select>
+						</label>
+						<label class="ac-field">Direction
+							<select id="ac-cs-dir">
+								<option value="asc">Low to high</option>
+								<option value="desc">High to low</option>
+							</select>
+						</label>
+						<label class="ac-field">Restart for each
+							<select id="ac-cs-by"></select>
+						</label>
+					</div>
+					<span class="ac-note">A cross-row column is worked out from the rows around each row: a running total, a moving average, a rank, a percent of total. It counts the rows this card shows.</span>
+				</fieldset>
 				<p class="ac-error" id="ac-error" role="alert" hidden></p>
 				<div class="ac-actions">
 					<button type="submit" class="ac-submit" id="ac-add-btn">Add to canvas</button>
@@ -2071,6 +2155,19 @@ menu, so it reads without the menu being opened.</p>
 		var barSel   = document.getElementById('ac-bar-value');
 		var lineSel  = document.getElementById('ac-line-value');
 		var histSel  = document.getElementById('ac-hist-col');
+		var wcColSel = document.getElementById('ac-wc-col');
+		var wcTopnInp = document.getElementById('ac-wc-topn');
+		var wcMinlenInp = document.getElementById('ac-wc-minlen');
+		var csModeSel  = document.getElementById('ac-cs-mode');
+		var csFields   = document.getElementById('ac-cs-fields');
+		var csColSel   = document.getElementById('ac-cs-col');
+		var csFnSel    = document.getElementById('ac-cs-fn');
+		var csWinField = document.getElementById('ac-cs-window-field');
+		var csWinInp   = document.getElementById('ac-cs-window');
+		var csAliasInp = document.getElementById('ac-cs-alias');
+		var csOrderSel = document.getElementById('ac-cs-order');
+		var csDirSel   = document.getElementById('ac-cs-dir');
+		var csBySel    = document.getElementById('ac-cs-by');
 		var mapLocSel = document.getElementById('ac-map-loc');
 		var mapLatSel = document.getElementById('ac-map-lat');
 		var mapLonSel = document.getElementById('ac-map-lon');
@@ -2114,6 +2211,14 @@ menu, so it reads without the menu being opened.</p>
 		fill(barSel, choose.concat(numCols));
 		fill(lineSel, choose.concat(numCols));
 		fill(histSel, choose.concat(numCols));
+		fill(wcColSel, choose.concat(allCols));
+		fill(csColSel, choose.concat(numCols));
+		/* The two optional columns say "none" first, because a partition and a
+		 * read order are choices a cross-row column can do without. */
+		fill(csOrderSel,
+			[{ value: '', label: '\u2014 none \u2014' }].concat(allCols));
+		fill(csBySel,
+			[{ value: '', label: '\u2014 the whole view \u2014' }].concat(allCols));
 		fill(mapLocSel, choose.concat(allCols));
 		fill(mapLatSel, choose.concat(numCols));
 		fill(mapLonSel, choose.concat(numCols));
@@ -2136,6 +2241,99 @@ menu, so it reads without the menu being opened.</p>
 			if (!aggSel || !AGG_KINDS[kind]) return '';
 			if (aggSel.value === 'p') return 'p' + percentileLevel(pctInp);
 			return aggSel.value;   /* '' is the default: sum, or count rows */
+		}
+
+		/* ---- the card's own cross-row column ----
+		 *
+		 * The page's cs= belongs to the page.  A card either inherits it, has
+		 * none (so a canvas full of running totals can hold one card of raw
+		 * numbers), or brings a plan of its own, which the server stores as
+		 * { cs, by, order } on the visual and validates against the columns
+		 * every time the card is drawn.
+		 */
+		var csAliasTouched = false;
+
+		function csMeta() {
+			var opt = csFnSel ? csFnSel.options[csFnSel.selectedIndex] : null;
+			return {
+				arg:   !!opt && opt.getAttribute('data-arg')   === '1',
+				order: !!opt && opt.getAttribute('data-order') === '1',
+			};
+		}
+
+		/* A column name has to be usable in a URL and as a column, and the
+		 * column it comes from may hold anything at all ("Unit price ($)"), so
+		 * the suggestion is reduced to letters, digits and underscores. */
+		function csSlug(text) {
+			var s = String(text || '').toLowerCase()
+				.replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+			if (!s) return 'value';
+			if (/^[0-9]/.test(s)) s = 'c_' + s;
+			return s;
+		}
+
+		function syncCs() {
+			if (!csModeSel || !csFields) return;
+			csFields.hidden = csModeSel.value !== 'own';
+			if (csFields.hidden) return;
+			var m = csMeta();
+			csWinField.hidden = !m.arg;
+			if (!csAliasTouched) {
+				csAliasInp.value = csColSel.value
+					? csSlug(csColSel.value + '_' + csFnSel.value) : '';
+			}
+		}
+
+		if (csModeSel) {
+			csModeSel.addEventListener('change', syncCs);
+			csColSel.addEventListener('change', syncCs);
+			csFnSel.addEventListener('change', syncCs);
+			csAliasInp.addEventListener('input', function () { csAliasTouched = true; });
+		}
+
+		/* The plan as the visual stores it, or null for "inherit the page".
+		 * A reader's mistake is reported in the panel, not left to the server:
+		 * the alias is a name the pass will refuse, and a stream function
+		 * cannot read rows without an order. */
+		function crossRowPlan() {
+			if (!csModeSel || csModeSel.value === 'inherit') return null;
+			if (csModeSel.value !== 'own') return {};   /* none: an empty plan */
+
+			var col = picked(csColSel, 'number column');
+			if (!col) return undefined;
+
+			var alias = (csAliasInp.value || '').replace(/^\s+|\s+$/g, '');
+			if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(alias)) {
+				setError('Name the new column with letters, digits and underscores, starting with a letter or underscore.');
+				csAliasInp.focus();
+				return undefined;
+			}
+
+			var m    = csMeta();
+			var plan = { cs: [] };
+			var spec = col + ':' + csFnSel.value + ':' + alias;
+
+			if (m.arg) {
+				var win = parseInt(csWinInp.value, 10);
+				if (!(win > 0)) {
+					setError('A moving total needs a window of at least one row.');
+					csWinInp.focus();
+					return undefined;
+				}
+				spec += ':' + win;
+			}
+			plan.cs.push(spec);
+
+			if (m.order && !csOrderSel.value) {
+				setError('This function reads the rows in an order: choose the column to read them in order of.');
+				csOrderSel.focus();
+				return undefined;
+			}
+			if (csOrderSel.value) {
+				plan.order = [csOrderSel.value + (csDirSel.value === 'desc' ? ':desc' : '')];
+			}
+			if (csBySel.value) plan.by = csBySel.value;
+			return plan;
 		}
 
 		function syncFields() {
@@ -2226,7 +2424,7 @@ menu, so it reads without the menu being opened.</p>
 			table: 'Table', bar: 'Bar chart', pie: 'Pie chart', line: 'Line chart',
 			graph: 'Line chart', scatter: 'Scatter chart', heatmap: 'Heatmap',
 			stacked: 'Stacked bar chart', combo: 'Combo chart', treemap: 'Treemap',
-			histogram: 'Histogram', map: 'Map',
+			histogram: 'Histogram', wordcloud: 'Word cloud', map: 'Map',
 		};
 
 		/* Which library draws a card, so a card whose CDN copy did not load can
@@ -2765,6 +2963,12 @@ menu, so it reads without the menu being opened.</p>
 			} else if (kind === 'histogram') {
 				encode.value = picked(histSel, 'column'); if (!encode.value) return;
 				options.bins = parseInt(binsInp.value, 10) || 10;
+			} else if (kind === 'wordcloud') {
+				encode.col = picked(wcColSel, 'text column'); if (!encode.col) return;
+				/* The two counts the route takes, clamped here so the panel cannot
+				 * build a request the server would have to refuse outright. */
+				options.topn   = Math.min(500, Math.max(1, parseInt(wcTopnInp.value, 10)   || 50));
+				options.minlen = Math.min(64,  Math.max(1, parseInt(wcMinlenInp.value, 10) || 3));
 			} else if (kind === 'map') {
 				if (mapLocSel.value) {
 					encode.loc = mapLocSel.value;
@@ -2776,6 +2980,9 @@ menu, so it reads without the menu being opened.</p>
 
 			if (agg) encode.agg = agg;
 
+			var crossRow = crossRowPlan();
+			if (crossRow === undefined) return;   /* the panel has said why */
+
 			var payload = {
 				kind: kind, encode: encode, options: options,
 				/* The canvas's own URL state, so a card added while a chart is
@@ -2784,6 +2991,9 @@ menu, so it reads without the menu being opened.</p>
 				query: window.location.search || '',
 			};
 			if (title) payload.title = title;
+			/* Left off entirely when the card inherits the page's plan: an
+			 * absent key is what "inherit" means. */
+			if (crossRow) payload.cross_row = crossRow;
 
 			addBtn.disabled = true;
 			btn.disabled = true;
@@ -2809,9 +3019,12 @@ menu, so it reads without the menu being opened.</p>
 
 				appendCard(json);
 				form.reset();
-				/* The reset returns the aggregate to Sum, so the level box it was
-				 * showing has to go with it. */
+				/* The reset returns the aggregate to Sum and the cross-row section
+				 * to "inherit", so the boxes they were showing have to go with
+				 * them. */
 				syncFields();
+				csAliasTouched = false;
+				syncCs();
 				addBtn.disabled = false;
 				btn.disabled = false;
 				addBtn.textContent = 'Add to canvas';

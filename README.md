@@ -59,6 +59,13 @@ by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
 as it changes.  All chart pages include Copy-link and Export SVG/PNG buttons.
+- **Word cloud** -- `GET /wordcloud` reads a text column and draws the words that
+appear in the most rows with [HTML::TagCloud](https://metacpan.org/pod/HTML%3A%3ATagCloud).
+A word counts once per row, whatever its case; common English words are
+skipped.  `?topn=` and `?minlen=` size the cloud and `?stop=` adds words to
+skip.  With `?back=`, each word links to the rows that contain it.  A saved
+canvas can hold the same cloud as a card: **Add current view** then **Word
+cloud**, drawn from that card's own rows.
 - **Maps** -- `GET /map` plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded locally
 with [Geo::Coder::Free](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AFree) (one lookup per distinct place, remembered in the
@@ -512,6 +519,24 @@ perl Makefile.PL
     f=         result filters (repeatable)
     ```
 
+- `GET /wordcloud`
+
+    Word cloud of a text column, drawn with HTML::TagCloud.  Each row contributes
+    its words once, so a word's size is the number of rows that use it.  The same
+    cloud is a card on a saved canvas (`kind=wordcloud`, `encode.col`, and
+    `options.topn`/`minlen`/`stop`), counted from that card's own rows.
+    Parameters:
+
+    ```
+    l=<spec>     left table (required)
+    col=<col>    text column to read (required)
+    topn=N       different words to show (default 50; range 1--500)
+    minlen=N     shortest word kept (default 3; range 1--64)
+    stop=<words> extra words to ignore, comma or space separated (optional)
+    back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
+    f=           result filters (repeatable)
+    ```
+
 - `GET /map`
 
     OpenStreetMap map of the filtered view, drawn with HTML::OSM.  A row's position
@@ -598,8 +623,11 @@ perl Makefile.PL
     Appends one visual to a saved canvas.  Body: `{ kind, encode, options,
     title, query }`, with `kind` one of `table`, `bar`, `pie`, `line`,
     `graph`, `scatter`, `heatmap`, `stacked`, `combo`, `treemap`,
-    `histogram` or `map`.  A map's `encode` names either `loc` (a place column
-    to geocode) or `lat` and `lon`.  The optional `query` is the canvas page's
+    `histogram`, `wordcloud` or `map`.  A map's `encode` names either `loc` (a place column
+    to geocode) or `lat` and `lon`.  A `wordcloud` card's `encode` names the
+    text column to read in `col`, and its `options` take the same `topn`,
+    `minlen` and `stop` the `GET /wordcloud` page takes, so the two count and
+    rank words with one function.  The optional `query` is the canvas page's
     query string: `cf` (cross-filter), `c` (calculated columns) and
     `p.<name>` (bound parameter values) are read from it, so a card added
     while the canvas is filtered or parameterised is drawn through the same state
@@ -628,6 +656,17 @@ perl Makefile.PL
     its series with the one function.  A card's derived title says which function it
     used (`median(amount) by region`); a plain sum keeps the title it has always
     had.
+
+    A card may bring a cross-row plan of its own in `cross_row`, in the spelling
+    the canvas page's `cs`, `by` and `order` use:
+    `{ cs: [ '<col>:<fn>:<name>[:<arg>]' ], by: '<col>', order: [ '<col>:<dir>' ] }`.
+    The card then runs that plan instead of the page's, so one card of a canvas can
+    show a running total while the cards beside it show raw rows, and `{ cs: [] }`
+    is a card that runs no cross-row pass at all -- which is how a card opts out of
+    the page's.  A card that sends no `cross_row` inherits the page's plan.  The
+    plan is checked against the canvas's columns on every render, not only here, so
+    a saved spec that no longer names a column is that card's error while a bad
+    page-level `cs` is the page's `400`.
 
 - `PATCH /api/analyses/:id/visuals/:visual`
 
@@ -886,6 +925,20 @@ left, and before the page is sliced, so page 2 continues page 1's running
 total; `/export` runs the same stages and carries the same column.  An unknown
 function, an unknown column, a window on a function that takes none, and a
 missing `order=` are each a 400 naming the parameter.
+
+In the browser, the toolbar's **Cross-row…** button opens the panel that writes
+these parameters: a number column, a function, the read order and direction, a
+partition, and a name for the new column.  A column in the view is shown as a
+chip beside the filters, so removing it is one click, and adding a second one
+keeps the first.  Every chart panel carries the columns to its route and the
+export panel sends them with the file, so the table, a chart of the column and
+the saved CSV all hold the same numbers.
+
+On a canvas (`/a/<id>`) the specs are read from the canvas page's URL and run
+once per card, after that card's own filters and the page's cross-filter.  Two
+cards narrowed to different regions therefore show different running totals,
+each starting again at its own first row; a spec the page cannot honour is a
+400 on the page rather than a message on every card.
 
 ## Configuration
 

@@ -37,6 +37,7 @@ WriteMakefile(
 		'Mojo::Base' => 0,
 		'Mojo::JSON' => 0,
 		'HTML::D3' => '0.23',	# 0.20 added radius_range support for render_scatter_chart_snippet; 0.19 added scatter/stacked/combo/treemap/histogram snippets
+		'HTML::TagCloud' => '0.38',	# word cloud page (/wordcloud)
 		'HTML::TableExtract'	=> 0,
 		'HTTP::Request'			=> 0,		# Used by Ask.pm and Summary.pm for LLM API calls (ships with libwww-perl but not core)
 		'LWP::UserAgent'		=> 0,		# Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path

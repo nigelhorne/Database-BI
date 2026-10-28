@@ -1146,6 +1146,25 @@ sub _apply_filter_spec {
 # streamstats family is incremental and therefore needs an order (running_*,
 # window_*, lag, delta, pct_change).
 
+# The same vocabulary as a menu, for the panel that adds a cross-row column.
+# It is data rather than a list written into the template so the function
+# names, their labels and the two facts the form needs -- whether a function
+# takes a window, and whether it needs an order -- cannot drift from the
+# validator above.
+Readonly my @CROSS_ROW_MENU => (
+	{ name => 'running_total', label => 'Running total',        arg => 0, order => 1 },
+	{ name => 'running_count', label => 'Running count',        arg => 0, order => 1 },
+	{ name => 'running_pct',   label => 'Running percent',      arg => 0, order => 1 },
+	{ name => 'window_sum',    label => 'Moving sum',           arg => 1, order => 1 },
+	{ name => 'window_avg',    label => 'Moving average',       arg => 1, order => 1 },
+	{ name => 'lag',           label => 'Previous row',         arg => 0, order => 1 },
+	{ name => 'delta',         label => 'Change from previous', arg => 0, order => 1 },
+	{ name => 'pct_change',    label => 'Percent change',       arg => 0, order => 1 },
+	{ name => 'pct_of_total',  label => 'Percent of total',     arg => 0, order => 0 },
+	{ name => 'rank',          label => 'Rank, largest first',  arg => 0, order => 0 },
+	{ name => 'zscore',        label => 'Z-score',              arg => 0, order => 0 },
+);
+
 Readonly my %CROSS_ROW_FNS => (
 	running_total => { family => 'stream' },
 	running_count => { family => 'stream' },
@@ -1160,7 +1179,7 @@ Readonly my %CROSS_ROW_FNS => (
 	zscore        => { family => 'event' },
 );
 
-# _cross_row_specs($self, \@columns) -> \%plan | { error => $message } | undef
+# _cross_row_specs($self, \@columns, $params) -> \%plan | { error => $message } | undef
 #
 # Purpose: Read cs=/by=/order= and turn them into a plan the pass can run:
 #          which function writes which column, partitioned by what, ordered by
@@ -1170,6 +1189,11 @@ Readonly my %CROSS_ROW_FNS => (
 #          else.
 # Entry:   \@columns -- the columns of this view, so a cs=/by=/order= column is
 #                       checked against what the reader can actually see.
+#          $params -- where the three parameters are read from, or undef for
+#                     this request.  Anything with param()/every_param() will
+#                     do: the canvas reads them from the canvas page's own query
+#                     string, because its cards are drawn against the canvas's
+#                     state rather than against whatever URL fetched them.
 # Exit:    undef when the request names no cross-row column.  Otherwise
 #          { specs => [ { col, fn, as, arg } ], by => [col ...],
 #            order => [ { col, dir } ] }, or { error => $message } for a
@@ -1177,8 +1201,27 @@ Readonly my %CROSS_ROW_FNS => (
 # Notes:   The streamstats family reads its rows in order, so order= is
 #          required for it and refused as missing by name.  The eventstats
 #          family does not care and does not require it.
-sub _cross_row_specs :Protected ($self, $columns) {
-	my @texts = grep { defined $_ && length } @{ $self->every_param('cs') // [] };
+sub _cross_row_specs :Protected ($self, $columns, $params = undef) {
+	my $p = $params // $self;
+
+	# The three values are the URL's spelling of a plan, read once here so the
+	# parser below serves a canvas card too - a card stores its own plan as
+	# { cs, by, order } rather than as a query string.
+	return $self->_cross_row_specs_from($columns, {
+		cs    => [ @{ $p->every_param('cs') // [] } ],
+		by    => ($p->param('by') // ''),
+		order => [ @{ $p->every_param('order') // [] } ],
+	});
+}
+
+# _cross_row_specs_from($self, \@columns, \%raw) -> \%plan | { error } | undef
+#
+# Purpose: The same validation, from a plan as a saved canvas card stores it.
+# Entry:   \%raw -- { cs => [spec ...], by => 'a,b', order => ['col:dir' ...] },
+#                    in the spelling cs=/by=/order= use.
+# Exit:    As _cross_row_specs.
+sub _cross_row_specs_from :Protected ($self, $columns, $raw) {
+	my @texts = grep { defined $_ && !ref $_ && length } @{ $raw->{cs} // [] };
 	return undef unless @texts;
 
 	my %col_set = map { $_ => 1 } @{ $columns // [] };
@@ -1225,15 +1268,15 @@ sub _cross_row_specs :Protected ($self, $columns) {
 	# by= is the partition.  An empty value is its own partition rather than a
 	# dropped row: a windowed column has to cover every displayed row, which is
 	# not the rule the pivot uses for a cell -- see the POD.
-	my $by_text = $self->param('by') // '';
+	my $by_text = (!ref $raw->{by} && defined $raw->{by}) ? "$raw->{by}" : '';
 	my @by      = grep { length } map { _trim($_) } split /,/, $by_text, -1;
 	for my $c (@by) {
 		return { error => $self->_i18n('error_cs_by', $by_text, $c) } unless $col_set{$c};
 	}
 
 	my @order;
-	for my $text (@{ $self->every_param('order') // [] }) {
-		my $spec = _trim($text // '');
+	for my $text (@{ $raw->{order} // [] }) {
+		my $spec = _trim((!ref $text && defined $text) ? $text : '');
 		next unless length $spec;
 		my ($c, $dir) = split /:/, $spec, 2;
 		$c = _trim($c // '');
@@ -1256,7 +1299,47 @@ sub _cross_row_specs :Protected ($self, $columns) {
 	return { specs => \@specs, by => \@by, order => \@order };
 }
 
-# _apply_cross_row($self, $records, \@columns) -> ($records, \@columns)
+# _cross_row_ui_state($c) -> %stash_pairs
+#
+# Purpose: The cross-row state the table page shows: the specs it puts in
+#          chips, the partition and order its chart panels carry, and the
+#          panel's own menu.  Also the rest of the query string, because the
+#          panel edits three parameters and must submit the others unchanged.
+# Entry:   $c -- the controller, for its query string only.
+# Exit:    A list suitable for stash(): cross_row_specs, cross_row_by,
+#          cross_row_order, cross_row_menu, cross_row_hidden.
+# Notes:   cs=/by=/order= are deliberately absent from cross_row_hidden.  The
+#          panel writes them from its own controls, and a hidden by= as well
+#          would send two values; param('by') reads the first, so the reader's
+#          choice would be silently ignored in favour of the old one.
+#          Only the query string is read -- never the body -- because this runs
+#          before dispatch on every request, including JSON posts.
+sub _cross_row_ui_state {
+	my ($c) = @_;
+
+	my $query  = $c->req->query_params;
+	my @specs  = grep { length } @{ $query->every_param('cs') // [] };
+	my @orders = grep { length } @{ $query->every_param('order') // [] };
+
+	my @hidden;
+	# names() is a list in some Mojo releases and an arrayref in others; taking
+	# the arrayref is what both accept.
+	for my $name (@{ $query->names }) {
+		next if $name eq 'cs' || $name eq 'by' || $name eq 'order';
+		push @hidden, map { { name => $name, value => $_ } }
+			@{ $query->every_param($name) // [] };
+	}
+
+	return (
+		cross_row_specs  => \@specs,
+		cross_row_by     => ($query->param('by') // ''),
+		cross_row_order  => \@orders,
+		cross_row_menu   => \@CROSS_ROW_MENU,
+		cross_row_hidden => \@hidden,
+	);
+}
+
+# _apply_cross_row($self, $records, \@columns, $plan) -> ($records, \@columns)
 #
 # Purpose: Stage 6 of the pipeline: run every cs= spec over the rows and write
 #          the answer onto each row as a column of its own.  Called from
@@ -1266,6 +1349,12 @@ sub _cross_row_specs :Protected ($self, $columns) {
 # Entry:   $records -- arrayref of hashrefs, already filtered.
 #          \@columns -- the columns list, or undef where the caller has none in
 #                       scope; then it is derived from the first row.
+#          $plan -- an already validated plan from _cross_row_specs($columns,
+#                   $params), or undef to read this request's cs=.  A canvas
+#                   validates once and runs the plan once per card, on each
+#                   card's own rows; re-reading cs= there would work today only
+#                   because the canvas page carries it, and would silently stop
+#                   working for a card redrawn by an API call.
 # Exit:    ($records, \@columns) with the produced columns appended, or the
 #          arguments untouched when the request names no cs=.  Croaks with an
 #          i18n message when a spec cannot be honoured; the caller renders 400.
@@ -1284,13 +1373,13 @@ sub _cross_row_specs :Protected ($self, $columns) {
 #          than a placeholder: there is no previous row for the first row of a
 #          partition, and a chart skips undef while the measure fold does too,
 #          so an undef window cannot silently become a zero.
-sub _apply_cross_row :Protected ($self, $records, $columns) {
+sub _apply_cross_row :Protected ($self, $records, $columns, $plan = undef) {
 	my $cols = $columns;
 	unless (defined $cols) {
 		$cols = [ sort keys %{ $records->[0] // {} } ];
 	}
 
-	my $plan = $self->_cross_row_specs($cols);
+	$plan //= $self->_cross_row_specs($cols);
 	return ($records, $columns) unless $plan;
 	croak $plan->{error} if $plan->{error};
 
@@ -1506,9 +1595,10 @@ sub _trim {
 #
 #          Three kinds of row-reading route deliberately do not reduce here,
 #          and each is a different case: the canvas builds its own per-card
-#          pipeline (_canvas_render_context), /view's table action filters
-#          inside _fetch_page before it paginates, and /api/ask samples rows
-#          without filtering them at all.
+#          pipeline and runs stage 6 per card, after that card's filters
+#          (_canvas_render_context, _render_visual_html), /view's table action
+#          filters inside _fetch_page before it paginates, and /api/ask samples
+#          rows without filtering them at all.
 #
 #          chips_only exists for the routes that filter somewhere else and then
 #          call _apply_filters for its chip list: /view, the three /open
@@ -3266,11 +3356,11 @@ sub analyses_add_visual ($self) {
 
 	my $kind = $body->{kind} // '';
 	my %supported = map { $_ => 1 }
-		qw( table bar pie line graph scatter heatmap stacked combo treemap histogram map );
+		qw( table bar pie line graph scatter heatmap stacked combo treemap histogram map wordcloud );
 	return $self->render(json => { error => 'Unsupported visual kind' }, status => 400)
 		unless $supported{$kind};
 
-	for my $key (qw( encode options )) {
+	for my $key (qw( encode options cross_row )) {
 		return $self->render(json => { error => "$key must be an object" }, status => 400)
 			if defined $body->{$key} && ref $body->{$key} ne 'HASH';
 	}
@@ -3280,6 +3370,23 @@ sub analyses_add_visual ($self) {
 		encode  => ($body->{encode}  // {}),
 		options => ($body->{options} // {}),
 	};
+
+	# A card may bring a cross-row plan of its own; it is stored in the same
+	# spelling cs=/by=/order= use -- { cs => [...], by => '...', order => [...] }
+	# -- so the pass reads it through the one parser, with the page's plan left
+	# out of it.  Only the shape is checked here: which columns exist is a fact
+	# about the data file, and it is checked again on every render for the same
+	# reason a saved canvas is.
+	if (my $raw = $body->{cross_row}) {
+		my @cs    = grep { defined $_ && !ref $_ && length } @{ $raw->{cs} // [] };
+		my @order = grep { defined $_ && !ref $_ && length } @{ $raw->{order} // [] };
+		$vis->{cross_row} = {
+			cs    => \@cs,
+			by    => ((!ref $raw->{by} && defined $raw->{by}) ? "$raw->{by}" : ''),
+			order => \@order,
+		};
+	}
+
 	$vis->{title} = $body->{title}
 		if defined $body->{title} && !ref $body->{title} && length $body->{title};
 
@@ -3307,6 +3414,7 @@ sub analyses_add_visual ($self) {
 	my $rendered = $self->_render_visual_html(
 		$vis, $records, $ctx->{columns}, $ctx->{src}, $index, $ctx->{spec_key},
 		(@{ $ctx->{cf_specs} } ? 1 : 0),
+		$ctx->{cross_row},
 	);
 	return $self->render(json => { error => $rendered->{error} }, status => 400)
 		if $rendered->{error};
@@ -3385,6 +3493,7 @@ sub analyses_update_visual ($self) {
 	my $rendered = $self->_render_visual_html(
 		$vis, $records, $ctx->{columns}, $ctx->{src}, $index, $ctx->{spec_key},
 		$prefiltered,
+		$ctx->{cross_row},
 	);
 	return $self->render(json => { error => $rendered->{error} }, status => 400)
 		if $rendered->{error};
@@ -3471,9 +3580,12 @@ sub analyses_import ($self) {
 # the base pipeline, calculated columns, bound parameters and the cross-filters
 # named by a canvas page's query string.  C<cf_specs> are returned unapplied so
 # the caller can decide which card, if any, is their source; C<cf_source> is
-# the C<cv> index, or -1 when the page names none.  Only C<cf>, C<c> and
-# C<p.<name>> are read from C<$query> - the same keys canvas_render reads from
-# its own URL - so a page's state is not a way to reach anything else.
+# the C<cv> index, or -1 when the page names none.  C<cross_row> is the
+# validated cs= plan, undef when the page names none, which the caller passes to
+# _render_visual_html so each card runs it over its own rows.  Only C<cf>,
+# C<cv>, C<c>, C<cs>, C<by>, C<order>, C<range>, C<rcol> and C<p.<name>> are read
+# from C<$query> - the same keys canvas_render reads from its own URL - so a
+# page's state is not a way to reach anything else.
 sub _canvas_render_context :Protected ($self, $a, $query) {
 	my $params;
 	if (defined $query) {
@@ -3509,6 +3621,14 @@ sub _canvas_render_context :Protected ($self, $a, $query) {
 		return { error => $e, status => 400 };
 	}
 
+	# The canvas names cs= once and every card runs the same plan over its own
+	# rows (see _render_visual_html).  Validated here, against the columns the
+	# cards will be drawn from, so a card added or edited in place fails with
+	# the same 400 the page itself would give.
+	my $cross_row = $self->_cross_row_specs($columns, $params || Mojo::Parameters->new);
+	return { error => $cross_row->{error}, status => 400 }
+		if $cross_row && $cross_row->{error};
+
 	my @cf_specs  = $params ? grep { /\S/ } @{ $params->every_param('cf') // [] } : ();
 	my $cf_source = (defined $params && defined $params->param('cv'))
 		? int($params->param('cv')) : -1;
@@ -3530,6 +3650,7 @@ sub _canvas_render_context :Protected ($self, $a, $query) {
 		spec_key  => ($a->{datasets}[0]{spec} // ''),
 		cf_specs  => \@cf_specs,
 		cf_source => $cf_source,
+		cross_row => $cross_row,
 	};
 }
 
@@ -3645,7 +3766,8 @@ sub _visual_measure {
 	};
 }
 
-# _render_visual_html($self, \%vis, $records, \@columns, $src, $vis_id, $spec_key)
+# _render_visual_html($self, \%vis, $records, \@columns, $src, $vis_id, $spec_key,
+#                     $prefiltered, $cross_row)
 #     -> { html => Str, title => Str, head => Str } | { error => Str }
 #
 # Renders one canvas visual spec to an HTML snippet without touching
@@ -3653,7 +3775,10 @@ sub _visual_measure {
 # kind to the appropriate renderer.  $vis_id gives a map's Leaflet element
 # ids a page-unique suffix; $spec_key is the dataset whose older per-dataset
 # geocode entry may still be read while the shared cache is migrated.
-sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered) {
+# $cross_row is the canvas's validated cs= plan, run here so that each card's
+# window is over that card's own rows: see the note at the pass below.  A card
+# that saved a plan of its own uses that one instead.
+sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
 	my $kind    = $vis->{kind}    // '';
 	my $encode  = $vis->{encode}  // {};
 	my $options = $vis->{options} // {};
@@ -3672,6 +3797,40 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 	my $vis_recs = $records;
 	for my $f (@$filters) {
 		$vis_recs = _apply_filter_spec($vis_recs, $f);
+	}
+
+	# Stage 6, per card.  A canvas names cs= once, but by the time the pass runs
+	# the card has already been narrowed by its own filters and by the page's
+	# cross-filter, so a running total is over the rows that card is drawn from:
+	# two cards showing different regions show different running totals.  The
+	# pass therefore cannot be hoisted above the card loop -- one shared pass
+	# would give every card the same numbers, and those are the numbers of
+	# neither card.  A fault is this card's error, not the page's: the plan was
+	# validated once, and only the arithmetic can still fail here.
+	#
+	# A card that carries a cross-row plan of its own (visual.cross_row) runs that
+	# plan instead of the page's: putting a running total on one card is not a
+	# request to put one on every card, and a card whose plan is empty has none
+	# at all rather than the page's.  Its plan is validated here rather than
+	# when it was saved, because the columns a saved canvas has are the columns
+	# its data file has today.  A card's own plan is its own fault, so a bad one
+	# is that card's error while the page's bad plan is the page's 400.
+	my $plan = $cross_row;
+	if (ref $vis->{cross_row} eq 'HASH') {
+		$plan = $self->_cross_row_specs_from($columns, $vis->{cross_row});
+		return { error => $plan->{error} }
+			if $plan && $plan->{error};
+	}
+
+	if ($plan) {
+		my ($crossed, $crossed_cols) = eval {
+			$self->_apply_cross_row($vis_recs, $columns, $plan)
+		};
+		if (my $e = $@) {
+			$e =~ s/ at \S+ line \d+\.?\n?$//;
+			return { error => $e };
+		}
+		($vis_recs, $columns) = ($crossed, $crossed_cols);
 	}
 
 	my %col_set = map { $_ => 1 } @$columns;
@@ -4136,6 +4295,68 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		};
 	}
 
+	# ------------------------------------------------------------ word cloud --
+	# A card that draws the words of a text column, the way GET /wordcloud does,
+	# from the same counted and ranked words (see _wordcloud_counts).  It is the
+	# one kind with no value column and no measure: the size of a word is how
+	# many of the card's own rows contain it, so a card the reader has filtered
+	# shows the words of those rows.
+	if ($kind eq 'wordcloud') {
+		my $col = $encode->{col} // '';
+		return { error => 'Missing col for word cloud visual' } unless length $col;
+		return { error => "Column not found: $col" } unless $col_set{$col};
+
+		my $topn   = _wordcloud_option($options->{topn},   50, 1, 500);
+		my $minlen = _wordcloud_option($options->{minlen},  3, 1, 64);
+
+		my $cloud = _wordcloud_counts(
+			$vis_recs, $col, $topn, $minlen, $options->{stop},
+		);
+		my @tags = @{ $cloud->{words} };
+
+		$title ||= "Words in $col";
+		my $summary = $cloud->{distinct}
+			? scalar(@tags) . ' of ' . $cloud->{distinct} . ' different word'
+				. ($cloud->{distinct} == 1 ? '' : 's')
+				. ' &middot; ' . $cloud->{total} . ' word'
+				. ($cloud->{total} == 1 ? '' : 's')
+				. ' in ' . $cloud->{rows} . ' row'
+				. ($cloud->{rows} == 1 ? '' : 's')
+			: '';
+
+		if (!@tags) {
+			return {
+				html  => '<div class="wordcloud-card"><p class="wordcloud-empty">'
+					. 'No words: no row in this view has text in '
+					. xml_escape($col) . ' at least ' . $minlen
+					. ' characters long.</p></div>',
+				title => $title,
+			};
+		}
+
+		# HTML::TagCloud ranks the words and works out each one's level; the size
+		# it would give that level is 12px plus the level.  The size is written on
+		# the span here instead of using the module's style sheet, because that
+		# sheet scopes itself through #htmltagcloud -- an id only one element on a
+		# page may carry, and a canvas may hold two word-cloud cards.  The level,
+		# the part that is actually arithmetic, stays the module's.
+		require HTML::TagCloud;
+		my $ranked = HTML::TagCloud->new(levels => 18);
+		$ranked->add_static(xml_escape($_->{word}), $_->{count}) for @tags;
+
+		my $spans = join(' ', map {
+			'<span class="wordcloud-word" style="font-size:' . (12 + $_->{level})
+				. 'px">' . $_->{name} . '</span>'
+		} $ranked->tags(scalar @tags));
+
+		return {
+			html  => '<div class="wordcloud-card" data-col="' . xml_escape($col) . '">'
+				. '<p class="wordcloud-cloud">' . $spans . '</p>'
+				. '<p class="wordcloud-summary">' . $summary . '</p></div>',
+			title => $title,
+		};
+	}
+
 	# ----------------------------------------------------------------- table --
 	if ($kind eq 'table') {
 		return { error => 'No data to display' } unless @$vis_recs;
@@ -4357,6 +4578,14 @@ sub canvas_render ($self) {
 			return $self->render(text => $e, status => 400);
 		}
 
+		# cs= belongs to the page, not to a card: one plan, run per card on that
+		# card's own rows (see _render_visual_html).  A fault is the page's 400 --
+		# the same message repeated on every card would be noise, not a report.
+		my $cross_row = $self->_cross_row_specs($columns);
+		if ($cross_row && $cross_row->{error}) {
+			return $self->render(text => $cross_row->{error}, status => 400);
+		}
+
 		# The relative time range the page names (?range=/?rcol=) narrows every
 		# card, before the per-card cross-filter.  The before_dispatch hook has
 		# already resolved it into the f= params the routes apply, but the canvas
@@ -4521,6 +4750,7 @@ sub canvas_render ($self) {
 			my $result = $self->_render_visual_html(
 				$vis, $vis_recs, $columns, $src, $i, $canvas_spec_key,
 				($cf_active && $i != $cf_source ? 1 : 0),
+				$cross_row,
 			);
 			$canvas_map_head ||= $result->{head} // '';
 			push @rendered, {
@@ -4563,6 +4793,9 @@ sub canvas_render ($self) {
 			canvas_name  => $a->{name},
 			canvas_data_url  => ($self->_analysis_to_url($a) // ''),
 			canvas_columns_json => $canvas_columns_json,
+			# The same menu the table page's cross-row panel renders, so a card
+			# can offer the functions the pass actually knows.
+			cross_row_menu => \@CROSS_ROW_MENU,
 			visuals      => \@rendered,
 			canvas_params    => \@canvas_params,
 			canvas_bookmarks => \@canvas_bookmarks,
@@ -9071,6 +9304,236 @@ sub histogram_view ($self) {
 }
 
 # ---------------------------------------------------------------------------
+# Word cloud  (GET /wordcloud)
+# ---------------------------------------------------------------------------
+
+# The words that say nothing about the data: without them a cloud of a notes
+# column is all "the" and "and".  English, like the only page language the
+# templates have.  ?stop= adds to this list for one request rather than
+# replacing it, so adding a word never silently brings back the ones this list
+# already removes.
+my %STOP_WORD = map { $_ => 1 } qw(
+	a about above after again against all also am an and any are as at be
+	because been before being below between both but by can could did do does
+	doing down during each few for from further had has have having he her here
+	hers herself him himself his how i if in into is it its itself just me more
+	most my myself no nor not now of off on once only or other our ours ourselves
+	out over own same she should so some such than that the their theirs them
+	themselves then there these they this those through to too under until up
+	very was we were what when where which while who whom why will with would
+	you your yours yourself yourselves
+);
+
+# _percent_encode($text) -> $url_component
+#
+# Purpose: Percent-encode one value for a query string.
+# Notes:   url_escape() works on bytes, so a decoded (character) string is
+#          encoded to UTF-8 first; otherwise "café" would become "caf%E9" and a
+#          browser would read that back as Latin-1.
+sub _percent_encode {
+	my ($text) = @_;
+	my $bytes = defined $text ? "$text" : '';
+	utf8::encode($bytes) if utf8::is_utf8($bytes);
+	return url_escape($bytes);
+}
+
+# _word_tokens($text, $minlen) -> @words
+#
+# Purpose: The words in one cell, lower-cased and split on everything that is
+#          neither a letter, a digit nor an apostrophe.
+# Entry:   $text is a cell (may be undef); $minlen is the shortest word kept.
+# Exit:    The words at least $minlen characters long that contain a letter.
+#          A run of digits alone is kept -- a year or a model number can be the
+#          point of a column -- while a run of punctuation is not a word at all.
+# Notes:   A CSV cell arrives as bytes, so it is decoded first (the same
+#          _decode_cell() every page uses): without that, \p{L} would see the
+#          bytes of "café" and split the word in two.  The apostrophe stays
+#          inside a word, so O'Brien is one word rather than "o" and "brien".
+sub _word_tokens {
+	my ($text, $minlen) = @_;
+	return () unless defined $text && length $text;
+
+	my @words = split /[^\p{L}\p{N}']+/, lc _decode_cell($text);
+	for my $word (@words) {
+		$word =~ s/\A'+//;
+		$word =~ s/'+\z//;
+	}
+
+	return grep { length($_) >= $minlen && /\p{L}/ } @words;
+}
+
+# _wordcloud_option($raw, $default, $min, $max) -> $n
+#
+# Purpose: One of the two counts a cloud takes -- how many words to show, how
+#          short a word may be.
+# Notes:   A value that is absent or unreadable is the default, not the minimum:
+#          ?topn= with nothing after it must not silently show a single word.
+sub _wordcloud_option {
+	my ($raw, $default, $min, $max) = @_;
+
+	my $n = (defined $raw && !ref $raw && $raw =~ /\A\d+\z/) ? int $raw : $default;
+	$n = $min if $n < $min;
+	$n = $max if $n > $max;
+	return $n;
+}
+
+# _wordcloud_counts($records, $col, $topn, $minlen, $extra_stop) -> \%cloud
+#
+# Purpose: The words a text column repeats and how often each appears, ranked,
+#          which is what both the /wordcloud page and a canvas's word-cloud card
+#          draw.  One function, so the page and the card cannot count differently.
+# Entry:   $records is a list of rows; $col names the text column; $topn is how
+#          many words to return; $minlen is the shortest word kept; $extra_stop
+#          is the reader's own stoplist ("apple,pear"), added to the built-in
+#          one rather than replacing it.
+# Exit:    { words => [ { word, count }, ... ] } in cloud order -- count
+#          descending, then alphabetically -- with distinct (every different word
+#          seen, before truncation), total (words counted) and rows (rows read).
+# Notes:   A word counts once per row that contains it, so a long note does not
+#          outweigh ten short rows that say the same thing.
+sub _wordcloud_counts {
+	my ($records, $col, $topn, $minlen, $extra_stop) = @_;
+
+	my %stop = %STOP_WORD;
+	for my $extra (split /[\s,]+/, $extra_stop // '') {
+		$stop{ lc $extra } = 1 if length $extra;
+	}
+
+	my (%count, $row_count);
+	for my $row (@$records) {
+		$row_count++;
+		my %seen;
+		$count{$_}++ for grep { !$seen{$_}++ && !$stop{$_} }
+			_word_tokens($row->{$col}, $minlen);
+	}
+
+	my $total = sum(values %count) // 0;
+	my @words = sort { $count{$b} <=> $count{$a} || $a cmp $b } keys %count;
+	my $distinct = scalar @words;
+	@words = @words[0 .. $topn - 1] if @words > $topn;
+
+	return {
+		words    => [ map { { word => $_, count => $count{$_} } } @words ],
+		distinct => $distinct,
+		total    => $total,
+		rows     => $row_count,
+	};
+}
+
+# _wordcloud_link($back, $col, $word, $cloud_url) -> $url
+#
+# Purpose: The view URL that shows the rows containing one word, with the cloud
+#          as that page's breadcrumb, so a click on a word is a drill-down.
+# Note:    The URL is returned unescaped; the caller escapes it once for the
+#          href it goes into, because HTML::TagCloud writes its input verbatim.
+sub _wordcloud_link {
+	my ($back, $col, $word, $cloud_url) = @_;
+	my $sep = $back =~ /\?/ ? '&' : '?';
+
+	return $back . $sep . 'f=' . _percent_encode("$col:contains:$word")
+		. '&back2=' . _percent_encode($cloud_url)
+		. '&back2_label=' . _percent_encode('Back to word cloud');
+}
+
+sub wordcloud_view ($self) {
+	my $col       = $self->param('col') // '';
+	my $_topn     = $self->param('topn');
+	my $_minlen   = $self->param('minlen');
+	my $back_raw  = $self->param('back');
+	my $back      = _safe_back_url($back_raw) // '/';
+	my $back2     = _safe_back_url($self->param('back2'));
+	my $back2_lbl = $self->param('back2_label') // '';
+
+	# A count that is absent or unreadable is the default, not a clamp of zero:
+	# ?topn= with nothing after it must not silently show a single word.
+	my $topn   = _wordcloud_option($_topn,   50, 1, 500);
+	my $minlen = _wordcloud_option($_minlen,  3, 1, 64);
+
+	return $self->render(text => 'Missing col= parameter', status => 400) unless length $col;
+
+	my ($src, $records, $columns) = $self->_run_pipeline_source;
+	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
+
+	return unless $self->_reduce_or_render(\$records, \$columns);
+
+	my %col_set = map { $_ => 1 } @$columns;
+	return $self->render(text => "Column not found: $col", status => 400) unless $col_set{$col};
+
+	# One pass over the rows, shared with a canvas's word-cloud card so the page
+	# and the card count the same way.
+	my $cloud = _wordcloud_counts(
+		$records, $col, $topn, $minlen, $self->param('stop'),
+	);
+	my @words      = map { $_->{word} } @{ $cloud->{words} };
+	my %count      = map { $_->{word} => $_->{count} } @{ $cloud->{words} };
+	my $distinct   = $cloud->{distinct};
+	my $word_total = $cloud->{total};
+	my $row_count  = $cloud->{rows};
+
+	# A word links back to the rows that contain it, so the cloud is a way into
+	# the data rather than a picture of it.  Only when the request names the page
+	# it came from: a bare /wordcloud URL has no table to filter, and sending a
+	# click to "/?f=..." would be a dead end.
+	my $drill = (defined $back_raw && length $back_raw) ? 1 : 0;
+
+	my $cloud_url = $self->req->url->path->to_string;
+	my $qs        = $self->req->url->query->to_string;
+	$cloud_url .= "?$qs" if length $qs;
+
+	my @tags = map {
+		{
+			word  => _decode_cell($_),
+			count => $count{$_},
+			($drill ? (href => _wordcloud_link($back, $col, $_, $cloud_url)) : ()),
+		}
+	} @words;
+
+	# The font size is the module's own logarithm of the count, so a word that
+	# appears twice as often is one step bigger rather than twice as wide.
+	require HTML::TagCloud;
+	my $ranked = HTML::TagCloud->new(levels => 18);
+	for my $tag (@tags) {
+		my $name = xml_escape($tag->{word});
+		if (defined $tag->{href}) {
+			$ranked->add($name, xml_escape($tag->{href}), $tag->{count});
+		}
+		else {
+			$ranked->add_static($name, $tag->{count});
+		}
+	}
+
+	my $cloud_html = @tags ? $ranked->html_and_css(scalar @tags) : '';
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+	my $title = "Words in $col";
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler         => 'tt',
+		template        => "$platform/$language/wordcloud",
+		format          => 'html',
+		title           => $title,
+		cloud_html      => $cloud_html,
+		words           => \@tags,
+		col             => $col,
+		topn            => $topn,
+		minlen          => $minlen,
+		drill           => $drill,
+		distinct_words  => $distinct,
+		word_total      => $word_total,
+		row_count       => $row_count,
+		back_url        => ($back2 // $back),
+		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+		source_url      => $source_url,
+		source_accessed => $source_accessed,
+		language        => $language,
+	);
+}
+
+# ---------------------------------------------------------------------------
 # Map  (GET /map)
 #
 # one route, one template, two ways for a row to get a
@@ -10919,6 +11382,53 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 
 =cut
 
+=head2 wordcloud_view
+
+C<GET /wordcloud> -- Render a word cloud of a text column with HTML::TagCloud.
+
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
+
+  col=<col>    Text column to read (required)
+  topn=N       Different words to show (default 50; range 1--500)
+  minlen=N     Shortest word kept (default 3; range 1--64)
+  stop=<words> Extra words to ignore, comma or space separated
+  back=<url>   URL for the "Back to table" breadcrumb link; when given, each
+               word links to the rows that contain it
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  l       spec    Required.  Left table spec.
+  col     string  Required.  Column whose cells are read as text.
+  topn    int     Optional.  Word count 1-500 (default 50).
+  minlen  int     Optional.  Minimum word length 1-64 (default 3).
+  stop    string  Optional.  Extra stopwords, comma or space separated.
+  back    url     Optional.  Safe back-link URL; enables the drill-down links.
+
+=head4 OUTPUT
+
+  200 text/html    Rendered word cloud page.
+  400 text/plain   Missing col= parameter.
+  400 text/plain   Column not found: <col>.
+  400 text/plain   A refused c= calculated field or cs= cross-row spec.
+  404 text/plain   "Could not open data source".
+
+=head4 SEMANTICS
+
+A word is lower-cased, split on anything that is not a letter, a digit or an
+apostrophe, and dropped when it is shorter than C<minlen> or holds no letter.
+A word counts once per row that contains it, so the size of a word is the
+number of rows, not the number of repetitions inside one cell.  The built-in
+English stopword list is removed, and C<stop=> adds to it.
+
+=head3 EXAMPLE
+
+  GET /wordcloud?l=table:sales&col=product&back=/view/sales
+    -> 200 HTML page with a word cloud whose words filter the sales table
+
+=cut
+
 =head2 map_view
 
 C<GET /map> -- Render an OpenStreetMap map of the view.
@@ -11035,6 +11545,11 @@ the selected value; drill-down uses C<?dd=E<lt>hierarchyE<gt>&dl=E<lt>levelE<gt>
 where level 0 is the first level and one past the last means "drilled
 through"; parameter overrides are C<?p.E<lt>nameE<gt>=E<lt>valueE<gt>>.
 
+C<?cs=>/C<by=>/C<order=> name the cross-row columns (see C<_cross_row_specs>).
+The plan is validated once for the page and then run once per card, after that
+card's own filters and after the cross-filter, so each card's running total is
+over the rows that card draws.
+
 =head3 API SPECIFICATION
 
 =head4 INPUT
@@ -11045,6 +11560,9 @@ through"; parameter overrides are C<?p.E<lt>nameE<gt>=E<lt>valueE<gt>>.
   dd       string  Optional.  Named hierarchy to drill.
   dl       int     Optional.  Current drill level (0-based).
   p.<name> string  Optional.  Parameter override.
+  cs       string  Optional, repeatable.  Cross-row spec, as on the data pages.
+  by       string  Optional.  Partition for the cross-row pass.
+  order    string  Optional, repeatable.  Read order for the cross-row pass.
 
 =head4 OUTPUT
 
