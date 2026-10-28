@@ -600,6 +600,10 @@ subtest 'the panels offer the bucket and the aggregate' => sub {
 	for my $interval (grep { length } @offered) {
 		ok $iv->($interval), "the menu offers $interval, which the routes accept";
 	}
+
+	$t->get_ok('/stats?l=table:hours')->status_is(200);
+	like $t->tx->res->body, qr/id="stats-pctl"/,
+		'the statistics page lets the reader choose the percentile';
 };
 
 subtest 'a value in a bucket is a virtual column, so both paths agree' => sub {

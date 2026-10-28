@@ -572,6 +572,7 @@ my @CHAPTERS = (
 			'Mean is the average. Median is the middle value. Range is the largest value minus the smallest.',
 			'Std dev shows how widely the values spread.',
 			'First and Last are the values the column holds in the first and the last row that has one.',
+			'Change Percentile column to choose which percentile the extra column shows.',
 		],
 		tip   => 'Statistics use the rows that are visible after joins and filters.',
 		walkthrough => {
