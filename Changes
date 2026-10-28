@@ -89,6 +89,10 @@ Revision history for Database-BI
 	- A view that is both joined (j=) and combined (c=) shows both, from
 	  /join or /combine: /combine ignored j=, and Merge after Combine
 	  dropped c=.  The table now shows the rows its charts draw from.
+	- Tests: the read-only model_dir and export-write-failure tests skip
+	  where chmod cannot revoke access (Cygwin, Windows ACLs, root), using
+	  Test::Permissions; they failed on Cygwin (CPAN Testers).
+	  Fixes https://www.cpantesters.org/cpan/report/b2c11820-d297-11f1-a488-efeb21b3859a
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]

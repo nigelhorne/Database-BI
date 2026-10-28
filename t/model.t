@@ -7,6 +7,7 @@ use Test::Mojo;
 use File::Temp qw(tempdir);
 use Mojo::File;
 use Mojo::JSON qw(decode_json encode_json);
+use Test::Permissions qw(skip_unless_can_revoke with_revoked);
 
 # Minimal valid analysis spec used throughout the test file.
 my %BASE_SPEC = (
@@ -607,27 +608,27 @@ subtest 'analyses.json is valid JSON after write' => sub {
 # ---------------------------------------------------------------------------
 
 SKIP: {
-	# Only run this test when we can actually chmod (root can always write)
-	skip 'Cannot test read-only dir as root', 2 if $> == 0;
-
 	my $ro_dir = tempdir(CLEANUP => 1);
 	# Create the analyses.json first so the app can read but not write
 	Mojo::File->new($ro_dir)->child('analyses.json')
 		->spurt(encode_json({}));
-	chmod 0555, $ro_dir;
 
-	my $ro_t = Test::Mojo->new('Database::BI');
-	$ro_t->app->config->{model_dir} = $ro_dir;
+	# Skips where chmod cannot stop a file being created: root, Cygwin and
+	# Windows ACLs, some network and container filesystems.
+	skip_unless_can_revoke('create', 4, $ro_dir);
 
-	$ro_t->post_ok('/api/analyses',
-		{ 'Content-Type' => 'application/json' },
-		encode_json(\%BASE_SPEC)
-	)->status_is(503, 'write to read-only dir returns 503');
+	with_revoked('create', $ro_dir, sub {
+		my $ro_t = Test::Mojo->new('Database::BI');
+		$ro_t->app->config->{model_dir} = $ro_dir;
 
-	$ro_t->get_ok('/api/analyses')
-	  ->status_is(200, 'read still works on read-only dir');
+		$ro_t->post_ok('/api/analyses',
+			{ 'Content-Type' => 'application/json' },
+			encode_json(\%BASE_SPEC)
+		)->status_is(503, 'write to read-only dir returns 503');
 
-	chmod 0755, $ro_dir;  # restore for CLEANUP
+		$ro_t->get_ok('/api/analyses')
+		  ->status_is(200, 'read still works on read-only dir');
+	});
 }
 
 # ---------------------------------------------------------------------------
