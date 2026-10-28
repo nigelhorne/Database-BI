@@ -1663,6 +1663,13 @@ sub _reduce_records {
 		$records = _apply_filter_spec($records, $s);
 	}
 
+	# d=1 removes duplicate rows after the filters and before the cross-row
+	# pass, the order _fetch_page uses for the table view, so a chart of a
+	# de-duplicated view counts the rows the table shows.  Only callers with a
+	# columns list run the whole stage; the filters-only entry point does not.
+	$records = _dedup_records($records, $columns)
+		if $columns && _dedup_requested($self);
+
 	# Stage 6: the cross-row pass, and only when the request asks for one.  It
 	# has to see filtered rows -- a window is over what the filters left -- and it
 	# has to run before anything paginates, which is why the routes that slice
@@ -1763,6 +1770,16 @@ sub _filter_specs {
 		@{ $self->every_param('f') // [] },
 		@{ $self->stash('range_specs') // [] },
 	];
+}
+
+# _dedup_requested($self) -> $bool
+#
+# Purpose: True when the request asks for duplicate rows to be removed (d=1).
+#          The SQL aggregate push paths check it too, because the backend
+#          would count the duplicates the Perl fold has already dropped.
+sub _dedup_requested {
+	my ($self) = @_;
+	return $self->param('d') ? 1 : 0;
 }
 
 # _dedup_records(\@records, \@columns) -> \@unique_records
@@ -2138,7 +2155,7 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	my $has_virtual = grep { $virt->{$_} }
 		(@$by, (defined $val_col ? $val_col : ()));
 
-	unless ($ENV{BI_FORCE_PERL_AGG} || $has_virtual || !$can_push_filters || $has_null_by_key || !$source
+	unless ($ENV{BI_FORCE_PERL_AGG} || _dedup_requested($self) || $has_virtual || !$can_push_filters || $has_null_by_key || !$source
 		|| !_measure_pushable($source, $fn, $val_col, $records)) {
 		my $m = _measure($fn, $val_col, $as);
 		my $agg_rows = eval {
@@ -5014,7 +5031,7 @@ sub _run_export_pipeline :Protected ($self) {
 
 	my @columns = @{ $columns // [] };
 
-	$records = _dedup_records($records, \@columns) if $self->param('d');
+	# d=1 has been applied by _reduce_or_render, before the cross-row pass.
 
 	# Sort support for /export: applied in memory after filtering/dedup.
 	my $sort = $self->param('sort');
@@ -6344,8 +6361,8 @@ sub combine_tables ($self) {
 	my @columns;
 	return unless $self->_reduce_or_render(\$records, \$cols_ref);
 	@columns = @$cols_ref;
+	# _reduce_or_render has removed duplicates for d=1; $dedup is for the page.
 	my $dedup = $self->param('d') ? 1 : 0;
-	$records = _dedup_records($records, \@columns) if $dedup;
 
 	# In-memory sort for /combine (no single backend to delegate to).
 	my $sort = $self->param('sort');
@@ -7156,7 +7173,7 @@ sub graph_view ($self) {
 	# not available (no source, filters active, or non-pushable column).
 	my @f_specs    = grep { /\S/ } @{ _filter_specs($self) };
 	my $has_filter = !!@f_specs;
-	if (!$ENV{BI_FORCE_PERL_AGG} && $src && !$has_filter
+	if (!$ENV{BI_FORCE_PERL_AGG} && $src && !$has_filter && !_dedup_requested($self)
 		&& _measure_pushable($src, 'avg', $y_col, $records)) {
 		my $ref = eval {
 			$src->aggregate(

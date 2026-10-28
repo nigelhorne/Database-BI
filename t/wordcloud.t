@@ -307,10 +307,10 @@ subtest 'the table page offers the cloud' => sub {
 	is($dom->at('#wordcloud-minlen-inp')->{name}, 'minlen', 'and for the shortest word');
 	ok($dom->at('#btn-do-wordcloud'), 'the panel has a submit button');
 
-	# Every other panel closes when this one opens.  The count is a reminder,
-	# not a contract: when another panel is added it grows by one.
-	my $lists = () = $body =~ /'wordcloud-panel'/g;
-	cmp_ok($lists, '>=', 15, 'the panel is in the other panels close lists');
+	# Every other panel closes when this one opens: the panel is in the one
+	# list of panels biClosePanels() walks.
+	my ($list) = $body =~ /var BI_PANELS = \[([^\]]*)\]/;
+	like($list // '', qr/'wordcloud-panel'/, 'the panel is in BI_PANELS');
 };
 
 # ---------------------------------------------------------------------------

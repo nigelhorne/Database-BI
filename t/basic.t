@@ -67,8 +67,8 @@ subtest 'Table toolbar has a Map panel' => sub {
 	# Opening any of the other chart panels must close the Map panel, or two
 	# forms would be on screen at once.
 	my $body = $t->tx->res->body;
-	my $arrays = () = $body =~ /'map-panel'\]\.map\(function\s*\(id\)\s*\{/g;
-	cmp_ok($arrays, '>=', 15, 'every chart panel closes the Map panel');
+	my ($list) = $body =~ /var BI_PANELS = \[([^\]]*)\]/;
+	like($list // '', qr/'map-panel'/, 'every chart panel closes the Map panel');
 };
 
 # ---------------------------------------------------------------------------

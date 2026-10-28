@@ -2,134 +2,66 @@ Revision history for Database-BI
 
 0.018.0
 	[ Enhancements ]
-	- Cross-row panel: pick a number column, a function, an order and a
-	  partition; the column joins the view, and charts and exports carry it.
-	- A canvas card's own cross-row plan can hold several columns: Add current
-	  view collects them as a removable list before the card is added.
-	- Word cloud (GET /wordcloud): a text column's words, counted once per
-	  row and drawn with HTML::TagCloud, each word linking back to its rows.
-	- A saved canvas card can be a word cloud (kind=wordcloud), counted from
-	  that card's own rows; Add current view offers it beside the charts.
-	- Clicking a word on a canvas word-cloud card cross-filters the canvas to
-	  the rows that contain it, the way clicking a chart mark does.
-	- PATCH /api/analyses/:id/visuals/:visual replaces a card's cross_row plan
-	  (null gives it up), so a saved card is repaired in place.
-	- A saved canvas card's header has Edit cross-row, listing the card's plan
-	  as editable chips: pressing a column reopens it to be changed where it stands.
-	- Edit cross-row warns before saving a plan that renames a column the card
-	  plots, and carries the new name through to the card that plots it.
-	- A canvas card can carry its own cross-row plan (cross_row), replacing the
-	  page's, or none at all; Add current view sets it.
-	- Canvas cards run the cs= cross-row pass themselves, on their own
-	  filtered rows, so two cards can show different running totals.
-	- A card's cross-row pass runs on its own rows, so the column it produces
-	  no longer appears in a card beside it that never asked for one.
-	- Added a time range (e.g. last 90 days)
-	- Response compression (gzip / Brotli / Zstandard), ETag/304 browser
-	  cache validation, and HTML whitespace minification are now handled by
-	  Mojolicious::Plugin::Buffer registered at startup.  No action code
-	  changes are required for ordinary HTML pages.
-	- New optional config keys: page_cache_dir (filesystem path) and
-	  page_cache_duration (CHI TTL string, default "5 minutes").  When
-	  page_cache_dir is set, /catalog and /tutorial are stored in a
-	  CHI File cache so repeated requests are served from disk rather than
-	  re-running the data-directory scan or re-building the tutorial page.
-	- Download responses (CSV, SQLite, JSON, XLSX exports; visual_download)
-	  now set stash(buffer => 0) to skip Buffer processing on binary and
-	  attachment responses.
-	- Mojolicious::Plugin::Buffer added to PREREQ_PM and cpanfile.
-	- Filter bar and Merge/Filter panel now detect the column type (date,
-	  numeric, or string) from the rendered table data and adapt the UI
-	  accordingly:
-	  - Date columns: calendar date-picker inputs; operators labelled
-	    "on date", "before", "on or before", "after", "on or after",
-	    "not on date", "date range", "is empty", "is not empty".
-	    The "date range" operator shows two date-pickers with a separator.
-	  - Numeric columns: number input; operators <, <=, >, >=, equals,
-	    not equals, is empty, is not empty.
-	  - String columns: text input; operators equals, not equal to,
-	    matches (contains), starts with, is empty, is not empty.
-	- Backend: lt/le/gt/ge filter operators now use string comparison when
-	  the filter value is an ISO date (YYYY-MM-DD), so "before 2026-06-01"
-	  works correctly on date columns.  Numeric values continue to use
-	  numeric comparison.
-	- New "between" filter operator for date range queries:
-	  spec format col:between:YYYY-MM-DD:YYYY-MM-DD.
-	- Relative time ranges: any data route accepts ?range=<name>&rcol=<column>
-	  and keeps only that window, resolved when the request arrives rather than
-	  frozen into dates.  Vocabulary: last_24_hours, today, yesterday,
-	  last_7_days, last_30_days, last_90_days, this_month, last_month,
-	  this_quarter, last_quarter, this_year, last_year.  An unknown range name,
-	  or a range with no rcol=, is a 400 rather than an unfiltered view.
-	- The range resolves to two bounds on that column (col:ge:lo,
-	  col:le:hi) and is applied through one filter-spec accessor,
-	  _filter_specs(), which every data pipeline folds over, so the table view,
-	  every chart, the pivot, the column statistics, the insights page, the
-	  exports and a saved canvas all honour it.  It is not mixed into the
-	  reader's own f= list, so the chips, the panel forms and the filter UI
-	  still show exactly the filters the reader wrote.
-	- Dashboard filter bar: a Time range menu with a column picker.  A window
-	  whose dates fall outside the dataset, read from /api/range, is disabled
-	  with the column's own range in its tooltip.  The active window is its own
-	  chip, and "Clear filters" clears it with the filters.
-	- Date filters compare against timestamp columns at the precision the
-	  filter names: a day bound (2026-10-27) now matches every row of that day
-	  in a YYYY-MM-DD[ T]HH:MM:SS column.  Before, a cell string longer than
-	  the bound sorted after it, so "le 2026-10-27" dropped the rows stamped on
-	  the 27th.  _is_iso_date() accepts an ISO timestamp and _date_key()
-	  compares a cell and a bound at the same precision; the string operators
-	  are unchanged.
-	- Saved canvases accept ?range=/?rcol= and apply the window to every card,
-	  before the per-card cross-filter.  The canvas toolbar has a control for
-	  it that carries the rest of the page's query string (cf/cv/dd/dl/c and
-	  the p.<name> values) through the change, and POST/PATCH
-	  /api/analyses/:id/visuals reads range/rcol from its query field, so a
-	  card added while a window is active is drawn through it.
-	- The tutorial's filter chapter mentions the time range, and the range is
-	  documented in the POD and README ("Relative time ranges").
-	- Internal: the filter stage every data route runs -- the reader's f=
-	  params and the relative time range's two bounds -- is now one function,
-	  _reduce_records, instead of the same loop written out in sixteen actions
-	  (plus a seventeenth copy inside _apply_filters, which now calls it too).
-	  No behaviour change: the same filters in the same order on the same rows.
-	  It is the seam the Phase 7 cross-row pass in BI-Phase-7.md attaches to.
-	  t/function.t now drives the stage directly -- no filters, an undef columns
-	  list, a chain of filters, the range's bounds after them, a malformed spec
-	  -- and counts the copies of the loop in the module, because a second copy
-	  would behave identically and only drift later.
-	- New measures for the pivot and the column statistics: median, stdev,
-	  first, last, range, and a percentile written as p<N> (p50 is the median).
-	- The pivot's measure panel offers them with a level box for a percentile,
-	  and the statistics page adds Range, Std dev, First, Last and a p-level column.
-	- A canvas card can choose the aggregate it shows, from the same vocabulary,
-	  instead of only counting rows or summing a column.
+	- Cross-row columns: cs=<col>:<fn>:<alias>[:<arg>] with by= and order=
+	  adds a running total, moving average, rank, z-score or share of the
+	  total per row.  A Cross-row panel builds them; charts and exports
+	  carry the new column.
+	- Canvas cards can carry their own cross-row plan (cross_row), replacing
+	  the page's, run on the card's own filtered rows.  Add current view
+	  collects several columns; the card header's Edit cross-row edits the
+	  plan as chips and warns when a rename affects a plotted column.
+	  PATCH /api/analyses/:id/visuals/:visual replaces a card's plan.
+	- Word cloud (GET /wordcloud, and canvas cards with kind=wordcloud),
+	  drawn with HTML::TagCloud.  Each word links to its rows, or on a
+	  canvas cross-filters to them.
+	- Relative time ranges: ?range=<name>&rcol=<column> on every data route
+	  and saved canvas (last_24_hours, today, yesterday, last_7_days,
+	  last_30_days, last_90_days, this_month, last_month, this_quarter,
+	  last_quarter, this_year, last_year).  An unknown name or missing rcol=
+	  is a 400.  The dashboard filter bar and canvas toolbar have a Time
+	  range menu.
+	- The filter UI adapts to the column's detected type: date pickers,
+	  numeric operators, or string operators.
+	- New "between" filter operator (col:between:YYYY-MM-DD:YYYY-MM-DD);
+	  lt/le/gt/ge compare ISO dates as dates.
+	- New measures for the pivot, column statistics and canvas cards:
+	  median, stdev, first, last, range and p<N> percentiles.
 	- Time buckets: span= groups a chart or pivot by hour, day, week, month,
-	  quarter or year, with a Time bucket menu in the chart and pivot panels.
-	- /graph?agg= plots one point per bucket with the same measures, and the
-	  line graph panel carries Aggregate and Time bucket menus for it.
-	- A stored time pattern takes time=, so 27/10/2026 14:05 is read as
-	  2026-10-27T14:05:00 and a relative range can filter on that column.
-	- Cross-row columns: cs=<col>:<fn>:<alias>[:<arg>] with by= and order= adds a
-	  running total, moving average, rank, z-score or share of the total per row.
-	- bi-alert --suppress throttles a threshold that stays crossed, and
-	  --recovery announces the end of the crossing once, at exit 3.
-	- bi-alert --notify-cmd delivers an alert or a recovery itself, with the
-	  run's text on STDIN and the verdict in BI_ALERT_SUBJECT.
-	- bi-alert checks several analyses and thresholds in one run, each with its
-	  own state entry and recovery, and delivers once per run.
-	- Internal: _reduce_records takes chips_only, so the callers that pass
-	  already-reduced rows do not run a non-idempotent stage twice.
+	  quarter or year; /graph?agg= plots one point per bucket.
+	- Stored time patterns accept time=, e.g. 27/10/2026 14:05.
+	- bi-alert: --suppress, --recovery (exit 3), --notify-cmd, and several
+	  analyses and thresholds in one run.
+	- Response compression, ETag/304 and HTML minification via
+	  Mojolicious::Plugin::Buffer (new prerequisite); downloads opt out.
+	- Optional page cache: page_cache_dir and page_cache_duration store
+	  /catalog and /tutorial in a CHI File cache.
+	- Internal: every data route's filter stage is one function,
+	  _reduce_records.
+	- Main navigation links to Canvases, Catalog and Open file on every page.
+	- Chart, pivot, stats and insights pages show a "Drawn from:" strip naming
+	  the time range, filters, cross-row columns, combined files and
+	  de-duplication, with a link back to change them.
 	[ Bug Fixes ]
-	- A card whose columns name a column no plan produces is refused, whatever
-	  its kind: a table no longer prints a heading with empty cells under it.
-	- Two charts on one canvas no longer collide: each card's script is closed
-	  over a function of its own, so the second card draws.
-	- Internal: a card is scoped once, by the renderer every card goes through,
-	  rather than by each of the callers that render one.
-	- A canvas is drilled only when ?dd= names a hierarchy it has, with a level
-	  to drill on: a stale bookmark no longer makes every mark unfocusable.
-	- Canvas help says what the page does: one filter at a time, the shapes a
-	  card draws, the drill column, and the drill path where there is no chip.
+	- Two charts on one canvas no longer collide; the second card draws.
+	- A card's cross-row column no longer appears in the cards beside it.
+	- A card naming a column no plan produces is refused, instead of
+	  printing a heading over empty cells.
+	- A day bound on a timestamp column (e.g. le 2026-10-27) now includes
+	  the rows stamped on that day.
+	- A stale ?dd= bookmark no longer makes canvas marks unfocusable.
+	- Canvas help now describes what the page actually does.
+	- Charts, pivots, stats and insights of a combined (c=), de-duplicated
+	  (d=1) or inner/outer-joined (jtype=) view now draw from the rows the
+	  table shows; before, the panels dropped those parameters, and d=1 was
+	  ignored by every chart route.  Export keeps jtype= too.
+	- Opening any toolbar panel closes all the others: the histogram panel
+	  left Cross-row and Word cloud open, and Merge, Combine and Export left
+	  chart panels open and their own buttons disabled.
+	- The Word cloud, Cross-row and Ask toolbar buttons are styled like the
+	  others; all of them now share one btn-tool class.
+	- Toolbar and filter-bar controls on the same row now line up top and
+	  bottom: they share one height and are centred, rather than aligned on
+	  their text baselines.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]

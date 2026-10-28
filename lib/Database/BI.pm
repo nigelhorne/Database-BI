@@ -1447,6 +1447,23 @@ sub startup ($self) {
 		$c->stash(Database::BI::Controller::Dashboard::_cross_row_ui_state($c));
 	});
 
+	# The rest of the view a request carries -- the join type, the reader's
+	# filters, the files stacked in with c= and de-duplication -- for the same
+	# reason: the dashboard's panels pass it on through one macro, and every
+	# chart page names it under its breadcrumb, so a chart never looks like
+	# the whole file when it is drawn from part of it.
+	$self->hook(before_dispatch => sub {
+		my $c = shift;
+
+		my $jtype = $c->param('jtype') // '';
+		$c->stash(
+			view_join_type => ($jtype =~ /\A(?:left|inner|outer)\z/ ? $jtype : ''),
+			view_filters   => [ grep { length } @{ $c->every_param('f') } ],
+			view_combines  => [ grep { /\A(?:path|table|url|redis):/i } @{ $c->every_param('c') } ],
+			view_dedup     => ($c->param('d') ? 1 : 0),
+		);
+	});
+
 	# Every page names the tutorial chapter that helps with it.  The layout
 	# turns this into a "Help: ..." link beside the main Tutorial link, so a
 	# reader on the pie chart screen lands on the pie chart chapter.  It lives

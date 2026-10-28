@@ -31,7 +31,8 @@
     /* The tutorial is part of the application, so every page can reach it. */
     .site-nav {
       display: flex;
-      gap: 1rem;
+      flex-wrap: wrap;
+      gap: 0.4rem 1rem;
       margin-left: auto;
       font-size: 0.9rem;
     }
@@ -199,10 +200,19 @@
     /* Toolbar row: record count + "Add database" button */
     .toolbar {
       display: flex;
-      align-items: baseline;
+      align-items: center;
       gap: 0.5rem;
       margin-bottom: 0.75rem;
       flex-wrap: wrap;
+    }
+    /* Every control on a toolbar row is the same height, so tops and bottoms
+       line up whatever its font size, padding or icon glyph (an emoji line box
+       is taller than text).  The filter bar below the toolbar uses the same
+       height in dashboard.html.tt. */
+    .toolbar > button,
+    .toolbar > .lbl-totals {
+      box-sizing: border-box;
+      height: 1.75rem;
     }
     .toolbar-sep {
       width: 1px;
@@ -779,25 +789,10 @@
     }
     .graph-container svg { display: block; margin: 0 auto; }
 
-    /* Line-graph button in the toolbar */
-    .btn-graph,
-    .btn-pie,
-    .btn-heatmap,
-    .btn-bar,
-    .btn-stacked,
-    .btn-scatter,
-    .btn-combo,
-    .btn-treemap,
-    .btn-histogram,
-    .btn-map,
-    .btn-folder,
-    .btn-pivot,
-    .btn-stats,
-    .btn-insights,
-    .btn-calc,
-    .btn-groups,
-    .btn-dates,
-    .btn-save-analysis {
+    /* The chart, analysis and model buttons in the table toolbar.  One class
+       (btn-tool) so a new button looks like its neighbours without being
+       added to a selector list. */
+    .btn-tool {
       flex-shrink: 0;
       padding: 0.28rem 0.75rem;
       border: 1px solid #888;
@@ -812,38 +807,8 @@
       display: inline-flex;
       align-items: center;
     }
-    .btn-graph:hover,
-    .btn-pie:hover,
-    .btn-heatmap:hover,
-    .btn-bar:hover,
-    .btn-stacked:hover,
-    .btn-scatter:hover,
-    .btn-combo:hover,
-    .btn-treemap:hover,
-    .btn-histogram:hover,
-    .btn-map:hover,
-    .btn-folder:hover,
-    .btn-pivot:hover,
-    .btn-stats:hover,
-    .btn-insights:hover,
-    .btn-calc:hover,
-    .btn-groups:hover,
-    .btn-dates:hover,
-    .btn-save-analysis:hover { background: #f0f0f0; }
-    .btn-graph:disabled,
-    .btn-pie:disabled,
-    .btn-heatmap:disabled,
-    .btn-bar:disabled,
-    .btn-stacked:disabled,
-    .btn-scatter:disabled,
-    .btn-combo:disabled,
-    .btn-treemap:disabled,
-    .btn-histogram:disabled,
-    .btn-map:disabled,
-    .btn-calc:disabled,
-    .btn-groups:disabled,
-    .btn-dates:disabled,
-    .btn-save-analysis:disabled {
+    .btn-tool:hover:not(:disabled) { background: #f0f0f0; }
+    .btn-tool:disabled {
       opacity: 0.45;
       cursor: not-allowed;
     }
@@ -1123,6 +1088,19 @@
       color: #7a5800;
       font-family: monospace;
     }
+
+    /* "Drawn from:" strip under a chart page's breadcrumb
+       (layouts/view_context.html.tt). */
+    .view-context {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 0.3rem;
+      margin: -0.5rem 0 1rem;
+      font-size: 0.8rem;
+      color: #666;
+    }
+    .view-context-change { color: #2c3e7a; font-size: 0.75rem; }
 
     .btn-clear-filters {
       font-size: 0.75rem;
@@ -1420,6 +1398,9 @@
     <h1>[% title | html %]</h1>
     <nav class="site-nav" aria-label="Main">
       <a href="/">Home</a>
+      <a id="site-nav-canvases" href="/#bi-canvases" title="Your saved canvases">Canvases</a>
+      <a id="site-nav-catalog" href="/catalog" title="Every data file, and the canvases that use it">Catalog</a>
+      <a id="site-nav-open" href="/browse" title="Open a data file from anywhere on the server">Open file&hellip;</a>
       <a id="site-nav-tutorial" href="/tutorial" target="_blank" rel="noopener"
          title="Open the tutorial in a new tab (F1)">Tutorial</a>
       [%- IF tutorial_chapter %]
