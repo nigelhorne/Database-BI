@@ -1624,6 +1624,68 @@ subtest '_reduce_records -- the stage has one implementation, not seventeen' => 
 };
 
 # ============================================================================
+subtest '_reduce_records -- chips_only hands already-reduced rows straight back' => sub {
+	# The routes that filter inside _fetch_page before paginating come here for
+	# the chip list alone.  Without the option the stage would run a second time
+	# on a page that has already been through it -- harmless while every stage is
+	# idempotent, wrong the moment one is not, and wrong only on pages after the
+	# first.  Already-reduced is simulated by rows that no longer match the
+	# filters: a second pass would drop them.
+	my $fn = \&Database::BI::Controller::Dashboard::_reduce_records;
+	my $tx = $t->ua->build_tx(GET => '/?f=region:eq:North');
+	my $c  = $t->app->build_controller($tx);
+	$c->stash(range_specs => ['score:ge:50', 'score:le:100']);
+
+	my $records = [{ region => 'South', score => 10 }];
+	my $columns = ['region', 'score'];
+	my ($out, $cols) = $fn->($c, $records, $columns, { chips_only => 1 });
+
+	is $out, $records, 'the same rows come back, unfiltered';
+	is scalar(@$out), 1, 'nothing is dropped by the f= spec or the range bounds';
+	is $cols, $columns, 'and the columns list is untouched';
+};
+
+subtest '_apply_filters -- chips_only still builds the chips, but filters nothing' => sub {
+	my $fn      = \&Database::BI::Controller::Dashboard::_apply_filters;
+	my $tx      = $t->ua->build_tx(GET => '/?f=score:ge:50');
+	my $c       = $t->app->build_controller($tx);
+	my $records = [{ score => 10 }, { score => 20 }];
+
+	my ($filtered, $specs, $json) = $fn->($c, $records, { chips_only => 1 });
+
+	is $filtered, $records, 'the rows the caller passed in are what comes back';
+	is_deeply $specs, ['score:ge:50'], 'the raw spec is still returned for export URLs';
+	like $json, qr/"val"\s*:\s*"50"/, 'and the JSON is still built for the filter UI';
+
+	# The default is unchanged: without the option the same call does filter.
+	my ($default) = $fn->($c, $records);
+	is scalar(@$default), 0, 'without the option the spec still applies';
+};
+
+subtest '_apply_filters -- every caller that discards the reduced rows asks for chips only' => sub {
+	# _apply_filters returns the reduced rows, but most of its callers filter
+	# earlier and keep only the chip list.  This is the property that keeps them
+	# safe from a non-idempotent stage: if a call site throws the filtered rows
+	# away, it must say chips_only, or the stage runs twice on that page.
+	my $source = Mojo::File->new(
+		File::Spec->catfile('lib', 'Database', 'BI', 'Controller', 'Dashboard.pm')
+	)->slurp;
+
+	my @calls = grep { /_apply_filters\(\$records/ } split /\n/, $source;
+	is scalar(@calls), 7, 'seven call sites reach the entry point';
+
+	my @flagged = grep { /chips_only\s*=>\s*1/ } @calls;
+	is scalar(@flagged), 6, 'six of them are here for the chip list alone';
+
+	my @unmarked = grep { /my \(undef,/ && !/chips_only\s*=>\s*1/ } @calls;
+	is_deeply \@unmarked, [], 'no caller discards the reduced rows without the flag';
+
+	my @flagged_but_used = grep { /my \(\$filtered,/ && /chips_only\s*=>\s*1/ } @calls;
+	is_deeply \@flagged_but_used, [],
+		'and no caller that uses the reduced rows asks for the stage to be skipped';
+};
+
+# ============================================================================
 # PART 7: pie_view HTTP smoke tests
 #
 # Exercises the two code paths added in 0.007.0:

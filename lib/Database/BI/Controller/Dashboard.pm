@@ -1119,7 +1119,7 @@ sub _apply_filter_spec {
 	} @$records];
 }
 
-# _reduce_records($self, $records, $columns) -> ($records, $columns)
+# _reduce_records($self, $records, $columns, $opts) -> ($records, $columns)
 #
 # Purpose: The reduce half of every data pipeline, in one place: the request's
 #          filters -- the reader's own f= params, then the two bounds of the
@@ -1132,8 +1132,13 @@ sub _apply_filter_spec {
 #          $columns -- arrayref of column names, or undef where the caller has
 #                      no list in scope; a stage that adds columns needs one,
 #                      so undef is only for the filters-only callers.
-# Exit:    ($records, $columns), reduced.  A malformed f= spec leaves the
-#          records alone rather than croaking, as _apply_filter_spec always has.
+#          $opts    -- optional hashref.  chips_only => 1 says the caller's rows
+#                      have already been reduced and it is here only for the
+#                      chip list _apply_filters returns: the stage is skipped
+#                      and both arguments come back as they arrived.
+# Exit:    ($records, $columns), reduced -- or untouched, when chips_only is
+#          set.  A malformed f= spec leaves the records alone rather than
+#          croaking, as _apply_filter_spec always has.
 # Notes:   This is stage 5 of the stage order in BI-Phase-7.md section 3, and
 #          it is where that document's stages 6 and 7 are meant to land: the
 #          cross-row pass and the second calculated-field pass.  Both belong
@@ -1147,12 +1152,30 @@ sub _apply_filter_spec {
 #          inside _fetch_page before it paginates, and /api/ask samples rows
 #          without filtering them at all.
 #
+#          chips_only exists for the routes that filter somewhere else and then
+#          call _apply_filters for its chip list: /view, the three /open
+#          branches and /join reduce inside _fetch_page, before they paginate,
+#          and /combine reduces through this function before slicing its page.
+#          Re-running the stage on that page would still give the right answer
+#          today, because every stage in it is idempotent -- filtering a
+#          filtered set changes nothing.  It stops being harmless as soon as a
+#          stage is not: a cross-row pass (running totals, differences) or a
+#          time-fill that adds rows would double-apply to a page that has
+#          already been through it, and would do so only on non-first pages.
+#          So the option is not a micro-optimisation; it is what keeps those
+#          six call sites correct once such a stage lands here.
+#
 #          A plain function rather than a method, like _filter_specs and
 #          _apply_filter_spec beside it: the tests drive the reduce stage with a
 #          controller-shaped mock (build_controller), and only every_param and
 #          stash are ever wanted of $self.
 sub _reduce_records {
-	my ($self, $records, $columns) = @_;
+	my ($self, $records, $columns, $opts) = @_;
+
+	# Already reduced: hand the rows and the columns back exactly as they came,
+	# ahead of the first stage, so a stage that is not idempotent cannot see
+	# these rows a second time.
+	return ($records, $columns) if $opts && $opts->{chips_only};
 
 	for my $s (@{ _filter_specs($self) }) {
 		$records = _apply_filter_spec($records, $s);
@@ -1161,12 +1184,14 @@ sub _reduce_records {
 	return ($records, $columns);
 }
 
-# _apply_filters($self, $records) -> ($filtered_records, \@raw_specs, $json_string)
+# _apply_filters($self, $records, $opts) -> ($filtered_records, \@raw_specs, $json_string)
 #
 # Purpose: Read all "f=" query params, apply them in order via _apply_filter_spec,
 #          and return: the filtered arrayref, the raw spec strings (for building
 #          export URLs), and a script-safe JSON string for pre-populating the UI.
-# Entry:   $records is an arrayref of hashrefs.
+# Entry:   $records is an arrayref of hashrefs.  $opts is passed straight to
+#          _reduce_records: chips_only => 1 for the routes whose rows are
+#          already reduced and which are here only for the chips.
 # Exit:    Three-element list; never croaks.  $json_string has '</' escaped to
 #          '<\/' so it is safe to embed directly in a <script> block.
 #
@@ -1175,7 +1200,7 @@ sub _reduce_records {
 # returns $records unchanged for a malformed spec (same guard condition), so
 # skipping the call for malformed specs is equivalent.  Merging into one loop
 # eliminates a full O(n) pass and the redundant split() on every spec.
-sub _apply_filters :Protected ($self, $records) {
+sub _apply_filters :Protected ($self, $records, $opts = undef) {
 	my @specs  = @{ $self->every_param('f') // [] };
 	my @parsed;
 	for my $s (@specs) {
@@ -1191,8 +1216,10 @@ sub _apply_filters :Protected ($self, $records) {
 	# narrow twice.  The application itself is _reduce_records, so this entry
 	# point and the routes that call it directly cannot drift apart; the columns
 	# list is not in scope here and every caller holds its own, so none is
-	# threaded through.
-	($records) = _reduce_records($self, $records, undef);
+	# threaded through.  $opts travels with the records for the same reason:
+	# a caller that has already reduced asks for the chips alone here, and the
+	# seam, not this wrapper, is where that is decided.
+	($records) = _reduce_records($self, $records, undef, $opts);
 
 	my $json = encode_json(\@parsed);
 	$json =~ s{</}{<\\/}g;
@@ -4496,9 +4523,9 @@ sub view ($self) {
 
 	$records //= [];
 	my @columns = _get_columns($source, $records);
-	# _apply_filters on already-reduced records is a no-op for filtering but
-	# correctly builds filter_specs (for export URLs) and filters_json (for UI).
-	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	# The page from _fetch_page is already reduced; this call is here for the chip
+	# list only -- filter_specs (for export URLs) and filters_json (for the UI).
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 
 	# Calculated fields belong to the table, not only to its charts.  The table
 	# action is addressed by :table rather than l=, so name the spec explicitly
@@ -4760,7 +4787,7 @@ sub open_file ($self) {
 		}
 		$records //= [];
 		my @columns  = _get_columns($source, $records);
-		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
+		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
@@ -4822,7 +4849,7 @@ sub open_file ($self) {
 		}
 		$records //= [];
 		my @columns  = _get_columns($source, $records);
-		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
+		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
@@ -4928,7 +4955,7 @@ sub open_file ($self) {
 
 	$records //= [];
 	my @columns  = _get_columns($source, $records);
-	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 
 	my $lpage_url = $self->req->url->clone;
 	$lpage_url->query->remove('page')->remove('per_page');
@@ -5355,7 +5382,7 @@ sub join_tables ($self) {
 		carp $self->_i18n('error_sort_column', $sort);
 	}
 
-	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
@@ -5486,6 +5513,7 @@ sub combine_tables ($self) {
 	my ($records, $cols_ref) = @sources > 1
 		? _combine_tables(\@sources)
 		: ($left_recs, \@left_cols);
+
 	# Apply the filters in memory before paginating (reduce-before-paginate).
 	my @columns;
 	($records, $cols_ref) = _reduce_records($self, $records, $cols_ref);
@@ -5504,14 +5532,15 @@ sub combine_tables ($self) {
 		carp $self->_i18n('error_sort_column', $sort);
 	}
 
-	# Server-side pagination: slice the fully-reduced combined set.
+	# Server-side pagination: slice the fully-reduced combined set.  The page
+	# below is therefore reduced too, and asks for chips only.
 	my ($page, $per_page, $offset) = $self->_pagination;
 	my $total    = scalar @$records;
 	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
 	my @page_recs = splice(@$records, $offset, $per_page);
 	$records = \@page_recs;
 
-	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records);
+	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;

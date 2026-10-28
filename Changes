@@ -75,6 +75,15 @@ Revision history for Database-BI
 	  list, a chain of filters, the range's bounds after them, a malformed spec
 	  -- and counts the copies of the loop in the module, because a second copy
 	  would behave identically and only drift later.
+	- Internal: _reduce_records takes an optional options hashref, and
+	  _apply_filters passes it through.  Its one option, chips_only, skips the
+	  stage and hands the rows back as they arrived.  The six call sites whose
+	  rows are already reduced -- /view, the three /open branches and /join,
+	  which filter inside _fetch_page before paginating, and /combine, which
+	  reduces earlier in the action -- now ask for it, because they call
+	  _apply_filters for the chip list alone.  No behaviour change while every
+	  stage is idempotent; it is what lets a cross-row pass attach to the seam
+	  without applying twice to pages after the first.
 	- New pivot and column-statistics measures: median, stdev (sample standard
 	  deviation), first, last, range, and a percentile named in the function as
 	  p<N> -- p90, p99, p1 up to p100 -- with p50 being the median under another
