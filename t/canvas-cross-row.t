@@ -246,8 +246,12 @@ subtest 'an own plan survives a reload, and the page need name nothing' => sub {
 	my $dom = Mojo::DOM->new($t->tx->res->body);
 	is_deeply _column(_card($dom, 0), 2), [ 10, 30, 130, 330 ],
 		'the saved plan is the card\'s, so a bare canvas URL still draws it';
-	is_deeply [ grep { defined && length } @{ _column(_card($dom, 1), 2) } ],
-		[], 'while the inheriting card has no page plan to inherit, so its rt column is empty';
+	# The inheriting card names rt, and nothing on this URL makes it: the card
+	# says which column it cannot find rather than printing a heading with no
+	# cells under it, which is what a reader would take for missing data.
+	like _error(_card($dom, 1)), qr/Column not found: rt/,
+		'while the inheriting card, with no page plan to inherit, names the column
+		it is drawn against that nothing makes';
 
 	$t->get_ok("/api/analyses/$own_id")->status_is(200);
 	my $saved = $t->tx->res->json->{visuals}[0]{cross_row};
@@ -321,9 +325,26 @@ subtest 'a repair replaces the plan and leaves the card where it is' => sub {
 };
 
 subtest 'a null plan gives the plan up and takes the page\'s again' => sub {
+	# The card plots rk, and here only its own plan makes rk.  Giving the plan up
+	# would leave the card drawn against a column nothing produces, so the repair
+	# is refused and the card keeps the plan it had: replacing a plan is no more
+	# a way to break a card than editing one is.
 	$t->patch_ok("/api/analyses/$rep/visuals/0",
 		{ 'Content-Type' => 'application/json' },
 		encode_json({ cross_row => undef }),
+	)->status_is(400)
+	 ->json_like('/error' => qr/Column not found: rk/);
+
+	$t->get_ok("/api/analyses/$rep")->status_is(200);
+	is_deeply $t->tx->res->json->{visuals}[0]{cross_row},
+		{ cs => ['amount:running_total:rk'], by => 'region', order => ['day'] },
+		'the refused repair left the card with the plan it was drawn with';
+
+	# Given up on a page that does make the column, it is the repair it always
+	# was: the card takes the page's plan instead of carrying one of its own.
+	$t->patch_ok("/api/analyses/$rep/visuals/0",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ cross_row => undef, query => '?cs=amount:rank:rk&order=day' }),
 	)->status_is(200);
 
 	$t->get_ok("/api/analyses/$rep")->status_is(200);
@@ -387,19 +408,29 @@ subtest 'a repair the canvas cannot honour is refused, and keeps the card' => su
 		'none of the refused repairs changed the card';
 
 	# An empty plan is a choice, not a doubt: it is the card saying it runs no
-	# cross-row pass even where the page runs one.
+	# cross-row pass even where the page runs one.  It is not a way to leave the
+	# card showing a column only the page's plan made, so a request that empties
+	# the plan alone is refused, and the column goes in the same request.
 	$t->patch_ok("/api/analyses/$rep/visuals/1",
 		{ 'Content-Type' => 'application/json' },
 		encode_json({ cross_row => {} }),
+	)->status_is(400)
+	 ->json_like('/error' => qr/Column not found: rt/);
+
+	$t->patch_ok("/api/analyses/$rep/visuals/1",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ cross_row => {}, encode => { columns => [qw(day amount)] } }),
 	)->status_is(200);
 
 	$t->get_ok("/api/analyses/$rep")->status_is(200);
 	is_deeply $t->tx->res->json->{visuals}[1]{cross_row}, { cs => [], by => '', order => [] },
 		'an empty plan is stored as the card that runs none';
+	is_deeply $t->tx->res->json->{visuals}[1]{encode}, { columns => [qw(day amount)] },
+		'with the column it no longer makes dropped from its columns';
 
 	$t->get_ok("/a/$rep?cs=amount:rank:rt&order=day")->status_is(200);
-	is_deeply [ grep { length } @{ _column(_card(Mojo::DOM->new($t->tx->res->body), 1), 2) } ],
-		[], 'and the page\'s plan does not reach it';
+	is_deeply _header(_card(Mojo::DOM->new($t->tx->res->body), 1)), [qw(day amount)],
+		'and the page\'s plan does not reach it';
 };
 
 subtest 'a card plan that cannot be honoured is that card\'s error' => sub {
@@ -664,6 +695,66 @@ subtest 'a chip is reopened in the fields and changed where it stands' => sub {
 		'leaving the change puts the button back as it was');
 	like($body, qr/if \(crEditing >= 0\) crEditStop\(1\);\s*else crClose\(1\);/,
 		'and Escape backs out of the change before the panel');
+};
+
+# ---------------------------------------------------------------------------
+# A repair that renames a column the card plots
+# ---------------------------------------------------------------------------
+#
+# A card plots a column by naming it in its encode, so a plan that produces that
+# name is what the plot reads.  Renaming the plan's column in the panel leaves
+# the encode pointing at a column no card has, and the server refuses the repair
+# as "Column not found" whatever kind the card is.
+# The panel says so while the name can still be put back, and asks again as the
+# plan is saved.
+
+subtest 'a rename a card plots is warned about before the plan is saved' => sub {
+	$t->get_ok("/a/$own_id")->status_is(200);
+	like $t->tx->res->body, qr{var pageAliases\s*=\s*\[\];},
+		'a canvas with no cs= hands the panel no page columns';
+
+	# A card that takes the page's plan plots the columns that plan makes, so the
+	# panel is told them: without them, giving such a card no plan would look
+	# free and would cost it the column it is drawn from.
+	$t->get_ok("/a/$own_id?cs=amount:running_total:rt&order=day")->status_is(200);
+	my $body = $t->tx->res->body;
+	like $body, qr{var pageAliases\s*=\s*\["rt"\];},
+		'and one with a plan hands it the columns that plan makes';
+
+	my $panel = Mojo::DOM->new($body)->at('#cr-panel');
+	my $warn  = $panel->at('#cr-warning');
+	ok($warn, 'the panel has somewhere to say it');
+	is($warn->attr('role'), 'status', 'spoken without interrupting what is being typed');
+	like($warn->to_string, qr{\A<p\b[^>]*\bhidden\b},
+		'and silent until a repair would cost the card a column');
+
+	# What the card plots, and what a plan makes of it: only the names a plan
+	# produces, so a column the data itself has is never mistaken for one.
+	like($body, qr/var crPlotted = \[\];/,
+		'the panel keeps the columns the card plots that a plan makes');
+	like($body, qr/crPlotted = crColumnPlots\(vis\.encode \|\| \{\}/,
+		"read from the card's own encode when the panel opens");
+	like($body, qr/return made\.indexOf\(name\) >= 0;/,
+		"and only for the names a plan produces, not the data's own columns");
+	like($body, qr/if \(crMode\.value === 'inherit'\) return pageAliases\.slice\(\);/,
+		"a card on the page's plan makes the page's columns");
+	like($body, qr/if \(crMode\.value !== 'own'\)\s+return \[\];/,
+		'and one with no plan makes none');
+
+	# Said while it can still be undone, then asked as the plan lands -- never
+	# left to the card's own error afterwards.
+	like($body, qr/crWarning\.textContent = crRenameText\(missing\)/,
+		'the panel names the column the card would lose');
+	like($body, qr/Keep the name, or the card will be drawn with an error\./,
+		'and says what keeping the name avoids');
+	like($body, qr/crWarnRenames\(\);/,
+		'it is said whenever the list or the mode changes');
+	like($body, qr/crWarnRenames\(plan && plan\.cs \? plan\.cs : \[\]\)/,
+		'and again for the plan that would be saved, the pending column read in');
+	like($body, qr/window\.confirm\(crRenameText\(unplotted\)/,
+		'which is asked before the PATCH, not after the card has been redrawn');
+	like($body, qr/Not saved: this card plots/,
+		'and declining leaves the card as it was');
 };
 
 subtest 'the canvas refuses a spec it cannot honour' => sub {

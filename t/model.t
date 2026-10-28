@@ -949,6 +949,85 @@ subtest '3.3: a mark is a labelled control, and the help lists what it is' => su
 		'not once before the query string encodes it again';
 };
 
+# ---------------------------------------------------------------------------
+# Each card's chart script has a scope of its own
+#
+# HTML::D3 writes a chart as an inline snippet that declares its SVG with
+# `const`, and a top-level const belongs to the page's shared lexical
+# environment rather than to the <script> that holds it.  Two such snippets on
+# one canvas therefore threw "Identifier 'svg' has already been declared" and
+# the second card drew an empty box, while either card on a page of its own was
+# fine.  Every card's script is closed over a function of its own, so the
+# collision is gone whatever names the snippets declare.
+# ---------------------------------------------------------------------------
+
+subtest '3.3: every card\'s chart script has a scope of its own' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+	plan skip_all => 'HTML::D3 not available' unless eval { require HTML::D3; 1 };
+
+	# A pie and a line: both are snippets that declare their SVG with const, so
+	# this is the canvas that used to lose its second card.
+	my $spec = {
+		name     => 'Two Scripts',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'pie',  encode => { cat => 'region', value => 'amount' }, title => 'Slices' },
+			{ kind => 'line', encode => { x => 'sale_date', y => 'amount' },  title => 'Line' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $body = $t->tx->res->body;
+
+	my @scripts = $body =~ /<script(?![^>]*\bsrc=)[^>]*>(.*?)<\/script>/sg;
+	my @svg     = grep { /\bconst\s+svg\b/ } @scripts;
+	is(scalar @svg, 2, 'both cards draw with a snippet that declares its SVG');
+
+	for my $i (0 .. $#svg) {
+		like $svg[$i], qr/\A\s*\(function \(\) \{\n/,
+			'card ' . ($i + 1) . '\'s script is a function of its own';
+		like $svg[$i], qr/\}\)\(\);\s*\z/, 'which closes where it was opened';
+		my $open  = index($svg[$i], '(function () {');
+		my $const = index($svg[$i], 'const svg');
+		ok($open >= 0 && $const > $open,
+			"so its const is in that scope, not the page's");
+	}
+
+	# The scope is put on once, where every card is rendered.  A card that also
+	# arrived wrapped would be wrapped again here, and a function inside a
+	# function is a second chance for the bug above rather than a fix for it.
+	unlike $body, qr/\(function \(\) \{\s*\n\s*\(function \(\) \{/,
+		'no card script on the page is wrapped inside another';
+
+	# The library the snippets draw with is loaded once, from its src: it is
+	# not a card's snippet and is left alone.
+	like $body, qr{<script[^>]*\bsrc=[^>]*>\s*</script>},
+		'the library is still loaded from its src';
+	unlike $body, qr{<script[^>]*\bsrc=[^>]*>\s*\(function},
+		'and is not closed over a function';
+
+	# The same seam serves a card added or repaired once the page is up, so a
+	# card that arrives later cannot collide with the cards already drawn.
+	my $added = $t->post_ok("/api/analyses/$cid/visuals",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ kind => 'pie', encode => { cat => 'region', value => 'amount' }, title => 'More slices' })
+	)->status_is(201)->tx->res->json->{html};
+	like $added, qr{<script>\s*\(function \(\) \{\n.*?\bconst\s+svg\b}s,
+		'a card added after the page is up is given a scope too';
+
+	my $repaired = $t->patch_ok("/api/analyses/$cid/visuals/0",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ cross_row => {} })
+	)->status_is(200)->tx->res->json->{html};
+	like $repaired, qr{<script>\s*\(function \(\) \{\n.*?\bconst\s+svg\b}s,
+		'as is one whose plan is repaired in place';
+};
+
 subtest '3.2: card sizes survive a cross-filter and a drill-through visit' => sub {
 	# The arrangement a canvas was given is the layout in the analysis.  A visit
 	# that filters the data - a cross-filter, or a drill path - shows the same

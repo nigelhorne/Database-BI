@@ -433,6 +433,19 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 .ac-actions button:disabled { opacity: 0.55; cursor: wait; }
 .ac-error { margin: 0.35rem 0 0; font-size: 0.78rem; color: var(--danger-fg, #c0392b); }
 .ac-error[hidden] { display: none; }
+/* A repair that would leave the card plotting a column the plan no longer
+   makes: said while it can still be undone, not after the card has been
+   redrawn with an error. */
+.ac-warning {
+	margin: 0.35rem 0 0;
+	font-size: 0.78rem;
+	color: var(--warning-fg, #8a6d3b);
+	background: #fff8e1;
+	border: 1px solid #f0d58c;
+	border-radius: 4px;
+	padding: 0.25rem 0.45rem;
+}
+.ac-warning[hidden] { display: none; }
 /* Canvas toolbar buttons: same look as virtual table page toolbar buttons */
 .canvas-toolbar > button,
 .canvas-toolbar > .bm-wrap > button,
@@ -1002,6 +1015,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 					<span class="ac-note">The order and the partition above apply to every column in this card's plan.</span>
 				</div>
 			</div>
+			<p class="ac-warning" id="cr-warning" role="status" hidden></p>
 			<p class="ac-error" id="cr-error" role="alert" hidden></p>
 			<div class="ac-actions">
 				<button type="submit" class="ac-submit" id="cr-save">Save columns</button>
@@ -1249,6 +1263,10 @@ menu, so it reads without the menu being opened.</p>
 	var grid         = document.getElementById('canvas-grid');
 	var anaId        = grid ? grid.getAttribute('data-canvas-id') : '';
 	var canvasColumns = [% canvas_columns_json || '[]' %];
+	/* The columns the page's own plan (cs=) produces, which a card that inherits
+	 * takes.  A card's own plan is not here: it is read from the API when its
+	 * panel opens. */
+	var pageAliases   = [% canvas_page_aliases_json || '[]' %];
 	var drillName  = grid ? (grid.getAttribute('data-drill-name')  || '') : '';
 	var drillLevel = grid ? parseInt(grid.getAttribute('data-drill-level') || '0', 10) : 0;
 	var drillMax   = grid ? parseInt(grid.getAttribute('data-drill-max')   || '0', 10) : 0;
@@ -3336,12 +3354,17 @@ menu, so it reads without the menu being opened.</p>
 		var crCancel   = document.getElementById('cr-cancel');
 		var crStop     = document.getElementById('cr-add-cancel');
 		var crError    = document.getElementById('cr-error');
+		var crWarning  = document.getElementById('cr-warning');
 
 		if (crPanel && crForm && crMode && crFields && crList && crCol && crFn
 				&& crOrder && crBy && crSave && crError) {
 			var crTarget = null;    /* { card, btn, index } */
 			var crLoaded = false;
 			var crSpecs  = [];      /* { spec, alias, label, needsOrder } */
+			/* The columns this card plots that a plan makes: the names its encode
+			 * points at that its plan produces.  Renaming one of those leaves the
+			 * plot pointing at a column no card has. */
+			var crPlotted = [];
 			var crTouched = false;  /* the name box has been edited */
 			var crEditing = -1;     /* the chip the fields are describing, or -1 */
 			/* The order the card had when it was opened.  A plan may read rows in
@@ -3458,6 +3481,89 @@ menu, so it reads without the menu being opened.</p>
 				};
 			};
 
+			/* A plan's columns are the names it produces, which is the third field
+			 * of col:fn:alias[:arg]. */
+			var crAliases = function (specs) {
+				return (specs || []).map(function (spec) {
+					return String(spec).split(':')[2] || '';
+				}).filter(function (alias) { return alias; });
+			};
+
+			/* Every column name the card's encode points at, in the order it reads
+			 * them: a table names its columns in a list, a chart in a field each. */
+			var crPlots = function (encode) {
+				var names = [];
+				var add = function (value) {
+					if (typeof value === 'string' && value && names.indexOf(value) < 0) {
+						names.push(value);
+					}
+				};
+				for (var key in encode) {
+					if (!Object.prototype.hasOwnProperty.call(encode, key)) continue;
+					/* The one field whose value is a function rather than a column:
+					 * a plan's column may be called "sum" without this reading the
+					 * aggregate as a plot of it. */
+					if (key === 'agg') continue;
+					if (Array.isArray(encode[key])) encode[key].forEach(add);
+					else                           add(encode[key]);
+				}
+				return names;
+			};
+
+			/* The plotted columns a plan makes.  Only those: a column the data has
+			 * is not a plan's to rename, so nothing here depends on the sampler.
+			 * A card with no plan of its own plots the page's columns. */
+			var crColumnPlots = function (encode, planSpecs) {
+				var made = (planSpecs === null) ? pageAliases : crAliases(planSpecs);
+				return crPlots(encode).filter(function (name) {
+					return made.indexOf(name) >= 0;
+				});
+			};
+
+			/* Columns as a sentence: "a", "a" and "b", "a", "b" and "c". */
+			var crNameList = function (names) {
+				var quoted = names.map(function (name) { return '"' + name + '"'; });
+				if (quoted.length < 2) return quoted.join('');
+				return quoted.slice(0, -1).join(', ') + ' and ' + quoted[quoted.length - 1];
+			};
+
+			var crRenameText = function (names) {
+				return 'This card plots ' + crNameList(names) + ', and this plan no longer makes '
+					+ (names.length === 1 ? 'that column' : 'those columns') + '.';
+			};
+
+			/* What the plan the panel would save makes.  A card that takes the
+			 * page's plan takes the cs= the page was opened with; one that runs no
+			 * plan makes nothing. */
+			var crProduced = function (specs) {
+				if (crMode.value === 'inherit') return pageAliases.slice();
+				if (crMode.value !== 'own')     return [];
+				var list = specs || crSpecs.map(function (entry) { return entry.spec; });
+				return crAliases(list);
+			};
+
+			var crUnmadePlots = function (specs) {
+				var made = crProduced(specs);
+				return crPlotted.filter(function (name) {
+					return made.indexOf(name) < 0;
+				});
+			};
+
+			/* Said while the name can still be put back, not after the card has
+			 * been drawn against a column nothing makes. */
+			var crWarnRenames = function (specs) {
+				var missing = crUnmadePlots(specs);
+				if (!missing.length) {
+					crWarning.textContent = '';
+					crWarning.hidden = true;
+					return missing;
+				}
+				crWarning.textContent = crRenameText(missing)
+					+ ' Keep the name, or the card will be drawn with an error.';
+				crWarning.hidden = false;
+				return missing;
+			};
+
 			var crRenderList = function () {
 				crList.innerHTML = '';
 				crEmpty.hidden = crSpecs.length > 0;
@@ -3490,6 +3596,7 @@ menu, so it reads without the menu being opened.</p>
 					li.appendChild(remove);
 					crList.appendChild(li);
 				});
+				crWarnRenames();
 			};
 
 			var crSuggestion = function () {
@@ -3503,9 +3610,13 @@ menu, so it reads without the menu being opened.</p>
 
 			var crSyncFields = function () {
 				crFields.hidden = crMode.value !== 'own';
-				if (crFields.hidden) return;
-				crWinField.hidden = !crMeta().arg;
-				if (!crTouched) crAlias.value = crSuggestion();
+				if (!crFields.hidden) {
+					crWinField.hidden = !crMeta().arg;
+					if (!crTouched) crAlias.value = crSuggestion();
+				}
+				/* The mode is part of the plan: giving a card the page's columns,
+				 * or none, changes what it makes as much as a rename does. */
+				crWarnRenames();
 			};
 
 			/* A select is given a value, and keeps one it does not list: a saved plan
@@ -3648,6 +3759,9 @@ menu, so it reads without the menu being opened.</p>
 				crEditing = -1;
 				crOrderSaved = [];
 				crOrderShown = null;
+				crPlotted    = [];
+				crWarning.textContent = '';
+				crWarning.hidden = true;
 				crAdd.textContent = 'Add this column';
 				if (crStop) crStop.hidden = true;
 				btn.setAttribute('aria-expanded', 'true');
@@ -3697,6 +3811,12 @@ menu, so it reads without the menu being opened.</p>
 						if (!plan || typeof plan !== 'object') crMode.value = 'inherit';
 						else if (!specs.length)              crMode.value = 'none';
 						else                                crMode.value = 'own';
+
+						/* The plotted columns a plan makes, read from the plan the card
+						 * has now: its own, or the page's where it inherits.  A card that
+						 * runs no plan has none to rename, so it has nothing to lose. */
+						crPlotted = crColumnPlots(vis.encode || {},
+							(plan && typeof plan === 'object') ? (plan.cs || []) : null);
 
 						crEmpty.textContent = 'No columns yet: add the one described below.';
 						crTouched = false;
@@ -3844,6 +3964,18 @@ menu, so it reads without the menu being opened.</p>
 						plan.order = [crOrder.value + (crDir.value === 'desc' ? ':desc' : '')];
 					}
 					if (crBy.value) plan.by = crBy.value;
+				}
+
+				/* A rename the card would be drawn against.  Asked here as well as
+				 * said while the fields change, because the plan that lands is this
+				 * one -- the column the fields describe but the list does not hold yet
+				 * included -- and a card drawn with an error is a poor way to learn
+				 * about a column that was renamed out from under it. */
+				var unplotted = crWarnRenames(plan && plan.cs ? plan.cs : []);
+				if (unplotted.length && !window.confirm(crRenameText(unplotted)
+						+ '\n\nSave the plan anyway? The card will be drawn with an error.')) {
+					crSetError('Not saved: this card plots ' + crNameList(unplotted) + '.');
+					return;
 				}
 
 				var target = crTarget;

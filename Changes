@@ -15,7 +15,9 @@ Revision history for Database-BI
 	- PATCH /api/analyses/:id/visuals/:visual replaces a card's cross_row plan
 	  (null gives it up), so a saved card is repaired in place.
 	- A saved canvas card's header has Edit cross-row, listing the card's plan
-	  as editable chips and repairing it in place.
+	  as editable chips: pressing a column reopens it to be changed where it stands.
+	- Edit cross-row warns before saving a plan that renames a column the card
+	  plots, which would leave the card drawn against a column nothing makes.
 	- A canvas card can carry its own cross-row plan (cross_row), replacing the
 	  page's, or none at all; Add current view sets it.
 	- Canvas cards run the cs= cross-row pass themselves, on their own
@@ -118,6 +120,12 @@ Revision history for Database-BI
 	- Internal: _reduce_records takes chips_only, so the callers that pass
 	  already-reduced rows do not run a non-idempotent stage twice.
 	[ Bug Fixes ]
+	- A card whose columns name a column no plan produces is refused, whatever
+	  its kind: a table no longer prints a heading with empty cells under it.
+	- Two charts on one canvas no longer collide: each card's script is closed
+	  over a function of its own, so the second card draws.
+	- Internal: a card is scoped once, by the renderer every card goes through,
+	  rather than by each of the callers that render one.
 	- A canvas is drilled only when ?dd= names a hierarchy it has, with a level
 	  to drill on: a stale bookmark no longer makes every mark unfocusable.
 	- Canvas help says what the page does: one filter at a time, the shapes a

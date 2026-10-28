@@ -671,19 +671,13 @@ perl Makefile.PL
 - `PATCH /api/analyses/:id/visuals/:visual`
 
     Changes the columns of one stored visual without removing it.  Body:
-    `{ encode, cross_row, query }`, at least one of `encode` and `cross_row`.
-    `encode` replaces the visual's encoding in place (for
-    a map, `{ loc }` or `{ lat, lon }`), and `cross_row` replaces the card's own
-    cross-row plan in the spelling `POST .../visuals` takes, so a card saved with
-    a plan this canvas cannot honour is repaired in place instead of deleted and
-    added again.  `cross_row: null` gives the plan up and takes the page's again;
-    leaving the key out changes nothing.  The optional `query` is the
+    `{ encode, query }`; `encode` replaces the visual's encoding in place (for
+    a map, `{ loc }` or `{ lat, lon }`), and the optional `query` is the
     canvas page's query string, read for `cf`, `c` and `p.<name>` so
     the redrawn card matches the page it is on.  The visual keeps its index, so
     its layout position, size and title are unchanged.  The replacement is
-    rendered before it is stored, so an unknown column, an undrawable map or a
-    plan naming a column the canvas does not have is a `400` and the saved visual
-    is left alone.  Returns
+    rendered before it is stored, so an unknown column or an undrawable map is a
+    `400` and the saved visual is left alone.  Returns
     `{ id, visual, kind, title, html, head, cf_col }`.
 
 - `DELETE /api/analyses/:id`

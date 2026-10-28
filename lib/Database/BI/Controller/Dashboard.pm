@@ -3834,14 +3834,35 @@ sub _visual_measure {
 #     -> { html => Str, title => Str, head => Str } | { error => Str }
 #
 # Renders one canvas visual spec to an HTML snippet without touching
-# $self->render().  Applies any per-visual filters, then dispatches by
+# $self->render(), with each of the card's inline scripts closed over a
+# function of its own (see _scope_card_scripts).  The scoping is done here
+# rather than by the callers because every card passes through here and every
+# caller wants the same thing: a card's script and the page's are separate
+# programs, whether the card is drawn on a canvas of its own kind or returned
+# to a page that is about to insert it.
+sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
+	my $rendered = $self->_render_visual_markup(
+		$vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row,
+	);
+	return $rendered unless defined $rendered->{html};
+
+	$rendered->{html} = _scope_card_scripts($rendered->{html});
+	return $rendered;
+}
+
+# _render_visual_markup($self, \%vis, $records, \@columns, $src, $vis_id,
+#                       $spec_key, $prefiltered, $cross_row)
+#     -> { html => Str, title => Str, head => Str } | { error => Str }
+#
+# The card itself, without the scope _render_visual_html puts around its
+# scripts.  Applies any per-visual filters, then dispatches by
 # kind to the appropriate renderer.  $vis_id gives a map's Leaflet element
 # ids a page-unique suffix; $spec_key is the dataset whose older per-dataset
 # geocode entry may still be read while the shared cache is migrated.
 # $cross_row is the canvas's validated cs= plan, run here so that each card's
 # window is over that card's own rows: see the note at the pass below.  A card
 # that saved a plan of its own uses that one instead.
-sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
+sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
 	my $kind    = $vis->{kind}    // '';
 	my $encode  = $vis->{encode}  // {};
 	my $options = $vis->{options} // {};
@@ -4454,8 +4475,19 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 	if ($kind eq 'table') {
 		return { error => 'No data to display' } unless @$vis_recs;
 		my @cols = @$columns;
-		@cols = @{ $encode->{columns} }
-			if ref $encode->{columns} eq 'ARRAY' && @{ $encode->{columns} };
+		if (ref $encode->{columns} eq 'ARRAY' && @{ $encode->{columns} }) {
+			# A table names the columns it shows, and it is the one kind that
+			# could name a column nothing produces: the heading printed and
+			# every cell under it was empty, which reads as missing data rather
+			# than as a card drawn against a column that is not there.  Whether
+			# a plan produces a name is not something a reader can see from the
+			# card, so the name is refused here as the charts below refuse it.
+			for my $c (@{ $encode->{columns} }) {
+				next if ref $c || !length $c;
+				return { error => "Column not found: $c" } unless $col_set{$c};
+			}
+			@cols = @{ $encode->{columns} };
+		}
 
 		$title ||= 'Table';
 		my $max_rows_t = int($options->{rows} // 50);
@@ -4879,6 +4911,15 @@ sub canvas_render ($self) {
 		# name containing markup cannot close the tag, as the chart spec is.
 		$canvas_columns_json =~ s{<}{\\u003c}g;
 
+		# The columns the page's own plan produces, for the panel that repairs a
+		# card's: a card that takes the page's plan plots whatever that plan makes,
+		# so the panel can only tell a reader what a change would cost it if it
+		# knows the page's columns too.
+		my $page_aliases = ($cross_row && ref $cross_row eq 'HASH')
+			? [ map { $_->{as} } @{ $cross_row->{specs} // [] } ] : [];
+		my $canvas_page_aliases_json = encode_json($page_aliases);
+		$canvas_page_aliases_json =~ s{<}{\\u003c}g;
+
 		my ($platform, $language) = $self->_resolve_template;
 		return $self->render(
 			handler      => 'tt',
@@ -4889,6 +4930,7 @@ sub canvas_render ($self) {
 			canvas_name  => $a->{name},
 			canvas_data_url  => ($self->_analysis_to_url($a) // ''),
 			canvas_columns_json => $canvas_columns_json,
+			canvas_page_aliases_json => $canvas_page_aliases_json,
 			# The same menu the table page's cross-row panel renders, so a card
 			# can offer the functions the pass actually knows.
 			cross_row_menu => \@CROSS_ROW_MENU,
@@ -10067,6 +10109,53 @@ sub _map_renderer_version {
 # canvas with two maps gets distinct element ids and local variable scopes.
 # The head is the same Leaflet stylesheet and script for every map, so only
 # the first head is passed to the layout.
+# _scope_card_scripts($html) -> $html
+#
+# Purpose: Close every inline script in a rendered card over a function of its
+#          own, so two cards on one canvas cannot collide.
+# Entry:   $html -- one card's markup, as _render_visual_markup returns it.
+# Exit:    The same markup, with each inline script wrapped.
+# Notes:   Called once, by _render_visual_html, so no caller has to remember
+#          it and no card is scoped twice.  HTML::D3 writes a chart as a
+#          snippet that declares its SVG with
+#          C<const>.  A top-level C<const> belongs to the page's shared lexical
+#          environment rather than to the <script> element it was written in,
+#          so a canvas of two charts failed at the second one -- "Identifier
+#          'svg' has already been declared" -- and drew an empty card, while
+#          either card on a page of its own was fine.  A script with a C<src>,
+#          or with a C<type> of its own (a data block, a module), is left
+#          alone, and one that is already wrapped is not wrapped twice.
+sub _scope_card_scripts {
+	my ($html) = @_;
+	return '' unless defined $html && length $html;
+
+	# ~ is the delimiter because the lookaheads below need !, and the wrapper
+	# the replacement builds is a pair of braces, which a brace-delimited
+	# pattern would take for its own.
+	$html =~ s~(<script\b(?![^>]*\bsrc=)(?![^>]*\btype=)[^>]*>)(.*?)(</script>)~_wrap_card_script($1, $2, $3)~gsex;
+
+	return $html;
+}
+
+# _wrap_card_script($open, $body, $close) -> $html
+#
+# Purpose: One <script> element of a card, closed over a function of its own.
+# Entry:   The element's opening tag, its body and its closing tag.
+# Exit:    The same element, wrapped unless it already is.
+# Notes:   Split out of _scope_card_scripts so that pattern can use a plain
+#          delimiter: its lookaheads need the ones the wrapper is made of.
+sub _wrap_card_script {
+	my ($open, $body, $close) = @_;
+
+	# A body that already opens with the wrapper is left alone, so scoping a
+	# card twice is scoping it once.
+	my ($blank) = $body =~ /\A(\s*)/;
+	return $open . $body . $close
+		if CORE::index(substr($body, length $blank), '(function () {') == 0;
+
+	return $open . "\n(function () {\n" . $body . "\n})();\n" . $close;
+}
+
 sub _canvas_map_html {
 	my ($head, $body, $id_suffix) = @_;
 
@@ -10091,11 +10180,8 @@ sub _canvas_map_html {
 	# The card owns the map's size, so the page-wide #map rule is noise here.
 	$head =~ s{<style>.*?</style>}{}s;
 
-	# One map per card, one local scope per map.  The replacement uses !
-	# as its delimiter because the wrapper itself contains braces.
-	$body =~ s!<script>\s*!<script>\n(function () {\n!;
-	$body =~ s!</script>!})();\n</script>!;
-
+	# The scope around the map's script is not put on here: every card is
+	# scoped once, by _render_visual_html, whichever kind it is.
 	return ($head, $body);
 }
 

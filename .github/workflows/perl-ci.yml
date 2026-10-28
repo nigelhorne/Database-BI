@@ -87,21 +87,6 @@ jobs:
         if: runner.os == 'Windows'
         run: cpanm --notest App::cpanminus local::lib
 
-      # The 5.36 and 5.38 Windows images provide Module::Build and 5.42 does
-      # not, which is why only that leg stops at install: dependencies in the
-      # tree are built from a Build.PL rather than a Makefile.PL, so cpanm ends
-      # in "Can't locate Module/Build.pm in @inc" and the suite never runs.
-      # Installing it before the dependencies makes 5.42 build what the older
-      # legs already build, and costs one query where the module is provided.
-      - name: Install Module::Build (Windows)
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          @echo off
-          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
-          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
-          cpanm --notest Module::Build
-
       - name: Install DB_File, needed for a lot of CPAN modules
         if: runner.os == 'Linux'
         run: |
