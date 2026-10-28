@@ -33,8 +33,9 @@ subtest 'View table' => sub {
     $t->get_ok('/view/sales')->status_is(200);
     # Path traversal characters are rejected with 404.
     $t->get_ok('/view/../etc/passwd')->status_is(404);
-    # A nonexistent table renders the home page with an error message (still 200).
-    $t->get_ok('/view/nonexistent_xyz_table')->status_is(200);
+    # A nonexistent table is a 404 page that names it.
+    $t->get_ok('/view/nonexistent_xyz_table')->status_is(404)
+      ->content_like(qr/There is no table called &quot;nonexistent_xyz_table&quot;/);
 };
 
 # ---------------------------------------------------------------------------

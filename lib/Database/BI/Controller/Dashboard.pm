@@ -88,6 +88,7 @@ Readonly my $MIN_HTML_OSM_VERSION => '0.12';
 Readonly my %MESSAGES => (
 	error_table_invalid    => 'Invalid table name "%s"',
 	error_table_open       => 'Could not open table "%s": %s',
+	error_table_missing    => 'There is no table called "%s".',
 	error_file_open        => 'Could not open "%s": %s',
 	error_no_path          => 'No path specified',
 	error_not_found        => 'File or directory not found: %s',
@@ -569,14 +570,12 @@ sub _crumb_label :Protected ($self, $url) {
 		$name .= ": $it" if defined $it && length $it;
 		return length $name ? "$name$view" : undef;
 	}
-	if ($path eq '/join') {
-		my @names = map { _crumb_spec_name($_) } grep { length }
-			($q->param('l') // ''), map { (split /\|/, $_, 2)[0] // '' } @{ $q->every_param('j') };
-		return @names ? join(' + ', @names) . $view : undef;
-	}
-	if ($path eq '/combine') {
+	# Either route takes both joins and combined files.
+	if ($path eq '/join' || $path eq '/combine') {
 		my @names = map { _crumb_spec_name($_) } grep { /\A(?:table|path|url|redis):/i }
-			($q->param('l') // ''), @{ $q->every_param('c') };
+			($q->param('l') // ''),
+			(map { (split /\|/, $_, 2)[0] // '' } @{ $q->every_param('j') }),
+			@{ $q->every_param('c') };
 		return @names ? join(' + ', @names) . $view : undef;
 	}
 	if ($path eq '/import') {
@@ -2824,7 +2823,7 @@ sub _run_pipeline_source :Protected ($self) {
 	my $join_type = $self->param('jtype') // 'left';
 	$join_type    = 'left' unless $join_type =~ /\A(?:left|inner|outer)\z/;
 	my $src = $left_src;
-	my @schema_warnings;
+	my (@schema_warnings, @joined, @combined);
 	for my $jspec (@{ $self->every_param('j') }) {
 		my ($right_spec, $left_key, $right_key) = split /\|/, $jspec, 3;
 		next unless defined $right_spec && defined $left_key && defined $right_key;
@@ -2857,6 +2856,7 @@ sub _run_pipeline_source :Protected ($self) {
 			($left_key ne $right_key ? (join_map         => {1 => $right_key})   : ()),
 			($right_label             ? (collision_prefix => {1 => $right_label}) : ()),
 		);
+		push @joined, { label => $right_label, left_key => $left_key, right_key => $right_key };
 	}
 
 	$self->stash(schema_warnings => \@schema_warnings) if @schema_warnings;
@@ -2872,12 +2872,13 @@ sub _run_pipeline_source :Protected ($self) {
 	if (@cspecs) {
 		my @sources = ([$records, \@columns]);
 		for my $cspec (@cspecs) {
-			my ($csrc) = $self->_open_spec($cspec);
+			my ($csrc, $clabel) = $self->_open_spec($cspec);
 			next unless $csrc;
 			my $crecs = eval { $csrc->fetch_all } // [];
 			next if $@;
 			my @ccols = _get_columns($csrc, $crecs);
-			push @sources, [$crecs, \@ccols];
+			push @sources,  [$crecs, \@ccols];
+			push @combined, { label => $clabel };
 		}
 		if (@sources > 1) {
 			($records, my $new_cols) = _combine_tables(\@sources);
@@ -2885,6 +2886,9 @@ sub _run_pipeline_source :Protected ($self) {
 			$src = undef;	# union: no single aggregatable source
 		}
 	}
+
+	# What was actually joined and stacked, for the page that shows the rows.
+	$self->stash(pipeline_joined => \@joined, pipeline_combined => \@combined);
 
 	return ($src, $records, \@columns, $left_label);
 }
@@ -5580,6 +5584,21 @@ sub view ($self) {
 		}
 	};
 	if ($@) {
+		# No file by that name: a 404 that names the table, with the trail
+		# and the navigation, rather than the home page and the backend's
+		# message (which gives away the data directory).
+		my $stem_of = sub { lc($_[0]->basename =~ s/\.[^.]+\z//r) };
+		unless (grep { $stem_of->($_) eq lc $table } _data_dir_for($self->app)->list->each) {
+			return $self->render(
+				template  => "$platform/$language/not_found",
+				handler   => 'tt',
+				format    => 'html',
+				status    => 404,
+				title     => 'Table not found',
+				error_msg => $self->_i18n('error_table_missing', $table),
+				language  => $language,
+			);
+		}
 		return $self->render(
 			template => "$platform/$language/home",
 			handler  => 'tt',
@@ -6402,6 +6421,10 @@ Renders C<dashboard.html.tt> with the merged/filtered result set.
 =cut
 
 sub join_tables ($self) {
+	# Rows stacked from other files cannot be paged from one backend; the
+	# combine route runs joins and combines together.
+	return $self->combine_tables if @{ $self->every_param('c') };
+
 	my ($platform, $language) = $self->_resolve_template;
 
 	my $left_spec = $self->param('l') // '';
@@ -6587,39 +6610,24 @@ sub combine_tables ($self) {
 	my ($left_src, $left_label) = $self->_open_spec($left_spec);
 	return $self->reply->not_found unless $left_src;
 
-	my $left_recs = eval { $left_src->fetch_all };
-	if ($@) {
+	# The same join-then-stack pipeline the charts of this view use, so the
+	# table shows the rows they draw.
+	my (undef, $records, $cols_ref) = $self->_run_pipeline_source;
+	unless (defined $records) {
 		return $self->render(
 			template => "$platform/$language/home",
 			handler  => 'tt',
 			format   => 'html',
 			tables   => [],
 			title    => 'Error',
-			error    => $self->_i18n('error_table_open', $left_label, $@),
+			error    => $self->_i18n('error_table_open', $left_label, ''),
 			language => $language,
 		);
 	}
-	$left_recs //= [];
-
-	my @left_cols     = _get_columns($left_src, $left_recs);
+	my @join_specs    = @{ $self->every_param('j') };
 	my @combine_specs = @{ $self->every_param('c') };
-
-	my @sources   = ([$left_recs, \@left_cols]);
-	my @summaries;
-
-	for my $cspec (@combine_specs) {
-		my ($csrc, $clabel) = $self->_open_spec($cspec);
-		next unless $csrc;
-		my $crecs = eval { $csrc->fetch_all } // [];
-		next if $@;
-		my @ccols = _get_columns($csrc, $crecs);
-		push @sources,   [$crecs, \@ccols];
-		push @summaries, { label => $clabel };
-	}
-
-	my ($records, $cols_ref) = @sources > 1
-		? _combine_tables(\@sources)
-		: ($left_recs, \@left_cols);
+	my @summaries     = (@{ $self->stash('pipeline_joined') // [] },
+		@{ $self->stash('pipeline_combined') // [] });
 
 	# Apply the filters in memory before paginating (reduce-before-paginate).
 	my @columns;
@@ -6651,7 +6659,7 @@ sub combine_tables ($self) {
 
 	my $title     = $left_label;
 	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
-	my $table_key = 'combine:' . lc($left_label);
+	my $table_key = (@join_specs ? 'join+combine:' : 'combine:') . lc($left_label);
 	$table_key   .= ':' . lc($_->{label}) for @summaries;
 
 	my $page_url = $self->req->url->clone;
@@ -6671,13 +6679,14 @@ sub combine_tables ($self) {
 		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $left_spec,
 		combine_specs    => \@combine_specs,
-		current_joins    => [],
+		current_joins    => \@join_specs,
 		available_tables => $self->_scan_join_tables,
 		join_summaries   => \@summaries,
 		filter_specs     => $filter_specs,
 		filters_json     => $filters_json,
 		dedup            => $dedup,
-		export_url       => $self->_build_export_url($left_spec, [], $filter_specs, \@combine_specs, $dedup),
+		export_url       => $self->_build_export_url($left_spec, \@join_specs, $filter_specs, \@combine_specs, $dedup),
+		schema_warnings  => $self->stash('schema_warnings') // [],
 		page             => $page,
 		per_page         => $per_page,
 		has_next         => $has_next,

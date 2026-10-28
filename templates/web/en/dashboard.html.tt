@@ -437,6 +437,9 @@
     [%- FOREACH jspec IN current_joins -%]
     <input type="hidden" name="j" value="[% jspec | html %]">
     [%- END -%]
+    [%- FOREACH cspec IN combine_specs -%]
+    <input type="hidden" name="c" value="[% cspec | html %]">
+    [%- END -%]
     [%- FOREACH fs IN filter_specs -%]
     <input type="hidden" name="f" value="[% fs | html %]" class="f-preserved">
     [%- END -%]
@@ -5404,7 +5407,6 @@ function biDetectColType(colName) {
 
   // Close panel.
   btnCancel.addEventListener('click', function () {
-    panel.hidden     = false;
     panel.hidden     = true;
     btnOpen.disabled = false;
     resultEl.hidden  = true;

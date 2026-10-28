@@ -9,6 +9,7 @@ use warnings;
 #   * a chart of a de-duplicated view counts the rows the table shows;
 #   * a chart page says what it is drawn from when that is not the whole file;
 #   * the toolbar panels are listed once, and every panel is in that list;
+#   * a view can be joined and combined at once, whichever was done first;
 #   * the main navigation reaches canvases, the catalog and the file browser
 #     from every page.
 #
@@ -29,6 +30,8 @@ Mojo::File->new($data_dir)->child('sales.csv')->spew(
 	"id,region,amount\n1,North,10\n1,North,10\n2,South,5\n");
 Mojo::File->new($data_dir)->child('more.csv')->spew(
 	"id,region,amount\n3,East,7\n");
+Mojo::File->new($data_dir)->child('managers.csv')->spew(
+	"region,manager\nNorth,Ann\nSouth,Bob\nEast,Cy\n");
 
 my $t = Test::Mojo->new('Database::BI', {
 	data_dir  => $data_dir,
@@ -215,6 +218,23 @@ subtest 'the main navigation reaches canvases, the catalog and the browser' => s
 		my $dom = Mojo::DOM->new($t->get_ok($page)->status_is(200)->tx->res->body);
 		for my $href ('/#bi-canvases', '/catalog', '/browse') {
 			ok($dom->at(qq{nav.site-nav a[href="$href"]}), "$page links to $href");
+		}
+	}
+};
+
+subtest 'a view joins and combines at once, whichever came first' => sub {
+	my $j = 'table:managers|region|region';
+	for my $route (qw(join combine)) {
+		my $url = "/$route?l=table:sales&j=" . url_escape($j) . '&c=' . url_escape($more);
+		my $dom = Mojo::DOM->new($t->get_ok($url)->status_is(200)->tx->res->body);
+		my @head = map { $_->all_text } $dom->find('#data-table thead th, table thead th')->each;
+		ok((grep { $_ eq 'manager' } @head), "/$route shows the joined column");
+		my @rows = $dom->find('table tbody tr')->each;
+		ok((grep { $_->all_text =~ /East/ } @rows), "/$route shows the combined rows");
+		for my $id (qw(join-form combine-form bar-form)) {
+			my %has = map { ($_->{name} // '') => $_->{value} } $dom->find("form#$id input[type=hidden]")->each;
+			is($has{j}, $j, "/$route: $id carries j=");
+			is($has{c}, $more, "/$route: $id carries c=");
 		}
 	}
 };

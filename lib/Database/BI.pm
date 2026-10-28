@@ -1470,7 +1470,7 @@ sub startup ($self) {
 	# here rather than in every action: a new action is one entry in the action
 	# map in Database::BI::Tutorial, and t/tutorial.t checks it is there.
 	$self->hook(before_render => sub {
-		my $c = shift;
+		my ($c, $args) = @_;
 
 		# AI availability flag used by dashboard and insights templates.
 		$c->stash(ai_available => (length($c->app->config('ai_api_key') // '') ? 1 : 0))
@@ -1483,6 +1483,25 @@ sub startup ($self) {
 		$c->stash(d3_url =>
 			(defined $d3_url && !ref $d3_url && length $d3_url)
 				? $d3_url : $DEFAULT_D3_URL);
+
+		# Mojolicious's own 404 page has no navigation and no breadcrumb; an
+		# HTML one is drawn from our not_found template instead.  Its first
+		# try is "not_found.<mode>", so that is the one replaced.  JSON
+		# replies and exceptions keep the defaults.
+		# The language is the one the action already chose, if it got that far
+		# (_resolve_template is protected, so it cannot be asked from here).
+		if (($args->{template} // '') =~ /\Anot_found\.\w+\z/
+			&& ($args->{format} // $c->stash('format') // 'html') eq 'html') {
+			my $conf     = $c->app->config;
+			my $platform = $conf->{platform} // 'web';
+			my $language = $c->stash('language') // '';
+			$language = $conf->{language} // 'en'
+				unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/
+					&& -d $c->app->home->child("templates/$platform/$language");
+			$args->{template} = "$platform/$language/not_found";
+			$args->{handler}  = 'tt';
+			$c->stash(title => 'Page not found', language => $language);
+		}
 
 		# The breadcrumb trail (layouts/breadcrumb.html.tt), worked out from the
 		# request's own URL, so every page has one and a new page gets one

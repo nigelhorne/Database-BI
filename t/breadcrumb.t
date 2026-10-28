@@ -112,6 +112,18 @@ subtest 'a missing canvas is a page with a breadcrumb, not plain text' => sub {
 	unlike($body, qr/id="canvas-error-delete"/, 'nothing to delete');
 };
 
+subtest 'a page that is not there has the breadcrumb and navigation' => sub {
+	is_deeply(names(crumbs('/view/nosuchtable')), ["\x{2190} Home", 'nosuchtable'],
+		'a missing table is named');
+	$t->status_is(404)->content_like(qr/There is no table called/)
+		->content_unlike(qr/\Q$data_dir\E/, 'and the data directory is not given away');
+	is_deeply(names(crumbs('/no/such/page')), ["\x{2190} Home", 'Page not found'],
+		'an unknown address');
+	$t->status_is(404)->content_like(qr{href="/browse"}, 'with the site navigation');
+	$t->get_ok('/api/analyses/nosuch')->status_is(404)->content_type_like(qr/json/,
+		'an API 404 is still JSON');
+};
+
 subtest 'a back link to another site or scheme is not followed' => sub {
 	for my $back ('javascript:alert(1)', 'http://evil.example/view/sales', '//evil.example/x') {
 		my $c = crumbs('/bar?l=table:sales&cat=region&back=' . url_escape($back));

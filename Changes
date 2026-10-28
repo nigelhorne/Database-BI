@@ -82,6 +82,13 @@ Revision history for Database-BI
 	  navigation, not a line of plain text.
 	- Folder view levels keep the link back to the table they came from,
 	  and its crumb is an absolute link.
+	- A missing page is a 404 with the breadcrumb and navigation, not
+	  Mojolicious's bare page.  /view/<table> for a table that does not
+	  exist is now a 404 naming it, rather than the home page with an
+	  error that showed the data directory.
+	- A view that is both joined (j=) and combined (c=) shows both, from
+	  /join or /combine: /combine ignored j=, and Merge after Combine
+	  dropped c=.  The table now shows the rows its charts draw from.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]
