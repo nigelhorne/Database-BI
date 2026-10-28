@@ -87,10 +87,14 @@ Revision history for Database-BI
 	  line graph panel carries Aggregate and Time bucket menus for it.
 	- A stored time pattern takes time=, so 27/10/2026 14:05 is read as
 	  2026-10-27T14:05:00 and a relative range can filter on that column.
+	- Cross-row columns: cs=<col>:<fn>:<alias>[:<arg>] with by= and order= adds a
+	  running total, moving average, rank, z-score or share of the total per row.
 	- bi-alert --suppress throttles a threshold that stays crossed, and
 	  --recovery announces the end of the crossing once, at exit 3.
 	- bi-alert --notify-cmd delivers an alert or a recovery itself, with the
 	  run's text on STDIN and the verdict in BI_ALERT_SUBJECT.
+	- bi-alert checks several analyses and thresholds in one run, each with its
+	  own state entry and recovery, and delivers once per run.
 	- Internal: _reduce_records takes chips_only, so the callers that pass
 	  already-reduced rows do not run a non-idempotent stage twice.
 

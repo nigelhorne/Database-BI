@@ -1618,9 +1618,14 @@ subtest '_reduce_records -- the stage has one implementation, not seventeen' => 
 	my $loops = () = $source =~ /for my \$s \(\@\{ _filter_specs/g;
 	is $loops, 1, 'the filter loop is written once, inside _reduce_records';
 
-	my $calls = () = $source =~ /= _reduce_records\(\$self/g;
+	# The routes go through _reduce_or_render, which is the one caller of the
+	# seam that turns a cross-row spec it cannot honour into a 400 (the stage
+	# croaks, and a route has to answer with something).
+	my $calls = () = $source =~ /_reduce_or_render\(/g;
 	cmp_ok $calls, '>=', 16,
-		"every data route and _apply_filters reduce through it ($calls call sites)";
+		"every data route reduces through the seam ($calls call sites)";
+	my $seam = () = $source =~ /= eval \{ _reduce_records\(\$self/g;
+	is $seam, 1, 'and only that wrapper calls _reduce_records on a route\'s behalf';
 };
 
 # ============================================================================

@@ -608,5 +608,153 @@ sub file_text {
 	like($out, qr/--notify-cmd must name a command/, 'and the message names the option');
 }
 
+# ---------------------------------------------------------------------------
+# 14. Several checks in one run: each is reported, throttled and recovered on
+#     its own
+# ---------------------------------------------------------------------------
+
+{
+	# A second saved analysis on a file of its own, so the two groups in a run
+	# hold different numbers and cannot be mistaken for each other.
+	my $other_dir = tempdir(CLEANUP => 1);
+	my $other_csv = File::Spec->catfile($other_dir, 'other.csv');
+	my @other_rows = ("region,amount\n");
+	push @other_rows, "R$_,$_\n" for 1 .. 7;
+	Mojo::File->new($other_csv)->spurt(join '', @other_rows);
+
+	my $other_id = 'otherops';
+	my $store    = decode_json(Mojo::File->new($model_dir, 'analyses.json')->slurp);
+	$store->{$other_id} = {
+		id       => $other_id,
+		name     => 'Other analysis',
+		version  => 1,
+		created  => time(),
+		updated  => time(),
+		datasets => [ { spec => "path:$other_csv" } ],
+		visuals  => [],
+	};
+	Mojo::File->new($model_dir, 'analyses.json')->spurt(encode_json($store));
+
+	# 14a. Two analyses, one threshold each, and only one of them crossed.
+	my $state = File::Spec->catfile($model_dir, 'many.json');
+	my @both = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir,
+		'--analysis',  $clear_id, '--analysis', $other_id,
+		'--threshold', 'count:gt:3',
+		'--threshold', "$other_id:count:gt:99",
+		'--suppress',  '1h', '--state-file', $state, '--recovery',
+	);
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+
+	my ($out, $code) = run_alert_at($at, @both);
+	is($code, 1, 'a run watching two analyses exits 1 when one crosses');
+	like($out, qr/^Analysis: .*? \($clear_id\)$/m, 'both analyses are reported in full');
+	like($out, qr/^Analysis: .*? \($other_id\)$/m, 'including the second one');
+	like($out, qr/THRESHOLD CROSSED: \[$clear_id\] count \(4\) gt 3/,
+		'and the crossing says which analysis it belongs to');
+	like($out, qr/Threshold not crossed: \[$other_id\] count \(7\) gt 99/,
+		'while the other check says it did not cross');
+	is(scalar(() = $out =~ /THRESHOLD CROSSED:/g), 1, 'only one crossing is announced');
+
+	my $saved = state_of($state);
+	ok($saved->{alerts}{"$clear_id|count:gt:3"}, 'the crossing is on record under its own key');
+	ok(!$saved->{alerts}{"$other_id|count:gt:99"},
+		'and a threshold that did not cross records nothing');
+
+	# 14b. Two thresholds on one analysis: neither silences nor recovers the
+	# other, because each has its own entry in the state file.
+	my $pair = File::Spec->catfile($model_dir, 'pair.json');
+	my @pair = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--threshold', 'count:gt:2',
+		'--suppress',  '1h', '--state-file', $pair, '--recovery',
+	);
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	($out, $code) = run_alert_at($at, @pair);
+	is($code, 1, 'both thresholds cross four rows');
+	is(scalar(() = $out =~ /THRESHOLD CROSSED:/g), 2, 'and both are announced');
+
+	# Three rows: the higher threshold clears, the lower one is still crossed.
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+	($out, $code) = run_alert_at($at + 60, @pair);
+	is($code, 3, 'three rows recover only the higher threshold');
+	like($out, qr/THRESHOLD RECOVERED: count \(3\) gt 3/, 'and it is named');
+	like($out, qr/THRESHOLD SUPPRESSED: count \(3\) gt 2/,
+		'while the one still crossed stays inside its period');
+	is(scalar(() = $out =~ /THRESHOLD RECOVERED:/g), 1, 'exactly one recovery is announced');
+
+	$saved = state_of($pair);
+	ok(!$saved->{alerts}{"$clear_id|count:gt:3"}, 'the recovered threshold is forgotten');
+	ok($saved->{alerts}{"$clear_id|count:gt:2"},
+		'and the one that is still crossed keeps its entry');
+
+	($out, $code) = run_alert_at($at + 120, @pair);
+	is($code, 0, 'the next run over the same data stays quiet');
+	unlike($out, qr/THRESHOLD RECOVERED/, 'and does not recover anything twice');
+
+	# 14c. One run is one delivery, however many checks it announced.
+	my $dir   = tempdir(CLEANUP => 1);
+	my $body  = File::Spec->catfile($dir, 'message.txt');
+	my $env   = File::Spec->catfile($dir, 'env.txt');
+	my $calls = File::Spec->catfile($dir, 'calls.txt');
+	my $cmd   = qq{printenv BI_ALERT_EVENT BI_ALERT_SUBJECT > '$env'; }
+		. qq{cat > '$body'; printf x >> '$calls'};
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	($out, $code) = run_alert_at($at + 120,
+		'--model-dir', $model_dir, '--data-dir', $data_dir,
+		'--analysis', $clear_id, '--analysis', $other_id,
+		'--threshold', 'count:gt:3', '--threshold', "$other_id:count:gt:0",
+		'--suppress', '1h', '--state-file', File::Spec->catfile($dir, 'state.json'),
+		'--notify-cmd', $cmd);
+	is($code, 1, 'a run announcing two crossings exits 1');
+	my @env = split /\n/, file_text($env);
+	is($env[0], 'crossed', 'the delivery is a crossing');
+	is($env[1], '2 threshold crossings', 'and its subject counts both');
+	is(file_text($calls), 'x', 'the command ran once for the whole run');
+	like(file_text($body), qr/THRESHOLD CROSSED: \[$clear_id\]/,
+		'and its text carries both announcements');
+	like(file_text($body), qr/THRESHOLD CROSSED: \[$other_id\]/, 'in one message');
+
+	# 14d. A run with one analysis is the run it always was.
+	($out, $code) = run_alert_at($at + 120,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:0');
+	is($code, 1, 'a single analysis still exits 1 on a crossing');
+	like($out, qr/^Analysis: Clearable analysis$/m, 'with the header it always had');
+	like($out, qr/^THRESHOLD CROSSED: count \(4\) gt 0$/m,
+		'and an unqualified verdict line, so existing greps still match');
+
+	# 14e. Repeating an option is not a request to be told twice.
+	($out, $code) = run_alert_at($at + 120,
+		'--model-dir', $model_dir, '--data-dir', $data_dir,
+		'--analysis', $clear_id, '--analysis', $clear_id,
+		'--threshold', 'count:gt:0', '--threshold', 'count:gt:0');
+	is($code, 1, 'a repeated analysis and threshold still exit 1');
+	is(scalar(() = $out =~ /^Analysis: /gm), 1, 'the analysis is reported once');
+	is(scalar(() = $out =~ /THRESHOLD CROSSED:/g), 1, 'and the crossing is announced once');
+
+	# 14f. What a run refuses.
+	($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir,
+		'--analysis', $clear_id, '--threshold', "$other_id:count:gt:0");
+	is($code, 2, 'a threshold for an analysis not given with --analysis is an error');
+	like($out, qr/not given with --analysis/, 'and the message says what is missing');
+
+	($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:0', '--threshold', 'nosuch:gt:1');
+	is($code, 2, 'a bad alias on the second check fails the run');
+	like($out, qr/measure alias 'nosuch' not found/, 'naming the alias');
+
+	($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt');
+	is($code, 2, 'a threshold with no value is still an error');
+	like($out, qr/<analysis>:<measure>:<op>:<value>/, 'and the message shows both forms');
+}
+
 done_testing;
 

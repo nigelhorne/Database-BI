@@ -162,6 +162,17 @@ Readonly my %MESSAGES => (
 	error_span_tcol_unknown     => 'Column "%s" is not in this view, so there is nothing to bucket',
 	error_span_conflict         => 'The bucket column "%s" is already defined by a calculated field; add as=<name> to bucket under a name of its own',
 	error_span_name             => 'Bucket column name "%s" is not a usable column name; add as=<name>',
+	error_cs_spec               => 'cs=%s must be <column>:<function>:<alias>, optionally followed by :<parameter>',
+	error_cs_column             => 'cs=%s names the column "%s", which is not in this view',
+	error_cs_fn                 => 'Unknown cross-row function "%s"; use one of: %s',
+	error_cs_alias              => 'Cross-row alias "%s" is not a usable column name',
+	error_cs_conflict           => 'Cross-row alias "%s" is already a column of this view, or another cs= already writes it; choose another name',
+	error_cs_arg                => 'cs=%s: %s takes a whole number greater than zero, as in %s:%s:ma7:7',
+	error_cs_no_arg             => 'cs=%s: %s takes no parameter',
+	error_cs_by                 => 'by=%s names "%s", which is not a column of this view',
+	error_cs_order              => 'order=%s must be <column>, <column>:asc or <column>:desc',
+	error_cs_order_col          => 'order=%s names "%s", which is not a column of this view',
+	error_cs_order_need         => 'cs=%s needs order=: %s reads its rows in order, so the order has to be named',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -1119,6 +1130,350 @@ sub _apply_filter_spec {
 	} @$records];
 }
 
+# ---------------------------------------------------------------------------
+# The cross-row pass (BI-Phase-7.md item 7.2)
+# ---------------------------------------------------------------------------
+#
+# A measure folds a group into one number and a calculated field computes one
+# row from that row.  This is the third shape: one row from many rows, written
+# back onto every row -- a running total, a moving average, a rank, a share of
+# the whole.  None of them can be a measure (the answer is per row, not per
+# group) and none can be a calc field (it needs its neighbours), which is why
+# they are a pass of their own.
+#
+# The functions follow Splunk's split, because it is also the natural one:
+# the eventstats family is order-free (pct_of_total, rank, zscore), the
+# streamstats family is incremental and therefore needs an order (running_*,
+# window_*, lag, delta, pct_change).
+
+Readonly my %CROSS_ROW_FNS => (
+	running_total => { family => 'stream' },
+	running_count => { family => 'stream' },
+	running_pct   => { family => 'stream' },
+	window_sum    => { family => 'stream', arg => 'count' },
+	window_avg    => { family => 'stream', arg => 'count' },
+	lag           => { family => 'stream' },
+	delta         => { family => 'stream' },
+	pct_change    => { family => 'stream' },
+	pct_of_total  => { family => 'event' },
+	rank          => { family => 'event' },
+	zscore        => { family => 'event' },
+);
+
+# _cross_row_specs($self, \@columns) -> \%plan | { error => $message } | undef
+#
+# Purpose: Read cs=/by=/order= and turn them into a plan the pass can run:
+#          which function writes which column, partitioned by what, ordered by
+#          what.  Nothing is evaluated here, so a request that names a column
+#          or a function that does not exist is refused before a single row is
+#          touched, and the refusal is a 400 rather than a chart of something
+#          else.
+# Entry:   \@columns -- the columns of this view, so a cs=/by=/order= column is
+#                       checked against what the reader can actually see.
+# Exit:    undef when the request names no cross-row column.  Otherwise
+#          { specs => [ { col, fn, as, arg } ], by => [col ...],
+#            order => [ { col, dir } ] }, or { error => $message } for a
+#          request that cannot be honoured.
+# Notes:   The streamstats family reads its rows in order, so order= is
+#          required for it and refused as missing by name.  The eventstats
+#          family does not care and does not require it.
+sub _cross_row_specs :Protected ($self, $columns) {
+	my @texts = grep { defined $_ && length } @{ $self->every_param('cs') // [] };
+	return undef unless @texts;
+
+	my %col_set = map { $_ => 1 } @{ $columns // [] };
+	my %taken;
+	my @specs;
+
+	for my $text (@texts) {
+		my ($col, $fn, $as, $arg) = split /:/, $text, 4;
+		return { error => $self->_i18n('error_cs_spec', $text) }
+			unless defined $col && length $col
+				&& defined $fn  && length $fn
+				&& defined $as  && length $as;
+
+		return { error => $self->_i18n('error_cs_column', $text, $col) }
+			unless $col_set{$col};
+
+		return { error => $self->_i18n('error_cs_fn', $fn, join(' ', sort keys %CROSS_ROW_FNS)) }
+			unless $CROSS_ROW_FNS{$fn};
+
+		return { error => $self->_i18n('error_cs_alias', $as) }
+			unless $as =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/;
+
+		return { error => $self->_i18n(q{error_cs_conflict}, $as) }
+			if $col_set{$as} || $taken{$as};
+		$taken{$as} = 1;
+
+		my $decl = $CROSS_ROW_FNS{$fn};
+		if ($decl->{arg}) {
+			return { error => $self->_i18n('error_cs_arg', $text, $fn, $col, $fn) }
+				unless defined $arg && $arg =~ /\A\d+\z/ && $arg > 0;
+		}
+		elsif (defined $arg && length $arg) {
+			return { error => $self->_i18n('error_cs_no_arg', $text, $fn) };
+		}
+
+		push @specs, {
+			col => $col,
+			fn  => $fn,
+			as  => $as,
+			arg => (defined $arg && length $arg) ? $arg + 0 : undef,
+		};
+	}
+
+	# by= is the partition.  An empty value is its own partition rather than a
+	# dropped row: a windowed column has to cover every displayed row, which is
+	# not the rule the pivot uses for a cell -- see the POD.
+	my $by_text = $self->param('by') // '';
+	my @by      = grep { length } map { _trim($_) } split /,/, $by_text, -1;
+	for my $c (@by) {
+		return { error => $self->_i18n('error_cs_by', $by_text, $c) } unless $col_set{$c};
+	}
+
+	my @order;
+	for my $text (@{ $self->every_param('order') // [] }) {
+		my $spec = _trim($text // '');
+		next unless length $spec;
+		my ($c, $dir) = split /:/, $spec, 2;
+		$c = _trim($c // '');
+		$dir = defined $dir && length $dir ? lc _trim($dir) : 'asc';
+		return { error => $self->_i18n('error_cs_order', $spec) }
+			unless length $c && $dir =~ /\A(?:asc|desc)\z/;
+		return { error => $self->_i18n('error_cs_order_col', $spec, $c) }
+			unless $col_set{$c};
+		push @order, { col => $c, dir => $dir };
+	}
+
+	for my $spec (@specs) {
+		next unless $CROSS_ROW_FNS{ $spec->{fn} }{family} eq 'stream';
+		return {
+			error => $self->_i18n('error_cs_order_need',
+				join(':', $spec->{col}, $spec->{fn}, $spec->{as}), $spec->{fn})
+		} unless @order;
+	}
+
+	return { specs => \@specs, by => \@by, order => \@order };
+}
+
+# _apply_cross_row($self, $records, \@columns) -> ($records, \@columns)
+#
+# Purpose: Stage 6 of the pipeline: run every cs= spec over the rows and write
+#          the answer onto each row as a column of its own.  Called from
+#          _reduce_records (the routes that reduce there) and from _fetch_page
+#          after its own filtering (the routes that paginate), always before
+#          anything slices a page, so page 2 continues page 1's running total.
+# Entry:   $records -- arrayref of hashrefs, already filtered.
+#          \@columns -- the columns list, or undef where the caller has none in
+#                       scope; then it is derived from the first row.
+# Exit:    ($records, \@columns) with the produced columns appended, or the
+#          arguments untouched when the request names no cs=.  Croaks with an
+#          i18n message when a spec cannot be honoured; the caller renders 400.
+# Notes:   Rows are grouped into partitions by by=, each partition is sorted
+#          once (stable, ties in arrival order, so two runs over the same file
+#          agree), and each spec is then one pass over each partition.  A
+#          partition total is accumulated in that pass, never per row.
+#
+#          The rows keep the order they arrived in: order= says which order the
+#          window is read along, not which order the table is shown in.  The
+#          table has its own sort controls, and a reader may well want them to
+#          disagree (a ledger sorted by amount, running totals following the
+#          date), so the pass writes values in place rather than reordering.
+#
+#          A cell that is not numeric yields undef in the produced column rather
+#          than a placeholder: there is no previous row for the first row of a
+#          partition, and a chart skips undef while the measure fold does too,
+#          so an undef window cannot silently become a zero.
+sub _apply_cross_row :Protected ($self, $records, $columns) {
+	my $cols = $columns;
+	unless (defined $cols) {
+		$cols = [ sort keys %{ $records->[0] // {} } ];
+	}
+
+	my $plan = $self->_cross_row_specs($cols);
+	return ($records, $columns) unless $plan;
+	croak $plan->{error} if $plan->{error};
+
+	# Partitions, in first-appearance order so a report reads in file order.
+	my (@part_keys, %parts);
+	for my $i (0 .. $#$records) {
+		my $row = $records->[$i] // {};
+		my $key = join("\x00", map { defined $row->{$_} ? "$row->{$_}" : '' } @{ $plan->{by} });
+		push @part_keys, $key unless exists $parts{$key};
+		push @{ $parts{$key} }, $i;
+	}
+
+	# One sort per partition, whatever the number of specs.  The index is the
+	# tie-break, so the sort is stable even where the keys are equal.
+	if (my @order = @{ $plan->{order} }) {
+		for my $key (@part_keys) {
+			my $idx = $parts{$key};
+			next unless @$idx > 1;
+			$parts{$key} = [ sort {
+				my $cmp = 0;
+				for my $o (@order) {
+					$cmp = _cross_row_cmp($records->[$a]{ $o->{col} }, $records->[$b]{ $o->{col} });
+					$cmp = -$cmp if $o->{dir} eq 'desc';
+					last if $cmp;
+				}
+				$cmp || $a <=> $b;
+			} @$idx ];
+		}
+	}
+
+	my @names;
+	for my $spec (@{ $plan->{specs} }) {
+		my ($fn, $as, $col) = @{$spec}{qw(fn as col)};
+		for my $key (@part_keys) {
+			my $idx  = $parts{$key};
+			my @vals = map { _numeric_cell($records->[$_]{$col}) } @$idx;
+			my @out  = _cross_row_values($fn, \@vals, $spec->{arg});
+			for my $j (0 .. $#$idx) {
+				my $i = $idx->[$j];
+				$records->[$i] = _extend_row($records->[$i], $as, $out[$j]);
+			}
+		}
+		push @names, $as;
+	}
+
+	my @extended = (@$cols, @names);
+	$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
+	$self->stash('_virtual_columns')->{$_} = 1 for @names;
+	# The routes that paginate ask for their columns separately, after the page
+	# is sliced, so the names are left where they can be picked up.
+	$self->stash('_cross_row_columns' => \@names);
+
+	return ($records, \@extended);
+}
+
+# _cross_row_values($fn, \@values, $arg) -> @values
+#
+# The arithmetic of one spec over one partition: @values is the source column
+# of each row in order, numeric or undef, and the answer is aligned with it.
+# A plain function, so the pass has one place where the functions are defined
+# and the tests can drive them without a controller.
+sub _cross_row_values {
+	my ($fn, $vals, $arg) = @_;
+	my @out;
+	my $n = scalar @$vals;
+	return @out unless $n;
+
+	if ($fn eq 'running_count') {
+		return map { $_ + 1 } 0 .. $n - 1;
+	}
+
+	if ($fn eq 'running_total') {
+		my $run = 0;
+		for my $v (@$vals) {
+			$run += $v if defined $v;
+			push @out, defined $v ? $run : undef;
+		}
+		return @out;
+	}
+
+	if ($fn eq 'running_pct') {
+		my $total = 0;
+		$total += $_ for grep { defined } @$vals;
+		my $run = 0;
+		for my $v (@$vals) {
+			$run += $v if defined $v;
+			push @out, ($total && defined $v) ? $run / $total : undef;
+		}
+		return @out;
+	}
+
+	if ($fn eq 'window_sum' || $fn eq 'window_avg') {
+		for my $i (0 .. $n - 1) {
+			my $lo = $i - $arg + 1;
+			$lo = 0 if $lo < 0;
+			my @win = grep { defined } @{$vals}[$lo .. $i];
+			unless (@win) { push @out, undef; next }
+			my $sum = 0;
+			$sum += $_ for @win;
+			push @out, $fn eq 'window_sum' ? $sum : $sum / scalar @win;
+		}
+		return @out;
+	}
+
+	if ($fn eq 'lag') {
+		my $prev;
+		for my $v (@$vals) {
+			push @out, $prev;
+			$prev = $v;
+		}
+		return @out;
+	}
+
+	if ($fn eq 'delta' || $fn eq 'pct_change') {
+		my $prev;
+		for my $v (@$vals) {
+			my $d;
+			if (defined $v && defined $prev) {
+				$d = $fn eq 'delta' ? $v - $prev : ($prev ? ($v - $prev) / $prev : undef);
+			}
+			push @out, $d;
+			$prev = $v;
+		}
+		return @out;
+	}
+
+	my @nums = grep { defined } @$vals;
+
+	if ($fn eq 'pct_of_total') {
+		my $total = 0;
+		$total += $_ for @nums;
+		for my $v (@$vals) {
+			push @out, ($total && defined $v) ? $v / $total : undef;
+		}
+		return @out;
+	}
+
+	if ($fn eq 'rank') {
+		# SQL RANK(): ties share a rank and the next rank skips, which counting
+		# the values strictly greater gives for free.
+		for my $v (@$vals) {
+			push @out, defined $v ? 1 + scalar(grep { $_ > $v } @nums) : undef;
+		}
+		return @out;
+	}
+
+	if ($fn eq 'zscore') {
+		my ($mean, $sd);
+		if (@nums >= 2) {
+			$mean = 0;
+			$mean += $_ for @nums;
+			$mean /= scalar @nums;
+			$sd = _stdev_of(\@nums);
+		}
+		for my $v (@$vals) {
+			push @out, (defined $v && defined $sd && $sd > 0) ? ($v - $mean) / $sd : undef;
+		}
+		return @out;
+	}
+
+	croak "Unknown cross-row function '$fn'";	# unreachable: validated above
+}
+
+# _cross_row_cmp($x, $y) -> -1 | 0 | 1
+#
+# The order= comparator: numeric when both cells are numbers, case-sensitive
+# string otherwise.  Numbers sort as numbers because an order= on an amount is
+# meant to put 100 after 20, and a mixed column still has to be total.
+sub _cross_row_cmp {
+	my ($x, $y) = @_;
+	my ($nx, $ny) = (_numeric_cell($x), _numeric_cell($y));
+	return $nx <=> $ny if defined $nx && defined $ny;
+	return ($x // '') cmp($y // '');
+}
+
+# _trim($text) -> $text
+sub _trim {
+	my $s = defined $_[0] ? $_[0] : '';
+	$s =~ s/\A\s+//;
+	$s =~ s/\s+\z//;
+	return $s;
+}
+
 # _reduce_records($self, $records, $columns, $opts) -> ($records, $columns)
 #
 # Purpose: The reduce half of every data pipeline, in one place: the request's
@@ -1136,6 +1491,9 @@ sub _apply_filter_spec {
 #                      have already been reduced and it is here only for the
 #                      chip list _apply_filters returns: the stage is skipped
 #                      and both arguments come back as they arrived.
+#                      no_cross_row => 1 runs the filters only, for a caller
+#                      that wants the rows without stage 6 (_apply_filters,
+#                      whose callers are after the chip list).
 # Exit:    ($records, $columns), reduced -- or untouched, when chips_only is
 #          set.  A malformed f= spec leaves the records alone rather than
 #          croaking, as _apply_filter_spec always has.
@@ -1181,7 +1539,44 @@ sub _reduce_records {
 		$records = _apply_filter_spec($records, $s);
 	}
 
+	# Stage 6: the cross-row pass, and only when the request asks for one.  It
+	# has to see filtered rows -- a window is over what the filters left -- and it
+	# has to run before anything paginates, which is why the routes that slice
+	# their own page call it again (once) inside _fetch_page.
+	if (!$opts || !$opts->{no_cross_row}) {
+		($records, $columns) = $self->_apply_cross_row($records, $columns)
+			if length($self->param('cs') // '');
+	}
+
 	return ($records, $columns);
+}
+
+# _reduce_or_render($self, \$records, \$columns) -> $ok
+#
+# Purpose: Run _reduce_records and turn a cross-row spec that cannot be
+#          honoured into the 400 it deserves, in the one shape every route
+#          already uses for a calculated field that will not compile.
+# Entry:   References to the route's own lexicals: on success they are updated
+#          in place, so a call site is one line.
+# Exit:    True when the records are ready.  False after rendering a 400 -- the
+#          caller returns straight away, because nothing has been produced.
+# Notes:   A method, unlike _reduce_records itself, because the failure needs
+#          a controller to render through.  The error text is the i18n message
+#          the pass croaked with, with the "at File line N" tail removed so a
+#          reader sees the fault rather than the interpreter's location.
+sub _reduce_or_render :Protected ($self, $recs_ref, $cols_ref) {
+	my @reduced = eval { _reduce_records($self, $$recs_ref, $$cols_ref) };
+	if (@reduced) {
+		($$recs_ref, $$cols_ref) = @reduced;
+		return 1;
+	}
+
+	(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+	$self->render(text => $e, status => 400);
+	# Recorded because the callers that answer a missing table with a 404 get
+	# their rows back empty here, and the 400 has already been rendered.
+	$self->stash('_reduce_error' => 1);
+	return 0;
 }
 
 # _apply_filters($self, $records, $opts) -> ($filtered_records, \@raw_specs, $json_string)
@@ -1219,7 +1614,9 @@ sub _apply_filters :Protected ($self, $records, $opts = undef) {
 	# threaded through.  $opts travels with the records for the same reason:
 	# a caller that has already reduced asks for the chips alone here, and the
 	# seam, not this wrapper, is where that is decided.
-	($records) = _reduce_records($self, $records, undef, $opts);
+	# no_cross_row: this entry point is the chip list, and its callers either
+	# skip the stage entirely (chips_only) or want the rows without stage 6.
+	($records) = _reduce_records($self, $records, undef, { %{ $opts // {} }, no_cross_row => 1 });
 
 	my $json = encode_json(\@parsed);
 	$json =~ s{</}{<\\/}g;
@@ -1777,7 +2174,12 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# below materialises the full set and paginates in Perl.
 	my $is_sql = $source->can('dbi_source') && $source->dbi_source;
 
-	unless (@f_specs || $dedup) {
+	# A cross-row column is a column of the whole filtered set, so a request that
+	# names one cannot take the N+1 fast path: it would see one page of rows and
+	# restart every running total on page 2.
+	my $cross = length($self->param('cs') // '') ? 1 : 0;
+
+	unless (@f_specs || $dedup || $cross) {
 		if ($is_sql) {
 			# Fast path (SQL-backed): delegate LIMIT/OFFSET to the backend N+1 trick.
 			# Copy before pop: D::A may return a read-only ref to its internal cache.
@@ -1819,6 +2221,22 @@ sub _fetch_page :Protected ($self, $source, $params) {
 		my $cols = $source->columns;
 		my @dcols = $cols ? @$cols : (keys %{ $all->[0] // {} });
 		$all = _dedup_records($all, \@dcols);
+	}
+
+	# Stage 6, and before the slice: a running total has to see every filtered
+	# row, or page 2 would start again from zero.  A spec that cannot be honoured
+	# renders its 400 here; the caller returns rather than drawing a page over it.
+	if ($cross) {
+		my $cols  = $source->columns;
+		my @xcols = $cols ? @$cols : (sort keys %{ $all->[0] // {} });
+		my ($crossed) = eval { $self->_apply_cross_row($all, \@xcols) };
+		if ($@) {
+			(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+			$self->render(text => $e, status => 400);
+			$self->stash('_cross_row_error' => $e);
+			return ();
+		}
+		$all = $crossed;
 	}
 
 	my $total    = scalar @$all;
@@ -4217,7 +4635,7 @@ sub _run_export_pipeline :Protected ($self) {
 		return ();
 	}
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return () unless $self->_reduce_or_render(\$records, \$columns);
 
 	my @columns = @{ $columns // [] };
 
@@ -4521,8 +4939,17 @@ sub view ($self) {
 		return $self->redirect_to('/tables?l=' . url_escape("table:$table"));
 	}
 
+	# A cross-row spec that could not be honoured has already rendered its 400
+	# inside _fetch_page; drawing the page over it would hide the reason.
+	return if $self->stash('_cross_row_error');
+
 	$records //= [];
 	my @columns = _get_columns($source, $records);
+	# Stage 6 wrote its columns onto the rows before the page was sliced, so the
+	# list is what makes the table show them -- and what lets a calculated field
+	# below name one of them.
+	my %seen_col = map { $_ => 1 } @columns;
+	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 	# The page from _fetch_page is already reduced; this call is here for the chip
 	# list only -- filter_specs (for export URLs) and filters_json (for the UI).
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
@@ -4785,8 +5212,14 @@ sub open_file ($self) {
 				language   => $language,
 			);
 		}
+		# A cross-row spec that could not be honoured has already rendered its 400
+		# inside _fetch_page; the page must not be drawn over it.
+		return if $self->stash('_cross_row_error');
+
 		$records //= [];
 		my @columns  = _get_columns($source, $records);
+		my %seen_col = map { $_ => 1 } @columns;
+		push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
@@ -4847,8 +5280,14 @@ sub open_file ($self) {
 				language   => $language,
 			);
 		}
+		# A cross-row spec that could not be honoured has already rendered its 400
+		# inside _fetch_page; the page must not be drawn over it.
+		return if $self->stash('_cross_row_error');
+
 		$records //= [];
 		my @columns  = _get_columns($source, $records);
+		my %seen_col = map { $_ => 1 } @columns;
+		push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
@@ -4953,8 +5392,14 @@ sub open_file ($self) {
 		return $self->redirect_to('/tables?l=' . url_escape("path:${\$file->to_string}"));
 	}
 
+	# A cross-row spec that could not be honoured has already rendered its 400
+	# inside _fetch_page; the page must not be drawn over it.
+	return if $self->stash('_cross_row_error');
+
 	$records //= [];
 	my @columns  = _get_columns($source, $records);
+	my %seen_col = map { $_ => 1 } @columns;
+	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 
 	my $lpage_url = $self->req->url->clone;
@@ -5375,8 +5820,14 @@ sub join_tables ($self) {
 			language => $language,
 		);
 	}
+	# A cross-row spec that could not be honoured has already rendered its 400
+	# inside _fetch_page; the page must not be drawn over it.
+	return if $self->stash('_cross_row_error');
+
 	$records //= [];
 	my @columns = _get_columns($src, $records);
+	my %seen_col = map { $_ => 1 } @columns;
+	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 
 	if (defined $sort && !grep { $_ eq $sort } @columns) {
 		carp $self->_i18n('error_sort_column', $sort);
@@ -5516,7 +5967,7 @@ sub combine_tables ($self) {
 
 	# Apply the filters in memory before paginating (reduce-before-paginate).
 	my @columns;
-	($records, $cols_ref) = _reduce_records($self, $records, $cols_ref);
+	return unless $self->_reduce_or_render(\$records, \$cols_ref);
 	@columns = @$cols_ref;
 	my $dedup = $self->param('d') ? 1 : 0;
 	$records = _dedup_records($records, \@columns) if $dedup;
@@ -5639,6 +6090,7 @@ None beyond the 404 response.
 
 sub export_data ($self) {
 	my ($records, $columns, $left_label) = $self->_run_export_pipeline;
+	return if $self->stash('_reduce_error');
 	return $self->reply->not_found unless $records;
 
 	# Surface schema-type-mismatch warnings in a response header so API
@@ -5755,6 +6207,7 @@ sub export_write ($self) {
 	}
 
 	my ($records, $columns, $left_label) = $self->_run_export_pipeline;
+	return if $self->stash('_reduce_error');
 	return $self->render(json => { error => 'Table not found' }, status => 404)
 		unless $records;
 
@@ -6133,7 +6586,7 @@ sub graph_view ($self) {
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	# Pre-filter before building pairs, same as _run_export_pipeline.
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col", status => 400)
@@ -6413,7 +6866,7 @@ sub pie_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
@@ -6605,7 +7058,7 @@ sub heatmap_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col", status => 400)
@@ -6783,7 +7236,7 @@ sub bar_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400)
@@ -6966,6 +7419,7 @@ sub folder_view ($self) {
 		|| $self->_spec_to_url($left_spec);
 
 	my ($records, $columns) = $self->_run_export_pipeline;
+	return if $self->stash('_reduce_error');
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless $records;
 
@@ -7321,7 +7775,7 @@ sub pivot_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 
@@ -7720,7 +8174,7 @@ sub stats_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my $row_count = scalar @$records;
 	my $pipeline  = { source => $src, records => $records };
@@ -8069,7 +8523,7 @@ sub scatter_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col",      status => 400) unless $col_set{$x_col};
@@ -8178,7 +8632,7 @@ sub stacked_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400) unless $col_set{$cat_col};
@@ -8289,7 +8743,7 @@ sub combo_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $x_col",    status => 400) unless $col_set{$x_col};
@@ -8404,7 +8858,7 @@ sub treemap_view ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $cat_col", status => 400) unless $col_set{$cat_col};
@@ -8514,7 +8968,7 @@ sub histogram_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
 	return $self->render(text => "Column not found: $col", status => 400) unless $col_set{$col};
@@ -9149,7 +9603,7 @@ sub map_view ($self) {
 		return $self->render(text => $e, status => 400);
 	}
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{ $columns };
 	my @popup = grep { length($_) && $_ ne $loc_col && $col_set{$_} }
@@ -9832,7 +10286,7 @@ sub summary_api ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(json => { error => $e }, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my $row_count = scalar @$records;
 	(my $label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
@@ -9895,7 +10349,7 @@ sub insights_view ($self) {
 	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	($records, $columns) = _reduce_records($self, $records, $columns);
+	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my $row_count = scalar @$records;
 	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
@@ -10893,6 +11347,53 @@ B<Drill-down from pie chart:>
 Clicking a pie slice or legend entry on C</pie> navigates to the table
 view with C<f=cat_col:eq:label> appended, so the user can inspect the
 rows behind any slice without manually typing a filter.
+
+=head2 Cross-row columns
+
+A measure folds a group into one number, a calculated field computes one row
+from that row, and C<cs=> is the third shape: one row worked out from many,
+written back beside every row of the view.
+
+  cs=<column>:<function>:<alias>            write a column of that name
+  cs=<column>:<function>:<alias>:<count>    a moving window needs its width
+  by=<column>[,<column>...]                 partition; without it there is one
+  order=<column>[:asc|desc]                 the order the rows are read in
+
+B<Functions:> C<pct_of_total>, C<rank> and C<zscore> are order-free.  They
+answer a whole-partition question: a row's share of the partition total (the
+shares sum to 1), its rank with ties sharing a rank and the next rank
+skipping (as SQL C<RANK()> does), and its z-score against the same sample
+standard deviation the C<stdev> measure and C</stats> use.
+
+C<running_total>, C<running_count>, C<running_pct>, C<window_sum>,
+C<window_avg>, C<lag>, C<delta> and C<pct_change> accumulate in order and
+require C<order=>; each takes the rows in that order, so
+C<running_total(amount)> over C<order=day:asc> is the year-to-date a reader
+expects.  Only C<window_sum> and C<window_avg> take a parameter, the width of
+the row window, and the window includes the row itself.
+
+C<order=> decides the order the pass reads the rows in, not the order the
+page shows them in: the table and its sort controls are untouched, so a
+reader can sort by amount while a running total follows the date.  Ties keep
+their arrival order, which is what makes two runs over the same file agree.
+
+C<by=> partitions the rows.  Rows whose partition column is empty are grouped
+together under the empty value rather than dropped -- C<_grouped_totals>
+excludes such rows, because a pivot cell needs a key, but a windowed column has
+to cover every displayed row.
+
+A cell that is not numeric yields C<undef> in the produced column rather than
+a placeholder: there is no previous row for the first row of a partition, and
+a chart skips an undefined value while the measure fold does too, so a window
+column cannot silently become a zero.
+
+The pass is stage 6 of the pipeline: after the filters, so a window is over
+what the filters left, and before anything slices a page, so page 2 continues
+page 1's running total rather than restarting it.  C</export> runs the same
+stages and carries the same column.  A spec that cannot be honoured -- an
+unknown function, an unknown column, a parameter on a function that takes
+none, a parameter that is not a positive whole number, a missing C<order=>
+for an accumulating function -- is a 400 naming the parameter.
 
 =head1 COMMON PITFALLS
 

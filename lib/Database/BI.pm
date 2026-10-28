@@ -982,21 +982,38 @@ and 2 on bad arguments or an unopenable source.
 
 =head2 script/bi-alert
 
-Reports one saved analysis, and turns a crossed threshold into a non-zero exit
-status so cron can act on it:
+Reports one or more saved analyses, and turns a crossed threshold into a
+non-zero exit status so cron can act on it:
 
-    ./script/bi-alert --analysis ID [--threshold MEASURE:OP:VALUE] \
+    ./script/bi-alert --analysis ID [--analysis ID ...] \
+                      [--threshold MEASURE:OP:VALUE] \
+                      [--threshold ANALYSIS:MEASURE:OP:VALUE ...] \
                       [--suppress DURATION] [--state-file PATH] [--recovery] \
                       [--notify-cmd COMMAND] \
                       [--data-dir DIR] [--model-dir DIR] [--dry-run]
 
 The digest goes to STDOUT and nothing leaves the machine unless
 C<--notify-cmd> says where: otherwise pipe it into mail, a webhook or a ticket
-creator yourself.  Exit status is 0 when no threshold is crossed, 1 when one
-is, 2 on error, and 3 when a crossing that was announced has ended and
-C<--recovery> was asked to announce that.  C<--dry-run> reports without
-recording anything against the throttle and without running the delivery
-command.
+creator yourself.  Exit status is 0 when nothing is announced, 1 when a
+threshold is crossed and announced, 2 on error, and 3 when a crossing that was
+announced has ended and C<--recovery> was asked to announce that.  C<--dry-run>
+reports without recording anything against the throttle and without running the
+delivery command.
+
+Both of those options may be repeated, so one run can watch several analyses
+and several measures:
+
+    ./script/bi-alert --analysis abc123 --analysis def456 \
+                      --threshold count:gt:1000 \
+                      --threshold def456:sum:lt:50 --suppress 1h
+
+A threshold with no analysis prefix belongs to the first C<--analysis>; the
+C<ANALYSIS:MEASURE:OP:VALUE> form names another of those listed.  Each analysis
+is reported in full, and each (analysis, threshold) pair is a check of its own:
+it prints its own line, keeps its own entry in the state file, and is throttled
+and recovered on its own schedule.  One crossing never silences, recovers or
+delivers another.  When a run announces both a crossing and a recovery it exits
+1, so a threshold that is still crossed is not reported as an all-clear.
 
 C<--suppress> throttles a threshold that stays crossed, so a condition that is
 still true on the next cron run is not reported as news again: it takes a
@@ -1034,17 +1051,19 @@ rather than a shell wrapper around this one:
     ./script/bi-alert --analysis abc123 --threshold count:gt:1000 --suppress 1h \
         --recovery --notify-cmd 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com'
 
-The command runs once, through the shell, and only when something is
+The command runs once per run, through the shell, and only when something is
 announced: a crossing (exit 1), or its end with C<--recovery> (exit 3).  A
 suppressed repeat, an uncrossed threshold, an error and a C<--dry-run> run it
-not at all.  The run's text arrives on standard input, and three variables say
-what it is -- C<BI_ALERT_EVENT> (C<crossed> or C<recovery>), C<BI_ALERT_SUBJECT>
-(the verdict line, ready for C<mail -s>) and C<BI_ALERT_MESSAGE_FILE> (the same
-text in a file, for a command that has to post a body:
-C<curl -d @$BI_ALERT_MESSAGE_FILE ...>).  A delivery that fails is reported on
-STDERR and leaves the exit status alone, but the crossing is not recorded, so
-the next run announces it again rather than the alert being lost for the rest
-of the period.
+not at all, and twenty checks still send one mail.  The whole run's text arrives
+on standard input, and three variables say what it is -- C<BI_ALERT_EVENT>
+(C<crossed> if any crossing was announced, otherwise C<recovery>),
+C<BI_ALERT_SUBJECT> (the verdict line when one thing was announced, otherwise a
+count such as C<2 threshold crossings, 1 recovery>) and
+C<BI_ALERT_MESSAGE_FILE> (the same text in a file, for a command that has to
+post a body: C<curl -d @$BI_ALERT_MESSAGE_FILE ...>).  A delivery that fails is
+reported on STDERR and leaves the exit status alone, but the announcements are
+not recorded, so the next run announces them again rather than the alert being
+lost for the rest of the period.
 
 C<script/database-bi> is the web application launcher: run with no arguments it
 starts the reloading development server, with a command word it runs that

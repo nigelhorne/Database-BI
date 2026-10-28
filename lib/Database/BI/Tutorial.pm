@@ -731,6 +731,8 @@ my @CHAPTERS = (
 			'Run bi-alert --help to see all options.',
 			'Pass --analysis with the canvas id and --threshold with the measure, comparison and value.',
 			'For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.',
+			'Pass --analysis or --threshold more than once to check several in the same run.',
+			'Prefix a threshold with an analysis id, such as abc123:count:gt:10, to check a second canvas.',
 			'Pass --dry-run to print what would be checked without running the check.',
 			'A threshold that stays crossed is only worth hearing about once, so pass --suppress 1h to be told at most hourly.',
 			'The script remembers the last alert in a small state file, and forgets it when the crossing ends.',
@@ -739,7 +741,7 @@ my @CHAPTERS = (
 			'Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.',
 			'Wire the script into a cron job or a monitoring system to get automatic alerts.',
 		],
-		tip   => 'Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error.',
+		tip   => 'Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error. When one run reports a crossing and a recovery together, exit code 1 wins.',
 		routes => [],
 	},
 	{

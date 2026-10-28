@@ -843,6 +843,50 @@ The same bucket is available by hand, because it is a calculated field:
 `hour(v)`, `minute(v)`, `second(v)` and `span(v, interval)`; see
 [Database::BI::Calc](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACalc) for the shapes each reads and the local-time rule.
 
+### Cross-Row Columns
+
+A measure folds a group into one number and a calculated field works one row out
+on its own.  `cs=` is the third shape: one row worked out from its neighbours,
+written back beside every row.
+
+```
+GET /view/orders?cs=amount:running_total:ytd&order=day:asc
+GET /view/orders?cs=amount:window_avg:ma7:7&order=day:asc&by=region
+GET /bar?l=table:orders&cat=region&val=share&cs=amount:pct_of_total:share
+```
+
+```
+cs=<column>:<function>:<alias>            write a column of that name
+cs=<column>:<function>:<alias>:<count>    a moving window needs its width
+by=<column>[,<column>...]                 partition; without it there is one
+order=<column>[:asc|desc]                 the order the rows are read in
+```
+
+The functions that need no order are `pct_of_total` (the row's share of its
+partition, so the shares sum to 1), `rank` (1 for the largest, ties sharing a
+rank while the next rank skips, as SQL `RANK()` does) and `zscore` (the
+sample standard deviation the `stdev` measure uses, so the two agree).  The
+ones that accumulate are `running_total`, `running_count`, `running_pct`,
+`window_sum`, `window_avg`, `lag`, `delta` and `pct_change`; each of those
+requires `order=`, because a running total of unordered rows is not a number
+anybody can act on.
+
+`order=` decides the order the window is read in, not the order the table is
+shown in: the table keeps its own sort, so a reader can sort by amount while
+the running total follows the date.  Ties keep their arrival order, so two runs
+over the same file give the same numbers.  `by=` partitions; rows whose
+partition column is empty are grouped together under the empty value rather
+than dropped -- the pivot drops such rows, a windowed column covers every
+displayed row.
+
+A cell that is not numeric gives an empty cell in the produced column rather
+than a placeholder, so a chart skips it and a measure fold does not read it as
+zero.  The pass runs after the filters, so a window is over what the filters
+left, and before the page is sliced, so page 2 continues page 1's running
+total; `/export` runs the same stages and carries the same column.  An unknown
+function, an unknown column, a window on a function that takes none, and a
+missing `order=` are each a 400 naming the parameter.
+
 ## Configuration
 
 Place a `database_bi.conf` file in the application root to override
@@ -946,11 +990,13 @@ and 2 on bad arguments or an unopenable source.
 
 ### Script/Bi-Alert
 
-Reports one saved analysis, and turns a crossed threshold into a non-zero exit
-status so cron can act on it:
+Reports one or more saved analyses, and turns a crossed threshold into a
+non-zero exit status so cron can act on it:
 
 ```
-./script/bi-alert --analysis ID [--threshold MEASURE:OP:VALUE] \
+./script/bi-alert --analysis ID [--analysis ID ...] \
+                  [--threshold MEASURE:OP:VALUE] \
+                  [--threshold ANALYSIS:MEASURE:OP:VALUE ...] \
                   [--suppress DURATION] [--state-file PATH] [--recovery] \
                   [--notify-cmd COMMAND] \
                   [--data-dir DIR] [--model-dir DIR] [--dry-run]
@@ -958,11 +1004,28 @@ status so cron can act on it:
 
 The digest goes to STDOUT and nothing leaves the machine unless
 `--notify-cmd` says where: otherwise pipe it into mail, a webhook or a ticket
-creator yourself.  Exit status is 0 when no threshold is crossed, 1 when one
-is, 2 on error, and 3 when a crossing that was announced has ended and
-`--recovery` was asked to announce that.  `--dry-run` reports without
-recording anything against the throttle and without running the delivery
-command.
+creator yourself.  Exit status is 0 when nothing is announced, 1 when a
+threshold is crossed and announced, 2 on error, and 3 when a crossing that was
+announced has ended and `--recovery` was asked to announce that.  `--dry-run`
+reports without recording anything against the throttle and without running the
+delivery command.
+
+Both of those options may be repeated, so one run can watch several analyses
+and several measures:
+
+```
+./script/bi-alert --analysis abc123 --analysis def456 \
+                  --threshold count:gt:1000 \
+                  --threshold def456:sum:lt:50 --suppress 1h
+```
+
+A threshold with no analysis prefix belongs to the first `--analysis`; the
+`ANALYSIS:MEASURE:OP:VALUE` form names another of those listed.  Each analysis
+is reported in full, and each (analysis, threshold) pair is a check of its own:
+it prints its own line, keeps its own entry in the state file, and is throttled
+and recovered on its own schedule.  One crossing never silences, recovers or
+delivers another.  When a run announces both a crossing and a recovery it exits
+1, so a threshold that is still crossed is not reported as an all-clear.
 
 `--suppress` throttles a threshold that stays crossed, so a condition that is
 still true on the next cron run is not reported as news again: it takes a
@@ -1002,17 +1065,19 @@ rather than a shell wrapper around this one:
     --recovery --notify-cmd 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com'
 ```
 
-The command runs once, through the shell, and only when something is
+The command runs once per run, through the shell, and only when something is
 announced: a crossing (exit 1), or its end with `--recovery` (exit 3).  A
 suppressed repeat, an uncrossed threshold, an error and a `--dry-run` run it
-not at all.  The run's text arrives on standard input, and three variables say
-what it is -- `BI_ALERT_EVENT` (`crossed` or `recovery`), `BI_ALERT_SUBJECT`
-(the verdict line, ready for `mail -s`) and `BI_ALERT_MESSAGE_FILE` (the same
-text in a file, for a command that has to post a body:
-`curl -d @$BI_ALERT_MESSAGE_FILE ...`).  A delivery that fails is reported on
-STDERR and leaves the exit status alone, but the crossing is not recorded, so
-the next run announces it again rather than the alert being lost for the rest
-of the period.
+not at all, and twenty checks still send one mail.  The whole run's text
+arrives on standard input, and three variables say what it is --
+`BI_ALERT_EVENT` (`crossed` if any crossing was announced, otherwise
+`recovery`), `BI_ALERT_SUBJECT` (the verdict line when one thing was announced,
+otherwise a count such as `2 threshold crossings, 1 recovery`) and
+`BI_ALERT_MESSAGE_FILE` (the same text in a file, for a command that has to post
+a body: `curl -d @$BI_ALERT_MESSAGE_FILE ...`).  A delivery that fails is
+reported on STDERR and leaves the exit status alone, but the announcements are
+not recorded, so the next run announces them again rather than the alert being
+lost for the rest of the period.
 
 `script/database-bi` is the web application launcher: run with no arguments it
 starts the reloading development server, with a command word it runs that
