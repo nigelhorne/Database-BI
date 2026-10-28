@@ -4754,7 +4754,10 @@ sub canvas_render ($self) {
 		my ($dd_hier) = grep { ($_->{name} // '') eq $dd_name }
 		                     @{ $a->{hierarchies} // [] };
 
-		my $drill_active = (defined $dd_hier && length $dd_name) ? 1 : 0;
+		# A drill needs a first level to name: a hierarchy with none answers no
+		# press, and #cf-help has no column it could call the one that drills.
+		my $drill_active = ($dd_hier && length $dd_name
+			&& @{ $dd_hier->{levels} // [] }) ? 1 : 0;
 		my $drill_col    = '';
 		my @drill_crumb  = ();
 		my $drill_max    = 0;
@@ -4907,7 +4910,11 @@ sub canvas_render ($self) {
 			cf_clear_url     => $cf_clear_url,
 			drillthrough_url => $drillthrough_url,
 			drill_active     => $drill_active  ? 1 : 0,
-			drill_name       => $dd_name,
+			# A drill is a hierarchy that exists, not a name in the query string:
+			# a bookmark can outlive the hierarchy it was saved on, and a page
+			# that said it was drilled when nothing answered would stop making
+			# its marks controls and have no column to name in #cf-help.
+			drill_name       => ($drill_active ? $dd_name : ''),
 			drill_level      => $dd_level,
 			drill_col        => $drill_col,
 			drill_crumb      => \@drill_crumb,

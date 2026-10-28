@@ -797,6 +797,43 @@ subtest '3.4: drill-down breadcrumb from ?dd=/?dl= params' => sub {
 	like   $b2, qr/<a [^>]*href=[^>]*>All</,     'All linked at dl=2';
 	like   $b2, qr/<a [^>]*href=[^>]*>North</,   'North linked at dl=2';
 	like   $b2, qr/class="drill-cur"[^>]*>Widget A</, 'Widget A is current at dl=2';
+
+	# The marks stop filtering while a drill is in force, so the help they point
+	# at has to say so -- and name the column whose marks do the drilling.  A
+	# drill is in force from dl=0: the canvas is read through the hierarchy, and
+	# its marks drill rather than filter, so the help speaks of it there too.
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b_plain = $t->tx->res->body;
+	unlike $b_plain, qr/This canvas is drilled/,
+		'a canvas that is not drilled says nothing about drilling';
+	like $b0, qr/This canvas is drilled/,
+		'and one opened on the hierarchy says so before a level is entered';
+	like $b0, qr/id="cf-help"[^<]*\bregion\b/s,
+		'and names the column the first level drills on';
+	like $b1, qr/id="cf-help"[^>]*>[^<]*This canvas is drilled/s,
+		'a drilled canvas says that its marks drill rather than filter';
+	like $b1, qr/id="cf-help"[^<]*\bproduct\b/s,
+		'and names the column the current level drills on';
+	like $b1, qr/id="cf-help"[^<]*marks and words on the other columns wait/s,
+		'and says the rest of the marks and words wait until it is cleared';
+	like $b1, qr/id="cf-help"[^<]*drill\s+path above the canvas says what the canvas\s+is\s+filtered\s+by/s,
+		'and points at the drill path, which is the chip a drilled canvas has';
+	unlike $b1, qr/id="cf-help"[^<]*chip above the canvas/s,
+		'and does not send a drilled reader to a chip the toolbar does not show';
+	unlike $b1, qr/id="cf-help"[^<]*to filter by its value/s,
+		'and does not tell a drilled reader that a mark filters, since it drills';
+
+	# A drill is a hierarchy the canvas has.  A bookmark can outlive the one it
+	# was saved on: the name is then in the URL and nothing else, and a page that
+	# believed it would stop making its marks controls and would have no column
+	# for the help to name.
+	$t->get_ok("/a/$cid?dd=NoSuchHierarchy&dl=1")->status_is(200);
+	my $b_stale = $t->tx->res->body;
+	unlike $b_stale, qr/data-drill-name=/, 'a hierarchy the canvas does not have drills nothing';
+	unlike $b_stale, qr/This canvas is drilled/,
+		'and the help does not claim a drill that is not there';
+	like $b_stale, qr/id="cf-help"[^<]*chip above the canvas/s,
+		'and still points the reader at the chip, which is what filters it';
 };
 
 subtest '3.3: _vis_cf_col selects correct dimension per kind' => sub {
@@ -824,6 +861,92 @@ subtest '3.3: _vis_cf_col selects correct dimension per kind' => sub {
 	like   $b, qr/data-cf-col="region"/,    'cat column exposed as data-cf-col';
 	like   $b, qr/data-cf-col="sale_date"/, 'x column exposed as data-cf-col';
 	unlike $b, qr/data-cf-col=""/, 'empty cf_col produces no data-cf-col attribute';
+};
+
+# ---------------------------------------------------------------------------
+# The marks of a chart card are the controls #cf-help describes
+#
+# A mark is in the tab order, labelled with the value it would filter by, and
+# described by the canvas help -- which is what the paragraph promises, and
+# what it is only worth promising if the code that writes the attributes reads
+# the datum.  d3 gives an attr() callback the datum first; an event listener is
+# called with the event first, and reading the datum from there left every mark
+# with the index instead, so no mark was focusable while a click still worked.
+# ---------------------------------------------------------------------------
+
+subtest '3.3: a mark is a labelled control, and the help lists what it is' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+	plan skip_all => 'HTML::D3 not available' unless eval { require HTML::D3; 1 };
+
+	my $spec = {
+		name     => 'MarkCanvas',
+		datasets => [ { spec => "path:$sales_path", alias => 'left' } ],
+		visuals  => [
+			{ kind => 'bar',      encode => { cat => 'region', value => 'amount' }, title => 'Bars' },
+			{ kind => 'pie',      encode => { cat => 'region', value => 'amount' }, title => 'Slices' },
+			{ kind => 'treemap',  encode => { cat => 'product', value => 'amount' }, title => 'Tiles' },
+			{ kind => 'heatmap',  encode => { x => 'region', y => 'product', value => 'amount' }, title => 'Cells' },
+			{ kind => 'stacked',  encode => { cat => 'region', series => 'product', value => 'amount' }, title => 'Stacked' },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $b = $t->tx->res->body;
+
+	# The help, in the words the page can keep: every kind of mark that answers a
+	# key is named, and so is what the chip and the source card do.
+	like $b, qr/id="cf-help"[^<]*bar,\s+tile,\s+cell,\s+slice or point/s,
+		'the help names the mark shapes a chart card draws';
+	like $b, qr/id="cf-help"[^<]*word-cloud/s, 'and the words of a word cloud';
+	like $b, qr/id="cf-help"[^<]*rows that contain it/s,
+		'and says a word filters by containment';
+	like $b, qr/id="cf-help"[^<]*stays\s+whole/s,
+		'and that the card whose mark was used is left whole';
+	like $b, qr/id="cf-help"[^<]*chip above the canvas/s,
+		'and points at the chip that clears the filter';
+
+	# The writes that make a mark a control: the datum first, and the shapes the
+	# snippets actually draw -- the pie puts its class on the group, and each
+	# point kind names its own.
+	like $b, qr/\.attr\('tabindex', function \(d\)/,
+		'the tab order is worked out from the datum, not from the index';
+	like $b, qr/\.attr\('aria-label', function \(d\)/, 'and so is the label';
+	like $b, qr/\.attr\('aria-describedby', function \(d\)/,
+		'and the reference to the help the label is read with';
+	like $b, qr/g\.arc > path/, 'a pie slice is a path inside its arc group';
+	like $b, qr/circle\.sc-circle/, 'a scatter point is a circle';
+	like $b, qr/circle\.cc-dot/, 'and so is a combo point';
+	unlike $b, qr/selectAll\('rect,\s*path/,
+		'nothing selects every path, which would make a line series a control';
+
+	# A drilled canvas answers one column, and the help says the others wait:
+	# a mark on one of them is drawn but not made a control, because the press
+	# it would offer is ignored, and a word is only ever a filter -- it never
+	# drills, and a drilled canvas shows no chip to clear it by.
+	like $b, qr/if \(drillName && cfCol !== drillCol\) return null/,
+		'a mark on another column is not a control while the canvas is drilled';
+	like $b, qr/if \(drillName\) \{\s*word\.removeAttribute\('href'\)/,
+		'and a word is left as the word it shows';
+	like $b, qr/word\.removeAttribute\('aria-describedby'\)/,
+		'with nothing to describe, since it does nothing';
+
+	# The value the label carries: a stacked segment's datum is a position in
+	# its group, so its category comes out of the data the segment kept.
+	like $b, qr/d\.data\.cat !== undefined/, 'a stacked segment filters by its category';
+	like $b, qr/\[\s*\d+\s*,\s*\d+\s*\]/, 'and not by the position it sits at';
+
+	# One encoding: the value goes into the query string as it is, because
+	# searchParams encodes what it is given.  Encoding it twice filtered by a
+	# value no row has (Gadget%2520Pro) and the chip showed the escaping.
+	like $b, qr/searchParams\.append\('cf', cfCol \+ ':' \+ op \+ ':' \+ val\)/,
+		'a filter value is encoded once';
+	unlike $b, qr/'cf', cfCol \+ ':' \+ op \+ ':' \+ encodeURIComponent/,
+		'not once before the query string encodes it again';
 };
 
 subtest '3.2: card sizes survive a cross-filter and a drill-through visit' => sub {
@@ -1753,7 +1876,7 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 		'and neither is the size on the card: the printed canvas is two columns';
 	like $b, qr/\.visual-size-select \{[^}]*max-width:\s*11\.5rem/s,
 		'and is wide enough to read the longest size it can report';
-	like $b, qr/Size menu in its header to set its width and height without a drag/,
+	like $b, qr/Size menu\s+in\s+its header to set its width and height without a drag/,
 		'and the first-visit tip names it too';
 	like $b, qr/same size is written on the card itself, beside the\s+menu/,
 		'and the size help says where the size is written';
@@ -1850,12 +1973,16 @@ subtest '3.2: the first-visit tip names both grips and is dismissed for good' =>
 
 	# What it points at: the header drag and the corner grip, in the words the
 	# reader can see on the card, and the keyboard route to both of them.
-	like $b, qr/handle in its header to move it/, 'the tip names the header drag';
+	like $b, qr/drag a visual by its header to move it/, 'the tip names the header drag';
 	like $b, qr/grip in the card's bottom right corner to resize it/,
 		'the tip names the corner grip';
-	like $b, qr/Both\s+work from the keyboard as well/, 'and says both answer the keyboard';
-	like $b, qr/focus the header to move the visual/,
+	like $b, qr/Both\s+work\s+from\s+the\s+keyboard\s+as\s+well/,
+		'and says both answer the keyboard';
+	# The grip is the control, not the header it sits in: the header takes no
+	# focus, and a tip that sends a keyboard reader to it sends them nowhere.
+	like $b, qr/focus the\s+<span[^>]*>::<\/span>\s+grip in the header to move the visual/s,
 		'including what to focus to use them without a pointer';
+	unlike $b, qr/focus the header to move/, 'and not the header, which takes no focus';
 
 	# Once dismissed, never again: one flag, written where the page can read it
 	# on the next visit, and read before the tip is uncovered.

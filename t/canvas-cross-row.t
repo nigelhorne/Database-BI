@@ -530,6 +530,142 @@ subtest 'the add-view panel offers a plan for the card' => sub {
 		'and the panel says the order and partition cover the whole list');
 };
 
+subtest 'a card header offers the panel that repairs its plan' => sub {
+	$t->get_ok("/a/$own_id")->status_is(200);
+	my $dom = Mojo::DOM->new($t->tx->res->body);
+
+	# Every card carries the control, whatever its plan: the one with a plan of
+	# its own, the one that inherits the page's, and the one that runs none.
+	for my $n (0 .. 2) {
+		my $card = _card($dom, $n);
+		ok($card, "card $n is on the canvas");
+		my $btn = $card->at('.visual-cs-btn');
+		ok($btn, "card $n has an Edit cross-row control in its header");
+		next unless $btn;
+		like($btn->parent->attr('class') // '', qr/\bvisual-card-header\b/,
+			'inside the header, where the card can be changed');
+		is($btn->attr('aria-controls'), 'cr-panel', 'it says which panel it opens');
+		is($btn->attr('aria-haspopup'), 'dialog', 'and that the panel is a dialog');
+		is($btn->attr('aria-expanded'), 'false', 'closed until it is pressed');
+		like($btn->attr('aria-label') // '', qr/\AEdit cross-row columns of \S/,
+			'and is named for the card it edits');
+	}
+
+	my $panel = $dom->at('#cr-panel');
+	ok($panel, 'the panel it opens is on the page');
+	is($panel->attr('role'), 'dialog', 'as a dialog');
+	# Mojo::DOM reads a valueless attribute as absent, so the markup is what
+	# says the panel starts closed.
+	like($panel->to_string, qr{\A<div\b[^>]*\bhidden\b},
+		'hidden until a card asks for it');
+	is($panel->attr('aria-labelledby'), 'cr-heading', 'named by its heading');
+
+	my $mode = $panel->at('#cr-mode');
+	is_deeply [ map { $_->{value} } @{ $mode->find('option')->to_array } ],
+		[qw(inherit none own)],
+		'the three states a saved card can be in are all offered';
+
+	# The fields are the ones the PATCH validates, so the panel cannot build a
+	# plan the server would refuse without saying why.
+	for my $id (qw(cr-col cr-fn cr-window cr-alias cr-order cr-dir cr-by
+				cr-list cr-add cr-save)) {
+		ok($panel->at("#$id"), "the panel has $id");
+	}
+	is($panel->at('#cr-fn option[data-order="1"]') ? 1 : 0, 1,
+		'the functions that read rows in an order say so');
+	is($panel->at('#cr-save')->attr('type'), 'submit',
+		'and the panel is saved by its button or by Enter');
+	like($panel->at('#cr-empty')->all_text, qr/add the one described below/,
+		'an empty list says what to do next rather than sitting blank');
+
+	# The card's stored plan is listed in the same component the panel that adds
+	# one uses, so a column is edited from the chip it already is rather than
+	# retyped from the fields.
+	my $list = $panel->at('#cr-list');
+	is($list->tag, 'ul', 'the plan is listed, so a reader hears how many columns there are');
+	like($list->attr('class') // '', qr/\bac-cs-list\b/,
+		'as the same list Add current view draws');
+	is($list->attr('aria-labelledby'), 'cr-list-title', 'named by the heading above it');
+	is($panel->at('#cr-list-title')->all_text, 'Columns this card carries',
+		'which says what the list is for');
+
+	# Opening a chip puts it back in the fields; the button that adds one takes
+	# a second face for that, and a way out of it is beside it and out of sight
+	# until there is something to back out of.
+	my $stop = $panel->at('#cr-add-cancel');
+	ok($stop, 'an editor that has been reopened can be left alone');
+	is($stop->all_text, 'Stop editing', 'by a control that says so');
+	like($stop->to_string, qr/\bhidden\b/, 'which is out of sight until a chip is opened');
+};
+
+# ---------------------------------------------------------------------------
+# Changing a chip where it stands
+# ---------------------------------------------------------------------------
+#
+# A chip is the column it names, so it is also the control that changes it: the
+# reader presses the column, the fields below take its values, and the button
+# that added columns replaces that one where it sits.  Taking a column out and
+# adding it again would lose its place in the plan, and the retyped one would
+# have to say everything the old one said.  The script is inline, so what can
+# be held here is the wiring it carries.
+
+subtest 'a chip is reopened in the fields and changed where it stands' => sub {
+	$t->get_ok("/a/$own_id")->status_is(200);
+	my $body  = $t->tx->res->body;
+	my $panel = Mojo::DOM->new($body)->at('#cr-panel');
+	ok($panel, 'the panel that repairs a plan is on the page');
+
+	like($panel->at('.ac-help')->all_text, qr/Press a column's name to open it/,
+		'the panel says a column can be pressed to change it');
+	like($panel->at('.ac-help')->all_text, qr/where it stands/,
+		'and that the change lands where the column already is');
+
+	# The chip's own column is the control, not a label with a cross beside it.
+	like($body, qr/text\.className = 'ac-cs-chip-text ac-cs-edit'/,
+		'the column on a chip is a control');
+	like($body, qr/text\.setAttribute\('title', 'Change this column'\)/,
+		'which says what pressing it does');
+	like($body, qr/'Change ' \+ entry\.label/,
+		'and is named for the column it would change');
+	like($body, qr/if \(index === crEditing\) text\.setAttribute\('aria-pressed', 'true'\)/,
+		'and says when it is the column being changed');
+	like($body, qr/li\.className = 'ac-cs-chip' \+ \(index === crEditing \? ' is-editing' : ''\)/,
+		'which the chip shows as well as says');
+
+	# Pressing it puts that column in the fields, values and all.
+	like($body, qr/if \(target\.classList\.contains\('ac-cs-edit'\)\) \{\s*crEditStart\(index\)/,
+		'pressing a chip opens it');
+	like($body, qr/crSelectValue\(crCol, parts\[0\] \|\| ''\)/,
+		'with the column it was saved with');
+	like($body, qr/crSelectValue\(crFn,  parts\[1\] \|\| ''\)/,
+		'and the function');
+	like($body, qr/crAlias\.value = parts\[2\] \|\| ''/,
+		'and the name it produces');
+	like($body, qr/crWin\.value +=/, 'and its window, where the function takes one');
+	like($body, qr/crAdd\.textContent = 'Update column'/,
+		'the button that added columns now offers to change that one');
+	like($body, qr/if \(crStop\) crStop\.hidden = false/,
+		'and a way out of the change appears beside it');
+
+	# The change replaces the entry it came from, so its place in the plan is
+	# the place it had: an edited column is not a second column.
+	like($body, qr/var edited = crEditing;/,
+		'the button knows which chip it is changing');
+	like($body, qr/crSpecs\[edited\] = draft;/,
+		'and writes the changed column over it rather than beside it');
+	like($body, qr/crEditStop\(0\);\s*var chip = crList\.children\[edited\]/,
+		'leaving the fields and the focus on where the change landed');
+	like($body, qr/crSpecs\.splice\(index, 1\)/,
+		'while the cross still takes a column out altogether');
+
+	# Backing out changes nothing, and Escape backs out of the change before it
+	# backs out of the panel.
+	like($body, qr/crAdd\.textContent = 'Add this column'/,
+		'leaving the change puts the button back as it was');
+	like($body, qr/if \(crEditing >= 0\) crEditStop\(1\);\s*else crClose\(1\);/,
+		'and Escape backs out of the change before the panel');
+};
+
 subtest 'the canvas refuses a spec it cannot honour' => sub {
 	$t->get_ok("/a/$id?cs=amount:running_total:rt")->status_is(400)
 		->content_like(qr/needs order=/,

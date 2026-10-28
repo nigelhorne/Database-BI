@@ -702,6 +702,7 @@ my @CHAPTERS = (
 			'Click Add visual... to add another view from a data file.',
 			'In that panel, choose the Aggregate a chart works out: Sum, Average, Median, Std dev, or a percentile.',
 			'Drag a card by its header to move it. Use the Size menu to change its width and height.',
+			'Click Edit cross-row in a card header to see that card\'s cross-row columns, and to change or remove one.',
 		],
 		tip   => 'The home page lists your saved canvases under Saved canvases. A banner appears if a data file has changed since the canvas was saved.',
 		walkthrough => {
@@ -711,6 +712,7 @@ my @CHAPTERS = (
 				{ do => 'Click a bar or a slice in one chart.', see => 'The other cards show only rows for that value, and a chip names the filter.' },
 				{ do => 'Click Clear on the filter chip.', see => 'Every card returns to the full data set.' },
 				{ do => 'Open the Size menu in a card header and choose Half width.', see => 'The card takes half a row, and the cards beside it move to fit.' },
+				{ do => 'Click Edit cross-row in a card header and click one of its columns.', see => 'The chip puts its column, function and name back in the fields, ready to change.' },
 				{ do => 'Click Bookmarks, type a name and click Save.', see => 'A link to this exact view appears under the button.' },
 				{ do => 'Click Print.', see => 'The browser print window opens with the canvas ready for paper or PDF.' },
 			],
