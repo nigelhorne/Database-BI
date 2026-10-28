@@ -75,182 +75,22 @@ Revision history for Database-BI
 	  list, a chain of filters, the range's bounds after them, a malformed spec
 	  -- and counts the copies of the loop in the module, because a second copy
 	  would behave identically and only drift later.
-	- Internal: _reduce_records takes an optional options hashref, and
-	  _apply_filters passes it through.  Its one option, chips_only, skips the
-	  stage and hands the rows back as they arrived.  The six call sites whose
-	  rows are already reduced -- /view, the three /open branches and /join,
-	  which filter inside _fetch_page before paginating, and /combine, which
-	  reduces earlier in the action -- now ask for it, because they call
-	  _apply_filters for the chip list alone.  No behaviour change while every
-	  stage is idempotent; it is what lets a cross-row pass attach to the seam
-	  without applying twice to pages after the first.
-	- New pivot and column-statistics measures: median, stdev (sample standard
-	  deviation), first, last, range, and a percentile named in the function as
-	  p<N> -- p90, p99, p1 up to p100 -- with p50 being the median under another
-	  name.  first and last read any column, not only a numeric one, and report
-	  the value as it appears.
-	- These are computed in Perl from each group's values rather than pushed to
-	  the backend, because none of them is a sum of its parts: a subtotal or
-	  grand total has to be recomputed over the rows, which the pivot already
-	  does with a separate aggregate call per group level.  _measure_pushable
-	  refuses to send them, since the backend has its own median and stddev and
-	  two implementations of one statistic can disagree.
-	- median, p50, stdev and range share one arithmetic (_percentile_of,
-	  _median_of, _stdev_of, _range_of) with the column-statistics page, so a
-	  median measure and the median column cannot diverge; _median_of is that
-	  arithmetic at the 50th percentile, which is the middle value for an odd
-	  count and the mean of the two middle values for an even one, as before.
-	- The stats page gained Range, Std dev, First, Last and a percentile column,
-	  the level of which is chosen with ?p=N (1 to 100, default 95) and shown in
-	  the column header; an unusable level is a 400, not a silent 95.  A column
-	  of text shows First and Last and dashes elsewhere.
-	- The pivot measure panel offers the new functions, with a level box shown
-	  only while Percentile is selected.  The 400 message for an unreadable
-	  spec now prints the vocabulary itself, so it cannot list a function the
-	  fold cannot compute.
-	- The tutorial's pivot and column-statistics chapters mention the new
-	  measures, and the vocabulary is documented in the POD and README.
-	- script/bi-alert: --suppress DURATION throttles a threshold that stays
-	  crossed, so a cron job every few minutes no longer announces the same
-	  condition every time.  The duration is 30s, 15m, 6h, 2d, 1w or a bare
-	  number of seconds.  The first crossing is announced; a repeat inside the
-	  period prints THRESHOLD SUPPRESSED and exits 0, since nothing is being
-	  announced, and a crossing that ends prints THRESHOLD CLEARED once and
-	  drops its entry so the next crossing alerts immediately.
-	- The throttle lives in <model-dir>/alerts-state.json (or --state-file),
-	  one entry per analysis and threshold, written through a temporary file
-	  and renamed so overlapping cron runs cannot leave half a file.  It is
-	  kept only when --suppress is used or the file already exists: with no
-	  --suppress the script is stateless as before.  A state file that cannot
-	  be read is reported and treated as empty, so a damaged file costs one
-	  repeated alert rather than silence, and --dry-run records nothing, so a
-	  rehearsal cannot use up an alert a real run depends on.
-	- BI_ALERT_NOW replaces the clock for tests, so a suppression period can be
-	  stepped over exactly instead of by sleeping.
-	- script/bi-alert --recovery announces the end of a crossing as well as its
-	  start: the run that sees the threshold clear prints THRESHOLD RECOVERED
-	  and exits 3, so a cron wrapper that mails on any non-zero status mails
-	  the all-clear too.  Exit 3 is new; 0 (nothing announced), 1 (crossed and
-	  announced) and 2 (error) keep their meanings, and without --recovery the
-	  ending is still reported as THRESHOLD CLEARED and exit 0.
-	- The recovery is remembered rather than guessed.  It is the throttle's own
-	  state file that says a crossing was announced, so the recovery is said
-	  once per crossing and only for a crossing somebody was told about; a
-	  threshold that never crossed recovers nothing and writes no state, and
-	  --recovery keeps that file even with no --suppress to throttle.  The line
-	  names both ends of the incident, crossed since and cleared.  A rehearsal
-	  (--dry-run) reports the recovery it would announce and leaves the
-	  crossing on record, so it cannot use up the all-clear a real run needs.
-	- A canvas card can pick the aggregate function it shows, instead of always
-	  counting rows or summing a column.  "Add current view" offers the pivot's
-	  own vocabulary with its own names -- Sum (the default), Average, Min, Max,
-	  Count distinct, Median, Std dev, First, Last, Range and Percentile with a
-	  level -- and the choice is stored on the card as encode.agg, so it
-	  survives a reload, a share link and an export.  A percentile is stored as
-	  p95, the way a pivot measure spells it.  A card's title says which function
-	  it used ("median(amount) by region"), except for a plain sum, which keeps
-	  the title it has always had; a combo aggregates both its series with the
-	  one function.
-	- The card's function is checked when the card is drawn, so a misspelt or
-	  unusable one (median with no value column) is a 400 from the visuals API
-	  rather than a card stored broken, and a card that a whole-document PUT
-	  stored that way says so in the card itself rather than failing the page.
-	[ Tests ]
-	- t/function.t: the measure parser and the arithmetic behind the new
-	  measures, including that p50 equals the middle/average-of-middles median
-	  the stats page has always shown, that a higher percentile never gives a
-	  smaller value, that one value has an undef standard deviation, and that
-	  _measure_pushable keeps every Perl-computed measure off the backend path.
-	- t/integration.t: /pivot per group and in total for each new measure, on a
-	  fixture chosen so that combining the cells would give a different total;
-	  first/last over a column of text; the 400 for an unknown function and an
-	  unusable percentile; the /stats columns against the same fixture; and the
-	  same measures over a SQL-backed source.
-	- t/alert.t: the throttle at fixed clocks -- one announcement, a suppressed
-	  repeat, the boundary at exactly one period, a second threshold throttled
-	  separately, the clear that re-arms the alert, no state without --suppress
-	  or with a period of zero, an unreadable period, a dry run that records
-	  nothing, and a damaged state file that still lets the alert through.
-	- t/alert.t, --recovery: a crossing announced and then ended at exit 3 with
-	  the crossing's own dates, the recovery said once and never again, a
-	  suppressed repeat that is not mistaken for one, no recovery for a
-	  threshold that never crossed (and no state file for it either), a
-	  recovery with no --suppress to throttle it, and a dry run that reports the
-	  recovery without consuming it.
-	- t/time-range.t: the window boundaries at fixed clocks, including month,
-	  quarter, year and leap-year rollovers; day-versus-timestamp comparisons;
-	  which rows each preset selects through /view, /bar, /export and /pivot;
-	  the 400s; the chip and the preset menu; and a canvas, both as saved and
-	  with a card added while a window is active.
-	- t/function.t: _visual_measure -- the count-rows and sum defaults a card has
-	  always had, every function in the shared vocabulary with the label it puts
-	  in a title, a percentile in its p<N> spelling, count ignoring the column it
-	  is given, and the refusal when a function that needs a column is given
-	  none.
-	- t/model.t: a saved canvas card that picked a median drawing the median and
-	  not the sum (the fixture's North holds 1250 and 1875, so 1562.5, 3125, 625
-	  and 2 are four different answers over one column), a range card, a combo
-	  card aggregating both its series with one function, p50 patched onto a
-	  saved card, the 400s for a misspelt function, for a function with no value
-	  column and for an unknown column, and a card stored by a whole-document PUT
-	  reporting its own function error in the card rather than failing the page.
-	- t/model.t: the Add current view panel's own picker -- the whole vocabulary,
-	  the sum a card gets by not choosing, the percentile with the level field it
-	  shows only then, count left to the value column, and the kinds the picker
-	  is offered to.
-	- Time buckets: a timestamp column can be grouped by the hour, day, week,
-	  month, quarter or year it falls in.  Five new functions in the calc
-	  grammar -- hour(), minute(), second(), epoch() (ISO, epoch seconds, epoch
-	  milliseconds, or a strptime-style pattern) and span(value, '1h') for the
-	  bucket's ISO label -- so a bucket works wherever a calculated field
-	  works: every chart, the pivot, the stats page, the table view, the
-	  exports, a saved canvas and a filter.
-	- span= and tcol= are the sugar for the common case: span=<n><unit> buckets
-	  the dimension the route already takes (cat=, x=, rows=, group=), tcol=
-	  names it where there is none or more than one, and as= names the bucket
-	  column (default <col>_span).  It expands into the calculated field a
-	  reader could have typed, so there is one pipeline and one set of
-	  semantics.  An interval that is not in the vocabulary, a tcol= with no
-	  span=, an unknown column, a name that is already a column and a span=
-	  that disagrees with the reader's own calculated field are each a 400
-	  naming the parameter.
-	- Bucket labels are ISO at the bucket's own resolution, so they sort
-	  chronologically as strings; d, w, mon, q and y come from the local
-	  calendar, so a daylight-saving day is one bucket and a leap day is its own
-	  date.  s, m and h floor the interval out of the epoch, which is the rule
-	  the interval vocabulary states.
-	- GET /graph accepts ?agg= and becomes a timechart: one point per bucket
-	  aggregated with the pivot's measure vocabulary (sum avg min max count
-	  count_distinct median stdev first last range p<N>), with series= still
-	  giving one line per series value.  Without agg= it plots every row as
-	  before.
-	- POST /dates/save takes time= beside pattern= and stores { date, time }
-	  instead of replacing the date pattern, so a column holding 27/10/2026
-	  14:05 is normalised to 2026-10-27T14:05:00 rather than truncated to a
-	  day; /dates/list reports both shapes, and a string stays a date pattern
-	  with no migration.
-	- The table view normalises stored date and time patterns before its
-	  filters run, which is the stage order the other routes already had, so a
-	  relative range selects a patterned timestamp column too.
-	- The export panel's Save export carries span=, tcol= and as= from the URL
-	  it was served with, like range= and rcol=, so a bucketed table exports
-	  the bucket column the page shows.
-	- A SQL-backed source hands its rows out with the key set locked, so adding
-	  a calculated or group column to one raised "Attempt to access disallowed
-	  key".  Such a row is replaced by an unlocked copy carrying the new cell
-	  (_extend_row), which is what makes ?c= -- and therefore span= -- work on
-	  a SQLite source as it always has on a CSV one.
-	- t/time-bucket.t: span(), epoch(), hour(), minute() and second()
-	  table-driven over an in-bucket value, every boundary (the boundary
-	  belongs to the later bucket), a leap day, a DST transition day, month,
-	  quarter, year and week edges, epoch seconds and milliseconds, a custom
-	  pattern and an unparseable value; then the routes -- bar, pivot, pie,
-	  stacked, treemap, combo, heatmap, view and export bucketing their own
-	  dimension, the 400s, /graph?agg= against the same numbers, a stored time
-	  pattern round-tripping through a relative range (last_24_hours with
-	  span=1h giving one bucket per hour, in order, from /bar and /pivot),
-	  push-versus-fold equivalence on a SQLite source and a canvas card
-	  carrying a bucket.
+	- New measures for the pivot and the column statistics: median, stdev,
+	  first, last, range, and a percentile written as p<N> (p50 is the median).
+	- The pivot's measure panel offers them with a level box for a percentile,
+	  and the statistics page adds Range, Std dev, First, Last and a p-level column.
+	- A canvas card can choose the aggregate it shows, from the same vocabulary,
+	  instead of only counting rows or summing a column.
+	- Time buckets: span= groups a chart or pivot by hour, day, week, month,
+	  quarter or year, with a Time bucket menu in the chart and pivot panels.
+	- /graph?agg= plots one point per bucket with the same measures, and the
+	  line graph panel carries Aggregate and Time bucket menus for it.
+	- A stored time pattern takes time=, so 27/10/2026 14:05 is read as
+	  2026-10-27T14:05:00 and a relative range can filter on that column.
+	- bi-alert --suppress throttles a threshold that stays crossed, and
+	  --recovery announces the end of the crossing once, at exit 3.
+	- Internal: _reduce_records takes chips_only, so the callers that pass
+	  already-reduced rows do not run a non-idempotent stage twice.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]
