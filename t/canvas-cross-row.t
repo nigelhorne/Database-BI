@@ -68,13 +68,30 @@ sub _card {
 	return $dom->at("#visual-$n");
 }
 
+# _cells($row) -> arrayref of the <td> elements of one table row, in order
+#
+# The cells of a row are its own child nodes, so they are read as such.  A
+# selector would put the read in Mojo::DOM::CSS's hands, and that is where a
+# harness goes wrong quietly: on a node with no root above it (a text node, a
+# row taken out of its tree) a plain read answers with the node above it, and
+# any selector that asks for the root -- matching does, and so does :scope --
+# walks the parent pointers forever instead of returning.  A hang reports
+# nothing at all, so the cells are taken without asking CSS anything.
+sub _cells {
+	my ($row) = @_;
+	return [] unless $row && $row->type eq 'tag';
+	return [
+		grep { $_->type eq 'tag' && $_->tag eq 'td' } @{ $row->child_nodes }
+	];
+}
+
 # _column($card, $idx) -> arrayref of the $idx-th cell of every table row
 sub _column {
 	my ($card, $idx) = @_;
 	return [] unless $card;
 	my @values;
 	for my $tr (@{ $card->find('tbody tr')->to_array }) {
-		my @cell = map { $_->all_text } @{ $tr->children('td')->to_array };
+		my @cell = map { $_->all_text } @{ _cells($tr) };
 		push @values, $cell[$idx];
 	}
 	return \@values;
@@ -86,6 +103,31 @@ sub _error {
 	my $error = $card->at('.visual-error');
 	return $error ? $error->all_text : '';
 }
+
+# The reader every cell assertion below goes through is checked on its own: a
+# wrong one would hang the suite rather than fail it, and a hook that hangs
+# reports nothing.
+subtest 'the cell reader reads a row\'s children, not a selector' => sub {
+	my $dom = Mojo::DOM->new(
+		"<table><tbody><tr>\n\t<td>a</td>\n\t<td>b</td>\n</tr></tbody></table>");
+	my $row = $dom->at('tbody tr');
+	ok($row, 'a row to read');
+	is_deeply [ map { $_->all_text } @{ _cells($row) } ], [ 'a', 'b' ],
+		'its cells come back in order, with the whitespace between them skipped';
+
+	# A text node has no root above it: CSS reads it as its parent, and a
+	# root-asking selector never returns from it.  Here it answers no cells.
+	my $text = $row->child_nodes->[0];
+	is($text->type, 'text', 'a text node, as sits between a row and its cells');
+	is_deeply _cells($text), [], 'which has no cells, and is read as having none';
+
+	# Pinned structurally, because the regression this guards against would
+	# hang rather than fail: a selector in this file is one waiting to happen.
+	my @code = grep { !/^\s*#/ } split /\n/, Mojo::File->new(__FILE__)->slurp;
+	my $file = join("\n", @code);
+	unlike $file, qr/\bchildren\s*\(/, 'no cell in this file is read by selector';
+	like $file, qr/\bchild_nodes\b/, 'they come from the row\'s own children';
+};
 
 my $id = $t->post_ok('/api/analyses',
 	{ 'Content-Type' => 'application/json' },
@@ -513,7 +555,7 @@ subtest 'a card can carry more than one cross-row column' => sub {
 
 	my $dom  = Mojo::DOM->new($t->tx->res->json->{html});
 	my @rows = map {
-		[ map { $_->all_text } @{ $_->children('td')->to_array } ]
+		[ map { $_->all_text } @{ _cells($_) } ]
 	} @{ $dom->find('tbody tr')->to_array };
 
 	is_deeply [ map { $_->[2] } @rows ], [ 10, 30, 130, 330 ],
@@ -743,18 +785,117 @@ subtest 'a rename a card plots is warned about before the plan is saved' => sub 
 
 	# Said while it can still be undone, then asked as the plan lands -- never
 	# left to the card's own error afterwards.
-	like($body, qr/crWarning\.textContent = crRenameText\(missing\)/,
+	like($body, qr/var text = stranded\.length \? crRenameText\(missing\)/,
 		'the panel names the column the card would lose');
-	like($body, qr/Keep the name, or the card will be drawn with an error\./,
-		'and says what keeping the name avoids');
+	like($body, qr/: crFollowText\(renamed, renames\);/,
+		'and names the one it follows when the plan has renamed it');
+	like($body, qr/Keep the name, or save and drop /,
+		'and, where the card lists its columns, says the column can go with the plan');
+	like($body, qr/Keep the name, or the repair will be refused\./,
+		'while a card drawn from that column itself is told the repair would be refused');
 	like($body, qr/crWarnRenames\(\);/,
 		'it is said whenever the list or the mode changes');
 	like($body, qr/crWarnRenames\(plan && plan\.cs \? plan\.cs : \[\]\)/,
 		'and again for the plan that would be saved, the pending column read in');
-	like($body, qr/window\.confirm\(crRenameText\(unplotted\)/,
-		'which is asked before the PATCH, not after the card has been redrawn');
+
+	# A chip renamed where it stands is the same column under another name, so
+	# the card follows it instead of losing it: the old plan's aliases are kept
+	# from when the panel opened, and the save sends the card's own reference
+	# pointing at the new name.
+	like($body, qr/var crPlanSaved = null;/, "the card's own aliases are kept");
+	like($body, qr/crPlanSaved = \(plan && typeof plan === 'object'/,
+		'from the plan it was opened with');
+	like($body, qr/var crRenames = function \(specs\) \{/, 'a rename is worked out');
+	like($body, qr/if \(\(before\[0\] \|\| ''\) !== \(after\[0\] \|\| ''\)\) continue;/,
+		'only for the same column and the same function');
+	like($body, qr/if \(before\[2\]\) map\[before\[2\]\] = after\[2\];/,
+		'under a different name, which is what makes it a rename');
+	like($body, qr/var follow    = \[\];/, 'so the save follows it');
+	like($body, qr/if \(renames\[name\]\) follow\.push\(\[name, renames\[name\]\]\);/,
+		'one pair per renamed column');
+	like($body, qr/payload\.encode = crRenamedEncode\(follow, drop\);/,
+		"with the card's own reference moved to the new name");
+	like($body, qr/encode\[key\] = value\.map\(rename\)/, 'in a list of columns');
+	like($body, qr/encode\[key\] = rename\(value\);/, 'and in a field that names one');
+	like($body, qr/if \(key === 'agg'\)/, 'leaving the aggregate alone, which is no column');
+	like($body, qr/so the card moves with it\./, 'and the panel says so while editing');
+
+	# What is left is a column the plan has lost, not renamed: a card that lists
+	# its columns can drop it, and the save is the same one click as before.
+	like($body, qr/var crDroppable = function \(names\) \{/,
+		'from the columns the card holds as a list');
+	like($body, qr/return crCardColumns\.indexOf\(name\) >= 0;/,
+		"which is the card's own encode.columns");
+	like($body, qr/crCardColumns = Array\.isArray\(crCardEncode\.columns\)/,
+		'read when the panel opens');
+	like($body, qr/window\.confirm\(crDropText\(drop\)\)/,
+		'asked before the PATCH, not after the card has been redrawn');
+	like($body, qr/body    : JSON\.stringify\(payload\)/,
+		'so the rename, the drop and the plan are one save');
 	like($body, qr/Not saved: this card plots/,
 		'and declining leaves the card as it was');
+	like($body, qr/a chart cannot be drawn without the column it plots/,
+		'a column the card is drawn from is not dropped, and the panel says why');
+
+	# What that save looks like to the server: a table that showed rt keeps the
+	# column, now under the plan's new name, and the card draws.
+	my $keep_id = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			name     => 'Carry a rename through',
+			datasets => [ { spec => 'table:orders', alias => 'left' } ],
+			visuals  => [
+				{ kind => 'table', title => 'Totals',
+				  encode => { columns => [qw(day amount rt)] } },
+			],
+		}),
+	)->status_is(201)->tx->res->json->{id};
+
+	# The card follows the plan: the column it listed is still there, under the
+	# name the plan now gives it, so a rename does not cost the card a column.
+	$t->patch_ok("/api/analyses/$keep_id/visuals/0",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			cross_row => { cs => ['amount:running_total:rt2'], order => ['day'] },
+			encode    => { columns => [qw(day amount rt2)] },
+		}),
+	)->status_is(200);
+
+	$t->get_ok("/a/$keep_id?cs=amount:running_total:rt&order=day")->status_is(200);
+	my $page    = $t->tx->res->body;
+	my $renamed = _card(Mojo::DOM->new($page), 0);
+	is_deeply _header($renamed), [qw(day amount rt2)],
+		'the card lists the column under the plan\'s new name';
+	like $page, qr{<td>330</td>}, 'with the running total still in it';
+	is _error($renamed), '', 'and draws, rather than reporting a column it cannot find';
+
+	# A column taken out of the plan is not a rename: it is dropped from a card
+	# that lists it, and the page still draws.
+	$t->patch_ok("/api/analyses/$keep_id/visuals/0",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			cross_row => { cs => ['amount:rank:total'], order => ['day'] },
+			encode    => { columns => [qw(day amount)] },
+			query     => '?cs=amount:running_total:rt&order=day',
+		}),
+	)->status_is(200);
+
+	$t->get_ok("/a/$keep_id?cs=amount:running_total:rt&order=day")->status_is(200);
+	my $dropped = _card(Mojo::DOM->new($t->tx->res->body), 0);
+	is_deeply _header($dropped), [qw(day amount)],
+		'the card is drawn without the column the new plan does not make';
+	is _error($dropped), '', 'and draws, rather than reporting a column it cannot find';
+
+	# Dropping is the whole difference there: the same repair without it is
+	# refused, which is what makes the panel's one click the difference.
+	$t->patch_ok("/api/analyses/$keep_id/visuals/0",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			cross_row => { cs => ['amount:rank:total2'], order => ['day'] },
+			encode    => { columns => [qw(day amount total)] },
+		}),
+	)->status_is(400)
+	 ->json_like('/error' => qr/Column not found: total/);
 };
 
 subtest 'the canvas refuses a spec it cannot honour' => sub {

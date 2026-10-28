@@ -968,7 +968,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	<div class="ac-panel cs-edit-panel" id="cr-panel" role="dialog"
 	     aria-labelledby="cr-heading" hidden>
 		<h3 id="cr-heading">Cross-row columns</h3>
-		<p class="ac-help">Change the columns this card works out from the rows around each row. Its place on the canvas, its size and its title are kept, and it is redrawn where it is. Press a column's name to open it in the fields below and change it where it stands, rather than taking it out and adding it again.</p>
+		<p class="ac-help">Change the columns this card works out from the rows around each row. Its place on the canvas, its size and its title are kept, and it is redrawn where it is. Press a column's name to open it in the fields below and change it where it stands, rather than taking it out and adding it again. A column this card plots moves with the new name when the plan renames it; one the plan has lost for good is dropped from a card that lists its columns.</p>
 		<form id="cr-form">
 			<label class="ac-field">This card
 				<select id="cr-mode">
@@ -3365,6 +3365,15 @@ menu, so it reads without the menu being opened.</p>
 			 * points at that its plan produces.  Renaming one of those leaves the
 			 * plot pointing at a column no card has. */
 			var crPlotted = [];
+			/* The card's columns, when it holds them as a list -- a table does, a
+			 * chart names one column per job.  A list is what a stranded column can
+			 * be taken off, so a repair the server would refuse becomes one save. */
+			var crCardColumns = null;
+			var crCardEncode  = null;   /* the card's encode, as it was opened */
+			/* The aliases of the plan the card had when it was opened, in order:
+			 * a chip renamed where it stands is the same column under a new name,
+			 * and this is what says which new name belongs to which old one. */
+			var crPlanSaved = null;
 			var crTouched = false;  /* the name box has been edited */
 			var crEditing = -1;     /* the chip the fields are describing, or -1 */
 			/* The order the card had when it was opened.  A plan may read rows in
@@ -3520,11 +3529,14 @@ menu, so it reads without the menu being opened.</p>
 				});
 			};
 
-			/* Columns as a sentence: "a", "a" and "b", "a", "b" and "c". */
+			/* A list as a sentence: "a", "a" and "b", "a", "b" and "c". */
+			var crJoin = function (items) {
+				if (items.length < 2) return items.join('');
+				return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+			};
+
 			var crNameList = function (names) {
-				var quoted = names.map(function (name) { return '"' + name + '"'; });
-				if (quoted.length < 2) return quoted.join('');
-				return quoted.slice(0, -1).join(', ') + ' and ' + quoted[quoted.length - 1];
+				return crJoin(names.map(function (name) { return '"' + name + '"'; }));
 			};
 
 			var crRenameText = function (names) {
@@ -3549,8 +3561,56 @@ menu, so it reads without the menu being opened.</p>
 				});
 			};
 
+			/* The stranded columns the card can do without: the ones its column
+			 * list holds.  A column the card is drawn from rather than listed --
+			 * a bar's value, a line's y -- is not one of those: taking it away
+			 * would leave the chart with nothing to draw. */
+			var crDroppable = function (names) {
+				if (!crCardColumns) return [];
+				return names.filter(function (name) {
+					return crCardColumns.indexOf(name) >= 0;
+				});
+			};
+
+			var crDropText = function (names) {
+				return crRenameText(names) + ' Save the plan and take '
+					+ (names.length === 1 ? 'that column' : 'those columns')
+					+ ' off this card, so it is drawn without '
+					+ (names.length === 1 ? 'it' : 'them') + '?';
+			};
+
+			/* Old name -> new name, for the columns the plan has renamed rather
+			 * than lost.  A chip changed where it stands is the same column and
+			 * the same function under another name, so the card can go on plotting
+			 * it; a chip taken out, or changed into a different column, is not a
+			 * rename and is left to the drop-and-save path instead. */
+			var crRenames = function (specs) {
+				var was  = crPlanSaved || [];
+				var next = specs || crSpecs.map(function (entry) { return entry.spec; });
+				var map  = {};
+				if (was.length !== next.length) return map;
+				for (var i = 0; i < was.length; i++) {
+					var before = String(was[i]).split(':');
+					var after  = String(next[i]).split(':');
+					if ((before[0] || '') !== (after[0] || '')) continue;
+					if ((before[1] || '') !== (after[1] || '')) continue;
+					if (!after[2] || before[2] === after[2]) continue;
+					if (before[2]) map[before[2]] = after[2];
+				}
+				return map;
+			};
+
+			var crFollowText = function (names, renames) {
+				return 'This card plots ' + crNameList(names) + ', which this plan now makes as '
+					+ crJoin(names.map(function (name) { return '"' + renames[name] + '"'; }))
+					+ ', so the card moves with it.';
+			};
+
 			/* Said while the name can still be put back, not after the card has
-			 * been drawn against a column nothing makes. */
+			 * been drawn against a column nothing makes.  Three answers, said in
+			 * the order they are likelier: a renamed column the card follows, a
+			 * column taken out of a list the card can drop, and one there is no
+			 * honest answer for. */
 			var crWarnRenames = function (specs) {
 				var missing = crUnmadePlots(specs);
 				if (!missing.length) {
@@ -3558,10 +3618,53 @@ menu, so it reads without the menu being opened.</p>
 					crWarning.hidden = true;
 					return missing;
 				}
-				crWarning.textContent = crRenameText(missing)
-					+ ' Keep the name, or the card will be drawn with an error.';
+
+				var renames  = crRenames(specs);
+				var renamed  = missing.filter(function (name) { return !!renames[name]; });
+				var stranded = missing.filter(function (name) { return !renames[name]; });
+				var drop     = crDroppable(stranded);
+
+				var text = stranded.length ? crRenameText(missing)
+					: crFollowText(renamed, renames);
+				if (stranded.length) {
+					text += drop.length === stranded.length
+						? ' Keep the name, or save and drop '
+							+ (stranded.length === 1 ? 'it' : 'them') + ' from this card\u2019s columns.'
+						: ' Keep the name, or the repair will be refused.';
+				}
+
+				crWarning.textContent = text;
 				crWarning.hidden = false;
 				return missing;
+			};
+
+			/* The card's encoding with a renamed column followed: every place the
+			 * old name is read as a column -- a table's list, a bar's value, a
+			 * line's y -- reads the new one instead.  The aggregate is left alone
+			 * because it is a function name, not a column. */
+			var crRenamedEncode = function (follow, drop) {
+				var map = {};
+				follow.forEach(function (pair) { map[pair[0]] = pair[1]; });
+
+				var rename = function (value) {
+					return (typeof value === 'string' && map[value]) ? map[value] : value;
+				};
+
+				var encode = {};
+				for (var key in crCardEncode) {
+					if (!Object.prototype.hasOwnProperty.call(crCardEncode, key)) continue;
+					var value = crCardEncode[key];
+					if (key === 'agg') {
+						encode[key] = value;
+					} else if (Array.isArray(value)) {
+						encode[key] = value.map(rename).filter(function (name) {
+							return drop.indexOf(name) < 0;
+						});
+					} else {
+						encode[key] = rename(value);
+					}
+				}
+				return encode;
 			};
 
 			var crRenderList = function () {
@@ -3760,6 +3863,9 @@ menu, so it reads without the menu being opened.</p>
 				crOrderSaved = [];
 				crOrderShown = null;
 				crPlotted    = [];
+				crCardColumns = null;
+				crCardEncode  = null;
+				crPlanSaved   = null;
 				crWarning.textContent = '';
 				crWarning.hidden = true;
 				crAdd.textContent = 'Add this column';
@@ -3817,6 +3923,18 @@ menu, so it reads without the menu being opened.</p>
 						 * runs no plan has none to rename, so it has nothing to lose. */
 						crPlotted = crColumnPlots(vis.encode || {},
 							(plan && typeof plan === 'object') ? (plan.cs || []) : null);
+
+						/* The card's columns as it holds them, for the save that has to
+						 * take a stranded one off it: encode is replaced whole, so the
+						 * rest of it has to travel with the list. */
+						crCardEncode  = vis.encode || {};
+						crCardColumns = Array.isArray(crCardEncode.columns)
+							? crCardEncode.columns.slice() : null;
+
+						/* The aliases the card's own plan had, so a chip renamed where
+						 * it stands can be followed by the card rather than dropped. */
+						crPlanSaved = (plan && typeof plan === 'object'
+							&& Array.isArray(plan.cs) && plan.cs.length) ? plan.cs.slice() : null;
 
 						crEmpty.textContent = 'No columns yet: add the one described below.';
 						crTouched = false;
@@ -3966,16 +4084,42 @@ menu, so it reads without the menu being opened.</p>
 					if (crBy.value) plan.by = crBy.value;
 				}
 
-				/* A rename the card would be drawn against.  Asked here as well as
-				 * said while the fields change, because the plan that lands is this
-				 * one -- the column the fields describe but the list does not hold yet
-				 * included -- and a card drawn with an error is a poor way to learn
-				 * about a column that was renamed out from under it. */
+				/* A rename the card would be drawn against.  Said while the fields
+				 * change, and settled here because the plan that lands is this one --
+				 * the column the fields describe but the list does not hold yet
+				 * included.  The server refuses a repair that leaves the card plotting
+				 * a column nothing makes, so the rename is carried through to the
+				 * card's own reference where it is a rename at all, and a column the
+				 * plan has really lost is taken off a card that lists its columns. */
 				var unplotted = crWarnRenames(plan && plan.cs ? plan.cs : []);
-				if (unplotted.length && !window.confirm(crRenameText(unplotted)
-						+ '\n\nSave the plan anyway? The card will be drawn with an error.')) {
-					crSetError('Not saved: this card plots ' + crNameList(unplotted) + '.');
-					return;
+				var renames   = (crMode.value === 'own') ? crRenames(plan.cs) : {};
+				var follow    = [];
+				var drop      = [];
+				unplotted.forEach(function (name) {
+					if (renames[name]) follow.push([name, renames[name]]);
+					else               drop.push(name);
+				});
+				if (drop.length) {
+					var droppable = crDroppable(drop);
+					if (droppable.length !== drop.length) {
+						/* A column the card is drawn from rather than one of a list:
+						 * there is nothing to take it off, so the repair is not sent. */
+						crSetError('Not saved: this card plots ' + crNameList(drop)
+							+ ', and a chart cannot be drawn without the column it plots.'
+							+ ' Keep the name.');
+						return;
+					}
+					if (!window.confirm(crDropText(drop))) {
+						crSetError('Not saved: this card plots ' + crNameList(drop) + '.');
+						return;
+					}
+				}
+
+				var payload = { cross_row: plan, query: window.location.search || '' };
+				if (follow.length || drop.length) {
+					/* encode is replaced whole, so it is the card's own encoding with
+					 * the rename followed and the lost columns taken out of a list. */
+					payload.encode = crRenamedEncode(follow, drop);
 				}
 
 				var target = crTarget;
@@ -3985,7 +4129,7 @@ menu, so it reads without the menu being opened.</p>
 				fetch('/api/analyses/' + encodeURIComponent(anaId) + '/visuals/' + target.index, {
 					method  : 'PATCH',
 					headers : { 'Content-Type': 'application/json' },
-					body    : JSON.stringify({ cross_row: plan, query: window.location.search || '' }),
+					body    : JSON.stringify(payload),
 				}).then(function (r) {
 					return r.json().catch(function () { return {}; }).then(function (json) {
 						if (!r.ok) throw new Error(json.error || ('The canvas refused the change (' + r.status + ')'));
@@ -4008,11 +4152,18 @@ menu, so it reads without the menu being opened.</p>
 					var titleEl = card.querySelector('.visual-card-title');
 					var title   = json.title || (titleEl ? titleEl.textContent : 'This card');
 					crClose(1);
-					announce(plan === null
+					announce((plan === null
 						? 'Cross-row columns cleared: "' + title + '" uses the page\'s.'
 						: plan.cs && plan.cs.length
 							? 'Cross-row columns of "' + title + '" updated: ' + plan.cs.join(', ') + '.'
-							: 'Cross-row columns of "' + title + '" removed.');
+							: 'Cross-row columns of "' + title + '" removed.')
+						+ (follow.length
+							? ' It now reads ' + crNameList(follow.map(function (pair) { return pair[1]; }))
+								+ ' in place of '
+								+ crNameList(follow.map(function (pair) { return pair[0]; })) + '.'
+							: '')
+						+ (drop.length
+							? ' ' + crNameList(drop) + ' dropped from its columns.' : ''));
 
 					/* The libraries this card was drawn with are already on the
 					 * page: a plan changes the numbers in a view, not the view. */

@@ -48,6 +48,23 @@ my $t = Test::Mojo->new('Database::BI', {
 	model_dir => $model_dir,
 });
 
+# _cells($row) -> arrayref of the <td> elements of one table row, in order
+#
+# Read from the row's own child nodes rather than through children('td').  A
+# selector puts the read in Mojo::DOM::CSS's hands, and that is where a harness
+# goes wrong quietly: on a node with no root above it (a text node, a row taken
+# out of its tree) a plain read answers with the node above it, and a selector
+# that asks for the root -- matching, or :scope -- walks the parent pointers
+# forever instead of returning.  A hang reports nothing, so the cells are taken
+# without asking CSS anything.
+sub _cells {
+	my ($row) = @_;
+	return [] unless $row && $row->type eq 'tag';
+	return [
+		grep { $_->type eq 'tag' && $_->tag eq 'td' } @{ $row->child_nodes }
+	];
+}
+
 # The word/count table, in the order the page shows it: count descending, then
 # alphabetically, which is the order HTML::TagCloud ranks words by.
 sub _counts {
@@ -58,7 +75,7 @@ sub _counts {
 		# all_text(), not text(): a linked word is a child element, and text()
 		# reads only a node's own text, so a count table with drill-down links
 		# would look empty.
-		my @cell = map { $_->all_text } @{ $tr->children('td')->to_array };
+		my @cell = map { $_->all_text } @{ _cells($tr) };
 		push @counts, [ $cell[0], $cell[1] + 0 ];
 	}
 	return \@counts;
@@ -79,6 +96,31 @@ sub _cloud_links {
 # ---------------------------------------------------------------------------
 # What the cloud says
 # ---------------------------------------------------------------------------
+
+# The reader every count assertion goes through is checked on its own: a wrong
+# one would hang the suite rather than fail it, and a hook that hangs reports
+# nothing.
+subtest 'the cell reader reads a row\'s children, not a selector' => sub {
+	my $dom = Mojo::DOM->new(
+		"<table><tbody><tr>\n\t<td>word</td>\n\t<td>3</td>\n</tr></tbody></table>");
+	my $row = $dom->at('tbody tr');
+	ok($row, 'a row to read');
+	is_deeply [ map { $_->all_text } @{ _cells($row) } ], [ 'word', '3' ],
+		'its cells come back in order, with the whitespace between them skipped';
+
+	# A text node has no root above it: CSS reads it as its parent, and a
+	# root-asking selector never returns from it.  Here it answers no cells.
+	my $text = $row->child_nodes->[0];
+	is($text->type, 'text', 'a text node, as sits between a row and its cells');
+	is_deeply _cells($text), [], 'which has no cells, and is read as having none';
+
+	# Pinned structurally, because the regression this guards against would
+	# hang rather than fail: a selector in this file is one waiting to happen.
+	my @code = grep { !/^\s*#/ } split /\n/, Mojo::File->new(__FILE__)->slurp;
+	my $file = join("\n", @code);
+	unlike $file, qr/\bchildren\s*\(/, 'no cell in this file is read by selector';
+	like $file, qr/\bchild_nodes\b/, 'they come from the row\'s own children';
+};
 
 subtest 'a word counts once per row, whatever its case' => sub {
 	$t->get_ok('/wordcloud?l=table:notes&col=note')->status_is(200);
