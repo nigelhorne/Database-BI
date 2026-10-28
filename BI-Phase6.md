@@ -1,9 +1,10 @@
 # BI-Phase6.md — Implementation specification: `Database::BI` Phase 6 (geography)
 
-Specification for **Phase 6** of `BI-ROADMAP.md` (workspace root), a new phase not yet in that
-document: a **map view** built on `HTML::OSM`, plotting either coordinate columns or a
-location column geocoded locally with `Geo::Coder::Free`. Items 6.1–6.5, plus the
-cross-dist work §8 asks of `HTML::OSM`.
+Specification for **Phase 6** of `BI-ROADMAP.md` (workspace root), whose own Phase 6 section now
+carries the item list, efforts and dependency order; this document is the detail behind it. A
+**map view** built on `HTML::OSM`, plotting either coordinate columns or a location column
+geocoded locally with `Geo::Coder::Free`. Items 6.1–6.5, plus the cross-dist work §8 asks of
+`HTML::OSM`.
 
 - **Target dist:** `Database::BI`.
 - **Version:** the next major after Phase 5 (proposal `0.017.0`).
