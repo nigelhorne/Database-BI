@@ -104,7 +104,12 @@ being packed up the page.  **Add current view** in the toolbar appends another
 table, chart or map without leaving the canvas, and a status region announces
 the card and the new visual count; when the card's script has drawn it, the
 region says the chart or map has finished drawing, and if D3 or Leaflet could
-not be loaded it names the missing library instead.  Canvases support
+not be loaded it names the missing library instead.  A card that shows an
+aggregated value picks its own function in that panel, from the vocabulary the
+pivot uses and with the same names: Sum, Average, Min, Max, Count distinct,
+Median, Std dev, First, Last, Range or a Percentile with its level, so a card
+can show a median, a spread or a percentile where the chart pages behind it
+could only sum.  Canvases support
 cross-filtering, drill-through hierarchies, parameterisation, bookmarks
 with undo/redo, per-visual PNG download, and print to PDF/paper.
 - **Drag-and-drop upload** -- any supported data file can be dropped directly
@@ -604,6 +609,22 @@ perl Makefile.PL
     column the card's marks cross-filter by.  The card is left unplaced in
     `layout`; it is auto-placed after the saved cards until the reader moves or
     resizes it.
+
+    A `kind` that aggregates a value column -- `bar`, `pie`, `stacked`,
+    `treemap`, `heatmap` and `combo` -- reads an optional `encode.agg`: the
+    function its value column is aggregated with.  It takes `sum` (the default),
+    `avg`, `min`, `max`, `count_distinct`, `median`, `stdev`, `first`, `last`,
+    `range`, or a percentile named `p<N>` from `p1` to `p100` -- the same
+    vocabulary and the same spelling a pivot's `m=` spec uses, so a card can show
+    a median, a spread or a percentile where the chart pages it came from could
+    only sum.  `count` is accepted as well: it counts rows and ignores the value
+    column.  The function is checked whatever the kind is, so a misspelt one is a
+    `400` rather than a chart drawn some other way, as is a function that needs a
+    column (`median`, unlike `count`) when the card names no value column or
+    names the value menu's "Count (no column needed)".  A combo aggregates both
+    its series with the one function.  A card's derived title says which function
+    it used (`median(amount) by region`); a plain sum keeps the title it has
+    always had.
 
 - `PATCH /api/analyses/:id/visuals/:visual`
 

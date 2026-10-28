@@ -2082,4 +2082,189 @@ subtest 'chart legends: a series is hidden from the keyboard too' => sub {
 		'and is given no instructions for a legend it does not have';
 };
 
+# ---------------------------------------------------------------------------
+# Phase 3.2 -- a canvas card picks its own aggregate function
+# ---------------------------------------------------------------------------
+
+subtest 'a saved card aggregates with the function it picked' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	# North holds 1250 and 1875, so one column gives four distinguishable
+	# answers: sum 3125, median 1562.5, range 625, count 2.  A card that picked a
+	# function can therefore not be mistaken for one that summed.
+	my $spec = {
+		name     => 'Measure picking',
+		datasets => [ { spec => "path:$sales_path" } ],
+		visuals  => [
+			{ kind => 'bar', encode => { cat => 'region', value => 'amount', agg => 'median' } },
+			{ kind => 'bar', encode => { cat => 'region', value => 'amount' } },
+		],
+	};
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json($spec)
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $body = $t->tx->res->body;
+
+	# The snippet writes each row as JSON from a hash, so its key order is not
+	# the test's to assume: the pair is asserted on the value alone, and the
+	# counts below say which card it belongs to.
+	like $body, qr/"value":1562\.5/,
+		'the card that picked a median draws the median';
+	like $body, qr/median\(amount\) by region/,
+		'and its own title says which function it used';
+
+	# Each card answers for North once, and differently: the median of 1250 and
+	# 1875 is 1562.5, the sum 3125.  One occurrence each is what says the card
+	# that picked a function did not fall back to the default.
+	my $medians = () = $body =~ /"value":1562\.5/g;
+	my $sums    = () = $body =~ /"value":3125/g;
+	is $medians, 1, 'only the card that picked the median drew one';
+	is $sums,    1, 'and only the card that summed drew the sum';
+
+	like $body, qr/amount by region/,
+		'the card that picked nothing keeps the title it has always had';
+
+	# first and last are the row order, which is not a sum of anything.
+	$t->post_ok("/api/analyses/$cid/visuals",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ kind => 'bar',
+			encode => { cat => 'region', value => 'amount', agg => 'range' } })
+	)->status_is(201)
+	 ->json_is('/title' => 'range(amount) by region');
+	like $t->tx->res->json->{html}, qr/"value":625/,
+		'a range card draws the spread it asked for';
+
+	# One card, one function: a combo aggregates both its series with it.
+	$t->post_ok("/api/analyses/$cid/visuals",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ kind => 'combo',
+			encode => { cat => 'region', bar_val => 'amount', line_val => 'amount',
+			            agg => 'median' } })
+	)->status_is(201)
+	 ->json_is('/title' => 'median of amount and amount by region');
+
+	# A saved card can change its function without losing its place: p50 is the
+	# median under the name a pivot uses for it.
+	$t->patch_ok("/api/analyses/$cid/visuals/1",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ encode => { cat => 'region', value => 'amount', agg => 'p50' } })
+	)->status_is(200)
+	 ->json_is('/title' => 'p50(amount) by region');
+	like $t->tx->res->json->{html}, qr/"value":1562\.5/,
+		'and p50 is the median it is meant to be';
+};
+
+subtest 'a card function that cannot be drawn is refused, not stored' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			name     => 'Refused measures',
+			datasets => [ { spec => "path:$sales_path" } ],
+			visuals  => [ { kind => 'table', encode => {}, title => 'All rows' } ],
+		})
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->post_ok("/api/analyses/$cid/visuals",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ kind => 'bar',
+			encode => { cat => 'region', value => 'amount', agg => 'banana' } })
+	)->status_is(400)
+	 ->json_like('/error' => qr/Unknown aggregate function 'banana'/,
+		'a function the fold cannot compute is refused rather than summed');
+	like $t->tx->res->json->{error}, qr/median/,
+		'and the message carries the vocabulary, so the reader can pick one';
+
+	$t->post_ok("/api/analyses/$cid/visuals",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ kind => 'bar',
+			encode => { cat => 'region', value => '__count__', agg => 'median' } })
+	)->status_is(400)
+	 ->json_like('/error' => qr/needs a value column/,
+		'a function that needs a column is refused when the card counts rows');
+
+	$t->post_ok("/api/analyses/$cid/visuals",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({ kind => 'bar',
+			encode => { cat => 'region', value => 'amt', agg => 'median' } })
+	)->status_is(400)
+	 ->json_like('/error' => qr/Column not found: amt/,
+		'and a column that is not there is still the column\'s error');
+
+	$t->get_ok("/api/analyses/$cid")->status_is(200);
+	is scalar @{ $t->tx->res->json->{visuals} }, 1,
+		'none of the refused cards was appended';
+
+	# A card stored by a whole-document PUT is not rendered on the way in, so a
+	# function it names is reported by the card itself rather than a 500.
+	$t->put_ok("/api/analyses/$cid",
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			name     => 'Refused measures',
+			datasets => [ { spec => "path:$sales_path" } ],
+			visuals  => [ { kind => 'bar',
+				encode => { cat => 'region', value => 'amount', agg => 'nonsense' } } ],
+		})
+	)->status_is(200);
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $page = $t->tx->res->body;
+	# The card's error is written into the page, so the quotes in it arrive
+	# HTML-escaped; the message and the name it refused are what matter.
+	like $page, qr/Unknown aggregate function/, 
+		'the canvas says so in the card rather than failing the page';
+	like $page, qr/nonsense/, 'and names the function it could not compute';
+};
+
+subtest 'the Add current view panel offers the functions a card may pick' => sub {
+	my $sales_path = $t->app->home->child('data/sales.csv')->to_string;
+	plan skip_all => 'data/sales.csv not found' unless -f $sales_path;
+
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			name     => 'Panel vocabulary',
+			datasets => [ { spec => "path:$sales_path" } ],
+			visuals  => [ { kind => 'table', encode => {}, title => 'All rows' } ],
+		})
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $page = $t->tx->res->body;
+
+	like $page, qr/<select id="ac-agg">/, 'the panel has an aggregate picker';
+
+	# The picker is written out by hand in the template, so the vocabulary it
+	# offers is asserted here against the one the server validates: a function
+	# added to the server's list and not to the panel (or the reverse) is what
+	# this catches.  Sum is the one function spelled by not naming it, which is
+	# how a card that picked the default has always carried it, so it is
+	# asserted as the default option rather than as a name.
+	like $page, qr/<option value="">Sum \(default\)<\/option>/,
+		'the picker starts at the sum a card gets by not choosing';
+	for my $fn (qw( avg min max count_distinct median stdev first last range )) {
+		like $page, qr/<option value="\Q$fn\E">/,
+			"and offers $fn, so a card can pick it without spelling it itself";
+	}
+	like $page, qr/<option value="p">/, 'and a percentile';
+	like $page, qr/<input id="ac-agg-p"/, 'whose level is a field of its own';
+	like $page, qr/data-agg-for="p"/, 'shown only while Percentile is chosen';
+
+	# Counting rows is the value column's job -- "Count (no column needed)" --
+	# so it is not a second way to say the same thing in the picker.
+	unlike $page, qr/<option value="count">/,
+		'counting rows stays with the value column rather than the picker';
+
+	like $page, qr/var AGG_KINDS = \{ bar: 1, pie: 1, stacked: 1, treemap: 1, heatmap: 1, combo: 1 \};/,
+		'the kinds that aggregate are exactly the kinds the picker is offered to';
+	like $page, qr/if \(agg\) encode\.agg = agg;/,
+		'and the choice travels with the card when it is added';
+};
+
 done_testing;

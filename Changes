@@ -101,6 +101,20 @@ Revision history for Database-BI
 	  fold cannot compute.
 	- The tutorial's pivot and column-statistics chapters mention the new
 	  measures, and the vocabulary is documented in the POD and README.
+	- A canvas card can pick the aggregate function it shows, instead of always
+	  counting rows or summing a column.  "Add current view" offers the pivot's
+	  own vocabulary with its own names -- Sum (the default), Average, Min, Max,
+	  Count distinct, Median, Std dev, First, Last, Range and Percentile with a
+	  level -- and the choice is stored on the card as encode.agg, so it
+	  survives a reload, a share link and an export.  A percentile is stored as
+	  p95, the way a pivot measure spells it.  A card's title says which function
+	  it used ("median(amount) by region"), except for a plain sum, which keeps
+	  the title it has always had; a combo aggregates both its series with the
+	  one function.
+	- The card's function is checked when the card is drawn, so a misspelt or
+	  unusable one (median with no value column) is a 400 from the visuals API
+	  rather than a card stored broken, and a card that a whole-document PUT
+	  stored that way says so in the card itself rather than failing the page.
 	[ Tests ]
 	- t/function.t: the measure parser and the arithmetic behind the new
 	  measures, including that p50 equals the middle/average-of-middles median
@@ -117,6 +131,22 @@ Revision history for Database-BI
 	  which rows each preset selects through /view, /bar, /export and /pivot;
 	  the 400s; the chip and the preset menu; and a canvas, both as saved and
 	  with a card added while a window is active.
+	- t/function.t: _visual_measure -- the count-rows and sum defaults a card has
+	  always had, every function in the shared vocabulary with the label it puts
+	  in a title, a percentile in its p<N> spelling, count ignoring the column it
+	  is given, and the refusal when a function that needs a column is given
+	  none.
+	- t/model.t: a saved canvas card that picked a median drawing the median and
+	  not the sum (the fixture's North holds 1250 and 1875, so 1562.5, 3125, 625
+	  and 2 are four different answers over one column), a range card, a combo
+	  card aggregating both its series with one function, p50 patched onto a
+	  saved card, the 400s for a misspelt function, for a function with no value
+	  column and for an unknown column, and a card stored by a whole-document PUT
+	  reporting its own function error in the card rather than failing the page.
+	- t/model.t: the Add current view panel's own picker -- the whole vocabulary,
+	  the sum a card gets by not choosing, the percentile with the level field it
+	  shows only then, count left to the value column, and the kinds the picker
+	  is offered to.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]

@@ -5075,5 +5075,80 @@ subtest '_measure_pushable -- the Perl-computed measures never go to the backend
 		'a source with no aggregate() is never pushed to';
 };
 
+# ============================================================================
+# PART 7: Dashboard -- _visual_measure
+#
+# The measure a canvas card aggregates its value column with.  A card that
+# names no function keeps the default it has always had -- count the rows when
+# it names no value column, sum it when it does -- and a card that names one
+# gets it, with a percentile riding in the name as a pivot's measure spells it.
+# ============================================================================
+
+subtest '_visual_measure -- the default a card has always had' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_visual_measure;
+
+	is_deeply $fn->(undef, undef), { fn => 'count', val => undef, label => 'Count' },
+		'no function and no column counts rows';
+	is_deeply $fn->(undef, ''), { fn => 'count', val => undef, label => 'Count' },
+		'an empty column name counts rows too';
+	is_deeply $fn->(undef, '__count__'), { fn => 'count', val => undef, label => 'Count' },
+		'the value menu\'s Count (no column needed) counts rows';
+	is_deeply $fn->('', 'amount'), { fn => 'sum', val => 'amount', label => 'amount' },
+		'an empty function name is no choice, so the column is summed';
+	is_deeply $fn->(undef, 'amount'), { fn => 'sum', val => 'amount', label => 'amount' },
+		'and a named column is summed, as every chart page does';
+};
+
+subtest '_visual_measure -- naming the default changes nothing' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_visual_measure;
+	is_deeply $fn->('sum', 'amount'), { fn => 'sum', val => 'amount', label => 'amount' },
+		'an explicit sum keeps the column\'s own name in the title';
+};
+
+subtest '_visual_measure -- the pivot vocabulary, and its percentile spelling' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_visual_measure;
+
+	for my $name (qw(avg min max count_distinct median stdev first last range)) {
+		my $m = $fn->($name, 'amount');
+		ok !$m->{error}, "$name is a measure a card can pick";
+		is $m->{fn},    $name,          "and is what the group is aggregated with";
+		is $m->{val},   'amount',       "over the column the card names";
+		is $m->{label}, "$name(amount)", "so the title says which function it was";
+	}
+
+	# A percentile rides in the name, as it does in a pivot's m= spec, so a card
+	# needs no second key to keep in step.
+	is_deeply $fn->('p95', 'amount'), { fn => 'p95', val => 'amount', label => 'p95(amount)' },
+		'a percentile is the function p95';
+	is $fn->('p1',   'amount')->{fn}, 'p1',   'the lowest percentile is allowed';
+	is $fn->('p100', 'amount')->{fn}, 'p100', 'and the highest';
+
+	# first and last read any column, not only a numeric one, as the pivot allows.
+	is $fn->('first', 'region')->{val}, 'region',
+		'first may name a column of text';
+};
+
+subtest '_visual_measure -- count ignores the column it is given' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_visual_measure;
+	is_deeply $fn->('count', 'amount'), { fn => 'count', val => undef, label => 'Count' },
+		'count counts rows, so the column it names is dropped';
+	is_deeply $fn->('count', undef), { fn => 'count', val => undef, label => 'Count' },
+		'and it needs no column at all';
+};
+
+subtest '_visual_measure -- a function that needs a column says so' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_visual_measure;
+
+	for my $case ([ undef, 'median' ], [ '', 'median' ],
+	              [ '__count__', 'median' ], [ undef, 'p95' ], [ '', 'stdev' ]) {
+		my ($val, $name) = @$case;
+		my $m = $fn->($name, $val);
+		ok $m->{error}, "$name with no value column is refused";
+		like $m->{error}, qr/\Q$name\E/,              'and the message names the function';
+		like $m->{error}, qr/needs a value column/,    'and says what is missing';
+		ok !defined $m->{fn}, 'with no measure to aggregate with';
+	}
+};
+
 done_testing();
 

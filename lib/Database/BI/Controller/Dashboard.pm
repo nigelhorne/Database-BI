@@ -151,6 +151,7 @@ Readonly my %MESSAGES => (
 	error_token_invalid         => 'Share token is invalid or has expired',
 	error_token_missing         => 'A share token is required to view this analysis',
 	freshness_stale_msg         => 'Source data has changed since this analysis was last saved',
+	error_agg_fn                => 'Unknown aggregate function "%s"; expected one of: %s, or p1 to p100 for a percentile',
 	error_range_name            => 'Unknown time range "%s"; expected one of: %s',
 	error_range_column          => 'A time range is applied to one column: add rcol=<column> to the URL',
 );
@@ -3005,6 +3006,49 @@ sub _chart_orientation {
 	return ($orient =~ /\A(?:h|horizontal)\z/i) ? 'horizontal' : 'vertical';
 }
 
+# _visual_measure($agg_fn, $val_col) -> \%measure
+#
+# The measure a canvas card aggregates a value column with: C<{ fn, val,
+# label }> when the card can be drawn, or C<{ error }> when it cannot, which
+# the card reports in place of its chart.
+#
+# A card that names no function keeps the default it has always had: count the
+# rows when it names no value column, sum it when it does.  A named function is
+# the measure vocabulary the pivot and the stats page share, with a percentile
+# riding in the name as p<N> -- p90, p50 -- exactly as a pivot's measure spells
+# it, so a card needs no second key to keep in step.  'count' counts rows, so it
+# ignores the value column and needs none.
+#
+# label is what the card's title calls the result: 'Count', the column's own
+# name for a plain sum, and "fn(col)" for anything else, so two cards over one
+# column do not read alike when one of them is a median.  An explicit sum keeps
+# the plain name, because naming the default should not change a card.
+#
+# The name itself is not checked here: _render_visual_html validates it once,
+# before the dispatch, so that a card of any kind reports a function it cannot
+# compute -- including the kinds that never call this.
+sub _visual_measure {
+	my ($agg_fn, $val_col) = @_;
+	my $count_col = (!defined $val_col || !length $val_col || $val_col eq '__count__');
+	# An absent name and an empty one are the same non-choice, so the default is
+	# one branch rather than two.
+	my $named = (defined $agg_fn && !ref $agg_fn && length $agg_fn) ? $agg_fn : undef;
+
+	return { fn => 'count', val => undef, label => 'Count' }
+		if defined $named && $named eq 'count';
+	return { fn => 'count', val => undef, label => 'Count' }
+		if !defined $named && $count_col;
+	return { error => "Aggregate '$named' needs a value column" }
+		if defined $named && $count_col;
+
+	my $fn = defined $named ? $named : 'sum';
+	return {
+		fn    => $fn,
+		val   => $val_col,
+		label => ($fn eq 'sum' ? $val_col : "$fn($val_col)"),
+	};
+}
+
 # _render_visual_html($self, \%vis, $records, \@columns, $src, $vis_id, $spec_key)
 #     -> { html => Str, title => Str, head => Str } | { error => Str }
 #
@@ -3036,6 +3080,21 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 
 	my %col_set = map { $_ => 1 } @$columns;
 
+	# The aggregate function this card picked for itself, if any (encode.agg).
+	# It is read and checked here, before the dispatch, so a misspelt function
+	# is this card's error whatever kind it is, rather than a chart quietly
+	# drawn some other way; the kinds that aggregate then honour it below.  A
+	# percentile rides in the name (p90, p50), as it does in a pivot measure, so
+	# there is no second key to keep in step.
+	my $agg_fn = $encode->{agg};
+	if (defined $agg_fn && !ref $agg_fn && length $agg_fn) {
+		return { error => "Unknown aggregate function '$agg_fn'; expected one of: "
+			. join(' ', @MEASURE_FNS) . ', or p1 to p100 for a percentile' }
+			unless _measure_fn_ok($agg_fn);
+	} else {
+		$agg_fn = undef;
+	}
+
 	# A chart aggregates the rows it is given.  The SQL push path in
 	# _grouped_totals re-reads the source, which has none of the filters the
 	# caller already applied (a cross-filter, or this visual's own filters), so
@@ -3055,14 +3114,17 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		return { error => "Column not found: $val_col" }
 			unless $count_mode || $col_set{$val_col};
 
+		my $m = _visual_measure($agg_fn, $val_col);
+		return { error => $m->{error} } if $m->{error};
+
 		my $agg = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
-			{ by => [$cat_col], fn => $count_mode ? 'count' : 'sum',
-			  val => $count_mode ? undef : $val_col, as => 'value' },
+			{ by => [$cat_col], fn => $m->{fn},
+			  val => $m->{val}, as => 'value' },
 		);
 		return { error => 'No plottable data' } unless @$agg;
 
-		$title ||= $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
+		$title ||= "$m->{label} by $cat_col";
 		my @bars   = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
 		my $orient = _chart_orientation($options);
 		# The bar page caps its bars as max_bars and stores the cap as
@@ -3092,14 +3154,17 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		return { error => "Column not found: $val_col" }
 			unless $count_mode || $col_set{$val_col};
 
+		my $m = _visual_measure($agg_fn, $val_col);
+		return { error => $m->{error} } if $m->{error};
+
 		my $agg = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
-			{ by => [$cat_col], fn => $count_mode ? 'count' : 'sum',
-			  val => $count_mode ? undef : $val_col, as => 'value' },
+			{ by => [$cat_col], fn => $m->{fn},
+			  val => $m->{val}, as => 'value' },
 		);
 		return { error => 'No plottable data' } unless @$agg;
 
-		$title ||= $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
+		$title ||= "$m->{label} by $cat_col";
 		my @slices = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
 		my $scheme = $options->{scheme} // 'tableau10';
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
@@ -3123,15 +3188,33 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		return { error => "Column not found: $x_col" } unless $col_set{$x_col};
 		return { error => "Column not found: $y_col" } unless $col_set{$y_col};
 
+		# A card whose spec names a measure plots one point per x value rather
+		# than one per row: the shape /graph?agg= draws, and the only shape that
+		# makes sense when the x axis is a bucket.  The fold writes its result
+		# back under the y column's own name, so the loop below is the same one
+		# an unaggregated card runs, and the groups arrive in label order, which
+		# for an ISO bucket is chronological order.
+		my $rows = $vis_recs;
+		my $m;
+		if (defined $agg_fn) {
+			$m = _visual_measure($agg_fn, $y_col);
+			return { error => $m->{error} } if $m->{error};
+			my $agg = $self->_grouped_totals(
+				{ source => undef, records => $vis_recs },
+				{ by => [$x_col], fn => $m->{fn}, val => $m->{val}, as => 'value' },
+			);
+			$rows = [ map { { %$_, $y_col => $_->{value} } } @$agg ];
+		}
+
 		my @pairs;
-		for my $row (@$vis_recs) {
+		for my $row (@$rows) {
 			my $xv = $row->{$x_col} // ''; next unless length $xv;
 			my $yn = _numeric_cell($row->{$y_col} // ''); next unless defined $yn;
 			push @pairs, [_decode_cell($xv), $yn];
 		}
 		return { error => 'No plottable data' } unless @pairs;
 
-		$title ||= "$y_col vs $x_col";
+		$title ||= $m ? "$m->{label} by $x_col" : "$y_col vs $x_col";
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
 			->render_zoomable_line_chart_snippet(\@pairs, { id => $svg_id });
 		my $html = $sn->{html};
@@ -3187,11 +3270,14 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 			push @x_order, $xv unless $seen_x{$xv}++;
 			push @y_order, $yv unless $seen_y{$yv}++;
 		}
+		my $m = _visual_measure($agg_fn, $val_col);
+		return { error => $m->{error} } if $m->{error};
+
 		my $agg = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
 			{ by  => [$x_col, $y_col],
-			  fn  => length($val_col) ? 'sum' : 'count',
-			  val => length($val_col) ? $val_col : undef,
+			  fn  => $m->{fn},
+			  val => $m->{val},
 			  as  => 'value' },
 		);
 		my %grid;
@@ -3204,14 +3290,13 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		} @x_order;
 		return { error => 'No plottable data' } unless @triples;
 
-		$title ||= length($val_col) ? "$val_col by $x_col and $y_col"
-		                            : "Count by $x_col and $y_col";
+		$title ||= "$m->{label} by $x_col and $y_col";
 		my $scheme = $options->{scheme} // 'YlOrRd';
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
 			->render_heatmap_snippet(\@triples, {
 				x_label      => $x_col,
 				y_label      => $y_col,
-				val_label    => (length($val_col) ? $val_col : 'Count'),
+				val_label    => $m->{label},
 				color_scheme => $scheme,
 				show_values  => ($options->{show_values} ? 1 : 0),
 				id           => $svg_id,
@@ -3234,11 +3319,14 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		return { error => "Column not found: $val_col" }
 			unless $count_mode || $col_set{$val_col};
 
+		my $m = _visual_measure($agg_fn, $val_col);
+		return { error => $m->{error} } if $m->{error};
+
 		my $agg = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
 			{ by  => [$cat_col, $seg_col],
-			  fn  => $count_mode ? 'count' : 'sum',
-			  val => $count_mode ? undef   : $val_col,
+			  fn  => $m->{fn},
+			  val => $m->{val},
 			  as  => 'value' },
 		);
 		my @data = map {
@@ -3249,8 +3337,7 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		} @$agg;
 		return { error => 'No plottable data' } unless @data;
 
-		$title ||= $count_mode ? "Count by $cat_col and $seg_col"
-		                       : "$val_col by $cat_col and $seg_col";
+		$title ||= "$m->{label} by $cat_col and $seg_col";
 		my $scheme = $options->{scheme} // 'tableau10';
 		my $orient = (_chart_orientation($options) eq 'horizontal') ? 'h' : 'v';
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
@@ -3276,13 +3363,21 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		return { error => "Column not found: $bar_col"  } unless $col_set{$bar_col};
 		return { error => "Column not found: $line_col" } unless $col_set{$line_col};
 
+		# One card, one function: a combo aggregates both its series the same
+		# way, so the two cannot be read against different arithmetic by
+		# accident.
+		my $bar_m  = _visual_measure($agg_fn, $bar_col);
+		my $line_m = _visual_measure($agg_fn, $line_col);
+		return { error => $bar_m->{error}  } if $bar_m->{error};
+		return { error => $line_m->{error} } if $line_m->{error};
+
 		my $bar_rows = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
-			{ by => [$x_col], fn => 'sum', val => $bar_col,  as => 'bar_val' },
+			{ by => [$x_col], fn => $bar_m->{fn}, val => $bar_m->{val},  as => 'bar_val' },
 		);
 		my $line_rows = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
-			{ by => [$x_col], fn => 'sum', val => $line_col, as => 'line_val' },
+			{ by => [$x_col], fn => $line_m->{fn}, val => $line_m->{val}, as => 'line_val' },
 		);
 		my (%bar_map, %line_map, @x_order, %x_seen);
 		for my $r (@$bar_rows) {
@@ -3299,7 +3394,13 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 
 		my @data = map { { x => $_, bar_val => $bar_map{$_}, line_val => $line_map{$_} } }
 		           @x_order;
-		$title ||= "$bar_col and $line_col by $x_col";
+		# Sum keeps the columns in the title because that is what the card has
+		# always said; count needs no column, so it reads as the tally it is.
+		$title ||= ($bar_m->{fn} eq 'sum')
+			? "$bar_col and $line_col by $x_col"
+			: ($bar_m->{fn} eq 'count')
+				? "Count by $x_col"
+				: "$bar_m->{fn} of $bar_col and $line_col by $x_col";
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
 			->render_combo_snippet(\@data, {
 				bar_label  => $bar_col,
@@ -3321,16 +3422,19 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 		return { error => "Column not found: $val_col" }
 			unless $count_mode || $col_set{$val_col};
 
+		my $m = _visual_measure($agg_fn, $val_col);
+		return { error => $m->{error} } if $m->{error};
+
 		my $agg = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
 			{ by  => [$cat_col],
-			  fn  => $count_mode ? 'count' : 'sum',
-			  val => $count_mode ? undef   : $val_col,
+			  fn  => $m->{fn},
+			  val => $m->{val},
 			  as  => 'value' },
 		);
 		return { error => 'No plottable data' } unless @$agg;
 
-		$title ||= $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
+		$title ||= "$m->{label} by $cat_col";
 		my $scheme = $options->{scheme} // 'tableau10';
 		# The snippet takes one row per tile as { path, value }, the shape the
 		# treemap page builds; a [label, value] pair is not a path and croaks.

@@ -694,6 +694,26 @@
 				<label class="ac-field" data-for="bar pie stacked treemap heatmap" data-label="Value">Value
 					<select id="ac-value"></select>
 				</label>
+				<label class="ac-field" data-for="bar pie stacked treemap heatmap combo" data-label="Aggregate">Aggregate
+					<select id="ac-agg">
+						<option value="">Sum (default)</option>
+						<option value="avg">Average</option>
+						<option value="min">Min</option>
+						<option value="max">Max</option>
+						<option value="count_distinct">Count distinct</option>
+						<option value="median">Median</option>
+						<option value="stdev">Std dev</option>
+						<option value="first">First</option>
+						<option value="last">Last</option>
+						<option value="range">Range</option>
+						<option value="p">Percentile&#x2026;</option>
+					</select>
+					<span class="ac-note">Count (no column needed) as the value counts rows instead.</span>
+				</label>
+				<label class="ac-field" data-for="bar pie stacked treemap heatmap combo" data-agg-for="p" data-label="Percentile">Percentile
+					<input id="ac-agg-p" type="number" min="1" max="100" step="1" value="95"
+					       title="Percentile level, 1 to 100" aria-label="Percentile level">
+				</label>
 				<label class="ac-field" data-for="line scatter heatmap combo" data-label="X column">X column
 					<select id="ac-x"></select>
 				</label>
@@ -2044,6 +2064,8 @@ menu, so it reads without the menu being opened.</p>
 		var catSel   = document.getElementById('ac-cat');
 		var seriesSel = document.getElementById('ac-series');
 		var valueSel = document.getElementById('ac-value');
+		var aggSel   = document.getElementById('ac-agg');
+		var pctInp   = document.getElementById('ac-agg-p');
 		var xSel     = document.getElementById('ac-x');
 		var ySel     = document.getElementById('ac-y');
 		var barSel   = document.getElementById('ac-bar-value');
@@ -2096,10 +2118,36 @@ menu, so it reads without the menu being opened.</p>
 		fill(mapLatSel, choose.concat(numCols));
 		fill(mapLonSel, choose.concat(numCols));
 
+		/* The views whose value column is aggregated, and so the only ones that
+		 * can use an aggregate function of their own. */
+		var AGG_KINDS = { bar: 1, pie: 1, stacked: 1, treemap: 1, heatmap: 1, combo: 1 };
+
+		/* A percentile is written into the function name -- p95 -- because a card
+		 * stores one key for its aggregate, as a pivot measure does.  Reading the
+		 * level back clamps it, so the panel cannot build a name the server would
+		 * have to refuse. */
+		function percentileLevel(input) {
+			var n = parseInt(input.value, 10);
+			if (!isFinite(n)) return 95;
+			return Math.min(100, Math.max(1, n));
+		}
+
+		function aggregateValue(kind) {
+			if (!aggSel || !AGG_KINDS[kind]) return '';
+			if (aggSel.value === 'p') return 'p' + percentileLevel(pctInp);
+			return aggSel.value;   /* '' is the default: sum, or count rows */
+		}
+
 		function syncFields() {
 			var kind = kindSel.value;
+			var agg  = aggSel ? aggSel.value : '';
 			Array.prototype.forEach.call(panel.querySelectorAll('.ac-field[data-for]'), function (field) {
-				field.hidden = field.getAttribute('data-for').split(/\s+/).indexOf(kind) < 0;
+				var shown = field.getAttribute('data-for').split(/\s+/).indexOf(kind) >= 0;
+				/* A field may also depend on the aggregate: the percentile level
+				 * is wanted only while Percentile is the chosen function. */
+				var only = field.getAttribute('data-agg-for');
+				if (shown && only && agg !== only) shown = false;
+				field.hidden = !shown;
 			});
 		}
 
@@ -2146,6 +2194,7 @@ menu, so it reads without the menu being opened.</p>
 			if (!panel.hidden) positionPanel();
 		}, { passive: true });
 		kindSel.addEventListener('change', syncFields);
+		if (aggSel) aggSel.addEventListener('change', syncFields);
 		cancelBtn.addEventListener('click', function () { closePanel(1); });
 		panel.addEventListener('keydown', function (e) {
 			if (e.key === 'Escape') { e.preventDefault(); closePanel(1); }
@@ -2679,6 +2728,10 @@ menu, so it reads without the menu being opened.</p>
 			var options = {};
 			var title  = titleInp.value.trim();
 
+			/* Empty means the default the card has always had: count the rows when
+			 * no value column is named, sum it when one is. */
+			var agg = aggregateValue(kind);
+
 			if (kind === 'table') {
 				var cols = Array.prototype.map.call(tableSel.selectedOptions, function (o) { return o.value; });
 				if (cols.length) encode.columns = cols;
@@ -2721,6 +2774,8 @@ menu, so it reads without the menu being opened.</p>
 				}
 			}
 
+			if (agg) encode.agg = agg;
+
 			var payload = {
 				kind: kind, encode: encode, options: options,
 				/* The canvas's own URL state, so a card added while a chart is
@@ -2754,6 +2809,9 @@ menu, so it reads without the menu being opened.</p>
 
 				appendCard(json);
 				form.reset();
+				/* The reset returns the aggregate to Sum, so the level box it was
+				 * showing has to go with it. */
+				syncFields();
 				addBtn.disabled = false;
 				btn.disabled = false;
 				addBtn.textContent = 'Add to canvas';
