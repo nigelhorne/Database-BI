@@ -987,14 +987,16 @@ status so cron can act on it:
 
     ./script/bi-alert --analysis ID [--threshold MEASURE:OP:VALUE] \
                       [--suppress DURATION] [--state-file PATH] [--recovery] \
+                      [--notify-cmd COMMAND] \
                       [--data-dir DIR] [--model-dir DIR] [--dry-run]
 
-The digest goes to STDOUT and nothing is sent: pipe it into mail, a webhook or
-a ticket creator if the alert has to leave the machine.  Exit status is 0 when
-no threshold is crossed, 1 when one is, 2 on error, and 3 when a crossing that
-was announced has ended and C<--recovery> was asked to announce that.  There is
-no delivery to suppress, so C<--dry-run> is accepted for compatibility only and
-changes neither the output nor the exit status.
+The digest goes to STDOUT and nothing leaves the machine unless
+C<--notify-cmd> says where: otherwise pipe it into mail, a webhook or a ticket
+creator yourself.  Exit status is 0 when no threshold is crossed, 1 when one
+is, 2 on error, and 3 when a crossing that was announced has ended and
+C<--recovery> was asked to announce that.  C<--dry-run> reports without
+recording anything against the throttle and without running the delivery
+command.
 
 C<--suppress> throttles a threshold that stays crossed, so a condition that is
 still true on the next cron run is not reported as news again: it takes a
@@ -1025,6 +1027,24 @@ that an incident has ended rather than that a threshold was never crossed.  It
 is therefore said once per crossing and only for a crossing somebody was told
 about, which is also why C<--recovery> keeps that file even with no C<--suppress>
 to throttle.  The recovery names both dates -- C<crossed since> and C<cleared>.
+
+C<--notify-cmd> delivers the announcement itself, so a cron line is one command
+rather than a shell wrapper around this one:
+
+    ./script/bi-alert --analysis abc123 --threshold count:gt:1000 --suppress 1h \
+        --recovery --notify-cmd 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com'
+
+The command runs once, through the shell, and only when something is
+announced: a crossing (exit 1), or its end with C<--recovery> (exit 3).  A
+suppressed repeat, an uncrossed threshold, an error and a C<--dry-run> run it
+not at all.  The run's text arrives on standard input, and three variables say
+what it is -- C<BI_ALERT_EVENT> (C<crossed> or C<recovery>), C<BI_ALERT_SUBJECT>
+(the verdict line, ready for C<mail -s>) and C<BI_ALERT_MESSAGE_FILE> (the same
+text in a file, for a command that has to post a body:
+C<curl -d @$BI_ALERT_MESSAGE_FILE ...>).  A delivery that fails is reported on
+STDERR and leaves the exit status alone, but the crossing is not recorded, so
+the next run announces it again rather than the alert being lost for the rest
+of the period.
 
 C<script/database-bi> is the web application launcher: run with no arguments it
 starts the reloading development server, with a command word it runs that
