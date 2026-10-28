@@ -4921,6 +4921,12 @@ function biDetectColType(colName) {
     // view is showing rather than the ones a frozen date pair would match.
     if (urlP.get('range')) params.set('range', urlP.get('range'));
     if (urlP.get('rcol'))  params.set('rcol',  urlP.get('rcol'));
+    // The time bucket an aggregated view was showing travels the same way, so
+    // the saved file holds the bucket column the page drew rather than the raw
+    // timestamps behind it.
+    ['span', 'tcol', 'as'].forEach(function (k) {
+      if (urlP.get(k)) params.set(k, urlP.get(k));
+    });
 
     fetch('/export', {
       method: 'POST',

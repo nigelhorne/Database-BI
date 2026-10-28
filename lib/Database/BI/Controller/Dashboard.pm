@@ -117,6 +117,8 @@ Readonly my %MESSAGES => (
 	error_topn_col              => 'Top-N column "%s" is not a measure alias in this view',
 	warn_calc_undef             => 'Calculated field "%s" returned undef for %d row(s)',
 	error_date_pattern          => 'Unsupported date format pattern "%s"; allowed: %%m/%%d/%%Y, %%d/%%m/%%Y, %%d-%%b-%%Y',
+	error_date_time_pattern     => 'Unsupported time format pattern "%s"; allowed: %%H:%%M, %%H:%%M:%%S',
+	error_date_as               => 'as= must be "timestamp" or absent; "%s" is neither',
 	error_analysis_not_found    => 'Analysis "%s" not found',
 	error_analysis_invalid      => 'Invalid analysis spec: %s',
 	error_analysis_version      => 'Unsupported analysis version %s; please upgrade the application',
@@ -154,6 +156,12 @@ Readonly my %MESSAGES => (
 	error_agg_fn                => 'Unknown aggregate function "%s"; expected one of: %s, or p1 to p100 for a percentile',
 	error_range_name            => 'Unknown time range "%s"; expected one of: %s',
 	error_range_column          => 'A time range is applied to one column: add rcol=<column> to the URL',
+	error_span_interval         => 'Unknown time bucket "%s" for span=; use a count and one of s, m, h, d, w, mon, q or y, for example 1h or 15m',
+	error_span_no_column        => 'A time bucket needs one column to bucket: add tcol=<column>, or name exactly one of the dimensions this page already takes',
+	error_span_tcol_orphan      => 'tcol=%s names the column to bucket, but span=<interval> is missing',
+	error_span_tcol_unknown     => 'Column "%s" is not in this view, so there is nothing to bucket',
+	error_span_conflict         => 'The bucket column "%s" is already defined by a calculated field; add as=<name> to bucket under a name of its own',
+	error_span_name             => 'Bucket column name "%s" is not a usable column name; add as=<name>',
 );
 
 # Maximum accepted upload body size.  Enforced both here (application layer)
@@ -288,9 +296,13 @@ Readonly my @TIME_RANGES => (
 );
 Readonly my %TIME_RANGE => map { $_->{name} => $_ } @TIME_RANGES;
 
-# Allowed strptime-style date format patterns for the /dates/save endpoint.
+# Allowed strptime-style date format patterns for the /dates/save endpoint, and
+# the two time patterns that may be given beside one of them for a column that
+# holds a clock time as well as a date.
 Readonly my %ALLOWED_DATE_PATTERNS => map { $_ => 1 }
 	qw(%m/%d/%Y %d/%m/%Y %d-%b-%Y);
+Readonly my %ALLOWED_TIME_PATTERNS => map { $_ => 1 }
+	qw(%H:%M %H:%M:%S);
 
 # Default share token lifetime: 30 days in seconds.
 Readonly my $SHARE_TOKEN_TTL => 30 * 86_400;
@@ -1764,6 +1776,16 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# source file size (the same as the dedup path already accepted).
 	my $all = $source->selectall_arrayref(@sort_args) // [];
 
+	# A stored date or time pattern is what makes a patterned column comparable
+	# with the ISO bounds a relative time range carries, and it belongs to stage 2
+	# of the pipeline -- before the filters of stage 5.  The rest of the
+	# application reaches the filters through that order already; this path, which
+	# filters before it paginates, is the one call site that would otherwise
+	# compare the reader's format, so it normalises first, on exactly the rows the
+	# specs are about to be applied to.
+	$self->_apply_date_normalization($all, [_get_columns($source, $all)],
+		$self->_calc_spec_key);
+
 	$all = _apply_filter_spec($all, $_) for @f_specs;
 
 	if ($dedup) {
@@ -1840,12 +1862,20 @@ sub _csv_row {
 #          logical view.  The caller must apply | html in TT to escape & as &amp;.
 # Entry:   All args non-undef; spec arrays may be empty.
 # Exit:    Returns a relative URL string beginning with '/export'.
-sub _build_export_url :Protected ($self, $left_spec, $join_specs, $filter_specs, $combine_specs = undef, $dedup = 0) {
+sub _build_export_url :Protected ($self, $left_spec, $join_specs, $filter_specs, $combine_specs = undef, $dedup = 0, $extra = undef) {
 	my $u = '/export?l=' . url_escape($left_spec);
 	$u .= '&j=' . url_escape($_) for @$join_specs;
 	$u .= '&c=' . url_escape($_) for @{ $combine_specs // [] };
 	$u .= '&f=' . url_escape($_) for @$filter_specs;
 	$u .= '&d=1' if $dedup;
+	# Parameters that shape the columns rather than the rows travel with the
+	# export, so the file holds the column the page shows -- a time bucket, for
+	# one -- and not the raw values behind it.
+	for my $key (sort keys %{ $extra // {} }) {
+		my $val = $extra->{$key};
+		next unless defined $val && length $val;
+		$u .= "&$key=" . url_escape($val);
+	}
 	return $u;
 }
 
@@ -2023,6 +2053,96 @@ sub _run_pipeline_source :Protected ($self) {
 	return ($src, $records, \@columns, $left_label);
 }
 
+# _calc_spec_key($self) -> $spec
+#
+# Purpose: The key the stored calc fields, groups and date patterns are filed
+#          under for this request: the l= spec, or the table a /view route is
+#          addressed by, which names its spec explicitly because it has no l=.
+sub _calc_spec_key :Protected ($self) {
+	my $l = $self->param('l') // '';
+	return $l if length $l;
+	my $table = $self->stash('table');
+	return (defined $table && $table =~ /$TABLE_NAME_RE/) ? "table:$table" : '';
+}
+
+# _span_calc_spec($self, \@columns, @dimension_params) -> \%span | undef
+#
+# Purpose: Turn span=/tcol=/as= into the c= calculated field a reader could have
+#          typed, so bucketing a dimension is one code path with one set of
+#          semantics (Calc.pm's span()) rather than a second pipeline of its
+#          own, and so a bucket works on every route at once.
+# Entry:   \@columns -- the source's columns, so the column to bucket and the
+#                       name of the bucket are both checked before anything is
+#                       evaluated.
+#          @dimension_params -- the params that name this route's dimension
+#                       (cat, x, rows, ...), in the order they should be tried.
+# Exit:    undef when the request says nothing about bucketing.  Otherwise
+#          { calc => [ '<col>_span:span(<col>,<interval>)' ],
+#            src  => <column to bucket>, col => '<bucket column>' },
+#          or { error => <message> } for a request that cannot be honoured,
+#          which the caller renders as a 400 rather than drawing a chart of
+#          something the reader did not ask for.
+# Notes:   An ambiguous dimension is refused, not guessed: with rows=at,region
+#          only tcol= knows which column the reader meant, and bucketing the
+#          wrong one silently is worse than an error that says so.  A name that
+#          is already a column, or already a calculated field, is refused too,
+#          because two definitions of one name is the bug that rule prevents.
+sub _span_calc_spec :Protected ($self, $columns, @dimension_params) {
+	my $interval = $self->param('span') // '';
+	my $tcol     = $self->param('tcol') // '';
+	my $as       = $self->param('as')   // '';
+	return undef unless length($interval) || length($tcol);
+
+	return { error => $self->_i18n('error_span_tcol_orphan', $tcol) }
+		if length($tcol) && !length($interval);
+
+	require Database::BI::Calc;
+	return { error => $self->_i18n('error_span_interval', $interval) }
+		unless Database::BI::Calc::span_interval($interval);
+
+	my %col_set = map { $_ => 1 } @$columns;
+
+	my $col;
+	if (length $tcol) {
+		return { error => $self->_i18n('error_span_tcol_unknown', $tcol) }
+			unless $col_set{$tcol};
+		$col = $tcol;
+	} else {
+		my @named = grep { length }
+			map { split /,/, ($self->param($_) // ''), -1 } @dimension_params;
+		return { error => $self->_i18n('error_span_no_column') } unless @named == 1;
+		$col = $named[0];
+	}
+
+	# A bucket column is written in the calc grammar, so spaces in the column's
+	# name arrive as underscores, exactly as a reader typing the expression
+	# would have to write them.
+	(my $expr_col = $col) =~ s/ /_/g;
+	my $name = length($as) ? $as : "${expr_col}_span";
+	return { error => $self->_i18n('error_span_name', $name) }
+		unless $name =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/;
+
+	my $taken = $col_set{$name} || do {
+		my $found  = 0;
+		my $sk     = $self->_calc_spec_key;
+		my $stored = length($sk) ? (($self->_read_models)->{fields}{$sk} // {}) : {};
+		$found = 1 if $stored->{$name};
+		for my $spec (@{ $self->every_param('c') // [] }) {
+			next if $spec =~ /\A(?:path:|table:|url:|redis:)/i;
+			my ($n) = $spec =~ /\A([A-Za-z_][A-Za-z0-9_]*):/;
+			$found = 1 if defined $n && $n eq $name;
+		}
+		$found;
+	};
+	return { error => $self->_i18n('error_span_conflict', $name) } if $taken;
+
+	return {
+		src  => $col,
+		col  => $name,
+		calc => [ "$name:span($expr_col,'$interval')" ],
+	};
+}
+
 # _apply_date_normalization($self, $records, \@columns, $spec_key) -> void
 #
 # Reads date_patterns from .bi/models.json for $spec_key and normalises each
@@ -2050,6 +2170,32 @@ sub _apply_date_normalization :Protected ($self, $records, $columns, $spec_key) 
 			$row->{$col} = $iso if defined $iso;
 		}
 	}
+}
+
+# _extend_row($row, $name, $value) -> $row | \%copy
+#
+# Purpose: Write a virtual column into a row that came out of a source.  A row
+#          from a SQL-backed source arrives with its key set locked (the backend
+#          locks it so that reading a column that is not there fails loudly),
+#          and a locked row cannot take a new key in place: the assignment raises
+#          "Attempt to access disallowed key".  Such a row is replaced by an
+#          unlocked copy of itself carrying the new cell, which the rest of the
+#          pipeline reads exactly as it reads any other row.
+# Entry:   $row -- the row hashref; $name -- the column to add; $value -- its value.
+# Exit:    $row itself when it can take the key (already present, or writable),
+#          otherwise a new hashref.
+# Notes:   Only a *new* key is a problem -- writing a key a locked row already
+#          has is allowed -- so the common case (a CSV-backed source, and any
+#          repeated evaluation) copies nothing.
+sub _extend_row {
+	my ($row, $name, $value) = @_;
+	return $row if ref $row ne 'HASH';
+	require Hash::Util;
+	unless (Hash::Util::hashref_locked($row)) {
+		$row->{$name} = $value;
+		return $row;
+	}
+	return { %$row, $name => $value };
 }
 
 # _apply_calc_fields($self, $records, \@columns, \%extra) -> ($records, \@columns)
@@ -2123,13 +2269,16 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 				if $calc->has_error;
 
 			my $undef_count = 0;
-			for my $row (@{$records}) {
+			for my $i (0 .. $#$records) {
+				my $row = $records->[$i];
 				my $val = $calc->evaluate($row);
+				$undef_count++ unless defined $val;
 				# Store '(unparseable)' rather than undef so that pivot/bar
 				# grouping (which skips empty-string keys) keeps these rows in a
 				# visible '(unparseable)' bucket rather than silently dropping them.
-				$row->{$name} = defined $val ? $val : '(unparseable)';
-				$undef_count++ unless defined $val;
+				# See _extend_row for why the row may have to be replaced.
+				$records->[$i] = _extend_row($row, $name,
+					defined $val ? $val : '(unparseable)');
 			}
 			if ($undef_count) {
 				$self->app->log->warn(
@@ -2164,9 +2313,11 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 						}
 					}
 					my $vcol = "${col}_group";
-					for my $row (@{$records}) {
-						my $v = $row->{$col} // '';
-						$row->{$vcol} = $val2group{$v} // '(other)';
+					for my $i (0 .. $#$records) {
+						my $row = $records->[$i];
+						my $v   = $row->{$col} // '';
+						$records->[$i] = _extend_row(
+							$row, $vcol, $val2group{$v} // '(other)');
 					}
 					push @cols, $vcol unless grep { $_ eq $vcol } @cols;
 					# Record group column as virtual.
@@ -4022,16 +4173,26 @@ sub _run_export_pipeline :Protected ($self) {
 	my (undef, $records, $columns, $left_label) = $self->_run_pipeline_source;
 	return () unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	# The export honours span= like the page it was linked from, and accepts the
+	# dimension params of the aggregating routes so a chart's own URL can be
+	# pasted into /export and mean the same thing.
+	my $span = $self->_span_calc_spec($columns, 'cat', 'x', 'rows', 'group');
+	if ($span && $span->{error}) {
+		$self->render(text => $span->{error}, status => 400);
+		return ();
+	}
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) {
 		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
 		$self->render(text => $e, status => 400);
 		return ();
 	}
 
-	my @columns = @{ $columns // [] };
-
 	($records, $columns) = _reduce_records($self, $records, $columns);
+
+	my @columns = @{ $columns // [] };
 
 	$records = _dedup_records($records, \@columns) if $self->param('d');
 
@@ -4343,8 +4504,17 @@ sub view ($self) {
 	# action is addressed by :table rather than l=, so name the spec explicitly
 	# when looking up the fields saved for it; otherwise a saved column would
 	# appear in every chart and not in the table it was made from.
+	# span= adds a bucket column to the table rather than grouping it: a table has
+	# no dimension to bucket *into*, so the reader gets the column and the raw
+	# value beside it.  See _span_calc_spec.
+	my $span = $self->_span_calc_spec(\@columns, ());
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+
 	my ($calc_records, $calc_columns) = eval {
-		$self->_apply_calc_fields($records, \@columns, { spec_key => "table:$table" })
+		$self->_apply_calc_fields($records, \@columns, {
+			spec_key => "table:$table",
+			($span ? (calc => $span->{calc}) : ()),
+		})
 	};
 	if ($@) {
 		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
@@ -4375,7 +4545,9 @@ sub view ($self) {
 		dedup            => $dedup,
 		back_url         => _safe_back_url($self->param('back2')),
 		back_label       => $self->param('back2_label') // 'Back',
-		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup),
+		export_url       => $self->_build_export_url("table:$table", [], $filter_specs, undef, $dedup, {
+			span => $self->param('span'), tcol => $self->param('tcol'), as => $self->param('as'),
+		}),
 		page             => $page,
 		per_page         => $per_page,
 		has_next         => $has_next,
@@ -5902,6 +6074,7 @@ sub graph_view ($self) {
 	my $x_col      = $self->param('x')      // '';
 	my $y_col      = $self->param('y')      // '';
 	my $series_col = $self->param('series') // '';
+	my $agg_fn     = lc($self->param('agg') // '');
 	my $back       = _safe_back_url($self->param('back')) // '/';
 	my $back2      = _safe_back_url($self->param('back2'));
 	my $back2_lbl  = $self->param('back2_label') // '';
@@ -5909,14 +6082,28 @@ sub graph_view ($self) {
 	return $self->render(text => 'Missing x or y column parameter', status => 400)
 		unless length($x_col) && length($y_col);
 
+	# ?agg= is the measure vocabulary the pivot and the stats page already use,
+	# with no new names: a misspelt one is refused here rather than drawn as
+	# nothing.  Absent, this route behaves exactly as it always has.
+	if (length $agg_fn && !_measure_fn_ok($agg_fn)) {
+		return $self->render(
+			text   => $self->_i18n('error_agg_fn', $agg_fn, join(' ', @MEASURE_FNS)),
+			status => 400,
+		);
+	}
+
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	my $span = $self->_span_calc_spec($columns, 'x');
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	# Apply f= filters (pre-filter before building pairs, same as _run_export_pipeline).
+	# Pre-filter before building pairs, same as _run_export_pipeline.
 	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
@@ -5927,6 +6114,103 @@ sub graph_view ($self) {
 	if (length $series_col) {
 		return $self->render(text => "Column not found: $series_col", status => 400)
 			unless $col_set{$series_col};
+	}
+
+	# The x axis is the dimension span= buckets.
+	$x_col = $span->{col} if $span;
+
+	# --- Aggregated path: ?agg= plots one point per group of the x axis rather
+	# than one per row, which is what turns a bucketed x into a timechart. ---
+	if (length $agg_fn) {
+		my $m = _visual_measure($agg_fn, $y_col);
+		return $self->render(text => $m->{error}, status => 400) if $m->{error};
+
+		my $agg_rows = $self->_grouped_totals(
+			{ source => $src, records => $records },
+			{
+				by  => [ length($series_col) ? ($x_col, $series_col) : ($x_col) ],
+				fn  => $m->{fn},
+				val => $m->{val},
+				as  => 'value',
+			},
+		);
+
+		my (%value_of, %series_seen, @series_order, %bucket_seen, @bucket_order);
+		for my $row (@$agg_rows) {
+			my $bucket = _decode_cell($row->{$x_col} // '');
+			next unless length $bucket;
+			push @bucket_order, $bucket unless $bucket_seen{$bucket}++;
+			my $name = length($series_col) ? _decode_cell($row->{$series_col} // '') : '';
+			next if length($series_col) && !length $name;
+			push @series_order, $name unless $series_seen{$name}++;
+			$value_of{$bucket}{$name} = $row->{value};
+		}
+
+		# Buckets in label order: the ISO labels a time bucket produces sort
+		# chronologically as strings, which is why they are ISO.
+		my @buckets = sort @bucket_order;
+		my @series  = sort @series_order;
+		my $title   = "$m->{label} by $x_col" . (length($series_col) ? " and $series_col" : '');
+
+		require HTML::D3;
+		my ($chart_html, $point_count, @series_data);
+		if (length $series_col) {
+			@series_data = map {
+				my $name = $_;
+				my @points = map {
+					defined $value_of{$_}{$name}
+						? { label => $_, value => $value_of{$_}{$name} } : ()
+				} @buckets;
+				@points ? { name => $name, data => \@points } : ();
+			} @series;
+			return $self->render(
+				text   => 'No plottable data: no rows have valid numeric values in the Y column.',
+				status => 200,
+			) unless @series_data;
+			$point_count = scalar @series_data;
+			$chart_html = HTML::D3->new(title => $title, width => 1100, height => 580)
+				->render_multi_series_line_chart_snippet(\@series_data, { animated => 1 })->{html};
+		} else {
+			my @pairs = map {
+				defined $value_of{$_}{''} ? [ $_, $value_of{$_}{''} ] : ()
+			} @buckets;
+			return $self->render(
+				text   => 'No plottable data: no rows have valid numeric values in the Y column.',
+				status => 200,
+			) unless @pairs;
+			$point_count = scalar @pairs;
+			$chart_html = HTML::D3->new(title => $title, width => 1100, height => 580)
+				->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 })->{html};
+		}
+		utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
+
+		my %chart_spec = (
+			kind   => 'graph',
+			title  => $title,
+			encode => {
+				x => $x_col, y => $y_col,
+				(length($series_col) ? (series => $series_col) : ()),
+				agg => $m->{fn},
+			},
+		);
+		my ($platform, $language) = $self->_resolve_template;
+		my ($source_url, $source_accessed) = $self->_url_attribution;
+		return $self->render(
+			handler          => 'tt',
+			template         => "$platform/$language/graph",
+			format           => 'html',
+			title            => $title,
+			chart_html       => $chart_html,
+			chart            => \%chart_spec,
+			chart_json       => $self->_chart_json(\%chart_spec),
+			back_url         => ($back2 // $back),
+			back_label       => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
+			($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
+			point_count      => $point_count,
+			source_url       => $source_url,
+			source_accessed  => $source_accessed,
+			language         => $language,
+		);
 	}
 
 	# --- Multi-series path: ?series=<col> groups records into one line per value ---
@@ -6092,10 +6376,14 @@ sub pie_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	my $span = $self->_span_calc_spec($columns, 'cat');
+	return $self->render(text => $span->{error}, status => 400)
+		if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	# Apply f= filters.
 	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
@@ -6106,6 +6394,8 @@ sub pie_view ($self) {
 	my $count_mode = ($val_col eq '__count__');
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
+
+	$cat_col = $span->{col} if $span;
 
 	# Detect the currency symbol from the first non-empty source value.
 	# This is a display concern; derive from the pre-filtered source rows so the
@@ -6278,10 +6568,14 @@ sub heatmap_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	my $span = $self->_span_calc_spec($columns, 'x');
+	return $self->render(text => $span->{error}, status => 400)
+		if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	# Apply f= filters.
 	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
@@ -6291,6 +6585,9 @@ sub heatmap_view ($self) {
 		unless $col_set{$y_col};
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		if length($val_col) && !$col_set{$val_col};
+
+	# A heatmap's time dimension is its x axis, which is the one span= buckets.
+	$x_col = $span->{col} if $span;
 
 	# Collect first-seen axis order from the filtered source rows.
 	# The aggregate path returns groups ordered by (x,y) ascending, which
@@ -6446,10 +6743,17 @@ sub bar_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	# span= buckets the category column by expanding into the calculated field a
+	# reader could have typed, so the buckets come from the same arithmetic a
+	# ?c= definition would use.  See _span_calc_spec.
+	my $span = $self->_span_calc_spec($columns, 'cat');
+	return $self->render(text => $span->{error}, status => 400)
+		if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
-	# Apply f= filters.
 	($records, $columns) = _reduce_records($self, $records, $columns);
 
 	my %col_set = map { $_ => 1 } @{$columns};
@@ -6460,6 +6764,9 @@ sub bar_view ($self) {
 	my $count_mode = ($val_col eq '__count__' || !length($val_col));
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
+
+	# The chart groups by the bucket column the request asked for, if it did.
+	$cat_col = $span->{col} if $span;
 
 	# Aggregate via _grouped_totals (push path or Perl fold).
 	my $agg_rows = $self->_grouped_totals(
@@ -6973,13 +7280,17 @@ sub pivot_view ($self) {
 	return $self->render(text => 'Could not open data source', status => 404)
 		unless defined $records;
 
+	# span= buckets one dimension, which for a pivot is one of the rows= columns;
+	# the dimension itself may be any of them, so with more than one it is tcol=
+	# that says which.  See _span_calc_spec.
+	my $span = $self->_span_calc_spec($columns, 'rows');
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+
 	# Calculated fields (?c=name:expr) -- evaluated before aggregation so calc
 	# columns are available as row/col dimensions and measure columns.
-	{
-		my $err;
-		eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
-		if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
-	}
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
+	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	($records, $columns) = _reduce_records($self, $records, $columns);
 
@@ -6990,6 +7301,11 @@ sub pivot_view ($self) {
 			text   => $self->_i18n('error_pivot_dim_not_found', $dim),
 			status => 400,
 		) unless $col_set{$dim};
+	}
+
+	if ($span) {
+		@rows = map { $_ eq $span->{src} ? $span->{col} : $_ } @rows;
+		@cols = map { $_ eq $span->{src} ? $span->{col} : $_ } @cols;
 	}
 
 	for my $m (@measures) {
@@ -7562,13 +7878,23 @@ sub groups_list ($self) {
 # Date-pattern CRUD  (POST /dates/save, POST /dates/delete, GET /dates/list)
 # ---------------------------------------------------------------------------
 
-# dates_save: POST /dates/save?l=<spec>&col=<col>&pattern=<fmt>
+# dates_save: POST /dates/save?l=<spec>&col=<col>&pattern=<fmt>[&time=<fmt>][&as=timestamp]
 # Stores a strptime-style date normalisation pattern for $col in models.json.
-# Only the three patterns in %ALLOWED_DATE_PATTERNS are accepted.
+# Only the three patterns in %ALLOWED_DATE_PATTERNS are accepted, and only the
+# two in %ALLOWED_TIME_PATTERNS beside one of them.
+#
+# A pattern on its own is stored as the string it has always been, so an
+# existing entry keeps its meaning.  A time, or as=timestamp, stores the hash
+# shape { date =>, time =>, as => } that Calc::date_normalise reads, and which
+# normalises the column to 'YYYY-MM-DDTHH:MM:SS' -- the shape the date
+# comparisons already read to the second, so a last_24_hours window filters on
+# a column that has a pattern of this kind.
 sub dates_save ($self) {
 	my $spec    = $self->param('l')       // '';
 	my $col     = $self->param('col')     // '';
 	my $pattern = $self->param('pattern') // '';
+	my $time    = $self->param('time')    // '';
+	my $as      = $self->param('as')      // '';
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
@@ -7578,9 +7904,21 @@ sub dates_save ($self) {
 		json   => { error => $self->_i18n('error_date_pattern', $pattern) },
 		status => 400,
 	) unless $ALLOWED_DATE_PATTERNS{$pattern};
+	return $self->render(
+		json   => { error => $self->_i18n('error_date_time_pattern', $time) },
+		status => 400,
+	) if length($time) && !$ALLOWED_TIME_PATTERNS{$time};
+	return $self->render(
+		json   => { error => $self->_i18n('error_date_as', $as) },
+		status => 400,
+	) if length($as) && $as ne 'timestamp';
+
+	my $stored = (length($time) || length($as))
+		? { date => $pattern, (length($time) ? (time => $time) : ()), (length($as) ? (as => $as) : ()) }
+		: $pattern;
 
 	my $models = $self->_read_models;
-	$models->{date_patterns}{$spec}{$col} = $pattern;
+	$models->{date_patterns}{$spec}{$col} = $stored;
 	$self->_write_models($models);
 	$self->render(json => { ok => 1 });
 }
@@ -7605,7 +7943,9 @@ sub dates_delete ($self) {
 }
 
 # dates_list: GET /dates/list?l=<spec>
-# Returns { patterns: { col: pattern, ... } } for $spec.
+# Returns { patterns: { col: pattern, ... } } for $spec, where a pattern is the
+# date-format string it has always been or, for a column that also holds a time,
+# { date =>, time =>, as => }.
 sub dates_list ($self) {
 	my $spec = $self->param('l') // '';
 	return $self->render(json => { error => 'l= required' }, status => 400)
@@ -7802,7 +8142,11 @@ sub stacked_view ($self) {
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	my $span = $self->_span_calc_spec($columns, 'cat');
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	($records, $columns) = _reduce_records($self, $records, $columns);
@@ -7814,6 +8158,8 @@ sub stacked_view ($self) {
 	my $count_mode = (!length $val_col || $val_col eq '__count__');
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
+
+	$cat_col = $span->{col} if $span;
 
 	# Aggregate by [cat, seg] via _grouped_totals to respect the governing
 	# invariant (all numbers from a single path) and to get ascending key order.
@@ -7907,7 +8253,11 @@ sub combo_view ($self) {
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	my $span = $self->_span_calc_spec($columns, 'cat', 'x');
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	($records, $columns) = _reduce_records($self, $records, $columns);
@@ -7916,6 +8266,8 @@ sub combo_view ($self) {
 	return $self->render(text => "Column not found: $x_col",    status => 400) unless $col_set{$x_col};
 	return $self->render(text => "Column not found: $bar_col",  status => 400) unless $col_set{$bar_col};
 	return $self->render(text => "Column not found: $line_col", status => 400) unless $col_set{$line_col};
+
+	$x_col = $span->{col} if $span;
 
 	# Aggregate bar and line measures separately via _grouped_totals so both
 	# use the same path (push or fold) and produce ascending x-axis order.
@@ -8016,7 +8368,11 @@ sub treemap_view ($self) {
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
 
-	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns) };
+	my $span = $self->_span_calc_spec($columns, 'group', 'cat');
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+
+	eval { ($records, $columns) = $self->_apply_calc_fields($records, $columns,
+		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) { (my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//; return $self->render(text => $e, status => 400) }
 
 	($records, $columns) = _reduce_records($self, $records, $columns);
@@ -8027,6 +8383,8 @@ sub treemap_view ($self) {
 	my $count_mode = (!length $val_col || $val_col eq '__count__');
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
+
+	$cat_col = $span->{col} if $span;
 
 	my $agg_rows = $self->_grouped_totals(
 		{ source => $src, records => $records },

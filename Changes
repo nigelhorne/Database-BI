@@ -147,6 +147,59 @@ Revision history for Database-BI
 	  the sum a card gets by not choosing, the percentile with the level field it
 	  shows only then, count left to the value column, and the kinds the picker
 	  is offered to.
+	- Time buckets: a timestamp column can be grouped by the hour, day, week,
+	  month, quarter or year it falls in.  Five new functions in the calc
+	  grammar -- hour(), minute(), second(), epoch() (ISO, epoch seconds, epoch
+	  milliseconds, or a strptime-style pattern) and span(value, '1h') for the
+	  bucket's ISO label -- so a bucket works wherever a calculated field
+	  works: every chart, the pivot, the stats page, the table view, the
+	  exports, a saved canvas and a filter.
+	- span= and tcol= are the sugar for the common case: span=<n><unit> buckets
+	  the dimension the route already takes (cat=, x=, rows=, group=), tcol=
+	  names it where there is none or more than one, and as= names the bucket
+	  column (default <col>_span).  It expands into the calculated field a
+	  reader could have typed, so there is one pipeline and one set of
+	  semantics.  An interval that is not in the vocabulary, a tcol= with no
+	  span=, an unknown column, a name that is already a column and a span=
+	  that disagrees with the reader's own calculated field are each a 400
+	  naming the parameter.
+	- Bucket labels are ISO at the bucket's own resolution, so they sort
+	  chronologically as strings; d, w, mon, q and y come from the local
+	  calendar, so a daylight-saving day is one bucket and a leap day is its own
+	  date.  s, m and h floor the interval out of the epoch, which is the rule
+	  the interval vocabulary states.
+	- GET /graph accepts ?agg= and becomes a timechart: one point per bucket
+	  aggregated with the pivot's measure vocabulary (sum avg min max count
+	  count_distinct median stdev first last range p<N>), with series= still
+	  giving one line per series value.  Without agg= it plots every row as
+	  before.
+	- POST /dates/save takes time= beside pattern= and stores { date, time }
+	  instead of replacing the date pattern, so a column holding 27/10/2026
+	  14:05 is normalised to 2026-10-27T14:05:00 rather than truncated to a
+	  day; /dates/list reports both shapes, and a string stays a date pattern
+	  with no migration.
+	- The table view normalises stored date and time patterns before its
+	  filters run, which is the stage order the other routes already had, so a
+	  relative range selects a patterned timestamp column too.
+	- The export panel's Save export carries span=, tcol= and as= from the URL
+	  it was served with, like range= and rcol=, so a bucketed table exports
+	  the bucket column the page shows.
+	- A SQL-backed source hands its rows out with the key set locked, so adding
+	  a calculated or group column to one raised "Attempt to access disallowed
+	  key".  Such a row is replaced by an unlocked copy carrying the new cell
+	  (_extend_row), which is what makes ?c= -- and therefore span= -- work on
+	  a SQLite source as it always has on a CSV one.
+	- t/time-bucket.t: span(), epoch(), hour(), minute() and second()
+	  table-driven over an in-bucket value, every boundary (the boundary
+	  belongs to the later bucket), a leap day, a DST transition day, month,
+	  quarter, year and week edges, epoch seconds and milliseconds, a custom
+	  pattern and an unparseable value; then the routes -- bar, pivot, pie,
+	  stacked, treemap, combo, heatmap, view and export bucketing their own
+	  dimension, the 400s, /graph?agg= against the same numbers, a stored time
+	  pattern round-tripping through a relative range (last_24_hours with
+	  span=1h giving one bucket per hour, in order, from /bar and /pivot),
+	  push-versus-fold equivalence on a SQLite source and a canvas card
+	  carrying a bucket.
 
 0.017.1	Sun Oct 25 09:23:34 PM EDT 2026
 	[ Bug Fixes ]

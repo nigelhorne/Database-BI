@@ -80,14 +80,21 @@ the pivot's measures use.
 - **Calculated fields** -- virtual columns defined by inline `?c=name:expr`
 URL params or stored persistently via `POST /calc/save`.  Expressions
 support arithmetic, comparison, `IF`, string, numeric, and date
-functions, plus `bin(value,width)` for histogram grouping.  Calc fields
+functions, plus `bin(value,width)` for histogram grouping and `span()` for
+time buckets.  Calc fields
 are applied before aggregation on all chart and pivot routes.
 - **Relative time ranges** -- any data view, chart, pivot or saved canvas can be
 limited to a named window worked out from today -- the last 24 hours, the last
 7, 30 or 90 days, this or last month, quarter or year -- instead of typing
-dates.  The window is resolved on every request (`?range=` with `?rcol=`), so a
-bookmark or a canvas still means the same thing tomorrow, and the filter bar
-disables a window the data cannot answer.
+dates.  The window is resolved on every request (`?range=` with `?rcol=`),
+so a bookmark or a canvas still means the same thing tomorrow, and the filter
+bar disables a window the data cannot answer.
+- **Time buckets** -- a timestamp column can be grouped by the hour, day,
+week, month, quarter or year it falls in, on the page that already groups by
+something else: `?span=1h` on a chart or pivot, `?span=1d&tcol=at` on a table
+view, and `?agg=sum` on `/graph` to turn one point per row into one point per
+bucket.  The bucket is a calculated column (`span(at,'1h')`) like any other,
+so it exports, saves with a canvas and filters the same way as a calc field.
 - **Saved canvases** -- the "Save as Canvas" panel saves the current data
 configuration as a named multi-visual canvas (`/a/:id`).  Visuals are
 arranged on a 12-column grid: drag a card by its header to any free cell
@@ -685,12 +692,21 @@ perl Makefile.PL
 - `GET /dates/list`
 
     Returns `{ patterns: { col: pattern } }` for stored date-normalisation
-    patterns.  Accepts `?l=<spec>`.
+    patterns.  Accepts `?l=<spec>`.  A column with only a date pattern is
+    reported as the pattern string it has always been; a column with a time
+    part as well is reported as `{ date, time }` (plus `as` when the column is
+    a timestamp).
 
 - `POST /dates/save`
 
-    Saves a date-normalisation pattern for a column.  Body: `l=&col=&pattern=`.
-    Supported patterns: `%m/%d/%Y` (US), `%d/%m/%Y` (EU), `%d-%b-%Y` (DD-Mon-YYYY).
+    Saves a date-normalisation pattern for a column.  Body: `l=&col=&pattern=`,
+    plus optional `time=&as=`.  Supported patterns: `%m/%d/%Y` (US),
+    `%d/%m/%Y` (EU), `%d-%b-%Y` (DD-Mon-YYYY).  With `time=` (`%H:%M` or
+    `%H:%M:%S`) the column is normalised to a timestamp,
+    `2026-10-27T14:05:00`, rather than a date, which is what the timestamp
+    functions and a `last_24_hours` range can then read; `as=` names the column
+    the normalised value is written to (default: the column itself).  Without a
+    time part the stored value is the date pattern string, unchanged.
 
 - `POST /dates/delete`
 
@@ -788,6 +804,54 @@ range with no `rcol=` is a 400 as well.
 On a saved canvas the range narrows every card, and a card added while one is
 active is drawn through it: `query` in `POST /api/analyses/:id/visuals`
 carries `range=`/`rcol=` as it carries `cf=`.
+
+### Time Buckets
+
+A chart groups by a column; `span=` groups by the *time* that column names.
+The bucket is added as a calculated column rather than replacing the value it
+came from, so a bucketed view still has the raw timestamp beside its bucket, and
+so the bucket exports, filters and saves with a canvas like any other column.
+
+```
+GET /bar?l=table:sales&cat=at&val=amount&span=1h
+GET /pivot?l=table:sales&rows=at&m=amount:sum:total&span=1mon
+GET /view/sales?span=1d&tcol=at
+GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum
+GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=avg&series=region
+```
+
+`span=<n><unit>` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`
+or `y` -- `15m`, `6h`, `2d`, `3mon`, `1q` -- and buckets the dimension the
+route already takes (`cat=`, `x=`, `rows=`, `group=`).  Where the route has no
+single dimension, or names more than one (`rows=at,region`), `tcol=` says which
+column is meant; `as=` names the bucket column (default `<col>_span`).  A
+`tcol=` without a `span=`, a column the view does not have, a name that is
+already a column, and a `span=` that disagrees with the reader's own calculated
+field of the same name are each a `400` rather than a silently different
+chart.
+
+The labels are ISO at the bucket's own resolution -- `2026-10-27T14:00:00`,
+`2026-10-27`, `2026-10-01` -- so they sort chronologically as strings and a
+bucketed chart comes out in the right order with no second sort path.  `d`,
+`w`, `mon`, `q` and `y` are worked out from the local calendar, so a
+daylight-saving day is still one day and its bucket is still that date; `s`,
+`m` and `h` floor the interval out of the epoch.  A value that cannot be read
+as a time lands in one visible `(unparseable)` bucket rather than disappearing.
+
+`agg=` turns `/graph` into a timechart: one point per bucket instead of one per
+row, aggregated with the measure vocabulary a pivot uses (`sum`, `avg`, `min`,
+`max`, `count`, `count_distinct`, `median`, `stdev`, `first`, `last`,
+`range`, `p<N>`), with `series=` still giving one line per series value.
+Without `agg=`, `/graph` plots every row exactly as it did before.
+
+The same thing is available by hand, because the bucket is just a calculated
+column: `?c=hour:span(at,'1h')`, then group by `hour`.  The timestamp
+functions are `epoch(v[, fmt])` (ISO, epoch seconds, epoch milliseconds, or a
+pattern), `hour(v)`, `minute(v)`, `second(v)` and `span(v, interval)`.  A
+column that holds `27/10/2026 14:05` needs a time pattern first --
+`POST /dates/save` with `time=` -- and is then read as `2026-10-27T14:05:00`.
+That normalisation happens before the filters, so a `range=` window selects
+those rows too.
 
 ## Configuration
 
@@ -1050,13 +1114,9 @@ aggregate/measure layer) are no longer listed.
 
 - **Multi-sheet XLSX** (Medium) -- `_detect_file_info` reads only the
 first worksheet.  A `?sheet=` URL param with a sheet-name picker would
-expose the full workbook.- **`between` and `in (a,b,c)` filter operators** (Low) -- Would
-    reduce multi-filter chains for common range and set queries.
-- **Time-of-day windows** (Low) -- `last_24_hours` and any range ending today
-    are measured against a column's own time when it has one.  Ranges that are
-    named by the clock are not: there is no "the last hour" or "this morning"
-    in the vocabulary, and hour-granular binning would need a time column
-    declared as such rather than inferred.
+expose the full workbook.
+- **`between` and `in (a,b,c)` filter operators** (Low) -- Would
+reduce multi-filter chains for common range and set queries.
 - **SSE streaming for large join results** (Low) -- The join pipeline
 blocks the HTTP response until all rows are assembled.  Mojolicious supports
 server-sent events, which could progressively stream rows to a JS table

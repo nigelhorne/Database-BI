@@ -401,6 +401,10 @@ Renders a D3.js v7 zoomable line chart of any two columns.  Parameters:
   y=<col>            Y-axis column name (required; must be numeric after stripping
                      currency symbols and commas; accounting-notation negatives
                      like (1,234.56) are handled automatically)
+  span=<n><unit>     bucket x into time buckets (optional; see "Time buckets")
+  agg=<fn>           aggregate y per bucket, which is what makes this a
+                     timechart (optional; default: one point per row)
+  series=<col>       one line per value of this column (optional)
   back=<url>         URL for the second breadcrumb link (optional; default "/")
   back2=<url>        URL for the outermost breadcrumb link when three levels are
                      needed (optional; e.g. /tables?l=... for the schema browser)
@@ -732,12 +736,21 @@ Removes a named value group.  Body: C<l=&col=&group=>.
 =item C<GET /dates/list>
 
 Returns C<{ patterns: { col: pattern } }> for stored date-normalisation
-patterns.  Accepts C<?l=E<lt>specE<gt>>.
+patterns.  Accepts C<?l=E<lt>specE<gt>>.  A column with only a date pattern is
+reported as the pattern string; one with a time part as well is reported as
+C<{ date, time }>, plus C<as> when the normalised value is filed under a name
+of its own.
 
 =item C<POST /dates/save>
 
-Saves a date-normalisation pattern for a column.  Body: C<l=&col=&pattern=>.
-Supported patterns: C<%m/%d/%Y> (US), C<%d/%m/%Y> (EU), C<%d-%b-%Y> (DD-Mon-YYYY).
+Saves a date-normalisation pattern for a column.  Body: C<l=&col=&pattern=>,
+plus optional C<time=> and C<as=>.  Supported patterns: C<%m/%d/%Y> (US),
+C<%d/%m/%Y> (EU), C<%d-%b-%Y> (DD-Mon-YYYY).  With C<time=> (C<%H:%M> or
+C<%H:%M:%S>) the column is normalised to a timestamp, C<2026-10-27T14:05:00>,
+which is what C<epoch()>, C<span()> and a C<last_24_hours> range can read;
+C<as=> names the column the normalised value is written to (default: the
+column itself).  Without a time part the stored value is the date pattern
+string, unchanged, so no existing store needs migrating.
 
 =item C<POST /dates/delete>
 
@@ -833,6 +846,43 @@ range with no C<rcol=> is a 400 as well.
 On a saved canvas the range narrows every card, and a card added while one is
 active is drawn through it: C<query> in C<POST /api/analyses/:id/visuals>
 carries C<range=>/C<rcol=> as it carries C<cf=>.
+
+=head2 Time buckets
+
+The aggregating routes bucket the dimension they already take:
+
+    GET /bar?l=table:sales&cat=at&val=amount&span=1h
+    GET /pivot?l=table:sales&rows=at&m=amount:sum:total&span=1mon
+    GET /view/sales?span=1d&tcol=at
+    GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum&series=region
+
+C<span=> takes a count and one of C<s>, C<m>, C<h>, C<d>, C<w>, C<mon>, C<q>
+or C<y> -- C<15m>, C<6h>, C<2d>, C<3mon>, C<1q> -- and is refused, naming the
+interval and the parameter, when the count is zero or the unit is not one of
+those.  It expands into the calculated field a reader could have typed,
+C<< <col>_span:span(<col>,'1h') >>, so there is one pipeline and one set of
+semantics; C<tcol=> names the column where the route has no single dimension or
+names more than one, and C<as=> names the bucket column.  C<tcol=> without a
+C<span=>, an unknown column, a name that is already a column and a C<span=> that
+disagrees with the reader's own calculated field are each a 400.
+
+Labels are ISO at the bucket's own resolution -- C<2026-10-27T14:00:00>,
+C<2026-10-27>, C<2026-10-01> -- so they sort chronologically as strings and a
+bucketed chart comes out in the right order with no second sort.  C<d>, C<w>,
+C<mon>, C<q> and C<y> are computed from the local calendar, so a daylight-saving
+day is one bucket and a leap day is its own date; C<s>, C<m> and C<h> floor the
+interval out of the epoch.  A value that cannot be read as a time lands in one
+visible C<(unparseable)> bucket rather than disappearing.
+
+C<agg=> on C</graph> is the timechart: one point per bucket, aggregated with
+the measure vocabulary a pivot's C<m=> uses (C<sum>, C<avg>, C<min>, C<max>,
+C<count>, C<count_distinct>, C<median>, C<stdev>, C<first>, C<last>,
+C<range>, C<pE<lt>NE<gt>>).  Without C<agg=> every row is still plotted.
+
+The same bucket is available by hand, because it is a calculated field:
+C<?c=hour:span(at,'1h')>.  The timestamp functions are C<epoch(v[, fmt])>,
+C<hour(v)>, C<minute(v)>, C<second(v)> and C<span(v, interval)>; see
+L<Database::BI::Calc> for the shapes each reads and the local-time rule.
 
 =head1 CONFIGURATION
 
