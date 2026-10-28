@@ -736,6 +736,7 @@ my @CHAPTERS = (
 			'The script remembers the last alert in a small state file, and forgets it when the crossing ends.',
 			'Pass --recovery to be told when the crossing ends as well as when it starts.',
 			'The script can only see a crossing end when it remembers one starting, so --recovery keeps its state file.',
+			'Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.',
 			'Wire the script into a cron job or a monitoring system to get automatic alerts.',
 		],
 		tip   => 'Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error.',

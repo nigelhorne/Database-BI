@@ -89,6 +89,8 @@ Revision history for Database-BI
 	  2026-10-27T14:05:00 and a relative range can filter on that column.
 	- bi-alert --suppress throttles a threshold that stays crossed, and
 	  --recovery announces the end of the crossing once, at exit 3.
+	- bi-alert --notify-cmd delivers an alert or a recovery itself, with the
+	  run's text on STDIN and the verdict in BI_ALERT_SUBJECT.
 	- Internal: _reduce_records takes chips_only, so the callers that pass
 	  already-reduced rows do not run a non-idempotent stage twice.
 

@@ -67,9 +67,9 @@ position become one marker.
 - **Pivot table** -- the "Pivot table" panel builds a crosstab from any
 combination of row dimensions, column dimensions, and measures
 (`sum|avg|min|max|count|count_distinct|median|stdev|first|last|range`, plus
-`p<N>` for the Nth percentile).  The backend aggregates what it can; the rest
-are computed in Perl from each group's values, subtotals and grand total
-included, because a median is not the sum of the medians of its parts.
+`p<N>` for the Nth percentile).  The backend aggregates what it can;
+the rest are computed in Perl from each group's values, subtotals and grand
+total included, because a median is not the sum of the medians of its parts.
 Supports subtotals, HAVING filters, top-N row groups, and direct export to
 CSV, SQLite, JSON, or XLSX.
 - **Column statistics** -- the column-stats button runs `GET /stats`, which
@@ -80,8 +80,7 @@ the pivot's measures use.
 - **Calculated fields** -- virtual columns defined by inline `?c=name:expr`
 URL params or stored persistently via `POST /calc/save`.  Expressions
 support arithmetic, comparison, `IF`, string, numeric, and date
-functions, plus `bin(value,width)` for histogram grouping and `span()` for
-time buckets.  Calc fields
+functions, plus `bin(value,width)` for histogram grouping.  Calc fields
 are applied before aggregation on all chart and pivot routes.
 - **Relative time ranges** -- any data view, chart, pivot or saved canvas can be
 limited to a named window worked out from today -- the last 24 hours, the last
@@ -89,12 +88,6 @@ limited to a named window worked out from today -- the last 24 hours, the last
 dates.  The window is resolved on every request (`?range=` with `?rcol=`),
 so a bookmark or a canvas still means the same thing tomorrow, and the filter
 bar disables a window the data cannot answer.
-- **Time buckets** -- a timestamp column can be grouped by the hour, day,
-week, month, quarter or year it falls in, on the page that already groups by
-something else: `?span=1h` on a chart or pivot, `?span=1d&tcol=at` on a table
-view, and `?agg=sum` on `/graph` to turn one point per row into one point per
-bucket.  The bucket is a calculated column (`span(at,'1h')`) like any other,
-so it exports, saves with a canvas and filters the same way as a calc field.
 - **Saved canvases** -- the "Save as Canvas" panel saves the current data
 configuration as a named multi-visual canvas (`/a/:id`).  Visuals are
 arranged on a 12-column grid: drag a card by its header to any free cell
@@ -214,7 +207,7 @@ perl Makefile.PL
 - `GET /view/:table`
 
     Opens the named table from `data_dir`.  Accepts `?f=col:op:val`
-    (repeatable) to pre-filter results, and `?range=name&rcol=column` to keep
+    (repeatable) to pre-filter results, and `?range=name&>rcol=column` to keep
     only a relative window of rows (see ["Relative time ranges"](#relative-time-ranges)).
 
 - `GET /browse`
@@ -337,6 +330,10 @@ perl Makefile.PL
     y=<col>            Y-axis column name (required; must be numeric after stripping
                        currency symbols and commas; accounting-notation negatives
                        like (1,234.56) are handled automatically)
+    span=<n><unit>     bucket x into time buckets (optional; see "Time buckets")
+    agg=<fn>           aggregate y per bucket, which is what makes this a
+                       timechart (optional; default: one point per row)
+    series=<col>       one line per value of this column (optional)
     back=<url>         URL for the second breadcrumb link (optional; default "/")
     back2=<url>        URL for the outermost breadcrumb link when three levels are
                        needed (optional; e.g. /tables?l=... for the schema browser)
@@ -444,8 +441,8 @@ perl Makefile.PL
     Per-column statistics view.  Returns one row per column: row count, null
     count, distinct count, first and last, and (for numeric columns) min, max,
     range, mean, median, the percentile named by `p=N` and sample standard
-    deviation.  Parameters: `l=<spec>` (required), `f=` filters and `p=N` for
-    the percentile column (1 to 100, default 95).
+    deviation.  Parameters: `l=<spec>` (required), `f=` filters and
+    `p=N` for the percentile column (1 to 100, default 95).
 
 - `GET /scatter`
 
@@ -619,18 +616,18 @@ perl Makefile.PL
     A `kind` that aggregates a value column -- `bar`, `pie`, `stacked`,
     `treemap`, `heatmap` and `combo` -- reads an optional `encode.agg`: the
     function its value column is aggregated with.  It takes `sum` (the default),
-    `avg`, `min`, `max`, `count_distinct`, `median`, `stdev`, `first`, `last`,
-    `range`, or a percentile named `p<N>` from `p1` to `p100` -- the same
-    vocabulary and the same spelling a pivot's `m=` spec uses, so a card can show
-    a median, a spread or a percentile where the chart pages it came from could
-    only sum.  `count` is accepted as well: it counts rows and ignores the value
-    column.  The function is checked whatever the kind is, so a misspelt one is a
-    `400` rather than a chart drawn some other way, as is a function that needs a
-    column (`median`, unlike `count`) when the card names no value column or
-    names the value menu's "Count (no column needed)".  A combo aggregates both
-    its series with the one function.  A card's derived title says which function
-    it used (`median(amount) by region`); a plain sum keeps the title it has
-    always had.
+    `avg`, `min`, `max`, `count_distinct`, `median`, `stdev`, `first`,
+    `last`, `range`, or a percentile named `p<N>` from `p1` to `p100`
+    \-- the same vocabulary and the same spelling a pivot's `m=` spec uses, so a
+    card can show a median, a spread or a percentile where the chart pages it came
+    from could only sum.  `count` is accepted as well: it counts rows and ignores
+    the value column.  The function is checked whatever the kind is, so a misspelt
+    one is a `400` rather than a chart drawn some other way, as is a function that
+    needs a column (`median`, unlike `count`) when the card names no value column
+    or names the value menu's "Count (no column needed)".  A combo aggregates both
+    its series with the one function.  A card's derived title says which function it
+    used (`median(amount) by region`); a plain sum keeps the title it has always
+    had.
 
 - `PATCH /api/analyses/:id/visuals/:visual`
 
@@ -692,20 +689,20 @@ perl Makefile.PL
 
     Returns `{ patterns: { col: pattern } }` for stored date-normalisation
     patterns.  Accepts `?l=<spec>`.  A column with only a date pattern is
-    reported as the pattern string it has always been; a column with a time
-    part as well is reported as `{ date, time }` (plus `as` when the column is
-    a timestamp).
+    reported as the pattern string; one with a time part as well is reported as
+    `{ date, time }`, plus `as` when the normalised value is filed under a name
+    of its own.
 
 - `POST /dates/save`
 
     Saves a date-normalisation pattern for a column.  Body: `l=&col=&pattern=`,
-    plus optional `time=&as=`.  Supported patterns: `%m/%d/%Y` (US),
+    plus optional `time=` and `as=`.  Supported patterns: `%m/%d/%Y` (US),
     `%d/%m/%Y` (EU), `%d-%b-%Y` (DD-Mon-YYYY).  With `time=` (`%H:%M` or
-    `%H:%M:%S`) the column is normalised to a timestamp,
-    `2026-10-27T14:05:00`, rather than a date, which is what the timestamp
-    functions and a `last_24_hours` range can then read; `as=` names the column
-    the normalised value is written to (default: the column itself).  Without a
-    time part the stored value is the date pattern string, unchanged.
+    `%H:%M:%S`) the column is normalised to a timestamp, `2026-10-27T14:05:00`,
+    which is what `epoch()`, `span()` and a `last_24_hours` range can read;
+    `as=` names the column the normalised value is written to (default: the
+    column itself).  Without a time part the stored value is the date pattern
+    string, unchanged, so no existing store needs migrating.
 
 - `POST /dates/delete`
 
@@ -806,55 +803,45 @@ carries `range=`/`rcol=` as it carries `cf=`.
 
 ### Time Buckets
 
-A chart groups by a column; `span=` groups by the *time* that column names.
-The bucket is added as a calculated column rather than replacing the value it
-came from, so a bucketed view still has the raw timestamp beside its bucket, and
-so the bucket exports, filters and saves with a canvas like any other column.
+The aggregating routes bucket the dimension they already take:
 
 ```
 GET /bar?l=table:sales&cat=at&val=amount&span=1h
 GET /pivot?l=table:sales&rows=at&m=amount:sum:total&span=1mon
 GET /view/sales?span=1d&tcol=at
-GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum
-GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=avg&series=region
+GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum&series=region
 ```
 
-The chart panels and the pivot panel carry a **Time bucket** menu, so the
-parameter is reachable without editing the URL; the line graph panel has an
-**Aggregate** menu beside it.
+The chart and pivot panels carry a `Time bucket` menu for it, and the line
+graph panel an `Aggregate` menu beside it.
 
-`span=<n><unit>` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`
-or `y` -- `15m`, `6h`, `2d`, `3mon`, `1q` -- and buckets the dimension the
-route already takes (`cat=`, `x=`, `rows=`, `group=`).  Where the route has no
-single dimension, or names more than one (`rows=at,region`), `tcol=` says which
-column is meant; `as=` names the bucket column (default `<col>_span`).  A
-`tcol=` without a `span=`, a column the view does not have, a name that is
-already a column, and a `span=` that disagrees with the reader's own calculated
-field of the same name are each a `400` rather than a silently different
-chart.
+`span=` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`
+or `y` -- `15m`, `6h`, `2d`, `3mon`, `1q` -- and is refused, naming the
+interval and the parameter, when the count is zero or the unit is not one of
+those.  It expands into the calculated field a reader could have typed,
+`<col>_span:span(<col>,'1h')`, so there is one pipeline and one set of
+semantics; `tcol=` names the column where the route has no single dimension or
+names more than one, and `as=` names the bucket column.  `tcol=` without a
+`span=`, an unknown column, a name that is already a column and a `span=` that
+disagrees with the reader's own calculated field are each a 400.
 
-The labels are ISO at the bucket's own resolution -- `2026-10-27T14:00:00`,
+Labels are ISO at the bucket's own resolution -- `2026-10-27T14:00:00`,
 `2026-10-27`, `2026-10-01` -- so they sort chronologically as strings and a
-bucketed chart comes out in the right order with no second sort path.  `d`,
-`w`, `mon`, `q` and `y` are worked out from the local calendar, so a
-daylight-saving day is still one day and its bucket is still that date; `s`,
-`m` and `h` floor the interval out of the epoch.  A value that cannot be read
-as a time lands in one visible `(unparseable)` bucket rather than disappearing.
+bucketed chart comes out in the right order with no second sort.  `d`, `w`,
+`mon`, `q` and `y` are computed from the local calendar, so a daylight-saving
+day is one bucket and a leap day is its own date; `s`, `m` and `h` floor the
+interval out of the epoch.  A value that cannot be read as a time lands in one
+visible `(unparseable)` bucket rather than disappearing.
 
-`agg=` turns `/graph` into a timechart: one point per bucket instead of one per
-row, aggregated with the measure vocabulary a pivot uses (`sum`, `avg`, `min`,
-`max`, `count`, `count_distinct`, `median`, `stdev`, `first`, `last`,
-`range`, `p<N>`), with `series=` still giving one line per series value.
-Without `agg=`, `/graph` plots every row exactly as it did before.
+`agg=` on `/graph` is the timechart: one point per bucket, aggregated with
+the measure vocabulary a pivot's `m=` uses (`sum`, `avg`, `min`, `max`,
+`count`, `count_distinct`, `median`, `stdev`, `first`, `last`,
+`range`, `p<N>`).  Without `agg=` every row is still plotted.
 
-The same thing is available by hand, because the bucket is just a calculated
-column: `?c=hour:span(at,'1h')`, then group by `hour`.  The timestamp
-functions are `epoch(v[, fmt])` (ISO, epoch seconds, epoch milliseconds, or a
-pattern), `hour(v)`, `minute(v)`, `second(v)` and `span(v, interval)`.  A
-column that holds `27/10/2026 14:05` needs a time pattern first --
-`POST /dates/save` with `time=` -- and is then read as `2026-10-27T14:05:00`.
-That normalisation happens before the filters, so a `range=` window selects
-those rows too.
+The same bucket is available by hand, because it is a calculated field:
+`?c=hour:span(at,'1h')`.  The timestamp functions are `epoch(v[, fmt])`,
+`hour(v)`, `minute(v)`, `second(v)` and `span(v, interval)`; see
+[Database::BI::Calc](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACalc) for the shapes each reads and the local-time rule.
 
 ## Configuration
 
@@ -965,33 +952,35 @@ status so cron can act on it:
 ```
 ./script/bi-alert --analysis ID [--threshold MEASURE:OP:VALUE] \
                   [--suppress DURATION] [--state-file PATH] [--recovery] \
+                  [--notify-cmd COMMAND] \
                   [--data-dir DIR] [--model-dir DIR] [--dry-run]
 ```
 
-The digest goes to STDOUT and nothing is sent: pipe it into mail, a webhook or
-a ticket creator if the alert has to leave the machine.  Exit status is 0 when
-no threshold is crossed, 1 when one is, 2 on error, and 3 when a crossing that
-was announced has ended and `--recovery` was asked to announce that.  There is
-no delivery to suppress, so `--dry-run` is accepted for compatibility only and
-changes neither the output nor the exit status.
+The digest goes to STDOUT and nothing leaves the machine unless
+`--notify-cmd` says where: otherwise pipe it into mail, a webhook or a ticket
+creator yourself.  Exit status is 0 when no threshold is crossed, 1 when one
+is, 2 on error, and 3 when a crossing that was announced has ended and
+`--recovery` was asked to announce that.  `--dry-run` reports without
+recording anything against the throttle and without running the delivery
+command.
 
 `--suppress` throttles a threshold that stays crossed, so a condition that is
 still true on the next cron run is not reported as news again: it takes a
-duration (`30s`, `15m`, `6h`, `2d`, `1w`, or a bare number of seconds), the first
-crossing is announced, and repeats inside the period are not.  The throttle is
-one small JSON file, `alerts-state.json` in the model directory unless
-`--state-file` names elsewhere, keyed by analysis and threshold and written
-atomically.  It is kept only when `--suppress` is used or such a file already
-exists, so with no `--suppress` the script is as stateless as it has always been
-and writes nothing.
+duration (`30s`, `15m`, `6h`, `2d`, `1w`, or a bare number of seconds), the
+first crossing is announced, and repeats inside the period are not.  The
+throttle is one small JSON file, `alerts-state.json` in the model directory
+unless `--state-file` names elsewhere, keyed by analysis and threshold and
+written atomically.  It is kept only when `--suppress` is used or such a file
+already exists, so with no `--suppress` the script is as stateless as it has
+always been and writes nothing.
 
 A run inside the period prints `THRESHOLD SUPPRESSED` and exits 0: it is not
 announcing anything, so a cron wrapper keyed on the exit status stays quiet.
 When the crossing ends the run prints `THRESHOLD CLEARED` once and drops its
-entry, which means the next crossing is announced immediately instead of waiting
-out a period that belonged to an incident that is over.  A state file that
-cannot be read is reported and treated as empty, so a damaged file costs one
-repeated alert rather than silence, and `--dry-run` records nothing, so a
+entry, which means the next crossing is announced immediately instead of
+waiting out a period that belonged to an incident that is over.  A state file
+that cannot be read is reported and treated as empty, so a damaged file costs
+one repeated alert rather than silence, and `--dry-run` records nothing, so a
 rehearsal cannot use up the alert a real run depends on.
 
 `--recovery` announces that ending instead of merely reporting it: the run
@@ -1004,6 +993,26 @@ that an incident has ended rather than that a threshold was never crossed.  It
 is therefore said once per crossing and only for a crossing somebody was told
 about, which is also why `--recovery` keeps that file even with no `--suppress`
 to throttle.  The recovery names both dates -- `crossed since` and `cleared`.
+
+`--notify-cmd` delivers the announcement itself, so a cron line is one command
+rather than a shell wrapper around this one:
+
+```
+./script/bi-alert --analysis abc123 --threshold count:gt:1000 --suppress 1h \
+    --recovery --notify-cmd 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com'
+```
+
+The command runs once, through the shell, and only when something is
+announced: a crossing (exit 1), or its end with `--recovery` (exit 3).  A
+suppressed repeat, an uncrossed threshold, an error and a `--dry-run` run it
+not at all.  The run's text arrives on standard input, and three variables say
+what it is -- `BI_ALERT_EVENT` (`crossed` or `recovery`), `BI_ALERT_SUBJECT`
+(the verdict line, ready for `mail -s`) and `BI_ALERT_MESSAGE_FILE` (the same
+text in a file, for a command that has to post a body:
+`curl -d @$BI_ALERT_MESSAGE_FILE ...`).  A delivery that fails is reported on
+STDERR and leaves the exit status alone, but the crossing is not recorded, so
+the next run announces it again rather than the alert being lost for the rest
+of the period.
 
 `script/database-bi` is the web application launcher: run with no arguments it
 starts the reloading development server, with a command word it runs that

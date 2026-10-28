@@ -297,12 +297,17 @@ my $delivery_failed   = 0;
 
 if (defined $opt_threshold && length $opt_threshold) {
 	unless ($opt_threshold =~ /\A([^:]+):([^:]+):(.+)\z/) {
+		# These three errors come after the digest was printed, so what is in
+		# the buffer goes out first: an error on STDERR above a digest on STDOUT
+		# would read as if the run had said nothing.
+		flush_output();
 		warn "bi-alert: --threshold must be <measure>:<op>:<value> (e.g. count:gt:1000)\n";
 		exit 2;
 	}
 	my ($alias, $op, $tval) = ($1, $2, $3);
 	my $actual = $results{$alias};
 	unless (defined $actual) {
+		flush_output();
 		warn "bi-alert: measure alias '$alias' not found in results\n";
 		exit 2;
 	}
@@ -315,6 +320,7 @@ if (defined $opt_threshold && length $opt_threshold) {
 		ne => sub { $_[0] != $_[1] },
 	);
 	unless (exists $ops{$op}) {
+		flush_output();
 		warn "bi-alert: unsupported operator '$op'; allowed: gt ge lt le eq ne\n";
 		exit 2;
 	}

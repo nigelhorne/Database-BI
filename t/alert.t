@@ -26,9 +26,32 @@ my $perl = $^X;
 # Helper: run bi-alert and capture output + exit code
 # ---------------------------------------------------------------------------
 
+# The script is started with its arguments as arguments rather than through a
+# shell command line, and its STDERR is merged into the pipe by hand.  A
+# --notify-cmd value is shell text of its own (quotes, redirections, semicolons),
+# so passing it through a shell here would have the test's shell parse it first
+# and run the delivery instead of the script.
 sub run_alert {
 	my (@args) = @_;
-	my $out = qx("$perl" "$script" @args 2>&1);
+
+	pipe(my $rd, my $wr) or die "pipe: $!";
+	my $pid = fork;
+	die "fork: $!" unless defined $pid;
+
+	unless ($pid) {
+		close $rd;
+		open(STDOUT, '>&', $wr) or exit 127;
+		open(STDERR, '>&', $wr) or exit 127;
+		close $wr;
+		exec($perl, $script, @args);
+		exit 127;
+	}
+
+	close $wr;
+	my $out = do { local $/; <$rd> } // '';
+	close $rd;
+	waitpid($pid, 0);
+
 	return ($out, $? >> 8);
 }
 
