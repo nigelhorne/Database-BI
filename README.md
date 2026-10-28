@@ -215,8 +215,7 @@ perl Makefile.PL
 
     Opens the named table from `data_dir`.  Accepts `?f=col:op:val`
     (repeatable) to pre-filter results, and `?range=name&rcol=column` to keep
-    only a relative window of rows (see [Relative time
-    ranges](#relative-time-ranges)).
+    only a relative window of rows (see ["Relative time ranges"](#relative-time-ranges)).
 
 - `GET /browse`
 
@@ -564,8 +563,8 @@ perl Makefile.PL
     cross-filter params `?cf=<col>&cv=<val>`, drill-through
     params `?dd=<col>&dl=<level>`, parameter overrides
     `?p.<name>=<value>`, and a relative time range
-    `?range=<name>&rcol=<column>` that narrows every card on the canvas (see
-    [Relative time ranges](#relative-time-ranges)).
+    `?range=<name>&rcol=<column>` that narrows every card on the
+    canvas (see ["Relative time ranges"](#relative-time-ranges)).
 
 - `GET /api/analyses`
 
@@ -755,7 +754,7 @@ perl Makefile.PL
     set.  Only aggregate insight facts are sent to the LLM.  Results are cached
     in-process for one hour keyed on the analysis fingerprint.
 
-### Relative time ranges
+### Relative Time Ranges
 
 Every data route accepts a named window in place of a pair of dates:
 
@@ -781,13 +780,13 @@ this_year, last_year
 A `this` period ends today; the completed one is `last_month`,
 `last_quarter` and so on.
 
-The range is applied as two ordinary filters on that column -- `col:ge:lo`
-and `col:le:hi` -- so the table view, every chart, the pivot, the column
-statistics, the insights page, the exports and a saved canvas all show the same
-rows, and one chip in the toolbar names the window with an `x` to remove it.
-Filters the reader wrote are untouched: the range travels in the URL as itself,
-so submitting a panel form or reopening a link does not turn it into frozen
-dates.
+The range is applied as two ordinary filters on that column --
+`col:ge:lo` and `col:le:hi` -- so the table view, every chart, the
+pivot, the column statistics, the insights page, the exports and a saved canvas
+all show the same rows, and one chip in the toolbar names the window with an
+`x` to remove it.  Filters the reader wrote are untouched: the range travels in
+the URL as itself, so submitting a panel form or reopening a link does not turn
+it into frozen dates.
 
 A window narrower than a day (`last_24_hours`) is compared to the second, so
 it is exact only on a column that holds a time as well as a date.  A
@@ -1115,6 +1114,11 @@ command, and `hypnotoad script/database-bi` starts a preforking server (see
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.
+- A relative time range is resolved against the server's clock and compares the
+column as a string, like every other filter.  A column holding a time zone
+offset or a non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so
+`last_24_hours` is exact only for a column whose values are ISO
+`YYYY-MM-DDTHH:MM:SS` (a space instead of the `T` is accepted too).
 - Multi-table left joins are performed in memory by [Database::Join](https://metacpan.org/pod/Database%3A%3AJoin).  All
 component tables are fetched into RAM before the merge; this is not
 suitable for files that do not fit in the process's available memory.
@@ -1122,11 +1126,6 @@ suitable for files that do not fit in the process's available memory.
 `Database::BI` evicts upload subdirectories whose modification time is
 older than 24 hours.  The "Clear upload cache" button (`POST
 /uploads/clear`) triggers an immediate full purge regardless of age.
-- A relative time range is resolved against the server's clock and compares the
-column as a string, like every other filter.  A column holding a time zone
-offset or a non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so
-`last_24_hours` is exact only for a column whose values are ISO
-`YYYY-MM-DDTHH:MM:SS` (a space instead of the `T` is accepted too).
 - `Sub::Protected`/:Protected enforcement relies on the CHECK compilation
 phase.  When a module is loaded dynamically at test time (e.g. via
 `Test::Mojo-`new(...)>), the CHECK phase has already passed and the

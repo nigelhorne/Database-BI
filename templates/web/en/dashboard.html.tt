@@ -222,7 +222,7 @@
     [%- IF time_range -%]
     <span class="filter-chip filter-chip-range" id="range-chip"
           data-range="[% time_range.name | html %]"
-          title="Rows are limited to a window worked out from today's date; this stays relative wherever the view is carried to">[% time_range.label | html %] &middot; [% time_range.col | html %]<button class="chip-remove" id="chip-remove-range" title="Remove this time range" aria-label="Remove time range">&#x2715;</button></span>
+          title="Rows are limited to a window worked out from today's date; this stays relative wherever the view is carried to">[% time_range.label | html %] [% time_range.col | html %]<button class="chip-remove" id="chip-remove-range" title="Remove this time range" aria-label="Remove time range">&#x2715;</button></span>
     [%- END -%]
     [%- FOREACH fs IN filter_specs -%]
     <span class="filter-chip" data-spec="[% fs | html %]">[% fs | html %]<button class="chip-remove" title="Remove this filter" aria-label="Remove filter">&#x2715;</button></span>
@@ -317,8 +317,8 @@
   <input type="date"   id="dash-f-to"   style="display:none" aria-label="To date">
   <button id="dash-f-apply" class="btn-dash-filter-apply">Apply filter</button>
 
-  <span class="dash-f-sep" role="separator" aria-hidden="true">&ensp;&bull;&ensp;</span>
 
+  <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <label for="dash-range-preset" class="dash-f-range-label">Time range</label>
   <select id="dash-range-preset"
           title="Show only the rows inside a window worked out from today's date, such as the last 30 days">
