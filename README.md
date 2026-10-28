@@ -819,6 +819,10 @@ GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum
 GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=avg&series=region
 ```
 
+The chart panels and the pivot panel carry a **Time bucket** menu, so the
+parameter is reachable without editing the URL; the line graph panel has an
+**Aggregate** menu beside it.
+
 `span=<n><unit>` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`
 or `y` -- `15m`, `6h`, `2d`, `3mon`, `1q` -- and buckets the dimension the
 route already takes (`cat=`, `x=`, `rows=`, `group=`).  Where the route has no

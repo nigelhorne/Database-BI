@@ -23,9 +23,10 @@ use Database::BI::Controller::Dashboard ();
 # The unit tests below are table-driven and locale-independent: a bucket is
 # asserted against the local clock the value itself implies (POSIX::mktime for
 # an epoch, the value's own date for a day), never against a hardcoded epoch,
-# so the file passes in any time zone.  The HTTP tests use fixed timestamps and
-# fixed fixture rows for the same reason -- a test that needs the wall clock is
-# a test that fails in February.
+# so the file passes in any time zone.  Most HTTP tests use fixed timestamps so
+# that a bucket label can be asserted literally; the one test that applies a
+# relative range dates its rows from the run's own clock, because a range is
+# relative to now and a pinned date would stop being inside the window.
 # ---------------------------------------------------------------------------
 
 my $span  = \&Database::BI::Calc::_span_label;
@@ -575,6 +576,30 @@ subtest 'a relative range and a bucket in one URL' => sub {
 	# bound at the later bucket's start drops the rows of the hour before.
 	$t->get_ok($window . '&f=' . url_escape("when:ge:$want[1]"))->status_is(200);
 	is_deeply _values($t->tx->res->body), [9], 'a filter inside the window drops its bucket';
+};
+
+subtest 'the panels offer the bucket and the aggregate' => sub {
+	# The feature is not a URL dialect: the chart, pivot and line-graph panels
+	# carry the controls, and their option values are the interval vocabulary
+	# the routes accept -- a menu that offers an interval the server refuses
+	# would be worse than no menu at all.
+	$t->get_ok('/view/hours')->status_is(200);
+	my $body = $t->tx->res->body;
+
+	for my $panel (qw(bar pie heatmap stacked combo treemap graph pivot)) {
+		like $body, qr/id="$panel-span-sel"/, "the $panel panel has a Time bucket menu";
+	}
+	like $body, qr/id="graph-agg-sel"/, 'the line graph panel has an Aggregate menu';
+	like $body, qr/id="graph-agg-p-field"/, 'with a level for a percentile';
+	like $body, qr/id="pivot-tcol-wrap"/, 'the pivot panel can name the column to bucket';
+	like $body, qr/id="dates-time-sel"/, 'the date panel can store a clock time';
+
+	my ($bar_menu) = $body =~ /(<select id="bar-span-sel".*?<\/select>)/s;
+	my @offered = $bar_menu =~ /<option value="([^"]*)"/g;
+	ok(@offered > 5, 'the menu offers more than a couple of intervals');
+	for my $interval (grep { length } @offered) {
+		ok $iv->($interval), "the menu offers $interval, which the routes accept";
+	}
 };
 
 subtest 'a value in a bucket is a virtual column, so both paths agree' => sub {

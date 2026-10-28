@@ -587,6 +587,43 @@
         </select>
         <input type="text" id="graph-y-text" readonly hidden tabindex="-1">
       </div>
+      <div class="join-field">
+        <label for="graph-span-sel" title="Group the X axis by the hour, day, month or year it falls in">Time bucket</label>
+        <select id="graph-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="graph-agg-sel" title="Add the Y values up per bucket instead of plotting every row">Aggregate</label>
+        <select id="graph-agg-sel">
+          <option value="">None (one point per row)</option>
+          <option value="sum">Sum</option>
+          <option value="avg">Average</option>
+          <option value="min">Min</option>
+          <option value="max">Max</option>
+          <option value="count">Count</option>
+          <option value="count_distinct">Count distinct</option>
+          <option value="median">Median</option>
+          <option value="stdev">Std dev</option>
+          <option value="first">First</option>
+          <option value="last">Last</option>
+          <option value="range">Range</option>
+          <option value="p">Percentile&#x2026;</option>
+        </select>
+      </div>
+      <div class="join-field" id="graph-agg-p-field" hidden>
+        <label for="graph-agg-p" title="Percentile level, 1 to 100">Percentile</label>
+        <input type="number" id="graph-agg-p" min="1" max="100" step="1" value="95"
+               title="Percentile level, 1 to 100">
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <div class="graph-btn-row">
@@ -650,6 +687,20 @@
         <label for="pie-topn-inp" title="Show only the top N slices; the rest are aggregated into an Other slice">Top N slices</label>
         <input type="number" id="pie-topn-inp" name="topn" min="1" placeholder="all"
                style="width:5rem" title="Show only the top N slices; the rest become Other">
+      </div>
+      <div class="join-field">
+        <label for="pie-span-sel" title="Group the slices by the hour, day, month or year the column falls in">Time bucket</label>
+        <select id="pie-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
+        </select>
       </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
@@ -721,6 +772,20 @@
           <option value="Purples">Purples</option>
           <option value="RdPu">Red-Purple</option>
           <option value="YlGnBu">Yellow-Green-Blue</option>
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="heatmap-span-sel" title="Group the X axis by the hour, day, month or year it falls in">Time bucket</label>
+        <select id="heatmap-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -795,6 +860,20 @@
         <input type="number" id="bar-topn-inp" name="topn" min="1" placeholder="all"
                style="width:5rem" title="Show only the top N categories; the rest become Other">
       </div>
+      <div class="join-field">
+        <label for="bar-span-sel" title="Group the category by the hour, day, month or year it falls in">Time bucket</label>
+        <select id="bar-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
+        </select>
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <div class="graph-btn-row">
@@ -857,6 +936,20 @@
         <select id="stacked-orient-sel" name="orient">
           <option value="v">Vertical</option>
           <option value="h">Horizontal</option>
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="stacked-span-sel" title="Group the category by the hour, day, month or year it falls in">Time bucket</label>
+        <select id="stacked-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -988,6 +1081,20 @@
           <option value="">&#x2014; select column &#x2014;</option>
         </select>
       </div>
+      <div class="join-field">
+        <label for="combo-span-sel" title="Group the X axis by the hour, day, month or year it falls in">Time bucket</label>
+        <select id="combo-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
+        </select>
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <div class="graph-btn-row">
@@ -1040,6 +1147,20 @@
         <label for="treemap-topn-inp" title="Show only the top N tiles; the rest are aggregated into an Other tile">Top N tiles</label>
         <input type="number" id="treemap-topn-inp" name="topn" min="1" placeholder="all"
                style="width:5rem" title="Show only the top N tiles; the rest become Other">
+      </div>
+      <div class="join-field">
+        <label for="treemap-span-sel" title="Group the rectangles by the hour, day, month or year the column falls in">Time bucket</label>
+        <select id="treemap-span-sel" name="span">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
+        </select>
       </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
@@ -1308,6 +1429,24 @@
         <input type="text" id="pivot-topn-col-inp" name="topn_col" placeholder="measure alias"
                style="width:9rem;margin-left:0.3rem">
       </span>
+      <span style="margin-left:0.75rem;white-space:nowrap" title="Group a row dimension by the hour, day, month or year it falls in">
+        Time bucket
+        <select id="pivot-span-sel" name="span" style="margin-left:0.3rem">
+          <option value="">None</option>
+          <option value="15m">15 minutes</option>
+          <option value="1h">1 hour</option>
+          <option value="6h">6 hours</option>
+          <option value="1d">1 day</option>
+          <option value="1w">1 week</option>
+          <option value="1mon">1 month</option>
+          <option value="1q">1 quarter</option>
+          <option value="1y">1 year</option>
+        </select>
+      </span>
+      <span id="pivot-tcol-wrap" hidden style="margin-left:0.75rem;white-space:nowrap" title="Which row dimension the bucket replaces">
+        of column
+        <select id="pivot-tcol-sel" name="tcol" style="margin-left:0.3rem"></select>
+      </span>
     </div>
 
     <div class="join-actions">
@@ -1319,7 +1458,7 @@
 
 <div class="graph-panel" id="calc-panel" hidden>
   <h3 class="graph-panel-title">&fnof;(x) Calculated columns</h3>
-  <p class="graph-panel-desc">Define virtual columns from expressions. Column names are variables; supports +, -, *, /, IF(), YEAR(), MONTH(), bin(), and more. Saved fields are applied automatically when this data source is opened.</p>
+  <p class="graph-panel-desc">Define virtual columns from expressions. Column names are variables; supports +, -, *, /, IF(), YEAR(), MONTH(), bin(), hour(), epoch(), span() and more. span(at,'1h') groups a timestamp column by the hour it falls in, which is how a table gets a time bucket. Saved fields are applied automatically when this data source is opened.</p>
   <div id="calc-field-list" style="margin-bottom:0.5rem"></div>
   <div class="graph-fields-row" style="align-items:flex-end;gap:0.5rem;flex-wrap:wrap">
     <div class="join-field" style="flex:0 0 auto;min-width:8rem">
@@ -1381,7 +1520,7 @@
 
 <div class="graph-panel" id="dates-panel" hidden>
   <h3 class="graph-panel-title">&#x1F4C5; Date column formats</h3>
-  <p class="graph-panel-desc">Tell the app how date columns are formatted so YEAR(), MONTH(), DAY(), QUARTER() and date sorting work correctly. Saved patterns are applied automatically when this data source is opened.</p>
+  <p class="graph-panel-desc">Tell the app how date columns are formatted so YEAR(), MONTH(), DAY(), QUARTER() and date sorting work correctly. A column that also holds a clock time becomes a timestamp, which hour() and a time bucket can then read. Saved patterns are applied automatically when this data source is opened.</p>
   <div id="dates-list" style="margin-bottom:0.5rem"></div>
   <div class="graph-fields-row" style="align-items:flex-end;gap:0.5rem;flex-wrap:wrap">
     <div class="join-field" style="flex:0 0 auto;min-width:10rem">
@@ -1399,6 +1538,14 @@
         <option value="%m/%d/%Y">M/D/YYYY &mdash; US (12/31/2025)</option>
         <option value="%d/%m/%Y">D/M/YYYY &mdash; EU (31/12/2025)</option>
         <option value="%d-%b-%Y">D-Mon-YYYY (31-Dec-2025)</option>
+      </select>
+    </div>
+    <div class="join-field" style="flex:0 0 auto;min-width:11rem">
+      <label for="dates-time-sel" title="Set this when the column holds a clock time as well as a date">Clock time</label>
+      <select id="dates-time-sel">
+        <option value="">None (date only)</option>
+        <option value="%H:%M">HH:MM (14:05)</option>
+        <option value="%H:%M:%S">HH:MM:SS (14:05:09)</option>
       </select>
     </div>
     <div style="padding-bottom:0.2rem">
@@ -2927,6 +3074,43 @@ function biDetectColType(colName) {
     panel.hidden = true;
   });
 
+  // A percentile is written into the function name -- p95 -- because agg= is
+  // one function, the way a pivot's measure spec is.  The level is read back
+  // clamped, so the panel cannot build a name the server would have to refuse.
+  var aggSel    = document.getElementById('graph-agg-sel');
+  var aggPField = document.getElementById('graph-agg-p-field');
+  var aggPInp   = document.getElementById('graph-agg-p');
+
+  function percentileLevel(input) {
+    var n = parseInt(input.value, 10);
+    if (!isFinite(n)) return 95;
+    return Math.min(100, Math.max(1, n));
+  }
+
+  function aggregateValue() {
+    if (!aggSel || !aggSel.value) return '';
+    if (aggSel.value === 'p') return 'p' + percentileLevel(aggPInp);
+    return aggSel.value;
+  }
+
+  function syncAggFields() {
+    if (aggPField) aggPField.hidden = !(aggSel && aggSel.value === 'p');
+  }
+
+  if (aggSel) aggSel.addEventListener('change', syncAggFields);
+
+  // The select carries no name: the value submitted is the function spec, and
+  // a percentile is only a function spec once its level is spelled into it.
+  graphForm && graphForm.addEventListener('submit', function () {
+    Array.from(graphForm.querySelectorAll('[data-graph-dyn]')).forEach(function (n) { n.remove(); });
+    var fn = aggregateValue();
+    if (!fn) return;
+    var inp = document.createElement('input');
+    inp.type = 'hidden'; inp.name = 'agg'; inp.value = fn;
+    inp.setAttribute('data-graph-dyn', '1');
+    graphForm.appendChild(inp);
+  });
+
   xSel.addEventListener('change', checkPlot);
   ySel.addEventListener('change', checkPlot);
 }());
@@ -4067,6 +4251,9 @@ function biDetectColType(colName) {
   var colDimList    = document.getElementById('pivot-col-dims');
   var measureList   = document.getElementById('pivot-measures');
   var chkTotals     = document.getElementById('pivot-totals');
+  var spanSel       = document.getElementById('pivot-span-sel');
+  var tcolWrap      = document.getElementById('pivot-tcol-wrap');
+  var tcolSel       = document.getElementById('pivot-tcol-sel');
 
   var otherPanels = ['ask-panel', 'join-panel', 'combine-panel', 'export-panel', 'graph-panel', 'pie-panel', 'heatmap-panel', 'bar-panel', 'stacked-panel', 'scatter-panel', 'combo-panel', 'treemap-panel', 'histogram-panel', 'folder-panel', 'calc-panel', 'groups-panel', 'dates-panel', 'save-analysis-panel', 'map-panel'].map(function (id) {
     return document.getElementById(id);
@@ -4097,13 +4284,35 @@ function biDetectColType(colName) {
     return sel;
   }
 
+  // span= buckets one dimension, and a pivot's dimensions are the row groups
+  // the reader has added.  With one row group the server takes it; with two it
+  // needs tcol= to know which, so the column picker appears -- and is only
+  // submitted -- when there is a choice to make.
+  function syncBucket() {
+    if (!spanSel || !tcolSel || !tcolWrap) return;
+    var rowVals = Array.from(rowDimList.querySelectorAll('select'))
+      .map(function (s) { return s.value; }).filter(Boolean);
+    var chosen = tcolSel.value;
+    tcolSel.textContent = '';
+    rowVals.forEach(function (v) {
+      var opt = document.createElement('option');
+      opt.value = v; opt.textContent = v;
+      if (v === chosen) opt.selected = true;
+      tcolSel.appendChild(opt);
+    });
+    var needed = !!spanSel.value && rowVals.length > 1;
+    tcolWrap.hidden  = !needed;
+    tcolSel.disabled = !needed;
+  }
+
   function addDimRow(container, label) {
     var row = document.createElement('div');
     row.className = 'pivot-dim-row';
     var sel = makeColSelect(label || '\u2014 column \u2014');
     var rm  = document.createElement('button');
     rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '\u00d7';
-    rm.addEventListener('click', function () { row.remove(); checkPivot(); });
+    rm.addEventListener('click', function () { row.remove(); checkPivot(); syncBucket(); });
+    sel.addEventListener('change', syncBucket);
     row.appendChild(sel); row.appendChild(rm);
     container.appendChild(row);
     checkPivot();
@@ -4255,6 +4464,11 @@ function biDetectColType(colName) {
 
     // totals=1
     if (chkTotals && chkTotals.checked) addHidden('totals', '1');
+
+    // The bucket column (tcol=) is only worth sending when more than one row
+    // group makes the choice real; syncBucket has already disabled it
+    // otherwise, so a hidden disabled select submits nothing.
+    syncBucket();
   });
 
   document.getElementById('btn-add-pivot-row').addEventListener('click', function () {
@@ -4272,6 +4486,7 @@ function biDetectColType(colName) {
       addDimRow(rowDimList, '\u2014 row \u2014');
       addMeasureRow();
     }
+    syncBucket();
   });
 
   btnCancel && btnCancel.addEventListener('click', function () {
@@ -4517,6 +4732,7 @@ function biDetectColType(colName) {
 
   var colSel   = document.getElementById('dates-col-sel');
   var patSel   = document.getElementById('dates-pat-sel');
+  var timeSel  = document.getElementById('dates-time-sel');
   var btnSave  = document.getElementById('btn-save-date');
   var btnClose = document.getElementById('btn-cancel-dates');
   var listEl   = document.getElementById('dates-list');
@@ -4579,10 +4795,18 @@ function biDetectColType(colName) {
     });
   }
 
+  // A saved pattern is either the date string it has always been or, for a
+  // column with a clock time, { date, time } -- the shapes /dates/list reports.
+  function patternLabel(pat) {
+    if (!pat) return '';
+    if (typeof pat === 'string') return pat;
+    return (pat.date + ' ' + (pat.time || '')).trim();
+  }
+
   function renderList(dates) {
     listEl.innerHTML = '';
     if (!dates || !Object.keys(dates).length) {
-      listEl.innerHTML = '<p class="graph-panel-desc" style="margin:0 0 0.4rem">No date formats saved yet.</p>';
+      listEl.innerHTML = '<p class="graph-panel-desc" style="margin:0 0 0.4rem">No formats saved yet.</p>';
       return;
     }
     Object.keys(dates).sort().forEach(function(col) {
@@ -4590,7 +4814,7 @@ function biDetectColType(colName) {
       row.style.cssText = 'display:flex;align-items:center;gap:0.5rem;margin-bottom:0.3rem;font-size:0.87rem';
       var badge = document.createElement('code');
       badge.style.cssText = 'flex:0 0 auto;background:var(--badge-bg,#e8eef5);padding:0.1rem 0.4rem;border-radius:3px';
-      badge.textContent = col + ' \u2192 ' + dates[col];
+      badge.textContent = col + ' \u2192 ' + patternLabel(dates[col]);
       var del = document.createElement('button');
       del.type = 'button'; del.className = 'btn-secondary'; del.textContent = '\u00d7';
       del.style.cssText = 'flex:0 0 auto;padding:0.1rem 0.5rem;font-size:0.8rem';
@@ -4614,7 +4838,7 @@ function biDetectColType(colName) {
     if (!lspec) return;
     fetch('/dates/list?l=' + encodeURIComponent(lspec))
       .then(function(r){ return r.json(); })
-      .then(function(j){ renderList(j.dates || {}); })
+      .then(function(j){ renderList(j.patterns || {}); })
       .catch(function(){ renderList({}); });
   }
 
@@ -4622,10 +4846,15 @@ function biDetectColType(colName) {
     var col = colSel.value;
     var pat = patSel.value;
     if (!col || !pat) return;
+    // time= is what makes the column a timestamp rather than a date; without it
+    // the saved value is the date pattern string it has always been.
+    var body = 'l=' + encodeURIComponent(lspec) + '&col=' + encodeURIComponent(col)
+             + '&pattern=' + encodeURIComponent(pat);
+    if (timeSel && timeSel.value) body += '&time=' + encodeURIComponent(timeSel.value);
     fetch('/dates/save', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded'},
-      body:'l=' + encodeURIComponent(lspec) + '&col=' + encodeURIComponent(col) + '&pattern=' + encodeURIComponent(pat)
+      body: body
     }).then(function(r){ return r.json(); }).then(function(j){
       if (j.ok) { loadList(); location.reload(); }
       else alert('Error: ' + (j.error||'unknown'));
