@@ -471,5 +471,119 @@ sub state_of {
 	unlike($out, qr/THRESHOLD RECOVERED/, 'not as a recovery');
 }
 
+# ---------------------------------------------------------------------------
+# 13. --notify-cmd: the run does its own delivery, and only when it has
+#     something to say
+# ---------------------------------------------------------------------------
+
+sub file_text {
+	my $path = shift;
+	return '' unless -f $path;
+	return Mojo::File->new($path)->slurp;
+}
+
+{
+	my $dir   = tempdir(CLEANUP => 1);
+	my $body  = File::Spec->catfile($dir, 'message.txt');
+	my $env   = File::Spec->catfile($dir, 'env.txt');
+	my $calls = File::Spec->catfile($dir, 'calls.txt');
+	my $state = File::Spec->catfile($dir, 'state.json');
+
+	# The command records what it was given -- the two variables, the run's text
+	# from STDIN, and one byte per invocation, so the test can count deliveries
+	# rather than infer them.
+	my $cmd = qq{printenv BI_ALERT_EVENT BI_ALERT_SUBJECT > '$env'; }
+		. qq{cat > '$body'; printf x >> '$calls'; echo child-stdout};
+
+	my @args = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $state,
+		'--notify-cmd', $cmd,
+	);
+	my $key = $clear_id . '|count:gt:3';
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+
+	my ($out, $code) = run_alert_at($at, @args);
+	is($code, 1, 'a crossing with --notify-cmd still exits 1');
+	like($out, qr/^Analysis: /m, 'and prints the digest it always printed');
+	like($out, qr/THRESHOLD CROSSED: count \(4\) gt 3/, 'and the verdict');
+
+	my @env = split /\n/, file_text($env);
+	is($env[0], 'crossed', 'the command is told this is a crossing');
+	is($env[1], 'THRESHOLD CROSSED: count (4) gt 3',
+		'and is handed the verdict line as a subject');
+	like(file_text($body), qr/^Analysis: /m, 'the run text arrives on STDIN');
+	like(file_text($body), qr/THRESHOLD CROSSED/, 'through to and including the verdict');
+	like($out, qr/child-stdout/, 'the command\'s own output goes to STDOUT');
+	unlike(file_text($body), qr/child-stdout/, 'and not into the text it was handed');
+	is(file_text($calls), 'x', 'the command ran exactly once');
+	ok(state_of($state)->{alerts}{$key}, 'and the delivered crossing is on record');
+
+	# Nothing to announce, nothing delivered: a repeat inside the period.
+	($out, $code) = run_alert_at($at + 600, @args);
+	is($code, 0, 'a suppressed repeat is quiet');
+	like($out, qr/THRESHOLD SUPPRESSED/, 'and says it is suppressed');
+	is(file_text($calls), 'x', 'and delivers nothing');
+
+	# Nor for a threshold that is not crossed at all.
+	($out, $code) = run_alert_at($at + 600,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:99', '--state-file', $state, '--notify-cmd', $cmd);
+	is($code, 0, 'an uncrossed threshold with --notify-cmd exits 0');
+	is(file_text($calls), 'x', 'and delivers nothing either');
+
+	# A rehearsal says what it would run, and runs nothing.
+	my $dry_state = File::Spec->catfile($dir, 'dry.json');
+	($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--state-file', $dry_state,
+		'--notify-cmd', $cmd, '--dry-run');
+	is($code, 1, 'a dry run still reports the crossing');
+	like($out, qr/Notify: would run/, 'and says what it would have run');
+	is(file_text($calls), 'x', 'but runs nothing');
+
+	# A delivery that fails is reported, changes no exit status, and leaves the
+	# crossing unrecorded -- so the next run announces it again rather than the
+	# alert being lost for the whole period.
+	my $retry_state = File::Spec->catfile($dir, 'retry.json');
+	my @retry = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $retry_state,
+	);
+	($out, $code) = run_alert_at($at, @retry, '--notify-cmd', 'exit 7');
+	is($code, 1, 'a failed delivery leaves the exit status alone');
+	like($out, qr/--notify-cmd failed \(exit 7\)/, 'and says the command failed');
+	like($out, qr/not recorded/, 'and says the crossing was not recorded');
+	ok(!-f $retry_state, 'so no state file is written');
+
+	($out, $code) = run_alert_at($at, @retry, '--notify-cmd', $cmd);
+	is($code, 1, 'which is what lets the next run deliver it');
+	is(file_text($calls), 'xx', 'as a second delivery');
+	ok(state_of($retry_state)->{alerts}{$key}, 'and only then is it on record');
+
+	# The recovery goes out the same way, saying which it is.
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+	($out, $code) = run_alert_at($at + 60,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $state,
+		'--recovery', '--notify-cmd', $cmd);
+	is($code, 3, 'the recovery is delivered as well as printed');
+	@env = split /\n/, file_text($env);
+	is($env[0], 'recovery', 'the command is told this is a recovery');
+	like($env[1], qr/\ATHRESHOLD RECOVERED: count \(3\) gt 3/, 'with the verdict as its subject');
+	like(file_text($body), qr/THRESHOLD RECOVERED/, 'and the text carries the recovery');
+	is(file_text($calls), 'xxx', 'delivered once, as the crossing was');
+}
+
+{
+	# An empty command is a mistake, not a way of saying "deliver nowhere".
+	my ($out, $code) = run_alert(
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--notify-cmd', '   ');
+	is($code, 2, 'an empty --notify-cmd exits 2');
+	like($out, qr/--notify-cmd must name a command/, 'and the message names the option');
+}
+
 done_testing;
 

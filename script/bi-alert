@@ -1,5 +1,5 @@
 #!/usr/bin/env perl
-# bi-alert -- Phase 4.3 digest and threshold CLI for Database::BI
+# bi-alert -- Digest and threshold CLI for Database::BI
 #
 # Evaluates one saved analysis's measures, prints a digest to STDOUT, and
 # exits 1 when a threshold condition is crossed.  It makes no mail or network
@@ -24,9 +24,16 @@
 # --recovery keeps that file even with no --suppress to throttle, and why the
 # recovery is said once per crossing rather than on every run after it.
 #
+# Delivery is optional as well: --notify-cmd runs a command when, and only
+# when, something is announced, with the run's own text on STDIN and the
+# verdict in the environment.  That makes a cron line one command instead of a
+# shell wrapper around this one, and it keeps the rule the script has always
+# had -- nothing leaves the machine unless somebody asked it to.
+#
 # Usage:
 #   bi-alert --analysis <id> [--threshold <alias>:<op>:<value>]
 #             [--suppress <duration>] [--state-file <path>] [--recovery]
+#             [--notify-cmd <command>]
 #             [--model-dir <dir>] [--data-dir <dir>] [--dry-run]
 #
 # Exit codes:  0 = ok / threshold not crossed / crossed but suppressed
@@ -39,6 +46,7 @@ use strict;
 use warnings;
 
 use Getopt::Long qw(GetOptions :config no_ignore_case);
+use POSIX	qw(_exit);
 use File::Spec;
 use File::Temp qw(tempfile);
 use File::Path qw(make_path);
@@ -52,7 +60,7 @@ use Scalar::Util qw(looks_like_number);
 # ---------------------------------------------------------------------------
 
 my ($opt_id, $opt_threshold, $opt_model_dir, $opt_data_dir, $opt_dry_run, $opt_help,
-    $opt_suppress, $opt_state_file, $opt_recovery);
+    $opt_suppress, $opt_state_file, $opt_recovery, $opt_notify);
 
 GetOptions(
 	'analysis|a=s'    => \$opt_id,
@@ -60,6 +68,7 @@ GetOptions(
 	'suppress|s=s'    => \$opt_suppress,
 	'state-file=s'    => \$opt_state_file,
 	'recovery|r'      => \$opt_recovery,
+	'notify-cmd=s'    => \$opt_notify,
 	'model-dir|m=s'   => \$opt_model_dir,
 	'data-dir|d=s'    => \$opt_data_dir,
 	'dry-run|n'       => \$opt_dry_run,
@@ -72,6 +81,27 @@ unless (defined $opt_id && length $opt_id) {
 	warn "bi-alert: --analysis <id> is required\n";
 	exit 2;
 }
+
+# A delivery command is the one option whose absence is a decision of its own,
+# so an empty one is a mistake rather than a way to say "deliver nowhere".
+my $notify_cmd;
+if (defined $opt_notify) {
+	$notify_cmd = $opt_notify;
+	$notify_cmd =~ s/\A\s+|\s+\z//g;
+	unless (length $notify_cmd) {
+		warn "bi-alert: --notify-cmd must name a command to run\n";
+		exit 2;
+	}
+}
+
+# With a delivery command the run's output is collected rather than printed as
+# it is produced, so the command receives exactly what a wrapper would have
+# piped into it -- the digest and the verdict, in order.  The END block is what
+# prints it on a path that exits before delivery, such as a bad threshold.
+my $message   = '';
+my $buffering = 0;
+my $buffer_fh;
+start_buffering() if defined $notify_cmd;
 
 my $model_dir = $opt_model_dir // '.bi';
 my $data_dir  = $opt_data_dir  // 'data';
@@ -183,7 +213,7 @@ if ($@) {
 		close $fh;
 	};
 	if ($@) {
-		warn "bi-alert: cannot read data file '$file_path': $@\n";
+		warn "bi-alert: cannot read data file '$file_path': $@";
 		exit 2;
 	}
 }
@@ -191,7 +221,7 @@ if ($@) {
 my $row_count = scalar @$records;
 
 # ---------------------------------------------------------------------------
-# Evaluate measures (Phase 2 vocabulary: sum avg min max count count_distinct)
+# Evaluate measures (sum avg min max count count_distinct)
 # ---------------------------------------------------------------------------
 
 # Build a simple measure result hashref keyed by alias.
@@ -263,6 +293,7 @@ if (%results) {
 
 my $threshold_crossed = 0;
 my $recovered         = 0;
+my $delivery_failed   = 0;
 
 if (defined $opt_threshold && length $opt_threshold) {
 	unless ($opt_threshold =~ /\A([^:]+):([^:]+):(.+)\z/) {
@@ -355,15 +386,39 @@ if (defined $opt_threshold && length $opt_threshold) {
 		}
 	}
 
+	# Delivery is the only thing that leaves the machine, so it runs once the
+	# words are final and before the throttle is written: a crossing nobody was
+	# told about is not one the throttle may forget.
+	my $announced = $threshold_crossed || $recovered;
+	if (defined $notify_cmd && $announced) {
+		if ($opt_dry_run) {
+			print "Notify: would run '$notify_cmd' (--dry-run)\n";
+		}
+		else {
+			my $verdict = $recovered
+				? "THRESHOLD RECOVERED: $alias ($actual) $op $tval"
+				: "THRESHOLD CROSSED: $alias ($actual) $op $tval";
+			$delivery_failed = 1
+				unless deliver($notify_cmd, $recovered ? 'recovery' : 'crossed', $verdict);
+		}
+	}
+
 	# A dry run reports what would happen and leaves the throttle where it was,
-	# so running one cannot use up the alert a later real run depends on.
-	save_state($state_file, $state) if $changed && $in_use && !$opt_dry_run;
+	# so running one cannot use up the alert a later real run depends on.  A
+	# delivery that failed is the same case in another form: the alert has not
+	# reached anybody yet, so recording it would spend the period on nothing.
+	save_state($state_file, $state)
+		if $changed && $in_use && !$opt_dry_run && !$delivery_failed;
 }
 
 # A recovery is a third answer, not an error: 3 is what lets a wrapper send the
 # all-clear, which 0 cannot do -- a wrapper keyed on a non-zero status would
 # also fire on every suppressed repeat -- and it leaves 1 meaning exactly "a
 # crossing was announced just now".
+# Anything still buffered is printed here rather than by the END block, so the
+# output order is the one the run produced.
+flush_output();
+
 my $exit_code = $recovered ? 3 : $threshold_crossed ? 1 : 0;
 exit $exit_code;
 
@@ -381,10 +436,13 @@ Usage: bi-alert --analysis <id> [OPTIONS]
                                 (default: <model-dir>/alerts-state.json)
   --recovery,  -r               Announce the end of a crossing as well as its
                                 start: THRESHOLD RECOVERED, exit 3
+  --notify-cmd <command>        Run this command when an alert or a recovery is
+                                announced, instead of a shell wrapper around
+                                this script; it gets the run's text on STDIN
   --model-dir, -m <dir>         Model directory containing analyses.json (default: .bi)
   --data-dir,  -d <dir>         Data directory (default: data)
-  --dry-run,   -n               Accepted for compatibility; nothing is ever sent,
-                                and no alert is recorded against the throttle
+  --dry-run,   -n               Report only: no digest is recorded against the
+                                throttle and --notify-cmd is not run
   --help,      -h               Show this help
 
 Exit codes:
@@ -393,13 +451,38 @@ Exit codes:
   2  Error
   3  A crossing that was announced has ended, and is announced as a recovery
 
-The digest goes to STDOUT and nothing is sent anywhere, so --dry-run has no
-delivery to suppress.  Pipe STDOUT into mail, curl or a ticket creator if the
-alert has to leave the machine.
+The digest goes to STDOUT and nothing leaves the machine until you say where.
+Pipe STDOUT into mail, curl or a ticket creator if the alert has to travel, or
+let --notify-cmd run that for you:
+
+  bi-alert --analysis abc123 --threshold count:gt:1000 --suppress 1h \
+           --notify-cmd 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com'
+
+The command runs through the shell, exactly once, and only when something is
+announced: a crossing (exit 1), or a recovery with -r (exit 3).  A suppressed
+repeat, a threshold that is not crossed, an error and a --dry-run run it not at
+all, so it never says the same thing twice.  The announcement arrives on STDIN,
+and three variables say what it is:
+
+  BI_ALERT_EVENT         crossed or recovery
+  BI_ALERT_SUBJECT       the verdict line, ready for mail -s
+  BI_ALERT_MESSAGE_FILE  the same text in a file, for a command that cannot
+                         read STDIN: curl -d @$BI_ALERT_MESSAGE_FILE ...
+
+A delivery that fails is reported on STDERR and the exit status stays what it
+would have been, but the crossing is not written to the state file: the alert
+has not reached anybody, so the next run announces it again rather than losing
+it for the whole period.
 
 Cron every five minutes, mailing only what is announced (exit 1) or an error
 (exit 2), with an hourly ceiling on repeats.  Add -r to that line and the same
 mail carries the recovery (exit 3) when the threshold clears:
+
+  */5 * * * * cd /path/to/app && ./script/bi-alert --analysis abc123 \
+      --threshold count:gt:1000 --suppress 1h --recovery \
+      --notify-cmd 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com'
+
+Without --notify-cmd the same line needs a wrapper to pipe STDOUT into mail:
 
   */5 * * * * cd /path/to/app && out=$(./script/bi-alert --analysis abc123 \
       --threshold count:gt:1000 --suppress 1h 2>&1) \
@@ -418,6 +501,105 @@ crossing, and only for a crossing that was announced, because the state file is
 what remembers it; that is also why --recovery keeps the state file even with no
 --suppress.
 USAGE
+}
+
+# start_buffering() -> $bool
+#
+# Sends everything the run prints into $message instead of STDOUT, so the
+# delivery command reads the digest and the verdict as one text.  Nothing is
+# lost when a run exits before delivery: flush_output() is called on the way
+# out, and the END block is there for the paths that exit without reaching it.
+sub start_buffering {
+	return 1 if $buffering;
+	open(my $fh, '>', \$message) or return 0;
+	$buffer_fh = $fh;
+	select($buffer_fh);
+	$buffering = 1;
+	return 1;
+}
+
+# flush_output() -> ()
+#
+# Puts STDOUT back and prints what was collected.  Safe to call when nothing
+# was collected, and safe to call twice, so every exit path can call it.
+sub flush_output {
+	return unless $buffering;
+	select(STDOUT);
+	$buffering = 0;
+	print $message;
+	return;
+}
+
+END { flush_output() }
+
+# deliver($command, $event, $verdict) -> $bool
+#
+# Runs the delivery command once, with the run's text as its STDIN, and returns
+# whether it succeeded.  The text is in a temporary file as well, because a
+# command that posts a body (curl -d @file) needs the file, not the stream; the
+# file's path, the event and the verdict are in the environment for the same
+# reason.  Failure is reported here and turned into "not delivered" by the
+# caller, which then leaves the throttle alone.
+sub deliver {
+	my ($command, $event, $verdict) = @_;
+
+	# The announcement is complete by the time this is called.  Printing it
+	# first keeps the run's own output in the order it was produced, and it
+	# means the command's own output cannot land in the message.
+	flush_output();
+
+	my ($fh, $file) = eval { tempfile(DIR => File::Spec->tmpdir, UNLINK => 0) };
+	unless ($fh) {
+		warn "bi-alert: cannot write a message file for --notify-cmd: " . ($@ // $!) . "\n";
+		return 0;
+	}
+
+	my $written = print {$fh} $message;
+	close $fh;
+	unless ($written) {
+		warn "bi-alert: cannot write the message to '$file': $!\n";
+		unlink $file;
+		return 0;
+	}
+
+	# The command is given a process of its own rather than a shell redirect
+	# appended to its text: a redirect written after "cmd1; cmd2" would land on
+	# cmd2 alone, and every command in the string has to see the same message.
+	# exec takes the shell only when the text needs one, exactly as system does.
+	my $status = -1;
+	{
+		local $ENV{BI_ALERT_EVENT}        = $event;
+		local $ENV{BI_ALERT_SUBJECT}      = $verdict;
+		local $ENV{BI_ALERT_MESSAGE_FILE} = $file;
+
+		my $pid = fork;
+		if (!defined $pid) {
+			warn "bi-alert: cannot fork for --notify-cmd: $!\n";
+		}
+		elsif ($pid == 0) {
+			open(STDIN, '<', $file) or _exit(127);
+			# Through a shell always, so the option means one thing: the command a
+			# cron line would have written in place of this script, builtins and
+			# all.  exec() as a list never re-parses its arguments.
+			if ($^O eq 'MSWin32') {
+				exec($ENV{COMSPEC} || 'cmd.exe', '/c', $command) or _exit(127);
+			}
+			exec('/bin/sh', '-c', $command) or _exit(127);
+		}
+		else {
+			waitpid($pid, 0);
+			$status = $?;
+		}
+	}
+	unlink $file;
+
+	return 1 if $status == 0;
+
+	my $why = $status == -1       ? 'cannot run it'
+		: ($status & 127)     ? 'killed by signal ' . ($status & 127)
+		: 'exit ' . ($status >> 8);
+	warn "bi-alert: --notify-cmd failed ($why); the alert is not recorded, so the next run announces it again\n";
+	return 0;
 }
 
 # parse_duration($text) -> $seconds | undef
