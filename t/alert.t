@@ -9,7 +9,7 @@ use lib 'lib';
 use File::Spec;
 use File::Temp	qw(tempdir);
 use Mojo::File;
-use Mojo::JSON	qw(encode_json);
+use Mojo::JSON	qw(encode_json decode_json);
 use Test::More;
 
 # ---------------------------------------------------------------------------
@@ -32,6 +32,16 @@ sub run_alert {
 	return ($out, $? >> 8);
 }
 
+# The throttle is a period of time, so a test that had to wait it out would
+# either be slow or flaky.  BI_ALERT_NOW replaces the clock for the child
+# process instead, which is also how the boundary at the end of a period gets
+# tested exactly rather than approximately.
+sub run_alert_at {
+	my ($now, @args) = @_;
+	local $ENV{BI_ALERT_NOW} = $now;
+	return run_alert(@args);
+}
+
 # ---------------------------------------------------------------------------
 # Prepare a model_dir with a minimal saved analysis pointing at sales.csv
 # ---------------------------------------------------------------------------
@@ -50,6 +60,30 @@ my $analysis = {
 };
 
 my $analyses = { $analysis->{id} => $analysis };
+
+# ---------------------------------------------------------------------------
+# A second analysis, on a file this test owns and rewrites, so that one
+# threshold can be seen crossed and then not crossed.  data/sales.csv is shared
+# test data and must not be modified to make an alert stop firing.
+# ---------------------------------------------------------------------------
+
+my $clear_dir  = tempdir(CLEANUP => 1);
+my $clear_csv  = File::Spec->catfile($clear_dir, 'rows.csv');
+my $rows_four  = "region,amount\nNorth,10\nSouth,20\nEast,30\nWest,40\n";
+my $rows_three = "region,amount\nNorth,10\nSouth,20\nEast,30\n";
+Mojo::File->new($clear_csv)->spurt($rows_four);
+
+my $clear_id = 'clearable';
+$analyses->{$clear_id} = {
+	id       => $clear_id,
+	name     => 'Clearable analysis',
+	version  => 1,
+	created  => time(),
+	updated  => time(),
+	datasets => [ { spec => "path:$clear_csv" } ],
+	visuals  => [],
+};
+
 Mojo::File->new($model_dir, 'analyses.json')->spurt(encode_json($analyses));
 
 my $id = $analysis->{id};
@@ -132,4 +166,310 @@ my $id = $analysis->{id};
 	is($code, 0, '--dry-run with uncrossed threshold (count > 1M) exits 0');
 }
 
+# ---------------------------------------------------------------------------
+# 7. --suppress: a crossing that stays crossed is announced once per period
+# ---------------------------------------------------------------------------
+
+# The state file is named explicitly here, so the test can read what the
+# throttle remembered rather than guess at the default location.
+my $state_file = File::Spec->catfile($model_dir, 'throttle.json');
+my @throttled  = (
+	'--model-dir', $model_dir,
+	'--data-dir',  $data_dir,
+	'--analysis',  $id,
+	'--threshold', 'count:gt:0',
+	'--suppress',  '1h',
+	'--state-file', $state_file,
+);
+
+my $key = $id . '|count:gt:0';
+my $at  = 1_800_000_000;
+
+sub state_of {
+	my $path = shift;
+	return () unless -f $path;
+	my $state = eval { decode_json(Mojo::File->new($path)->slurp) };
+	return ref $state eq 'HASH' ? $state : ();
+}
+
+{
+	my ($out, $code) = run_alert_at($at, @throttled);
+	is($code, 1, 'the first crossing is announced');
+	like($out, qr/THRESHOLD CROSSED/, 'and says so in the digest');
+	like($out, qr/suppressed for 1h/, 'and says how long repeats wait');
+	ok(-f $state_file, 'the throttle keeps its memory in the state file');
+
+	my $state = state_of($state_file);
+	is($state->{alerts}{$key}{last_alert}, $at, 'recording when the alert was announced');
+	is($state->{alerts}{$key}{since},      $at, 'and since when the threshold has been crossed');
+	ok(($state->{alerts}{$key}{value} // 0) > 0, 'and the value it was announced with');
+}
+
+{
+	my ($out, $code) = run_alert_at($at + 600, @throttled);
+	is($code, 0, 'a repeat ten minutes later exits 0: nothing is announced');
+	like($out, qr/THRESHOLD SUPPRESSED/, 'the run says the alert is suppressed');
+	unlike($out, qr/THRESHOLD CROSSED/, 'and emits no alert line for a wrapper to key on');
+	like($out, qr/next alert after/, 'and says when it will speak again');
+
+	is(state_of($state_file)->{alerts}{$key}{last_alert}, $at,
+		'a suppressed run does not move the recorded alert time on');
+}
+
+{
+	# The boundary itself: elapsed time is compared with the period, so at
+	# exactly one hour the crossing is news again.
+	my ($out, $code) = run_alert_at($at + 3_600, @throttled);
+	is($code, 1, 'the period is over at its end, not a second after it');
+	like($out, qr/THRESHOLD CROSSED/, 'and the crossing is announced again');
+
+	my $state = state_of($state_file);
+	is($state->{alerts}{$key}{last_alert}, $at + 3_600, 'with the new alert time recorded');
+	is($state->{alerts}{$key}{since}, $at,
+		'while one continuous crossing is still dated from where it started');
+}
+
+{
+	# A second threshold is a second alert, whatever the first one is doing.
+	my ($out, $code) = run_alert_at($at + 3_600,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:1', '--suppress', '1h', '--state-file', $state_file);
+	is($code, 1, 'another threshold on the same analysis is throttled separately');
+	like($out, qr/THRESHOLD CROSSED/, 'and is announced while the first is inside its period');
+}
+
+# ---------------------------------------------------------------------------
+# 8. --suppress: a crossing that ends is forgotten, so the next one is news
+# ---------------------------------------------------------------------------
+
+{
+	my @throttled = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $state_file,
+	);
+	my $key = $clear_id . '|count:gt:3';
+
+	my ($out, $code) = run_alert_at($at, @throttled);
+	is($code, 1, 'four rows cross count > 3');
+	ok(-f $state_file && state_of($state_file)->{alerts}{$key}, 'and the crossing is remembered');
+
+	# The same threshold, the same analysis, three rows: no longer crossed.
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+	($out, $code) = run_alert_at($at + 60, @throttled);
+	is($code, 0, 'three rows do not cross it');
+	like($out, qr/THRESHOLD CLEARED/, 'and the run says the crossing has ended');
+	ok(!state_of($state_file)->{alerts}{$key}, 'the entry is dropped from the state file');
+
+	# Which is what makes the next crossing alert straight away, rather than
+	# sitting out a period that belonged to an incident that is over.
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	($out, $code) = run_alert_at($at + 120, @throttled);
+	is($code, 1, 'so the next crossing is announced at once, inside the period');
+	like($out, qr/THRESHOLD CROSSED/, 'as a fresh alert');
+	is(state_of($state_file)->{alerts}{$key}{since}, $at + 120,
+		'and is dated from where this crossing started, not the last one');
+}
+
+# ---------------------------------------------------------------------------
+# 9. --suppress: what is not throttled, and what does not throttle
+# ---------------------------------------------------------------------------
+
+{
+	my $untouched = File::Spec->catfile($model_dir, 'alerts-state.json');
+	my ($out, $code) = run_alert(
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:0');
+	is($code, 1, 'without --suppress every crossing is announced');
+	ok(!-f $untouched, 'and no state file is created: the script is stateless unless asked');
+}
+
+{
+	my $zero = File::Spec->catfile($model_dir, 'zero.json');
+	my ($out, $code) = run_alert(
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:0', '--suppress', '0', '--state-file', $zero);
+	is($code, 1, 'a period of zero means no throttling');
+	ok(!-f $zero, 'and keeps no state either');
+}
+
+{
+	my ($out, $code) = run_alert(
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:0', '--suppress', 'banana');
+	is($code, 2, 'an unreadable period is an error, not a silent default');
+	like($out, qr/--suppress must be a duration/, 'and the message names the option');
+}
+
+{
+	# A dry run reports, and is expected not to count: recording it would use up
+	# the alert a later real run depends on.
+	my $dry = File::Spec->catfile($model_dir, 'dry.json');
+	my @args = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:0', '--suppress', '1h', '--state-file', $dry, '--dry-run',
+	);
+
+	my ($out, $code) = run_alert_at($at, @args);
+	is($code, 1, 'a dry run still reports a crossed threshold');
+	ok(!-f $dry, 'but records nothing against the throttle');
+
+	($out, $code) = run_alert_at($at, @args[0 .. $#args - 1]);
+	is($code, 1, 'so the next real run, at the same moment, still announces it');
+	like($out, qr/THRESHOLD CROSSED/, 'as an alert rather than a suppressed repeat');
+}
+
+# ---------------------------------------------------------------------------
+# 10. --suppress: a damaged state file costs a repeat, never a silence
+# ---------------------------------------------------------------------------
+
+{
+	my $damaged = File::Spec->catfile($model_dir, 'damaged.json');
+	Mojo::File->new($damaged)->spurt("not a state file\n");
+
+	my ($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:0', '--suppress', '1h', '--state-file', $damaged);
+	is($code, 1, 'an unreadable state file still lets the alert through');
+	like($out, qr/THRESHOLD CROSSED/, 'the alert is announced');
+	like($out, qr/not a throttle state file/, 'and the state file is reported as unusable');
+
+	my $state = state_of($damaged);
+	ok(ref $state eq 'HASH' && ref $state->{alerts} eq 'HASH',
+		'and a readable state file replaces it');
+	ok($state->{alerts}{$key}, 'holding this alert');
+
+	# And it is a throttle again from then on.
+	($out, $code) = run_alert_at($at + 60,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $id,
+		'--threshold', 'count:gt:0', '--suppress', '1h', '--state-file', $damaged);
+	is($code, 0, 'so the next run inside the period is suppressed');
+	like($out, qr/THRESHOLD SUPPRESSED/, 'as a suppressed repeat');
+}	# ---------------------------------------------------------------------------
+# 11. --recovery: the end of a crossing is announced, once, as exit 3
+# ---------------------------------------------------------------------------
+
+{
+	my $rec_state = File::Spec->catfile($model_dir, 'recovery.json');
+	my $key       = $clear_id . '|count:gt:3';
+	my @recovery  = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h',
+		'--state-file', $rec_state, '--recovery',
+	);
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	my ($out, $code) = run_alert_at($at, @recovery);
+	is($code, 1, '--recovery announces the crossing first, as an alert');
+	like($out, qr/THRESHOLD CROSSED/, 'with the alert line');
+	unlike($out, qr/THRESHOLD RECOVERED/, 'and no recovery while the crossing stands');
+
+	# Still crossed and inside the period: quiet.  A suppressed repeat must not
+	# read as a recovery, which is why the recorded entry is what decides.
+	($out, $code) = run_alert_at($at + 600, @recovery);
+	is($code, 0, 'a suppressed repeat is quiet');
+	like($out, qr/THRESHOLD SUPPRESSED/, 'as a suppressed repeat');
+	unlike($out, qr/THRESHOLD RECOVERED/, 'and is not a recovery');
+
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+	($out, $code) = run_alert_at($at + 900, @recovery);
+	is($code, 3, 'the end of the crossing exits 3, so a wrapper can mail the all-clear');
+	like($out, qr/THRESHOLD RECOVERED/, 'and says the threshold has recovered');
+	like($out, qr/crossed since \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/,
+		'naming when the crossing began');
+	like($out, qr/cleared \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z/, 'and when it ended');
+	ok(!state_of($rec_state)->{alerts}{$key},
+		'the entry is dropped, so the next crossing alerts at once as before');
+
+	# Which is also why it is said once: nothing remembers a crossing that is
+	# over, so the next run over the same uncrossed data has nothing to report.
+	($out, $code) = run_alert_at($at + 1_200, @recovery);
+	is($code, 0, 'the recovery is not repeated on the next run');
+	unlike($out, qr/THRESHOLD RECOVERED/, 'because nothing remembers a crossing that is over');
+}
+
+# ---------------------------------------------------------------------------
+# 12. --recovery: what it needs, and what it refuses to invent
+# ---------------------------------------------------------------------------
+
+{
+	# A threshold nobody was told about cannot have recovered from anything: with
+	# no crossing recorded there is no entry, so there is no incident to end.
+	my $never = File::Spec->catfile($model_dir, 'recovery-never.json');
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+
+	my ($out, $code) = run_alert_at($at,
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--state-file', $never, '--recovery');
+	is($code, 0, 'an uncrossed threshold recovers nothing');
+	unlike($out, qr/THRESHOLD RECOVERED/, 'no recovery without a crossing to have ended');
+	ok(!-f $never, 'and no state file is written for a threshold that never crossed');
+}
+
+{
+	# --recovery keeps the state file by itself: the entry is the record of the
+	# crossing, and without it the end of one cannot be detected at all.  No
+	# --suppress here, so every crossing is announced exactly as it always was.
+	my $plain = File::Spec->catfile($model_dir, 'recovery-no-suppress.json');
+	my @plain = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--state-file', $plain, '--recovery',
+	);
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	my ($out, $code) = run_alert_at($at, @plain);
+	is($code, 1, 'without --suppress a crossing is announced as it always was');
+	ok(-f $plain, 'but --recovery alone keeps the state a recovery needs');
+
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+	($out, $code) = run_alert_at($at + 60, @plain);
+	is($code, 3, 'and the end of that crossing is announced too');
+	like($out, qr/THRESHOLD RECOVERED/, 'as a recovery');
+}
+
+{
+	# A rehearsal reports the recovery it would announce and leaves the crossing
+	# on record, so running one cannot use up the all-clear a later real run
+	# depends on: the same rule the throttle's own --dry-run test states.
+	my $dry  = File::Spec->catfile($model_dir, 'recovery-dry.json');
+	my $key  = $clear_id . '|count:gt:3';
+	my @args = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--state-file', $dry, '--recovery',
+	);
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	run_alert_at($at, @args);
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+
+	my ($out, $code) = run_alert_at($at + 60, @args, '--dry-run');
+	is($code, 3, 'a dry run reports the recovery it would announce');
+	like($out, qr/THRESHOLD RECOVERED/, 'in the same words');
+	ok(state_of($dry)->{alerts}{$key}, 'and leaves the crossing on record');
+
+	($out, $code) = run_alert_at($at + 60, @args);
+	is($code, 3, 'so the real run announces it');
+	like($out, qr/THRESHOLD RECOVERED/, 'as the recovery');
+	ok(!state_of($dry)->{alerts}{$key}, 'and only then drops the entry');
+}
+
+{
+	# Without --recovery the ending is reported exactly as it always was: the
+	# option adds a notification, it does not change what the default says.
+	my $def  = File::Spec->catfile($model_dir, 'no-recovery.json');
+	my @args = (
+		'--model-dir', $model_dir, '--data-dir', $data_dir, '--analysis', $clear_id,
+		'--threshold', 'count:gt:3', '--suppress', '1h', '--state-file', $def,
+	);
+
+	Mojo::File->new($clear_csv)->spurt($rows_four);
+	run_alert_at($at, @args);
+	Mojo::File->new($clear_csv)->spurt($rows_three);
+
+	my ($out, $code) = run_alert_at($at + 60, @args);
+	is($code, 0, 'without --recovery the end of a crossing still exits 0');
+	like($out, qr/THRESHOLD CLEARED/, 'and is reported as a clear');
+	unlike($out, qr/THRESHOLD RECOVERED/, 'not as a recovery');
+}
+
 done_testing;
+

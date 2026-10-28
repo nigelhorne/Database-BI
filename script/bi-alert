@@ -5,21 +5,43 @@
 # exits 1 when a threshold condition is crossed.  It makes no mail or network
 # call: delivery is the caller's job, which is what lets cron (or a wrapper
 # that pipes STDOUT into mail, a webhook or a ticket) decide what an alert is.
-# Scheduling is likewise cron's; this script is deliberately stateless.
+# Scheduling is likewise cron's.
+#
+# A threshold that stays crossed is not news a second time, so --suppress gives
+# an (analysis, threshold) pair a throttle: the first crossing is announced, and
+# repeats inside the period are not.  The memory for that is one small JSON file
+# in the model directory, written only when --suppress is used (or once such a
+# file exists); with no --suppress the script behaves exactly as it always has
+# and writes nothing.  When the threshold clears, its entry is dropped, so the
+# next crossing alerts straight away rather than staying quiet about it.
+#
+# The end of a crossing is news as well, and --recovery announces it: the run
+# that sees the threshold clear prints THRESHOLD RECOVERED and exits 3, so a
+# wrapper that mails on a non-zero status mails the recovery too.  The state
+# file is what makes this possible, since an entry is the record of a crossing
+# that was announced: finding one is what tells this run that an incident has
+# ended rather than that a threshold was never crossed.  That is also why
+# --recovery keeps that file even with no --suppress to throttle, and why the
+# recovery is said once per crossing rather than on every run after it.
 #
 # Usage:
 #   bi-alert --analysis <id> [--threshold <alias>:<op>:<value>]
+#             [--suppress <duration>] [--state-file <path>] [--recovery]
 #             [--model-dir <dir>] [--data-dir <dir>] [--dry-run]
 #
-# Exit codes:  0 = ok / threshold not crossed
-#              1 = threshold crossed
+# Exit codes:  0 = ok / threshold not crossed / crossed but suppressed
+#              1 = threshold crossed, and announced
 #              2 = error (bad args, analysis not found, data unavailable)
+#              3 = a crossing that was announced has ended, and is announced
+#                  as a recovery (--recovery)
 
 use strict;
 use warnings;
 
 use Getopt::Long qw(GetOptions :config no_ignore_case);
 use File::Spec;
+use File::Temp qw(tempfile);
+use File::Path qw(make_path);
 use Mojo::JSON qw(decode_json encode_json);
 use Mojo::File;
 use List::Util qw(sum);
@@ -29,11 +51,15 @@ use Scalar::Util qw(looks_like_number);
 # Parse arguments
 # ---------------------------------------------------------------------------
 
-my ($opt_id, $opt_threshold, $opt_model_dir, $opt_data_dir, $opt_dry_run, $opt_help);
+my ($opt_id, $opt_threshold, $opt_model_dir, $opt_data_dir, $opt_dry_run, $opt_help,
+    $opt_suppress, $opt_state_file, $opt_recovery);
 
 GetOptions(
 	'analysis|a=s'    => \$opt_id,
 	'threshold|t=s'   => \$opt_threshold,
+	'suppress|s=s'    => \$opt_suppress,
+	'state-file=s'    => \$opt_state_file,
+	'recovery|r'      => \$opt_recovery,
 	'model-dir|m=s'   => \$opt_model_dir,
 	'data-dir|d=s'    => \$opt_data_dir,
 	'dry-run|n'       => \$opt_dry_run,
@@ -49,6 +75,23 @@ unless (defined $opt_id && length $opt_id) {
 
 my $model_dir = $opt_model_dir // '.bi';
 my $data_dir  = $opt_data_dir  // 'data';
+
+# The throttle period, in seconds.  Absent or 0 means no throttling, which is
+# also when no state is kept at all.
+my $suppress = 0;
+if (defined $opt_suppress && length $opt_suppress) {
+	$suppress = parse_duration($opt_suppress);
+	unless (defined $suppress) {
+		warn "bi-alert: --suppress must be a duration such as 30m, 6h or 1d; got '$opt_suppress'\n";
+		exit 2;
+	}
+}
+
+# Where the throttle remembers what it has announced.  Model directory by
+# default, beside analyses.json, so a cron job and the web app share one home
+# for state; --state-file points it somewhere else, which is what a second
+# machine or a test wants.
+my $state_file = $opt_state_file // File::Spec->catfile($model_dir, 'alerts-state.json');
 
 # ---------------------------------------------------------------------------
 # Load analysis
@@ -219,6 +262,7 @@ if (%results) {
 # ---------------------------------------------------------------------------
 
 my $threshold_crossed = 0;
+my $recovered         = 0;
 
 if (defined $opt_threshold && length $opt_threshold) {
 	unless ($opt_threshold =~ /\A([^:]+):([^:]+):(.+)\z/) {
@@ -243,15 +287,84 @@ if (defined $opt_threshold && length $opt_threshold) {
 		warn "bi-alert: unsupported operator '$op'; allowed: gt ge lt le eq ne\n";
 		exit 2;
 	}
+	# One alert is one (analysis, threshold) pair, so a second threshold on the
+	# same analysis is throttled on its own schedule.
+	my $key   = join('|', $opt_id, "$alias:$op:$tval");
+	# BI_ALERT_NOW replaces the clock, so a test can step over a suppression
+	# period without sleeping through it; unset, empty or unreadable means now.
+	my $now   = (defined $ENV{BI_ALERT_NOW} && $ENV{BI_ALERT_NOW} =~ /\A\d+\z/)
+		? $ENV{BI_ALERT_NOW} + 0
+		: time();
+	# --recovery needs the state file with or without a period: the entry is the
+	# record of a crossing that was announced, and so the only thing that can say
+	# an incident has ended.
+	my $in_use = $suppress > 0 || $opt_recovery || -f $state_file;
+	my $state  = $in_use ? load_state($state_file) : { version => 1, alerts => {} };
+	my $entry  = $state->{alerts}{$key};
+	my $changed;
+
 	if ($ops{$op}->($actual, $tval)) {
-		$threshold_crossed = 1;
-		print "THRESHOLD CROSSED: $alias ($actual) $op $tval\n";
+		my $last_alert = $entry ? ($entry->{last_alert} // 0) : 0;
+
+		# Announced unless this crossing was already announced inside the
+		# period.  The comparison is on elapsed seconds, so a run a minute early
+		# is still a repeat and a run after the period is news again.
+		if (!$suppress || !$last_alert || $now - $last_alert >= $suppress) {
+			$threshold_crossed = 1;
+			print "THRESHOLD CROSSED: $alias ($actual) $op $tval\n";
+			print "Repeats of this threshold are suppressed for $opt_suppress.\n"
+				if $suppress;
+			if ($in_use) {
+				$state->{alerts}{$key} = {
+					since      => ($entry && ($entry->{since} // 0)) ? $entry->{since} : $now,
+					last_alert => $now,
+					value      => $actual,
+				};
+				$changed = 1;
+			}
+		} else {
+			# Crossed, and already announced: say what is going on and stay quiet.
+			# This is the run that must not send a mail, so it exits 0 -- nothing
+			# is being announced -- and prints no CROSSED line for a wrapper to key
+			# on.
+			print "THRESHOLD SUPPRESSED: $alias ($actual) $op $tval; last alert "
+				. _iso($last_alert) . ', next alert after '
+				. _iso($last_alert + $suppress) . "\n";
+		}
 	} else {
 		print "Threshold not crossed: $alias ($actual) $op $tval\n";
+
+		# Cleared.  Finding an entry is what makes this run the end of an
+		# incident rather than the first sight of a threshold that was never
+		# crossed, which is why the recovery is said once and only for a crossing
+		# somebody was told about.  The entry goes either way, so the next
+		# crossing alerts immediately instead of waiting out a period that
+		# belongs to an incident that is over.
+		if ($entry) {
+			if ($opt_recovery) {
+				$recovered = 1;
+				print "THRESHOLD RECOVERED: $alias ($actual) $op $tval; crossed since "
+					. _iso($entry->{since} // 0)
+					. ', cleared ' . _iso($now) . "\n";
+			} else {
+				print "THRESHOLD CLEARED: $alias ($actual) $op $tval; crossed since "
+					. _iso($entry->{since} // 0) . "\n";
+			}
+			delete $state->{alerts}{$key};
+			$changed = 1;
+		}
 	}
+
+	# A dry run reports what would happen and leaves the throttle where it was,
+	# so running one cannot use up the alert a later real run depends on.
+	save_state($state_file, $state) if $changed && $in_use && !$opt_dry_run;
 }
 
-my $exit_code = $threshold_crossed ? 1 : 0;
+# A recovery is a third answer, not an error: 3 is what lets a wrapper send the
+# all-clear, which 0 cannot do -- a wrapper keyed on a non-zero status would
+# also fire on every suppressed repeat -- and it leaves 1 meaning exactly "a
+# crossing was announced just now".
+my $exit_code = $recovered ? 3 : $threshold_crossed ? 1 : 0;
 exit $exit_code;
 
 # ---------------------------------------------------------------------------
@@ -262,18 +375,137 @@ Usage: bi-alert --analysis <id> [OPTIONS]
 
   --analysis, -a <id>           Analysis id (required)
   --threshold, -t <m>:<op>:<v>  Threshold: measure alias, operator (gt|ge|lt|le|eq|ne), value
+  --suppress,  -s <duration>    Announce this threshold at most once per period
+                                (30, 30s, 15m, 6h, 2d, 1w; default: no throttling)
+  --state-file <path>           Where the throttle remembers its last alert
+                                (default: <model-dir>/alerts-state.json)
+  --recovery,  -r               Announce the end of a crossing as well as its
+                                start: THRESHOLD RECOVERED, exit 3
   --model-dir, -m <dir>         Model directory containing analyses.json (default: .bi)
   --data-dir,  -d <dir>         Data directory (default: data)
-  --dry-run,   -n               Accepted for compatibility; nothing is ever sent
+  --dry-run,   -n               Accepted for compatibility; nothing is ever sent,
+                                and no alert is recorded against the throttle
   --help,      -h               Show this help
 
 Exit codes:
-  0  OK; threshold not crossed
-  1  Threshold crossed
+  0  OK; threshold not crossed, or crossed and already announced inside the period
+  1  Threshold crossed, and announced
   2  Error
+  3  A crossing that was announced has ended, and is announced as a recovery
 
 The digest goes to STDOUT and nothing is sent anywhere, so --dry-run has no
 delivery to suppress.  Pipe STDOUT into mail, curl or a ticket creator if the
 alert has to leave the machine.
+
+Cron every five minutes, mailing only what is announced (exit 1) or an error
+(exit 2), with an hourly ceiling on repeats.  Add -r to that line and the same
+mail carries the recovery (exit 3) when the threshold clears:
+
+  */5 * * * * cd /path/to/app && out=$(./script/bi-alert --analysis abc123 \
+      --threshold count:gt:1000 --suppress 1h 2>&1) \
+      || printf '%s\n' "$out" | mail -s 'bi-alert' you
+
+A run inside the period says THRESHOLD SUPPRESSED and exits 0, so a wrapper
+keyed on the exit status stays quiet; THRESHOLD CLEARED, also exit 0, is said
+once when the crossing ends.  The state file is one small JSON object, keyed by
+analysis and threshold; delete it to make every threshold alert again.
+
+With --recovery that ending is announced instead of merely reported: the run
+prints THRESHOLD RECOVERED and exits 3, so the wrapper above -- which mails on
+any non-zero status -- mails the all-clear as well as the alert, and a wrapper
+that should not is a wrapper that does not pass --recovery.  It is said once per
+crossing, and only for a crossing that was announced, because the state file is
+what remembers it; that is also why --recovery keeps the state file even with no
+--suppress.
 USAGE
+}
+
+# parse_duration($text) -> $seconds | undef
+#
+# "30", "30s", "15m", "6h", "2d", "1w".  A bare number is seconds, so a cron
+# line can say --suppress 3600 without a unit.  Anything else is undef, which
+# the caller turns into an error rather than a silent default.
+sub parse_duration {
+	my $text = shift;
+	return undef unless defined $text && length $text;
+	my ($value, $unit) = $text =~ /\A\s*(\d+(?:\.\d+)?)\s*([smhdw]?)\s*\z/i;
+	return undef unless defined $value;
+	my %seconds = ('' => 1, s => 1, m => 60, h => 3_600, d => 86_400, w => 604_800);
+	return $value * $seconds{ lc $unit } + 0;
+}
+
+# _iso($epoch) -> 'YYYY-MM-DDTHH:MM:SSZ'
+#
+# UTC, so a state file written by a machine in one zone reads the same in
+# another, whatever TZ the cron job runs under.
+sub _iso {
+	my @t = gmtime($_[0] // 0);
+	return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ', $t[5] + 1900, $t[4] + 1, @t[3, 2, 1, 0];
+}
+
+# load_state($path) -> \%state
+#
+# The throttle's memory: which thresholds were announced, when, and since when
+# they have been crossed.  A file that cannot be read or parsed is reported on
+# STDERR and treated as empty, so a damaged state file costs one repeated alert
+# rather than a run that never alerts again.
+sub load_state {
+	my $path = shift;
+	my %empty = (version => 1, alerts => {});
+	return \%empty unless -f $path;
+
+	my $json = eval { Mojo::File->new($path)->slurp };
+	unless (defined $json && !$@) {
+		warn "bi-alert: cannot read state file '$path': " . ($@ // $!) . "\n";
+		return \%empty;
+	}
+
+	my $state = eval { decode_json($json) };
+	unless (ref $state eq 'HASH' && ref $state->{alerts} eq 'HASH') {
+		warn "bi-alert: state file '$path' is not a throttle state file; starting from nothing\n";
+		return \%empty;
+	}
+	return $state;
+}
+
+# save_state($path, \%state) -> $bool
+#
+# Written through a temporary file in the same directory and renamed into place,
+# as the web application writes its own state files: two cron runs that overlap,
+# or one that dies mid-write, cannot leave a half-written file for the next run
+# to read.  A write that fails is reported and returns false; the alert has
+# already been announced by then, and the next run repeats it rather than losing
+# it.
+sub save_state {
+	my ($path, $state) = @_;
+
+	my (undef, $dirs) = File::Spec->splitpath($path);
+	my $dir = length $dirs ? $dirs : '.';
+	unless (-d $dir) {
+		eval { make_path($dir) };
+		unless (-d $dir) {
+			warn "bi-alert: cannot create state directory '$dir': " . ($@ // $!) . "\n";
+			return 0;
+		}
+	}
+
+	my ($fh, $tmp) = eval { tempfile(DIR => $dir, UNLINK => 0) };
+	unless ($fh) {
+		warn "bi-alert: cannot write a state file in '$dir': " . ($@ // $!) . "\n";
+		return 0;
+	}
+
+	my $ok = eval {
+		print {$fh} encode_json($state);
+		close $fh;
+		rename($tmp, $path) or die "rename $tmp to $path: $!\n";
+		1;
+	};
+	unless ($ok) {
+		warn "bi-alert: cannot write state file '$path': " . ($@ // $!) . "\n";
+		close $fh if defined $fh;
+		unlink $tmp if defined $tmp;
+		return 0;
+	}
+	return 1;
 }

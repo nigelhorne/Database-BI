@@ -101,6 +101,37 @@ Revision history for Database-BI
 	  fold cannot compute.
 	- The tutorial's pivot and column-statistics chapters mention the new
 	  measures, and the vocabulary is documented in the POD and README.
+	- script/bi-alert: --suppress DURATION throttles a threshold that stays
+	  crossed, so a cron job every few minutes no longer announces the same
+	  condition every time.  The duration is 30s, 15m, 6h, 2d, 1w or a bare
+	  number of seconds.  The first crossing is announced; a repeat inside the
+	  period prints THRESHOLD SUPPRESSED and exits 0, since nothing is being
+	  announced, and a crossing that ends prints THRESHOLD CLEARED once and
+	  drops its entry so the next crossing alerts immediately.
+	- The throttle lives in <model-dir>/alerts-state.json (or --state-file),
+	  one entry per analysis and threshold, written through a temporary file
+	  and renamed so overlapping cron runs cannot leave half a file.  It is
+	  kept only when --suppress is used or the file already exists: with no
+	  --suppress the script is stateless as before.  A state file that cannot
+	  be read is reported and treated as empty, so a damaged file costs one
+	  repeated alert rather than silence, and --dry-run records nothing, so a
+	  rehearsal cannot use up an alert a real run depends on.
+	- BI_ALERT_NOW replaces the clock for tests, so a suppression period can be
+	  stepped over exactly instead of by sleeping.
+	- script/bi-alert --recovery announces the end of a crossing as well as its
+	  start: the run that sees the threshold clear prints THRESHOLD RECOVERED
+	  and exits 3, so a cron wrapper that mails on any non-zero status mails
+	  the all-clear too.  Exit 3 is new; 0 (nothing announced), 1 (crossed and
+	  announced) and 2 (error) keep their meanings, and without --recovery the
+	  ending is still reported as THRESHOLD CLEARED and exit 0.
+	- The recovery is remembered rather than guessed.  It is the throttle's own
+	  state file that says a crossing was announced, so the recovery is said
+	  once per crossing and only for a crossing somebody was told about; a
+	  threshold that never crossed recovers nothing and writes no state, and
+	  --recovery keeps that file even with no --suppress to throttle.  The line
+	  names both ends of the incident, crossed since and cleared.  A rehearsal
+	  (--dry-run) reports the recovery it would announce and leaves the
+	  crossing on record, so it cannot use up the all-clear a real run needs.
 	- A canvas card can pick the aggregate function it shows, instead of always
 	  counting rows or summing a column.  "Add current view" offers the pivot's
 	  own vocabulary with its own names -- Sum (the default), Average, Min, Max,
@@ -126,6 +157,17 @@ Revision history for Database-BI
 	  first/last over a column of text; the 400 for an unknown function and an
 	  unusable percentile; the /stats columns against the same fixture; and the
 	  same measures over a SQL-backed source.
+	- t/alert.t: the throttle at fixed clocks -- one announcement, a suppressed
+	  repeat, the boundary at exactly one period, a second threshold throttled
+	  separately, the clear that re-arms the alert, no state without --suppress
+	  or with a period of zero, an unreadable period, a dry run that records
+	  nothing, and a damaged state file that still lets the alert through.
+	- t/alert.t, --recovery: a crossing announced and then ended at exit 3 with
+	  the crossing's own dates, the recovery said once and never again, a
+	  suppressed repeat that is not mistaken for one, no recovery for a
+	  threshold that never crossed (and no state file for it either), a
+	  recovery with no --suppress to throttle it, and a dry run that reports the
+	  recovery without consuming it.
 	- t/time-range.t: the window boundaries at fixed clocks, including month,
 	  quarter, year and leap-year rollovers; day-versus-timestamp comparisons;
 	  which rows each preset selects through /view, /bar, /export and /pivot;

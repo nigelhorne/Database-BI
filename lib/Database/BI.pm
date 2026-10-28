@@ -983,13 +983,45 @@ Reports one saved analysis, and turns a crossed threshold into a non-zero exit
 status so cron can act on it:
 
     ./script/bi-alert --analysis ID [--threshold MEASURE:OP:VALUE] \
+                      [--suppress DURATION] [--state-file PATH] [--recovery] \
                       [--data-dir DIR] [--model-dir DIR] [--dry-run]
 
 The digest goes to STDOUT and nothing is sent: pipe it into mail, a webhook or
 a ticket creator if the alert has to leave the machine.  Exit status is 0 when
-no threshold is crossed, 1 when one is, and 2 on error.  There is no delivery to
-suppress, so C<--dry-run> is accepted for compatibility only and changes neither
-the output nor the exit status.  The script keeps no state.
+no threshold is crossed, 1 when one is, 2 on error, and 3 when a crossing that
+was announced has ended and C<--recovery> was asked to announce that.  There is
+no delivery to suppress, so C<--dry-run> is accepted for compatibility only and
+changes neither the output nor the exit status.
+
+C<--suppress> throttles a threshold that stays crossed, so a condition that is
+still true on the next cron run is not reported as news again: it takes a
+duration (C<30s>, C<15m>, C<6h>, C<2d>, C<1w>, or a bare number of seconds), the
+first crossing is announced, and repeats inside the period are not.  The
+throttle is one small JSON file, C<alerts-state.json> in the model directory
+unless C<--state-file> names elsewhere, keyed by analysis and threshold and
+written atomically.  It is kept only when C<--suppress> is used or such a file
+already exists, so with no C<--suppress> the script is as stateless as it has
+always been and writes nothing.
+
+A run inside the period prints C<THRESHOLD SUPPRESSED> and exits 0: it is not
+announcing anything, so a cron wrapper keyed on the exit status stays quiet.
+When the crossing ends the run prints C<THRESHOLD CLEARED> once and drops its
+entry, which means the next crossing is announced immediately instead of
+waiting out a period that belonged to an incident that is over.  A state file
+that cannot be read is reported and treated as empty, so a damaged file costs
+one repeated alert rather than silence, and C<--dry-run> records nothing, so a
+rehearsal cannot use up the alert a real run depends on.
+
+C<--recovery> announces that ending instead of merely reporting it: the run
+prints C<THRESHOLD RECOVERED> and exits 3, so a wrapper that mails on any
+non-zero status mails the all-clear as well as the alert, and a wrapper that
+should not is a wrapper that does not pass C<--recovery>.  The recovery goes
+through the same state file, which is what makes it possible: an entry is the
+record of a crossing that was announced, so finding one is what tells the run
+that an incident has ended rather than that a threshold was never crossed.  It
+is therefore said once per crossing and only for a crossing somebody was told
+about, which is also why C<--recovery> keeps that file even with no C<--suppress>
+to throttle.  The recovery names both dates -- C<crossed since> and C<cleared>.
 
 C<script/database-bi> is the web application launcher: run with no arguments it
 starts the reloading development server, with a command word it runs that
