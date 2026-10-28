@@ -1072,242 +1072,244 @@ Approximate LCSAJ segments: 9<br>
 </span><span class="">  731: 			&#39;Run bi-alert --help to see all options.&#39;,
 </span><span class="">  732: 			&#39;Pass --analysis with the canvas id and --threshold with the measure, comparison and value.&#39;,
 </span><span class="">  733: 			&#39;For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.&#39;,
-</span><span class="">  734: 			&#39;Pass --dry-run to print what would be checked without running the check.&#39;,
-</span><span class="">  735: 			&#39;A threshold that stays crossed is only worth hearing about once, so pass --suppress 1h to be told at most hourly.&#39;,
-</span><span class="">  736: 			&#39;The script remembers the last alert in a small state file, and forgets it when the crossing ends.&#39;,
-</span><span class="">  737: 			&#39;Pass --recovery to be told when the crossing ends as well as when it starts.&#39;,
-</span><span class="">  738: 			&#39;The script can only see a crossing end when it remembers one starting, so --recovery keeps its state file.&#39;,
-</span><span class="">  739: 			&#39;Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.&#39;,
-</span><span class="">  740: 			&#39;Wire the script into a cron job or a monitoring system to get automatic alerts.&#39;,
-</span><span class="">  741: 		],
-</span><span class="">  742: 		tip   =&gt; &#39;Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error.&#39;,
-</span><span class="">  743: 		routes =&gt; [],
-</span><span class="">  744: 	},
-</span><span class="">  745: 	{
-</span><span class="">  746: 		id    =&gt; &#39;developers&#39;,
-</span><span class="">  747: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class="">  748: 		title =&gt; &#39;Where this page lives&#39;,
-</span><span class="">  749: 		lead  =&gt; &#39;This tutorial is part of the application. It is not in the Perl documentation.&#39;,
-</span><span class="">  750: 		steps =&gt; [
-</span><span class="">  751: 			&#39;The text of this page is a list of chapters in lib/Database/BI/Tutorial.pm.&#39;,
-</span><span class="">  752: 			&#39;The page itself is templates/web/en/tutorial.html.tt. The route is GET /tutorial.&#39;,
-</span><span class="">  753: 			&#39;To add a chapter, add one entry to the list. Give it a title, a short lead, the steps, and the routes that it covers.&#39;,
-</span><span class="">  754: 			&#39;Each page finds its Help link through the action map in the same module. Add a new page action there.&#39;,
-</span><span class="">  755: 			&#39;Run prove -l t/tutorial.t. The test fails if a GET page has no chapter and no reason to be exempt.&#39;,
-</span><span class="">  756: 			&#39;Read README.md for how to start the program and run the full test suite.&#39;,
-</span><span class="">  757: 		],
-</span><span class="">  758: 		tip   =&gt; &#39;Keep the words simple. The test also checks that no step is a very long sentence.&#39;,
-</span><span class="">  759: 		routes =&gt; [],
-</span><span class="">  760: 	},
-</span><span class="">  761: );
-</span><span class="">  762: 
-</span><span class="">  763: my @FAQ = (
-</span><span class="">  764: 	{
-</span><span class="">  765: 		question =&gt; &#39;The file is not in the list. What can I do?&#39;,
-</span><span class="">  766: 		answer   =&gt; &#39;Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.&#39;,
-</span><span class="">  767: 	},
-</span><span class="">  768: 	{
-</span><span class="">  769: 		question =&gt; &#39;The program will not open my file.&#39;,
-</span><span class="">  770: 		answer   =&gt; &#39;Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.&#39;,
-</span><span class="">  771: 	},
-</span><span class="">  772: 	{
-</span><span class="">  773: 		question =&gt; &#39;My chart is empty.&#39;,
-</span><span class="">  774: 		answer   =&gt; &#39;Check that you chose a number column for the value. Check also that your filters still show some rows.&#39;,
-</span><span class="">  775: 	},
-</span><span class="">  776: 	{
-</span><span class="">  777: 		question =&gt; &#39;A merge added blank cells.&#39;,
-</span><span class="">  778: 		answer   =&gt; &#39;The two tables had no matching value in the key columns. Check the spelling and the type of the values.&#39;,
-</span><span class="">  779: 	},
-</span><span class="">  780: 	{
-</span><span class="">  781: 		question =&gt; &#39;My changes disappeared.&#39;,
-</span><span class="">  782: 		answer   =&gt; &#39;A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.&#39;,
-</span><span class="">  783: 	},
-</span><span class="">  784: );
-</span><span class="">  785: 
-</span><span class="">  786: my @GLOSSARY = (
-</span><span class="">  787: 	{ term =&gt; &#39;Berkeley DB&#39;, meaning =&gt; &#39;A database file that ends in .db.&#39; },
-</span><span class="">  788: 	{ term =&gt; &#39;Browser&#39;,     meaning =&gt; &#39;The program that shows web pages, for example Firefox or Chrome.&#39; },
-</span><span class="">  789: 	{ term =&gt; &#39;Canvas&#39;,      meaning =&gt; &#39;A saved page with several tables and charts.&#39; },
-</span><span class="">  790: 	{ term =&gt; &#39;Cell&#39;,        meaning =&gt; &#39;One value in a table, at one row and one column.&#39; },
-</span><span class="">  791: 	{ term =&gt; &#39;Chart&#39;,       meaning =&gt; &#39;A picture of numbers, for example a bar chart.&#39; },
-</span><span class="">  792: 	{ term =&gt; &#39;Column&#39;,      meaning =&gt; &#39;One kind of value in a table, for example the price column.&#39; },
-</span><span class="">  793: 	{ term =&gt; &#39;Combine&#39;,     meaning =&gt; &#39;Put the rows of one file under the rows of another file.&#39; },
-</span><span class="">  794: 	{ term =&gt; &#39;CSV&#39;,         meaning =&gt; &#39;A text file with values separated by commas.&#39; },
-</span><span class="">  795: 	{ term =&gt; &#39;Data file&#39;,   meaning =&gt; &#39;A file with rows and columns that the program can read.&#39; },
-</span><span class="">  796: 	{ term =&gt; &#39;Duplicate&#39;,   meaning =&gt; &#39;A row that is exactly the same as another row.&#39; },
-</span><span class="">  797: 	{ term =&gt; &#39;Export&#39;,      meaning =&gt; &#39;Write the rows that you see to a new file.&#39; },
-</span><span class="">  798: 	{ term =&gt; &#39;Expression&#39;,  meaning =&gt; &#39;A small formula, for example revenue - cost.&#39; },
-</span><span class="">  799: 	{ term =&gt; &#39;Filter&#39;,      meaning =&gt; &#39;A rule that hides rows which do not match.&#39; },
-</span><span class="">  800: 	{ term =&gt; &#39;Geocode&#39;,     meaning =&gt; &#39;Change a place name into a latitude and a longitude.&#39; },
-</span><span class="">  801: 	{ term =&gt; &#39;Join&#39;,        meaning =&gt; &#39;Add columns from a second table by matching a shared value.&#39; },
-</span><span class="">  802: 	{ term =&gt; &#39;Pivot table&#39;, meaning =&gt; &#39;A grid that summarises rows and columns.&#39; },
-</span><span class="">  803: 	{ term =&gt; &#39;PSV&#39;,         meaning =&gt; &#39;A text file with values separated by pipe characters.&#39; },
-</span><span class="">  804: 	{ term =&gt; &#39;Row&#39;,         meaning =&gt; &#39;One record in a table.&#39; },
-</span><span class="">  805: 	{ term =&gt; &#39;Server&#39;,      meaning =&gt; &#39;The program on a computer that sends pages to your browser.&#39; },
-</span><span class="">  806: 	{ term =&gt; &#39;SQLite&#39;,      meaning =&gt; &#39;A database file that can hold more than one table.&#39; },
-</span><span class="">  807: 	{ term =&gt; &#39;TSV&#39;,         meaning =&gt; &#39;A text file with values separated by tab characters.&#39; },
-</span><span class="">  808: 	{ term =&gt; &#39;URL&#39;,         meaning =&gt; &#39;The address of a web page, shown in the address bar.&#39; },
-</span><span class="">  809: 	{ term =&gt; &#39;XLSX&#39;,        meaning =&gt; &#39;An Excel spreadsheet file.&#39; },
-</span><span class="">  810: 	{ term =&gt; &#39;XML&#39;,         meaning =&gt; &#39;A text file with data inside tags.&#39; },
-</span><span class="">  811: );
-</span><span class="">  812: 
-</span><span class="">  813: # Routes that are GET pages but are not chapters.  Every entry needs a reason:
-</span><span class="">  814: # it is a decision to leave a page out of the tutorial, not an accident.
-</span><span class="">  815: # Actions that render a page, mapped to the chapter that helps with that page.
-</span><span class="">  816: # The layout turns this into a &quot;Help: ...&quot; link beside the main Tutorial link,
-</span><span class="">  817: # so a reader on the pie chart screen lands on the pie chart chapter.  A new
-</span><span class="">  818: # page action belongs here; t/tutorial.t checks that every covered GET route
-</span><span class="">  819: # has an entry.
-</span><span class="">  820: my %ACTION_CHAPTERS = (
-</span><span class="">  821: 	index          =&gt; &#39;open-file&#39;,
-</span><span class="">  822: 	browse         =&gt; &#39;other-files&#39;,
-</span><span class="">  823: 	open_file      =&gt; &#39;read-table&#39;,
-</span><span class="">  824: 	import_url     =&gt; &#39;web-table&#39;,
-</span><span class="">  825: 	view           =&gt; &#39;read-table&#39;,
-</span><span class="">  826: 	join_tables    =&gt; &#39;join&#39;,
-</span><span class="">  827: 	combine_tables =&gt; &#39;combine&#39;,
-</span><span class="">  828: 	export_data    =&gt; &#39;export&#39;,
-</span><span class="">  829: 	tables_view    =&gt; &#39;other-files&#39;,
-</span><span class="">  830: 	graph_view     =&gt; &#39;line-chart&#39;,
-</span><span class="">  831: 	pie_view       =&gt; &#39;pie-chart&#39;,
-</span><span class="">  832: 	heatmap_view   =&gt; &#39;heatmap-chart&#39;,
-</span><span class="">  833: 	bar_view       =&gt; &#39;bar-chart&#39;,
-</span><span class="">  834: 	folder_view    =&gt; &#39;folder&#39;,
-</span><span class="">  835: 	pivot_view     =&gt; &#39;pivot&#39;,
-</span><span class="">  836: 	stats_view     =&gt; &#39;stats&#39;,
-</span><span class="">  837: 	insights_view  =&gt; &#39;insights&#39;,
-</span><span class="">  838: 	scatter_view   =&gt; &#39;scatter-chart&#39;,
-</span><span class="">  839: 	stacked_view   =&gt; &#39;stacked-chart&#39;,
-</span><span class="">  840: 	combo_view     =&gt; &#39;combo-chart&#39;,
-</span><span class="">  841: 	treemap_view   =&gt; &#39;treemap-chart&#39;,
-</span><span class="">  842: 	histogram_view =&gt; &#39;histogram-chart&#39;,
-</span><span class="">  843: 	map_view       =&gt; &#39;map-chart&#39;,
-</span><span class="">  844: 	canvas_render  =&gt; &#39;canvas&#39;,
-</span><span class="">  845: 	catalog_view   =&gt; &#39;catalog&#39;,
-</span><span class="">  846: );
-</span><span class="">  847: 
-</span><span class="">  848: my %EXEMPT_ROUTES = (
-</span><span class="">  849: 	&#39;/a/:id/visual/:n/:fmt&#39;    =&gt; &#39;per-visual CSV/PNG download; not a navigable page&#39;,
-</span><span class="">  850: 	&#39;/api/analyses&#39;            =&gt; &#39;JSON for the saved-canvas list&#39;,
-</span><span class="">  851: 	&#39;/api/analyses/:id&#39;        =&gt; &#39;JSON for one saved canvas&#39;,
-</span><span class="">  852: 	&#39;/api/analyses/:id/export&#39; =&gt; &#39;JSON export of one saved canvas&#39;,
-</span><span class="">  853: 	&#39;/api/columns&#39;             =&gt; &#39;JSON list of columns for the join and filter panels&#39;,
-</span><span class="">  854: 	&#39;/api/dirs&#39;                =&gt; &#39;JSON folder list for the browse and export panels&#39;,
-</span><span class="">  855: 	&#39;/api/range&#39;               =&gt; &#39;JSON min/max ISO dates for the filter date-picker constraints&#39;,
-</span><span class="">  856: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
-</span><span class="">  857: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
-</span><span class="">  858: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
-</span><span class="">  859: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
-</span><span class="">  860: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
-</span><span class="">  861: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
-</span><span class="">  862: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
-</span><span class="">  863: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
-</span><span class="">  864: );
-</span><span class="">  865: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  866: sub intro     { return \@INTRO }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  867: sub chapters  { return \@CHAPTERS }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  868: sub faq       { return \@FAQ }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  869: sub glossary  { return \@GLOSSARY }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  870: 
-</span><span class="">  871: sub parts {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">872 → 874 → 888</span></span>  872: 	my @parts;
-</span><span class="">  873: 
-</span><span class="">  874: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  875: 		my $name = $chapter-&gt;{part};
-</span><span class="">  876: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  877: 		if (!@parts || $parts[-1]{name} ne $name) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  878: 			push @parts, {
-</span><span class="">  879: 				name     =&gt; $name,
-</span><span class="">  880: 				id       =&gt; _slug($name),
-</span><span class="">  881: 				chapters =&gt; [],
-</span><span class="">  882: 			};
-</span><span class="">  883: 		}
-</span><span class="">  884: 
-</span><span class="">  885: 		push @{ $parts[-1]{chapters} }, $chapter;
-</span><span class="">  886: 	}
-</span><span class="">  887: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  888: 	return \@parts;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  889: }
-</span><span class="">  890: 
-</span><span class="">  891: sub covered_routes {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">892 → 894 → 900</span></span>  892: 	my %routes;
-</span><span class="">  893: 
-</span><span class="">  894: 	for my $chapter (@CHAPTERS) {
-</span><span class="">  895: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
-</span><span class="">  896: 			$routes{$route} = $chapter-&gt;{id};
-</span><span class="">  897: 		}
-</span><span class="">  898: 	}
-</span><span class="">  899: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  900: 	return \%routes;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  901: }
-</span><span class="">  902: 
-</span><span class="">  903: sub exempt_routes {
-</span><span class="">  904: 	return { %EXEMPT_ROUTES };
-</span><span class="">  905: }
-</span><span class="">  906: 
-</span><span class="">  907: sub chapter_for_action {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">908 → 913 → 917</span></span>  908: 	my $action = $_[1];
-</span><span class="">  909: 	return unless defined $action;
-</span><span class="">  910: 
-</span><span class="">  911: 	my $id = $ACTION_CHAPTERS{$action} or return;
+</span><span class="">  734: 			&#39;Pass --analysis or --threshold more than once to check several in the same run.&#39;,
+</span><span class="">  735: 			&#39;Prefix a threshold with an analysis id, such as abc123:count:gt:10, to check a second canvas.&#39;,
+</span><span class="">  736: 			&#39;Pass --dry-run to print what would be checked without running the check.&#39;,
+</span><span class="">  737: 			&#39;A threshold that stays crossed is only worth hearing about once, so pass --suppress 1h to be told at most hourly.&#39;,
+</span><span class="">  738: 			&#39;The script remembers the last alert in a small state file, and forgets it when the crossing ends.&#39;,
+</span><span class="">  739: 			&#39;Pass --recovery to be told when the crossing ends as well as when it starts.&#39;,
+</span><span class="">  740: 			&#39;The script can only see a crossing end when it remembers one starting, so --recovery keeps its state file.&#39;,
+</span><span class="">  741: 			&#39;Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.&#39;,
+</span><span class="">  742: 			&#39;Wire the script into a cron job or a monitoring system to get automatic alerts.&#39;,
+</span><span class="">  743: 		],
+</span><span class="">  744: 		tip   =&gt; &#39;Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error. When one run reports a crossing and a recovery together, exit code 1 wins.&#39;,
+</span><span class="">  745: 		routes =&gt; [],
+</span><span class="">  746: 	},
+</span><span class="">  747: 	{
+</span><span class="">  748: 		id    =&gt; &#39;developers&#39;,
+</span><span class="">  749: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class="">  750: 		title =&gt; &#39;Where this page lives&#39;,
+</span><span class="">  751: 		lead  =&gt; &#39;This tutorial is part of the application. It is not in the Perl documentation.&#39;,
+</span><span class="">  752: 		steps =&gt; [
+</span><span class="">  753: 			&#39;The text of this page is a list of chapters in lib/Database/BI/Tutorial.pm.&#39;,
+</span><span class="">  754: 			&#39;The page itself is templates/web/en/tutorial.html.tt. The route is GET /tutorial.&#39;,
+</span><span class="">  755: 			&#39;To add a chapter, add one entry to the list. Give it a title, a short lead, the steps, and the routes that it covers.&#39;,
+</span><span class="">  756: 			&#39;Each page finds its Help link through the action map in the same module. Add a new page action there.&#39;,
+</span><span class="">  757: 			&#39;Run prove -l t/tutorial.t. The test fails if a GET page has no chapter and no reason to be exempt.&#39;,
+</span><span class="">  758: 			&#39;Read README.md for how to start the program and run the full test suite.&#39;,
+</span><span class="">  759: 		],
+</span><span class="">  760: 		tip   =&gt; &#39;Keep the words simple. The test also checks that no step is a very long sentence.&#39;,
+</span><span class="">  761: 		routes =&gt; [],
+</span><span class="">  762: 	},
+</span><span class="">  763: );
+</span><span class="">  764: 
+</span><span class="">  765: my @FAQ = (
+</span><span class="">  766: 	{
+</span><span class="">  767: 		question =&gt; &#39;The file is not in the list. What can I do?&#39;,
+</span><span class="">  768: 		answer   =&gt; &#39;Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.&#39;,
+</span><span class="">  769: 	},
+</span><span class="">  770: 	{
+</span><span class="">  771: 		question =&gt; &#39;The program will not open my file.&#39;,
+</span><span class="">  772: 		answer   =&gt; &#39;Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.&#39;,
+</span><span class="">  773: 	},
+</span><span class="">  774: 	{
+</span><span class="">  775: 		question =&gt; &#39;My chart is empty.&#39;,
+</span><span class="">  776: 		answer   =&gt; &#39;Check that you chose a number column for the value. Check also that your filters still show some rows.&#39;,
+</span><span class="">  777: 	},
+</span><span class="">  778: 	{
+</span><span class="">  779: 		question =&gt; &#39;A merge added blank cells.&#39;,
+</span><span class="">  780: 		answer   =&gt; &#39;The two tables had no matching value in the key columns. Check the spelling and the type of the values.&#39;,
+</span><span class="">  781: 	},
+</span><span class="">  782: 	{
+</span><span class="">  783: 		question =&gt; &#39;My changes disappeared.&#39;,
+</span><span class="">  784: 		answer   =&gt; &#39;A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.&#39;,
+</span><span class="">  785: 	},
+</span><span class="">  786: );
+</span><span class="">  787: 
+</span><span class="">  788: my @GLOSSARY = (
+</span><span class="">  789: 	{ term =&gt; &#39;Berkeley DB&#39;, meaning =&gt; &#39;A database file that ends in .db.&#39; },
+</span><span class="">  790: 	{ term =&gt; &#39;Browser&#39;,     meaning =&gt; &#39;The program that shows web pages, for example Firefox or Chrome.&#39; },
+</span><span class="">  791: 	{ term =&gt; &#39;Canvas&#39;,      meaning =&gt; &#39;A saved page with several tables and charts.&#39; },
+</span><span class="">  792: 	{ term =&gt; &#39;Cell&#39;,        meaning =&gt; &#39;One value in a table, at one row and one column.&#39; },
+</span><span class="">  793: 	{ term =&gt; &#39;Chart&#39;,       meaning =&gt; &#39;A picture of numbers, for example a bar chart.&#39; },
+</span><span class="">  794: 	{ term =&gt; &#39;Column&#39;,      meaning =&gt; &#39;One kind of value in a table, for example the price column.&#39; },
+</span><span class="">  795: 	{ term =&gt; &#39;Combine&#39;,     meaning =&gt; &#39;Put the rows of one file under the rows of another file.&#39; },
+</span><span class="">  796: 	{ term =&gt; &#39;CSV&#39;,         meaning =&gt; &#39;A text file with values separated by commas.&#39; },
+</span><span class="">  797: 	{ term =&gt; &#39;Data file&#39;,   meaning =&gt; &#39;A file with rows and columns that the program can read.&#39; },
+</span><span class="">  798: 	{ term =&gt; &#39;Duplicate&#39;,   meaning =&gt; &#39;A row that is exactly the same as another row.&#39; },
+</span><span class="">  799: 	{ term =&gt; &#39;Export&#39;,      meaning =&gt; &#39;Write the rows that you see to a new file.&#39; },
+</span><span class="">  800: 	{ term =&gt; &#39;Expression&#39;,  meaning =&gt; &#39;A small formula, for example revenue - cost.&#39; },
+</span><span class="">  801: 	{ term =&gt; &#39;Filter&#39;,      meaning =&gt; &#39;A rule that hides rows which do not match.&#39; },
+</span><span class="">  802: 	{ term =&gt; &#39;Geocode&#39;,     meaning =&gt; &#39;Change a place name into a latitude and a longitude.&#39; },
+</span><span class="">  803: 	{ term =&gt; &#39;Join&#39;,        meaning =&gt; &#39;Add columns from a second table by matching a shared value.&#39; },
+</span><span class="">  804: 	{ term =&gt; &#39;Pivot table&#39;, meaning =&gt; &#39;A grid that summarises rows and columns.&#39; },
+</span><span class="">  805: 	{ term =&gt; &#39;PSV&#39;,         meaning =&gt; &#39;A text file with values separated by pipe characters.&#39; },
+</span><span class="">  806: 	{ term =&gt; &#39;Row&#39;,         meaning =&gt; &#39;One record in a table.&#39; },
+</span><span class="">  807: 	{ term =&gt; &#39;Server&#39;,      meaning =&gt; &#39;The program on a computer that sends pages to your browser.&#39; },
+</span><span class="">  808: 	{ term =&gt; &#39;SQLite&#39;,      meaning =&gt; &#39;A database file that can hold more than one table.&#39; },
+</span><span class="">  809: 	{ term =&gt; &#39;TSV&#39;,         meaning =&gt; &#39;A text file with values separated by tab characters.&#39; },
+</span><span class="">  810: 	{ term =&gt; &#39;URL&#39;,         meaning =&gt; &#39;The address of a web page, shown in the address bar.&#39; },
+</span><span class="">  811: 	{ term =&gt; &#39;XLSX&#39;,        meaning =&gt; &#39;An Excel spreadsheet file.&#39; },
+</span><span class="">  812: 	{ term =&gt; &#39;XML&#39;,         meaning =&gt; &#39;A text file with data inside tags.&#39; },
+</span><span class="">  813: );
+</span><span class="">  814: 
+</span><span class="">  815: # Routes that are GET pages but are not chapters.  Every entry needs a reason:
+</span><span class="">  816: # it is a decision to leave a page out of the tutorial, not an accident.
+</span><span class="">  817: # Actions that render a page, mapped to the chapter that helps with that page.
+</span><span class="">  818: # The layout turns this into a &quot;Help: ...&quot; link beside the main Tutorial link,
+</span><span class="">  819: # so a reader on the pie chart screen lands on the pie chart chapter.  A new
+</span><span class="">  820: # page action belongs here; t/tutorial.t checks that every covered GET route
+</span><span class="">  821: # has an entry.
+</span><span class="">  822: my %ACTION_CHAPTERS = (
+</span><span class="">  823: 	index          =&gt; &#39;open-file&#39;,
+</span><span class="">  824: 	browse         =&gt; &#39;other-files&#39;,
+</span><span class="">  825: 	open_file      =&gt; &#39;read-table&#39;,
+</span><span class="">  826: 	import_url     =&gt; &#39;web-table&#39;,
+</span><span class="">  827: 	view           =&gt; &#39;read-table&#39;,
+</span><span class="">  828: 	join_tables    =&gt; &#39;join&#39;,
+</span><span class="">  829: 	combine_tables =&gt; &#39;combine&#39;,
+</span><span class="">  830: 	export_data    =&gt; &#39;export&#39;,
+</span><span class="">  831: 	tables_view    =&gt; &#39;other-files&#39;,
+</span><span class="">  832: 	graph_view     =&gt; &#39;line-chart&#39;,
+</span><span class="">  833: 	pie_view       =&gt; &#39;pie-chart&#39;,
+</span><span class="">  834: 	heatmap_view   =&gt; &#39;heatmap-chart&#39;,
+</span><span class="">  835: 	bar_view       =&gt; &#39;bar-chart&#39;,
+</span><span class="">  836: 	folder_view    =&gt; &#39;folder&#39;,
+</span><span class="">  837: 	pivot_view     =&gt; &#39;pivot&#39;,
+</span><span class="">  838: 	stats_view     =&gt; &#39;stats&#39;,
+</span><span class="">  839: 	insights_view  =&gt; &#39;insights&#39;,
+</span><span class="">  840: 	scatter_view   =&gt; &#39;scatter-chart&#39;,
+</span><span class="">  841: 	stacked_view   =&gt; &#39;stacked-chart&#39;,
+</span><span class="">  842: 	combo_view     =&gt; &#39;combo-chart&#39;,
+</span><span class="">  843: 	treemap_view   =&gt; &#39;treemap-chart&#39;,
+</span><span class="">  844: 	histogram_view =&gt; &#39;histogram-chart&#39;,
+</span><span class="">  845: 	map_view       =&gt; &#39;map-chart&#39;,
+</span><span class="">  846: 	canvas_render  =&gt; &#39;canvas&#39;,
+</span><span class="">  847: 	catalog_view   =&gt; &#39;catalog&#39;,
+</span><span class="">  848: );
+</span><span class="">  849: 
+</span><span class="">  850: my %EXEMPT_ROUTES = (
+</span><span class="">  851: 	&#39;/a/:id/visual/:n/:fmt&#39;    =&gt; &#39;per-visual CSV/PNG download; not a navigable page&#39;,
+</span><span class="">  852: 	&#39;/api/analyses&#39;            =&gt; &#39;JSON for the saved-canvas list&#39;,
+</span><span class="">  853: 	&#39;/api/analyses/:id&#39;        =&gt; &#39;JSON for one saved canvas&#39;,
+</span><span class="">  854: 	&#39;/api/analyses/:id/export&#39; =&gt; &#39;JSON export of one saved canvas&#39;,
+</span><span class="">  855: 	&#39;/api/columns&#39;             =&gt; &#39;JSON list of columns for the join and filter panels&#39;,
+</span><span class="">  856: 	&#39;/api/dirs&#39;                =&gt; &#39;JSON folder list for the browse and export panels&#39;,
+</span><span class="">  857: 	&#39;/api/range&#39;               =&gt; &#39;JSON min/max ISO dates for the filter date-picker constraints&#39;,
+</span><span class="">  858: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
+</span><span class="">  859: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
+</span><span class="">  860: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
+</span><span class="">  861: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
+</span><span class="">  862: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
+</span><span class="">  863: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
+</span><span class="">  864: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
+</span><span class="">  865: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
+</span><span class="">  866: );
+</span><span class="">  867: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  868: sub intro     { return \@INTRO }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  869: sub chapters  { return \@CHAPTERS }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  870: sub faq       { return \@FAQ }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  871: sub glossary  { return \@GLOSSARY }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  872: 
+</span><span class="">  873: sub parts {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">874 → 876 → 890</span></span>  874: 	my @parts;
+</span><span class="">  875: 
+</span><span class="">  876: 	for my $chapter (@CHAPTERS) {
+</span><span class="">  877: 		my $name = $chapter-&gt;{part};
+</span><span class="">  878: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  879: 		if (!@parts || $parts[-1]{name} ne $name) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  880: 			push @parts, {
+</span><span class="">  881: 				name     =&gt; $name,
+</span><span class="">  882: 				id       =&gt; _slug($name),
+</span><span class="">  883: 				chapters =&gt; [],
+</span><span class="">  884: 			};
+</span><span class="">  885: 		}
+</span><span class="">  886: 
+</span><span class="">  887: 		push @{ $parts[-1]{chapters} }, $chapter;
+</span><span class="">  888: 	}
+</span><span class="">  889: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  890: 	return \@parts;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  891: }
+</span><span class="">  892: 
+</span><span class="">  893: sub covered_routes {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">894 → 896 → 902</span></span>  894: 	my %routes;
+</span><span class="">  895: 
+</span><span class="">  896: 	for my $chapter (@CHAPTERS) {
+</span><span class="">  897: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
+</span><span class="">  898: 			$routes{$route} = $chapter-&gt;{id};
+</span><span class="">  899: 		}
+</span><span class="">  900: 	}
+</span><span class="">  901: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  902: 	return \%routes;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  903: }
+</span><span class="">  904: 
+</span><span class="">  905: sub exempt_routes {
+</span><span class="">  906: 	return { %EXEMPT_ROUTES };
+</span><span class="">  907: }
+</span><span class="">  908: 
+</span><span class="">  909: sub chapter_for_action {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">910 → 915 → 919</span></span>  910: 	my $action = $_[1];
+</span><span class="">  911: 	return unless defined $action;
 </span><span class="">  912: 
-</span><span class="">  913: 	for my $chapter (@CHAPTERS) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  914: 		return $chapter if $chapter-&gt;{id} eq $id;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  915: 	}
-</span><span class="">  916: 
-</span><span class="">  917: 	return;
-</span><span class="">  918: }
-</span><span class="">  919: 
-</span><span class="">  920: sub _slug {
-</span><span class="">  921: 	my ($text) = @_;
-</span><span class="">  922: 
-</span><span class="">  923: 	my $slug = lc $text;
-</span><span class="">  924: 	$slug =~ s/[^a-z0-9]+/-/g;
-</span><span class="">  925: 	$slug =~ s/\A-+|-+\z//g;
-</span><span class="">  926: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  927: 	return $slug;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  928: }
-</span><span class="">  929: 
-</span><span class="">  930: 1;
+</span><span class="">  913: 	my $id = $ACTION_CHAPTERS{$action} or return;
+</span><span class="">  914: 
+</span><span class="">  915: 	for my $chapter (@CHAPTERS) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  916: 		return $chapter if $chapter-&gt;{id} eq $id;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  917: 	}
+</span><span class="">  918: 
+</span><span class="">  919: 	return;
+</span><span class="">  920: }
+</span><span class="">  921: 
+</span><span class="">  922: sub _slug {
+</span><span class="">  923: 	my ($text) = @_;
+</span><span class="">  924: 
+</span><span class="">  925: 	my $slug = lc $text;
+</span><span class="">  926: 	$slug =~ s/[^a-z0-9]+/-/g;
+</span><span class="">  927: 	$slug =~ s/\A-+|-+\z//g;
+</span><span class="">  928: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  929: 	return $slug;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  930: }
 </span><span class="">  931: 
-</span><span class="">  932: =head1 NAME
+</span><span class="">  932: 1;
 </span><span class="">  933: 
-</span><span class="">  934: Database::BI::Tutorial - the chapters of the in-application tutorial
+</span><span class="">  934: =head1 NAME
 </span><span class="">  935: 
-</span><span class="">  936: =head1 DESCRIPTION
+</span><span class="">  936: Database::BI::Tutorial - the chapters of the in-application tutorial
 </span><span class="">  937: 
-</span><span class="">  938: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
-</span><span class="">  939: data in this module.  A chapter is one feature: a title, a short lead, numbered
-</span><span class="">  940: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
-</span><span class="">  941: order, so adding a feature means adding a hash here, not editing HTML.
-</span><span class="">  942: 
-</span><span class="">  943: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
-</span><span class="">  944: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
-</span><span class="">  945: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
-</span><span class="">  946: chapter so a reader can find it.
-</span><span class="">  947: 
-</span><span class="">  948: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
-</span><span class="">  949: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
-</span><span class="">  950: short: the same test fails a lead, step, tip or walk-through sentence longer
-</span><span class="">  951: than 25 words.
-</span><span class="">  952: 
-</span><span class="">  953: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
-</span><span class="">  954: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
-</span><span class="">  955: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
-</span><span class="">  956: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
-</span><span class="">  957: there.
-</span><span class="">  958: 
-</span><span class="">  959: =head1 AUTHOR
+</span><span class="">  938: =head1 DESCRIPTION
+</span><span class="">  939: 
+</span><span class="">  940: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
+</span><span class="">  941: data in this module.  A chapter is one feature: a title, a short lead, numbered
+</span><span class="">  942: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
+</span><span class="">  943: order, so adding a feature means adding a hash here, not editing HTML.
+</span><span class="">  944: 
+</span><span class="">  945: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
+</span><span class="">  946: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
+</span><span class="">  947: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
+</span><span class="">  948: chapter so a reader can find it.
+</span><span class="">  949: 
+</span><span class="">  950: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
+</span><span class="">  951: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
+</span><span class="">  952: short: the same test fails a lead, step, tip or walk-through sentence longer
+</span><span class="">  953: than 25 words.
+</span><span class="">  954: 
+</span><span class="">  955: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
+</span><span class="">  956: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
+</span><span class="">  957: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
+</span><span class="">  958: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
+</span><span class="">  959: there.
 </span><span class="">  960: 
-</span><span class="">  961: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  961: =head1 AUTHOR
 </span><span class="">  962: 
-</span><span class="">  963: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  963: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
 </span><span class="">  964: 
-</span><span class="">  965: Copyright 2026 Nigel Horne.
+</span><span class="">  965: =head1 LICENCE AND COPYRIGHT
 </span><span class="">  966: 
-</span><span class="">  967: Usage is subject to the GPL2 licence terms.
+</span><span class="">  967: Copyright 2026 Nigel Horne.
 </span><span class="">  968: 
-</span><span class="">  969: =cut
+</span><span class="">  969: Usage is subject to the GPL2 licence terms.
+</span><span class="">  970: 
+</span><span class="">  971: =cut
 </span></pre>
 
 <script>

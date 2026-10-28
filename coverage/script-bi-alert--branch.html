@@ -20,104 +20,117 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">script/bi-alert</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c0">57.3%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c0">61.3%</td></tr>
 </table>
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
-<tr><td class="h"><a id="L76">76</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (&amp;GetOptions(&quot;analysis|a=s&quot;, \$opt_id, &quot;threshold|t=s&quot;, \$opt_threshold, &quot;suppress|s=s&quot;, \$opt_suppress, &quot;state-file=s&quot;, \$opt_state_file, &quot;recovery|r&quot;, \$opt_recovery, &quot;notify-cmd=s&quot;, \$opt_notify, &quot;model-dir|m=s&quot;, \$opt_model_dir, &quot;data-dir|d=s&quot;, \$opt_data_dir, &quot;dry-run|n&quot;, \$opt_dry_run, &quot;help|h&quot;, \$opt_help))</td></tr>
-<tr><td class="h"><a id="L78">78</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($opt_help)</td></tr>
-<tr><td class="h"><a id="L80">80</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $opt_id and length $opt_id)</td></tr>
-<tr><td class="h"><a id="L88">88</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $opt_notify)</td></tr>
-<tr><td class="h"><a id="L91">91</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (length $notify_cmd)</td></tr>
-<tr><td class="h"><a id="L104">104</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $notify_cmd</td></tr>
-<tr><td class="h"><a id="L112">112</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $opt_suppress and length $opt_suppress)</td></tr>
-<tr><td class="h"><a id="L114">114</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $suppress)</td></tr>
-<tr><td class="h"><a id="L131">131</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (-f $analyses_path)</td></tr>
-<tr><td class="h"><a id="L137">137</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $analyses_json)</td></tr>
-<tr><td class="h"><a id="L143">143</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not $analyses)</td></tr>
-<tr><td class="h"><a id="L149">149</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $a)</td></tr>
-<tr><td class="h"><a id="L159">159</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (@datasets)</td></tr>
-<tr><td class="h"><a id="L165">165</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($spec =~ /\A(?:table|path):/)</td></tr>
-<tr><td class="h"><a id="L171">171</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($spec =~ /\Atable:(.+)\z/) { }</td></tr>
+<tr><td class="h"><a id="L84">84</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (&amp;GetOptions(&quot;analysis|a=s\@&quot;, \$opt_analysis, &quot;threshold|t=s\@&quot;, \$opt_thresholds, &quot;suppress|s=s&quot;, \$opt_suppress, &quot;state-file=s&quot;, \$opt_state_file, &quot;recovery|r&quot;, \$opt_recovery, &quot;notify-cmd=s&quot;, \$opt_notify, &quot;model-dir|m=s&quot;, \$opt_model_dir, &quot;data-dir|d=s&quot;, \$opt_data_dir, &quot;dry-run|n&quot;, \$opt_dry_run, &quot;help|h&quot;, \$opt_help))</td></tr>
+<tr><td class="h"><a id="L86">86</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($opt_help)</td></tr>
+<tr><td class="h"><a id="L94">94</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $given ? :</td></tr>
+<tr><td class="h"><a id="L97">97</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $id</td></tr>
+<tr><td class="h"><a id="L98">98</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $listed{$id}++</td></tr>
+<tr><td class="h"><a id="L101">101</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@analysis_ids)</td></tr>
+<tr><td class="h"><a id="L109">109</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $opt_notify)</td></tr>
+<tr><td class="h"><a id="L112">112</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (length $notify_cmd)</td></tr>
+<tr><td class="h"><a id="L125">125</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $notify_cmd</td></tr>
+<tr><td class="h"><a id="L133">133</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $opt_suppress and length $opt_suppress)</td></tr>
+<tr><td class="h"><a id="L135">135</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $suppress)</td></tr>
+<tr><td class="h"><a id="L152">152</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (-f $analyses_path)</td></tr>
+<tr><td class="h"><a id="L158">158</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $analyses_json)</td></tr>
+<tr><td class="h"><a id="L164">164</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not $analyses)</td></tr>
+<tr><td class="h"><a id="L180">180</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $a)</td></tr>
+<tr><td class="h"><a id="L186">186</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (@datasets)</td></tr>
+<tr><td class="h"><a id="L192">192</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($spec =~ /\A(?:table|path):/)</td></tr>
+<tr><td class="h"><a id="L198">198</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($spec =~ /\Atable:(.+)\z/) { }</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif ($spec =~ /\Apath:(.+)\z/) { }</td></tr>
-<tr><td class="h"><a id="L175">175</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (-f $p)</td></tr>
-<tr><td class="h"><a id="L181">181</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $file_path and -f $file_path)</td></tr>
-<tr><td class="h"><a id="L199">199</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L201">201</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (eval {
+<tr><td class="h"><a id="L202">202</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (-f $p)</td></tr>
+<tr><td class="h"><a id="L209">209</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $file_path and -f $file_path)</td></tr>
+<tr><td class="h"><a id="L227">227</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L229">229</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (eval {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;do {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;require Text::CSV_XS
 }
 })</td></tr>
-<tr><td class="h"><a id="L202">202</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$INC{&#39;Text/CSV_XS.pm&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L205">205</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless open my $fh, &quot;&lt;:utf8&quot;, $file_path</td></tr>
-<tr><td class="h"><a id="L215">215</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L231">231</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless (@measures)</td></tr>
-<tr><td class="h"><a id="L242">242</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless length $alias</td></tr>
-<tr><td class="h"><a id="L246">246</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($fn eq &#39;count&#39;) { }</td></tr>
+<tr><td class="h"><a id="L230">230</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$INC{&#39;Text/CSV_XS.pm&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L233">233</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless open my $fh, &quot;&lt;:utf8&quot;, $file_path</td></tr>
+<tr><td class="h"><a id="L243">243</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L255">255</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless (@measures)</td></tr>
+<tr><td class="h"><a id="L266">266</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless length $alias</td></tr>
+<tr><td class="h"><a id="L270">270</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($fn eq &#39;count&#39;) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($fn eq &#39;count_distinct&#39;) { }</td></tr>
-<tr><td class="h"><a id="L252">252</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $_</td></tr>
-<tr><td class="h"><a id="L253">253</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($fn eq &#39;sum&#39;) { }</td></tr>
+<tr><td class="h"><a id="L276">276</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $_</td></tr>
+<tr><td class="h"><a id="L277">277</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($fn eq &#39;sum&#39;) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($fn eq &#39;avg&#39;) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($fn eq &#39;min&#39;) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($fn eq &#39;max&#39;) { }</td></tr>
-<tr><td class="h"><a id="L254">254</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">@nums ? :</td></tr>
-<tr><td class="h"><a id="L256">256</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">@nums ? :</td></tr>
-<tr><td class="h"><a id="L258">258</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (@nums)</td></tr>
-<tr><td class="h"><a id="L259">259</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$_ &lt; $v ? :</td></tr>
-<tr><td class="h"><a id="L263">263</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (@nums)</td></tr>
-<tr><td class="h"><a id="L264">264</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$_ &gt; $v ? :</td></tr>
-<tr><td class="h"><a id="L280">280</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (%results) { }</td></tr>
-<tr><td class="h"><a id="L283">283</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $results{$k} ? :</td></tr>
-<tr><td class="h"><a id="L298">298</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $opt_threshold and length $opt_threshold)</td></tr>
-<tr><td class="h"><a id="L299">299</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($opt_threshold =~ /\A([^:]+):([^:]+):(.+)\z/)</td></tr>
-<tr><td class="h"><a id="L309">309</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $actual)</td></tr>
-<tr><td class="h"><a id="L322">322</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (exists $ops{$op})</td></tr>
-<tr><td class="h"><a id="L333">333</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $ENV{&#39;BI_ALERT_NOW&#39;} &amp;&amp; $ENV{&#39;BI_ALERT_NOW&#39;} =~ /\A\d+\z/ ? :</td></tr>
-<tr><td class="h"><a id="L339">339</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$in_use ? :</td></tr>
-<tr><td class="h"><a id="L343">343</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ops{$op}-&gt;($actual, $tval)) { }</td></tr>
-<tr><td class="h"><a id="L344">344</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$entry ? :</td></tr>
-<tr><td class="h"><a id="L349">349</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (not $suppress &amp;&amp; $last_alert or $now - $last_alert &gt;= $suppress) { }</td></tr>
-<tr><td class="h"><a id="L352">352</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $suppress</td></tr>
-<tr><td class="h"><a id="L354">354</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($in_use)</td></tr>
-<tr><td class="h"><a id="L356">356</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$entry &amp;&amp; ($entry-&gt;{&#39;since&#39;} // 0) ? :</td></tr>
-<tr><td class="h"><a id="L380">380</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($entry)</td></tr>
-<tr><td class="h"><a id="L381">381</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($opt_recovery) { }</td></tr>
-<tr><td class="h"><a id="L399">399</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $notify_cmd and $announced)</td></tr>
-<tr><td class="h"><a id="L400">400</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($opt_dry_run) { }</td></tr>
-<tr><td class="h"><a id="L404">404</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$recovered ? :</td></tr>
-<tr><td class="h"><a id="L407">407</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$recovered ? :</td></tr>
-<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless deliver($notify_cmd, $recovered ? &quot;recovery&quot; : &quot;crossed&quot;, $verdict)</td></tr>
-<tr><td class="h"><a id="L416">416</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $changed and $in_use and not $opt_dry_run and not $delivery_failed</td></tr>
-<tr><td class="h"><a id="L428">428</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$threshold_crossed ? :</td></tr>
-<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$recovered ? :</td></tr>
-<tr><td class="h"><a id="L519">519</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $buffering</td></tr>
-<tr><td class="h"><a id="L520">520</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless open my $fh, &quot;&gt;&quot;, \$message</td></tr>
-<tr><td class="h"><a id="L532">532</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $buffering</td></tr>
-<tr><td class="h"><a id="L558">558</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($fh)</td></tr>
-<tr><td class="h"><a id="L565">565</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($written)</td></tr>
-<tr><td class="h"><a id="L582">582</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (not defined $pid) { }</td></tr>
+<tr><td class="h"><a id="L278">278</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">@nums ? :</td></tr>
+<tr><td class="h"><a id="L280">280</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">@nums ? :</td></tr>
+<tr><td class="h"><a id="L282">282</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (@nums)</td></tr>
+<tr><td class="h"><a id="L283">283</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$_ &lt; $v ? :</td></tr>
+<tr><td class="h"><a id="L287">287</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (@nums)</td></tr>
+<tr><td class="h"><a id="L288">288</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$_ &gt; $v ? :</td></tr>
+<tr><td class="h"><a id="L328">328</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $given ? :</td></tr>
+<tr><td class="h"><a id="L331">331</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $text</td></tr>
+<tr><td class="h"><a id="L338">338</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($text =~ /\A([^:]+):([^:]+):([^:]+):(.+)\z/ and $analyses-&gt;{$1}) { }</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($text =~ /\A([^:]+):([^:]+):(.+)\z/) { }</td></tr>
+<tr><td class="h"><a id="L340">340</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($by_id{$owner})</td></tr>
+<tr><td class="h"><a id="L354">354</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (exists $ops{$op})</td></tr>
+<tr><td class="h"><a id="L360">360</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $group-&gt;{&#39;results&#39;}{$alias})</td></tr>
+<tr><td class="h"><a id="L368">368</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $seen_check{$pair}++</td></tr>
+<tr><td class="h"><a id="L380">380</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $ENV{&#39;BI_ALERT_NOW&#39;} &amp;&amp; $ENV{&#39;BI_ALERT_NOW&#39;} =~ /\A\d+\z/ ? :</td></tr>
+<tr><td class="h"><a id="L387">387</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$in_use ? :</td></tr>
+<tr><td class="h"><a id="L393">393</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$multi ? :</td></tr>
+<tr><td class="h"><a id="L394">394</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$multi ? :</td></tr>
+<tr><td class="h"><a id="L398">398</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (%{$group-&gt;{&#39;results&#39;};}) { }</td></tr>
+<tr><td class="h"><a id="L401">401</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $group-&gt;{&#39;results&#39;}{$k} ? :</td></tr>
+<tr><td class="h"><a id="L419">419</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ops{$op}-&gt;($actual, $tval)) { }</td></tr>
+<tr><td class="h"><a id="L420">420</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$entry ? :</td></tr>
+<tr><td class="h"><a id="L425">425</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (not $suppress &amp;&amp; $last_alert or $now - $last_alert &gt;= $suppress) { }</td></tr>
+<tr><td class="h"><a id="L429">429</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $suppress</td></tr>
+<tr><td class="h"><a id="L431">431</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($in_use)</td></tr>
+<tr><td class="h"><a id="L433">433</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$entry &amp;&amp; ($entry-&gt;{&#39;since&#39;} // 0) ? :</td></tr>
+<tr><td class="h"><a id="L459">459</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($entry)</td></tr>
+<tr><td class="h"><a id="L461">461</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($opt_recovery) { }</td></tr>
+<tr><td class="h"><a id="L485">485</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $notify_cmd and @announced)</td></tr>
+<tr><td class="h"><a id="L486">486</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($opt_dry_run) { }</td></tr>
+<tr><td class="h"><a id="L493">493</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@crossings ? :</td></tr>
+<tr><td class="h"><a id="L495">495</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@crossings == 1 ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @crossings</td></tr>
+<tr><td class="h"><a id="L497">497</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">@recoveries == 1 ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @recoveries</td></tr>
+<tr><td class="h"><a id="L499">499</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@announced == 1 ? :</td></tr>
+<tr><td class="h"><a id="L500">500</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless deliver($notify_cmd, $event, $subject)</td></tr>
+<tr><td class="h"><a id="L509">509</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $changed and $in_use and not $opt_dry_run and not $delivery_failed</td></tr>
+<tr><td class="h"><a id="L522">522</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@recoveries ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@crossings ? :</td></tr>
+<tr><td class="h"><a id="L635">635</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $buffering</td></tr>
+<tr><td class="h"><a id="L636">636</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless open my $fh, &quot;&gt;&quot;, \$message</td></tr>
+<tr><td class="h"><a id="L648">648</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $buffering</td></tr>
+<tr><td class="h"><a id="L679">679</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($fh)</td></tr>
+<tr><td class="h"><a id="L686">686</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($written)</td></tr>
+<tr><td class="h"><a id="L703">703</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (not defined $pid) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($pid == 0) { }</td></tr>
-<tr><td class="h"><a id="L586">586</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless open STDIN, &quot;&lt;&quot;, $file</td></tr>
-<tr><td class="h"><a id="L590">590</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($^O eq &quot;MSWin32&quot;)</td></tr>
-<tr><td class="h"><a id="L591">591</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless exec $ENV{&#39;COMSPEC&#39;} || &#39;cmd.exe&#39;, &quot;/c&quot;, $command</td></tr>
-<tr><td class="h"><a id="L593">593</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless exec &quot;/bin/sh&quot;, &quot;-c&quot;, $command</td></tr>
-<tr><td class="h"><a id="L602">602</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $status == 0</td></tr>
-<tr><td class="h"><a id="L604">604</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$status &amp; 127 ? :</td></tr>
+<tr><td class="h"><a id="L707">707</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless open STDIN, &quot;&lt;&quot;, $file</td></tr>
+<tr><td class="h"><a id="L711">711</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($^O eq &quot;MSWin32&quot;)</td></tr>
+<tr><td class="h"><a id="L712">712</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless exec $ENV{&#39;COMSPEC&#39;} || &#39;cmd.exe&#39;, &quot;/c&quot;, $command</td></tr>
+<tr><td class="h"><a id="L714">714</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless exec &quot;/bin/sh&quot;, &quot;-c&quot;, $command</td></tr>
+<tr><td class="h"><a id="L723">723</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $status == 0</td></tr>
+<tr><td class="h"><a id="L725">725</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$status &amp; 127 ? :</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$status == -1 ? :</td></tr>
-<tr><td class="h"><a id="L618">618</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $text and length $text</td></tr>
-<tr><td class="h"><a id="L620">620</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
-<tr><td class="h"><a id="L643">643</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -f $path</td></tr>
-<tr><td class="h"><a id="L646">646</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $json and not $@)</td></tr>
-<tr><td class="h"><a id="L652">652</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (ref $state eq &quot;HASH&quot; and ref $state-&gt;{&#39;alerts&#39;} eq &quot;HASH&quot;)</td></tr>
-<tr><td class="h"><a id="L671">671</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">length $dirs ? :</td></tr>
-<tr><td class="h"><a id="L672">672</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (-d $dir)</td></tr>
-<tr><td class="h"><a id="L674">674</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless (-d $dir)</td></tr>
-<tr><td class="h"><a id="L681">681</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($fh)</td></tr>
-<tr><td class="h"><a id="L689">689</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless rename $tmp, $path</td></tr>
-<tr><td class="h"><a id="L692">692</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($ok)</td></tr>
-<tr><td class="h"><a id="L694">694</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $fh</td></tr>
-<tr><td class="h"><a id="L695">695</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $tmp</td></tr>
+<tr><td class="h"><a id="L739">739</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $text and length $text</td></tr>
+<tr><td class="h"><a id="L741">741</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L764">764</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -f $path</td></tr>
+<tr><td class="h"><a id="L767">767</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $json and not $@)</td></tr>
+<tr><td class="h"><a id="L773">773</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (ref $state eq &quot;HASH&quot; and ref $state-&gt;{&#39;alerts&#39;} eq &quot;HASH&quot;)</td></tr>
+<tr><td class="h"><a id="L792">792</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">length $dirs ? :</td></tr>
+<tr><td class="h"><a id="L793">793</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (-d $dir)</td></tr>
+<tr><td class="h"><a id="L795">795</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless (-d $dir)</td></tr>
+<tr><td class="h"><a id="L802">802</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($fh)</td></tr>
+<tr><td class="h"><a id="L810">810</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless rename $tmp, $path</td></tr>
+<tr><td class="h"><a id="L813">813</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($ok)</td></tr>
+<tr><td class="h"><a id="L815">815</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $fh</td></tr>
+<tr><td class="h"><a id="L816">816</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if defined $tmp</td></tr>
 </table>
 </body>
 </html>
