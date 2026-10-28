@@ -108,7 +108,8 @@ Readonly my %MESSAGES => (
 	error_measure_column        => 'Measure column "%s" is not in the view',
 	error_pivot_rows_required   => 'At least one rows= dimension is required',
 	error_pivot_measure_req     => 'At least one m= measure (col:fn:as) is required',
-	error_pivot_measure_invalid => 'Invalid measure spec "%s"; expected col:fn:as where fn is one of: sum avg min max count count_distinct',
+	error_pivot_measure_invalid => 'Invalid measure spec "%s"; expected col:fn:as where fn is one of: %s, or p1 to p100 for a percentile',
+	error_stats_percentile      => 'The percentile must be a whole number from 1 to 100; "%s" is not',
 	error_pivot_dim_not_found   => 'Row/column dimension "%s" is not in the view',
 	error_pivot_dim_comma       => 'Dimension name "%s" must not contain a comma',
 	error_calc_compile          => 'Calculated field "%s": %s',
@@ -202,12 +203,57 @@ Readonly my %NAMED_COLOR_HEX => (
 	lime    => '#00ff00', white   => '#ffffff', black   => '#000000',
 );
 
-# Valid aggregate function vocabulary shared by _measure, _grouped_totals,
-# and the /pivot measure-spec parser.  Do not add functions here
-# without a corresponding implementation in _grouped_totals's Perl fold AND
-# a corresponding entry in the lower-layer aggregate() implementations.
-Readonly my @MEASURE_FNS  => qw(sum avg min max count count_distinct);
-Readonly my %MEASURE_FN_OK => map { $_ => 1 } @MEASURE_FNS;
+# The aggregate function vocabulary shared by _measure, _grouped_totals, the
+# /pivot measure-spec parser and the /stats view.
+#
+# It has two halves.  @PUSHED_MEASURE_FNS are the functions
+# Database::Abstraction's aggregate() computes in the backend: adding one here
+# means adding it there as well.  @PERL_MEASURE_FNS are computed by the Perl
+# fold in _grouped_totals from all the values in a group, because a subtotal has
+# to be recomputed from the rows rather than combined out of the cells (a median
+# is not the sum of the medians of its parts), and because the app already holds
+# the rows: the fold is one pass over records that are in memory, with no second
+# implementation of the same statistic to agree with.  Database::Abstraction
+# does accept a median and a stddev measure, computing them in Perl over rows it
+# materialises itself -- close enough to be tempting, and exactly the second
+# implementation to avoid, so _measure_pushable refuses to send them.
+#
+# A percentile is spelled p<N>, for N from 1 to 100: p90, p99, p1.  The level
+# rides in the function name because the spec dialect is col:fn:as, with no
+# room for a parameter in it; p50 is the median, and median is kept as its own
+# name because that is what a reader looks for.
+Readonly my @PUSHED_MEASURE_FNS   => qw(sum avg min max count count_distinct);
+Readonly my @PERL_MEASURE_FNS     => qw(median stdev first last range);
+Readonly my @MEASURE_FNS          => (@PUSHED_MEASURE_FNS, @PERL_MEASURE_FNS);
+Readonly my %PUSHED_MEASURE_FN_OK => map { $_ => 1 } @PUSHED_MEASURE_FNS;
+Readonly my %MEASURE_FN_OK        => map { $_ => 1 } @MEASURE_FNS;
+
+# _measure_percentile($fn) -> $level | undef
+#
+# The percentile level a measure function names, or undef when it names none:
+# 'p95' -> 95, 'p50' -> 50, 'percentile' -> undef, 'sum' -> undef.  A level
+# outside 1..100 is not a percentile, so an unknown function still fails as an
+# unknown function rather than as a percentile of -40.
+sub _measure_percentile {
+	my $fn = shift;
+	return undef unless defined $fn && length $fn;
+	my ($level) = $fn =~ /\Ap(\d{1,3})\z/;
+	return undef unless defined $level;
+	return ($level >= 1 && $level <= 100) ? $level + 0 : undef;
+}
+
+# _measure_fn_ok($fn) -> bool
+#
+# True for every function _grouped_totals can compute: the named ones and any
+# percentile level.  This is the single answer to "is this a measure function?"
+# for the parser, and the vocabulary the 400 message prints comes from the same
+# two lists, so a message can never list a function the fold cannot compute.
+sub _measure_fn_ok {
+	my $fn = shift;
+	return 0 unless defined $fn && length $fn;
+	return 1 if $MEASURE_FN_OK{$fn};
+	return defined _measure_percentile($fn) ? 1 : 0;
+}
 
 # ---------------------------------------------------------------------------
 # Relative time ranges
@@ -1301,6 +1347,76 @@ sub _numeric_cell {
 	return $n + 0;
 }
 
+# _percentile_of(\@sorted, $level) -> $number | undef
+#
+# The value at the given percentile of an already sorted list of numbers, by
+# linear interpolation between closest ranks (R's type 7, Excel's
+# PERCENTILE.INC).  $level is 1..100.  The empty list has no percentile, so it
+# returns undef rather than a made-up 0.
+#
+# At level 50 this is the median the column-stats view has always shown: the
+# middle value when the count is odd, the mean of the two middle values when it
+# is even.  That is the point of it, and the reason median is defined in terms
+# of it below -- one arithmetic, so a p50 measure, a median measure and the
+# median column of the stats page cannot disagree.
+sub _percentile_of {
+	my ($sorted, $level) = @_;
+	my $n = scalar @$sorted;
+	return undef unless $n;
+	my $h  = ($n - 1) * $level / 100;
+	my $lo = int $h;
+	return $sorted->[$lo] if $h == $lo || $lo >= $n - 1;
+	return $sorted->[$lo] + ($h - $lo) * ($sorted->[ $lo + 1 ] - $sorted->[$lo]);
+}
+
+# _median_of(\@sorted) -> $number | undef
+sub _median_of {
+	return _percentile_of($_[0], 50);
+}
+
+# _stdev_of(\@nums) -> $number | undef
+#
+# Sample standard deviation, the n-1 denominator: what Splunk's stdev() and
+# Excel's STDEV.S report.  One value has no spread to measure, so fewer than
+# two values give undef rather than a reassuring 0.
+sub _stdev_of {
+	my $nums = shift;
+	my $n = scalar @$nums;
+	return undef unless $n >= 2;
+	my $mean = 0;
+	$mean += $_ for @$nums;
+	$mean /= $n;
+	my $sum_sq = 0;
+	$sum_sq += ($_ - $mean) ** 2 for @$nums;
+	return sqrt($sum_sq / ($n - 1));
+}
+
+# _range_of(\@sorted) -> $number | undef
+#
+# Largest minus smallest, on the already sorted list: the spread a reader means
+# by "range", which is not min/max in the sense the SQL backend could push.
+sub _range_of {
+	my $sorted = shift;
+	return undef unless @$sorted;
+	return $sorted->[-1] - $sorted->[0];
+}
+
+# _measure_value($fn, \@sorted_values) -> $number | undef
+#
+# The function from @PERL_MEASURE_FNS (or a percentile) applied to the sorted
+# values of one group.  It takes the values rather than a group key so that the
+# caller decides what a group is: the pivot's fold has one list per group, and
+# the stats page measures a whole column with the same four functions.
+sub _measure_value {
+	my ($fn, $sorted) = @_;
+	my $level = _measure_percentile($fn);
+	return _percentile_of($sorted, $level) if defined $level;
+	return _median_of($sorted)             if $fn eq 'median';
+	return _stdev_of($sorted)              if $fn eq 'stdev';
+	return _range_of($sorted)              if $fn eq 'range';
+	return undef;
+}
+
 # _column_is_numeric($records, $col) -> bool
 #
 # Says whether a column can be used as a chart measure.  It samples the first
@@ -1325,6 +1441,11 @@ sub _column_is_numeric {
 # the result will be identical to the Perl fold.  False means use the Perl fold.
 #
 # Decision table:
+#   Not in the pushed vocabulary -- never pushable.  None of median, a
+#                             percentile, stdev, first, last or range is a sum
+#                             of its parts, and the backend would either refuse
+#                             the spec or quietly answer with its own idea of
+#                             the statistic (it has one for median and stddev).
 #   count / count_distinct -- always pushable (no numeric coercion).
 #   sum / avg / min / max  -- only when every sampled value in $col is either
 #                             a plain number (looks_like_number) or empty/undef.
@@ -1336,6 +1457,7 @@ sub _column_is_numeric {
 sub _measure_pushable {
 	my ($source, $fn, $col, $records) = @_;
 	return 0 unless $source && $source->can('aggregate');
+	return 0 unless defined $fn && $PUSHED_MEASURE_FN_OK{$fn};
 	return 1 if $fn eq 'count' || $fn eq 'count_distinct';
 	return 0 unless defined $col;
 	# For sum/avg/min/max, only push when at least one value is a plain number
@@ -1363,14 +1485,15 @@ sub _measure_pushable {
 #
 # Parse 'col:fn:as' into { col => ..., fn => ..., as => ... }.
 # Shared dialect for /pivot so it does not invent a second format.
-# Returns undef for an invalid or unrecognised spec.
+# $fn is lower-cased first, so SUM and P90 are the same measures as sum and
+# p90.  Returns undef for an invalid or unrecognised spec.
 sub _parse_measure_param {
 	my $str = shift;
 	return undef unless defined $str && length($str);
 	my ($col, $fn, $as) = split /:/, $str, 3;
 	return undef unless defined $fn && defined $as && length($fn) && length($as);
 	$fn = lc $fn;
-	return undef unless $MEASURE_FN_OK{$fn};
+	return undef unless _measure_fn_ok($fn);
 	return { col => $col, fn => $fn, as => $as };
 }
 
@@ -1475,8 +1598,14 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	}
 
 	# Perl fold over pre-filtered records.
+	#
+	# The fold keeps a running total for the functions that are sums of their
+	# parts (sum, avg, min, max) and the values themselves for the ones that are
+	# not (median, a percentile, stdev, range), which are resolved once the group
+	# is complete.  first and last are order-dependent, so they are taken as the
+	# rows arrive and need no list at all.
 	my (%seen_warned, %seen_key, @key_order);
-	my (%totals, %count_map, %distinct_vals);
+	my (%totals, %count_map, %distinct_vals, %values);
 
 	for my $row (@$records) {
 		# Skip rows where any 'by' column is empty/undef (mirrors SQL GROUP BY NULL exclusion).
@@ -1493,6 +1622,16 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 			push @key_order, $key unless $seen_key{$key}++;
 			my $dv = defined $val_col ? ($row->{$val_col} // '') : '';
 			$distinct_vals{$key}{$dv}++;
+		} elsif ($fn eq 'first' || $fn eq 'last') {
+			# first/last read any column, not only a numeric one, and they
+			# report the value as it appears: the number a cell holds when it
+			# holds a number, the text it holds otherwise.  A blank cell is
+			# not a value, so it is passed over -- the first row that has
+			# something in the column is the first value.
+			my $v = defined $val_col ? $row->{$val_col} : undef;
+			next unless defined $v && length $v;
+			push @key_order, $key unless $seen_key{$key}++;
+			$totals{$key} = $v if $fn eq 'last' || !exists $totals{$key};
 		} else {
 			my $v = defined $val_col ? ($row->{$val_col} // '') : '';
 			my $n = _numeric_cell($v);
@@ -1507,6 +1646,7 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 			elsif ($fn eq 'avg') { $totals{$key}  += $n; $count_map{$key}++                                        }
 			elsif ($fn eq 'min') { $totals{$key}   = (!exists $totals{$key} || $n < $totals{$key}) ? $n : $totals{$key} }
 			elsif ($fn eq 'max') { $totals{$key}   = (!exists $totals{$key} || $n > $totals{$key}) ? $n : $totals{$key} }
+			else                 { push @{ $values{$key} }, $n                                                       }
 		}
 	}
 
@@ -1517,6 +1657,13 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	} elsif ($fn eq 'count_distinct') {
 		for my $k (@key_order) {
 			$totals{$k} = scalar keys %{ $distinct_vals{$k} // {} };
+		}
+	} elsif (%values) {
+		# median / p<N> / stdev / range: resolved from the group's values, and
+		# through the same arithmetic the stats view uses for a whole column.
+		for my $k (keys %values) {
+			my @sorted = sort { $a <=> $b } @{ $values{$k} };
+			$totals{$k} = _measure_value($fn, \@sorted);
 		}
 	}
 
@@ -6706,7 +6853,7 @@ sub pivot_view ($self) {
 	for my $ms (@measure_strs) {
 		my $m = _parse_measure_param($ms);
 		return $self->render(
-			text   => $self->_i18n('error_pivot_measure_invalid', $ms),
+			text   => $self->_i18n('error_pivot_measure_invalid', $ms, join(' ', @MEASURE_FNS)),
 			status => 400,
 		) unless $m;
 		push @measures, $m;
@@ -7079,12 +7226,19 @@ sub pivot_view ($self) {
 
 C<GET /stats> -- Column statistics panel.
 
-Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join> and displays
-per-column statistics: min, max, mean, median, null_count, distinct_count,
-row_count.
+Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus C<p=N>
+to choose the percentile column (1 to 100, default 95), and C<range=name> with
+C<rcol=column> for a relative window of rows.  Displays per-column statistics:
+row_count, null_count, distinct_count, and for numeric columns min, max, range,
+mean, median, the chosen percentile and sample standard deviation; first and
+last are shown for every column, being the first and last value the column
+holds.
 
-Statistics are computed through C<_grouped_totals> so they agree with the pivot
-view.  Median is computed in Perl by sorting the column values.
+C<distinct_count> is computed through C<_grouped_totals>, so it agrees with the
+pivot view.  The numeric statistics are computed in Perl by sorting the column's
+values, through the same C<_percentile_of>, C<_median_of>, C<_stdev_of> and
+C<_range_of> arithmetic the pivot's C<median>, C<pN>, C<stdev> and C<range>
+measures use -- so a median here and a median measure there are the same number.
 
 =cut
 
@@ -7092,6 +7246,19 @@ sub stats_view ($self) {
 	my $left_spec = $self->param('l') // '';
 	return $self->render(text => 'Missing l= parameter', status => 400)
 		unless length $left_spec;
+
+	# The percentile column is the reader's to choose; an unreadable one is a
+	# 400 rather than a silent 95, so the page never claims a level it did not
+	# apply.
+	my $pct_arg    = $self->param('p');
+	my $percentile = 95;
+	if (defined $pct_arg && length $pct_arg) {
+		return $self->render(
+			text   => $self->_i18n('error_stats_percentile', $pct_arg),
+			status => 400,
+		) unless $pct_arg =~ /\A\d{1,3}\z/ && $pct_arg >= 1 && $pct_arg <= 100;
+		$percentile = $pct_arg + 0;
+	}
 
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
@@ -7123,9 +7290,15 @@ sub stats_view ($self) {
 		});
 		my $distinct_count = scalar @$dist_rows;
 
-		# Numeric statistics.
+		# first/last: the value the column holds in the first and the last row
+		# that has one.  $nonnull is in row order, so no second pass is needed
+		# and the two agree with the pivot's first() and last() measures.
+		my $first_val = $nonnull[0]  ? $nonnull[0]{$col}  : undef;
+		my $last_val  = $nonnull[-1] ? $nonnull[-1]{$col} : undef;
+
+		# Numeric statistics, through the same arithmetic the pivot measures use.
 		my @nums = grep { defined $_ } map { _numeric_cell($_->{$col}) } @nonnull;
-		my ($min_val, $max_val, $avg_val, $median_val);
+		my ($min_val, $max_val, $avg_val, $median_val, $range_val, $pct_val, $stdev_val);
 		if (@nums) {
 			my @sorted = sort { $a <=> $b } @nums;
 			$min_val = $sorted[0];
@@ -7133,10 +7306,12 @@ sub stats_view ($self) {
 			my $sum  = 0;
 			$sum += $_ for @nums;
 			$avg_val = $sum / @nums;
-			my $mid  = int(@sorted / 2);
-			$median_val = @sorted % 2
-				? $sorted[$mid]
-				: ($sorted[$mid - 1] + $sorted[$mid]) / 2;
+			# _median_of is _percentile_of at 50; a stdev of one value is undef,
+			# which the template shows as a dash rather than as a spread of 0.
+			$median_val = _median_of(\@sorted);
+			$range_val  = _range_of(\@sorted);
+			$pct_val    = _percentile_of(\@sorted, $percentile);
+			$stdev_val  = _stdev_of(\@sorted);
 		}
 
 		push @stats, {
@@ -7144,11 +7319,16 @@ sub stats_view ($self) {
 			row_count      => $row_count,
 			null_count     => $null_count,
 			distinct_count => $distinct_count,
+			first          => $first_val,
+			last           => $last_val,
 			(defined $min_val ? (
-				min    => $min_val,
-				max    => $max_val,
-				avg    => sprintf('%.4g', $avg_val),
-				median => sprintf('%.4g', $median_val),
+				min     => $min_val,
+				max     => $max_val,
+				range   => sprintf('%.4g', $range_val),
+				avg     => sprintf('%.4g', $avg_val),
+				median  => sprintf('%.4g', $median_val),
+				pct     => sprintf('%.4g', $pct_val),
+				stdev   => (defined $stdev_val ? sprintf('%.4g', $stdev_val) : undef),
 			) : ()),
 		};
 	}
@@ -7162,6 +7342,7 @@ sub stats_view ($self) {
 		format     => 'html',
 		title          => 'Column statistics',
 		stats          => \@stats,
+		stats_percentile => $percentile,
 		row_count      => $row_count,
 		left_spec      => $left_spec,
 		left_label     => $left_label,

@@ -75,7 +75,43 @@ Revision history for Database-BI
 	  list, a chain of filters, the range's bounds after them, a malformed spec
 	  -- and counts the copies of the loop in the module, because a second copy
 	  would behave identically and only drift later.
+	- New pivot and column-statistics measures: median, stdev (sample standard
+	  deviation), first, last, range, and a percentile named in the function as
+	  p<N> -- p90, p99, p1 up to p100 -- with p50 being the median under another
+	  name.  first and last read any column, not only a numeric one, and report
+	  the value as it appears.
+	- These are computed in Perl from each group's values rather than pushed to
+	  the backend, because none of them is a sum of its parts: a subtotal or
+	  grand total has to be recomputed over the rows, which the pivot already
+	  does with a separate aggregate call per group level.  _measure_pushable
+	  refuses to send them, since the backend has its own median and stddev and
+	  two implementations of one statistic can disagree.
+	- median, p50, stdev and range share one arithmetic (_percentile_of,
+	  _median_of, _stdev_of, _range_of) with the column-statistics page, so a
+	  median measure and the median column cannot diverge; _median_of is that
+	  arithmetic at the 50th percentile, which is the middle value for an odd
+	  count and the mean of the two middle values for an even one, as before.
+	- The stats page gained Range, Std dev, First, Last and a percentile column,
+	  the level of which is chosen with ?p=N (1 to 100, default 95) and shown in
+	  the column header; an unusable level is a 400, not a silent 95.  A column
+	  of text shows First and Last and dashes elsewhere.
+	- The pivot measure panel offers the new functions, with a level box shown
+	  only while Percentile is selected.  The 400 message for an unreadable
+	  spec now prints the vocabulary itself, so it cannot list a function the
+	  fold cannot compute.
+	- The tutorial's pivot and column-statistics chapters mention the new
+	  measures, and the vocabulary is documented in the POD and README.
 	[ Tests ]
+	- t/function.t: the measure parser and the arithmetic behind the new
+	  measures, including that p50 equals the middle/average-of-middles median
+	  the stats page has always shown, that a higher percentile never gives a
+	  smaller value, that one value has an undef standard deviation, and that
+	  _measure_pushable keeps every Perl-computed measure off the backend path.
+	- t/integration.t: /pivot per group and in total for each new measure, on a
+	  fixture chosen so that combining the cells would give a different total;
+	  first/last over a column of text; the 400 for an unknown function and an
+	  unusable percentile; the /stats columns against the same fixture; and the
+	  same measures over a SQL-backed source.
 	- t/time-range.t: the window boundaries at fixed clocks, including month,
 	  quarter, year and leap-year rollovers; day-versus-timestamp comparisons;
 	  which rows each preset selects through /view, /bar, /export and /pivot;

@@ -130,14 +130,20 @@ position become one marker.
 
 B<Pivot table> -- the "Pivot table" panel builds a crosstab from any
 combination of row dimensions, column dimensions, and measures
-(C<sum|avg|min|max|count|count_distinct>).  Supports subtotals, HAVING
-filters, top-N row groups, and direct export to CSV, SQLite, JSON, or XLSX.
+(C<sum|avg|min|max|count|count_distinct|median|stdev|first|last|range>, plus
+C<pE<lt>NE<gt>> for the Nth percentile).  The backend aggregates what it can;
+the rest are computed in Perl from each group's values, subtotals and grand
+total included, because a median is not the sum of the medians of its parts.
+Supports subtotals, HAVING filters, top-N row groups, and direct export to
+CSV, SQLite, JSON, or XLSX.
 
 =item *
 
 B<Column statistics> -- the column-stats button runs C<GET /stats>, which
-returns one row per column: row count, null count, distinct count, and
-(for numeric columns) min, max, mean, and median.
+returns one row per column: row count, null count, distinct count, first and
+last, and (for numeric columns) min, max, range, mean, median, a chosen
+percentile and the sample standard deviation.  The arithmetic is the same one
+the pivot's measures use.
 
 =item *
 
@@ -469,7 +475,10 @@ Renders a pivot/crosstab table.  Parameters:
   l=<spec>             left table (required)
   rows=col1,col2       row-dimension column names (required)
   cols=col3            column-dimension names (optional)
-  m=col:fn:alias       measure spec, repeatable (fn: sum|avg|min|max|count|count_distinct)
+  m=col:fn:alias       measure spec, repeatable (fn: sum|avg|min|max|count|count_distinct
+                       for the aggregates the backend computes, median|stdev|first|last|range
+                       for those computed in Perl from the group's values, or p<N> for
+                       the Nth percentile -- p50 is the median, and p1 to p100 are accepted)
   totals=1             include subtotals column and grand-total row
   topn=N               keep only the top-N row groups
   topn_col=<alias>     measure alias to rank by (required when topn= is set)
@@ -481,8 +490,10 @@ Renders a pivot/crosstab table.  Parameters:
 =item C<GET /stats>
 
 Per-column statistics view.  Returns one row per column: row count, null
-count, distinct count, and (for numeric columns) min, max, mean, and median.
-Parameters: C<l=E<lt>specE<gt>> (required) and C<f=> filters.
+count, distinct count, first and last, and (for numeric columns) min, max,
+range, mean, median, the percentile named by C<p=N> and sample standard
+deviation.  Parameters: C<l=E<lt>specE<gt>> (required), C<f=> filters and
+C<p=N> for the percentile column (1 to 100, default 95).
 
 =item C<GET /scatter>
 

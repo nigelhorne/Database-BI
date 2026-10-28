@@ -4894,5 +4894,186 @@ subtest 'Ask::_build_spec -- result has no circular references' => sub {
 	memory_cycle_ok($spec, '_build_spec result has no circular references');
 };
 
+# ============================================================================
+# PART: The measure vocabulary -- parser, arithmetic, and who computes what
+#
+# A measure spec (col:fn:as) reaches either the backend's aggregate() (the push
+# path) or the Perl fold in _grouped_totals.  Everything the fold computes for a
+# group of values lives in the four functions below, so proving them here is
+# what makes the pivot's and the stats page's numbers trustworthy -- and
+# _measure_pushable is what keeps the two layers from disagreeing.
+# ============================================================================
+
+Readonly my $PARSE_MEASURE => \&Database::BI::Controller::Dashboard::_parse_measure_param;
+Readonly my $FN_OK         => \&Database::BI::Controller::Dashboard::_measure_fn_ok;
+Readonly my $FN_PCT        => \&Database::BI::Controller::Dashboard::_measure_percentile;
+Readonly my $PERCENTILE    => \&Database::BI::Controller::Dashboard::_percentile_of;
+Readonly my $MEDIAN        => \&Database::BI::Controller::Dashboard::_median_of;
+Readonly my $STDEV         => \&Database::BI::Controller::Dashboard::_stdev_of;
+Readonly my $RANGE         => \&Database::BI::Controller::Dashboard::_range_of;
+Readonly my $MEASURE_VALUE => \&Database::BI::Controller::Dashboard::_measure_value;
+Readonly my $PUSHABLE      => \&Database::BI::Controller::Dashboard::_measure_pushable;
+
+# _measure_percentile -- which functions name a percentile level
+subtest '_measure_percentile -- reads the level out of the function name' => sub {
+	is $FN_PCT->('p95'),  95, 'p95 names the 95th percentile';
+	is $FN_PCT->('p50'),  50, 'p50 names the 50th, the median';
+	is $FN_PCT->('p1'),    1, 'p1 is the lowest accepted level';
+	is $FN_PCT->('p100'), 100, 'p100 is the highest accepted level';
+
+	is $FN_PCT->('p0'),   undef, 'p0 is not a percentile';
+	is $FN_PCT->('p101'), undef, 'p101 is not a percentile';
+	is $FN_PCT->('p999'), undef, 'three digits above 100 are not a percentile';
+	is $FN_PCT->('p'),    undef, 'p with no level names no percentile';
+	is $FN_PCT->('px9'),  undef, 'p followed by a non-number names no percentile';
+	is $FN_PCT->('median'),     undef, 'median is its own function, not a pN';
+	is $FN_PCT->('percentile'), undef, 'the bare word percentile carries no level';
+	is $FN_PCT->('p95x'), undef, 'a percentile is the whole function name';
+	is $FN_PCT->(''),     undef, 'the empty function names no percentile';
+	is $FN_PCT->(undef),  undef, 'undef names no percentile';
+};
+
+# _measure_fn_ok -- the vocabulary gate the parser uses
+subtest '_measure_fn_ok -- accepts the vocabulary and every percentile' => sub {
+	for my $fn (qw(sum avg min max count count_distinct median stdev first last range)) {
+		ok $FN_OK->($fn), "$fn is a measure function";
+	}
+	ok $FN_OK->('p1'),   'p1 is a measure function';
+	ok $FN_OK->('p90'),  'p90 is a measure function';
+	ok $FN_OK->('p100'), 'p100 is a measure function';
+
+	ok !$FN_OK->('percentile'), 'the bare word percentile is not a function';
+	ok !$FN_OK->('mean'),        'mean is not a function in this vocabulary';
+	ok !$FN_OK->('stddev'),      'stddev is not spelled this way';
+	ok !$FN_OK->('sums'),        'a near miss is not a function';
+	ok !$FN_OK->(''),            'the empty name is not a function';
+	ok !$FN_OK->(undef),         'undef is not a function';
+};
+
+# _parse_measure_param -- the spec dialect
+subtest '_parse_measure_param -- accepts every measure function, lower-cased' => sub {
+	for my $spec (qw(deal:median:med deal:p90:p90 deal:p100:top deal:stdev:sd
+	                 deal:first:f deal:last:l deal:range:rg)) {
+		my $m = $PARSE_MEASURE->($spec);
+		is ref($m), 'HASH', "$spec parses";
+		isnt $m->{col}, '', "$spec keeps its column";
+		isnt $m->{as},  '', "$spec keeps its alias";
+	}
+
+	is $PARSE_MEASURE->('deal:P90:x')->{fn},    'p90',    'a percentile is lower-cased';
+	is $PARSE_MEASURE->('deal:MEDIAN:x')->{fn}, 'median', 'a named function is lower-cased';
+	is $PARSE_MEASURE->('deal:p50:half')->{fn}, 'p50',    'p50 is accepted as written';
+	is $PARSE_MEASURE->(':count:orders')->{fn}, 'count',  'count still needs no column';
+};
+
+subtest '_parse_measure_param -- refuses what the fold cannot compute' => sub {
+	is $PARSE_MEASURE->('deal:percentile:pc'), undef,
+		'percentile with no level is refused (the level rides in the name as p90)';
+	is $PARSE_MEASURE->('deal:p0:z'),   undef, 'p0 is refused';
+	is $PARSE_MEASURE->('deal:p101:z'), undef, 'p101 is refused';
+	is $PARSE_MEASURE->('deal:mean:z'), undef, 'an unknown function is refused';
+	is $PARSE_MEASURE->('deal::z'),     undef, 'an empty function is refused';
+	is $PARSE_MEASURE->('deal:median'), undef, 'a spec with no alias is refused';
+};
+
+# _percentile_of -- the arithmetic, and its identity with the old median
+subtest '_percentile_of -- p50 is the median this page has always shown' => sub {
+	# The definition the column-stats view used before it moved here: the
+	# middle value when the count is odd, the mean of the two middle values when
+	# it is even.  Checked from the count up rather than at one size, because the
+	# even/odd boundary is the whole of the rule.
+	my @values = (10, 20, 30, 40, 50, 60, 70, 80);
+	for my $n (1 .. scalar @values) {
+		my @sorted = sort { $a <=> $b } @values[0 .. $n - 1];
+		my $mid    = int($n / 2);
+		my $want   = $n % 2 ? $sorted[$mid] : ($sorted[$mid - 1] + $sorted[$mid]) / 2;
+		is $PERCENTILE->(\@sorted, 50), $want, "p50 of $n values is the middle/average-of-middles";
+		is $MEDIAN->(\@sorted), $want, "_median_of of $n values agrees";
+	}
+};
+
+subtest '_percentile_of -- interpolation between closest ranks' => sub {
+	my @sorted = (1, 2, 3, 4);
+	is $PERCENTILE->(\@sorted, 25), 1.75, 'p25 of 1..4 interpolates between the first two';
+	is $PERCENTILE->(\@sorted, 50), 2.5,  'p50 of 1..4 is the middle pair';
+	is $PERCENTILE->(\@sorted, 100), 4,   'p100 of 1..4 is the largest value';
+
+	my @six = (60, 75, 80, 85, 90, 100);
+	is $PERCENTILE->(\@six, 95), 97.5, 'p95 of the six scores the stats page shows';
+	is $PERCENTILE->(\@six, 50), 82.5, 'p50 of the same six scores';
+
+	# Monotonic in the level, which is what makes a percentile meaningful.
+	my @levels = map { $PERCENTILE->(\@six, $_) } (1, 25, 50, 75, 95, 100);
+	my @sorted_levels = sort { $a <=> $b } @levels;
+	is_deeply \@levels, \@sorted_levels, 'a higher level never gives a smaller value';
+
+	is $PERCENTILE->([42], 90), 42, 'one value is every percentile of itself';
+	is $PERCENTILE->([], 50), undef, 'an empty list has no percentile';
+};
+
+# _stdev_of -- sample standard deviation
+subtest '_stdev_of -- sample standard deviation, n-1 denominator' => sub {
+	is $STDEV->([2, 4, 6]), 2, 'the spread of 2,4,6 is exactly 2';
+	is $STDEV->([2, 4, 4, 4, 5, 5, 7, 9]), sqrt(32 / 7),
+		'the textbook sample standard deviation';
+	is $STDEV->([5, 5]), 0, 'two equal values have no spread';
+	is $STDEV->([7]),    undef, 'one value has no spread to measure (undef, not 0)';
+	is $STDEV->([]),     undef, 'no values have no spread to measure';
+};
+
+# _range_of -- largest minus smallest
+subtest '_range_of -- spread of the sorted list' => sub {
+	is $RANGE->([1, 5, 9]), 8,  'the largest minus the smallest';
+	is $RANGE->([4]),       0,  'a single value spans nothing';
+	is $RANGE->([-3, 7]),   10, 'a negative minimum still measures the span';
+	is $RANGE->([]),        undef, 'an empty list has no range';
+};
+
+# _measure_value -- one dispatch for both callers
+subtest '_measure_value -- dispatch over the Perl-computed functions' => sub {
+	my @sorted = (1, 2, 3, 4);
+	is $MEASURE_VALUE->('median', \@sorted), 2.5,   'median is dispatched';
+	is $MEASURE_VALUE->('p25',    \@sorted), 1.75,  'a percentile is dispatched';
+	is $MEASURE_VALUE->('stdev',  \@sorted), sqrt(5 / 3), 'stdev is dispatched';
+	is $MEASURE_VALUE->('range',  \@sorted), 3,     'range is dispatched';
+	is $MEASURE_VALUE->('sum',    \@sorted), undef, 'a pushed function is not handled here';
+	is $MEASURE_VALUE->('first',  \@sorted), undef, 'first is order-dependent, not a spread';
+};
+
+# _measure_pushable -- the boundary between the two layers
+subtest '_measure_pushable -- the Perl-computed measures never go to the backend' => sub {
+	# _measure_pushable asks one thing of the source -- whether it can
+	# aggregate() -- so this is all the source has to answer.
+	{
+		package Local::AggregatingSource;
+		sub new       { bless {}, shift }
+		sub aggregate { return [] }
+	}
+	my $src     = Local::AggregatingSource->new;
+	my $records = [ { deal => '10' }, { deal => '20' } ];
+
+	ok $PUSHABLE->($src, 'sum',            'deal', $records), 'sum is pushed to the backend';
+	ok $PUSHABLE->($src, 'avg',            'deal', $records), 'avg is pushed to the backend';
+	ok $PUSHABLE->($src, 'count_distinct', 'deal', $records), 'count_distinct is pushed';
+
+	ok !$PUSHABLE->($src, 'median', 'deal', $records),
+		'median folds in Perl, so the backend cannot answer it its own way';
+	ok !$PUSHABLE->($src, 'p90', 'deal', $records),
+		'a percentile folds in Perl';
+	ok !$PUSHABLE->($src, 'stdev', 'deal', $records),
+		'stdev folds in Perl';
+	ok !$PUSHABLE->($src, 'range', 'deal', $records),
+		'range folds in Perl';
+	ok !$PUSHABLE->($src, 'first', 'deal', $records),
+		'first folds in Perl: which value is first is not the backend\'s to know';
+	ok !$PUSHABLE->($src, 'last', 'deal', $records),
+		'last folds in Perl';
+
+	# A source that cannot aggregate() takes everything through the fold.
+	my $plain = bless {}, 'Local::PlainSource';
+	ok !$PUSHABLE->($plain, 'sum', 'deal', $records),
+		'a source with no aggregate() is never pushed to';
+};
+
 done_testing();
 

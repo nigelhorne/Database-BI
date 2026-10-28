@@ -145,13 +145,15 @@
   }
   .pivot-dim-row select,
   .pivot-measure-row select,
-  .pivot-measure-row input[type="text"] {
+  .pivot-measure-row input[type="text"],
+  .pivot-measure-row input[type="number"] {
     padding: 0.28rem 0.45rem;
     border: 1px solid #bbb;
     border-radius: 4px;
     font-size: 0.83rem;
   }
   .pivot-measure-row input[type="text"] { width: 80px; }
+  .pivot-measure-row input[type="number"] { width: 58px; }
   .pivot-dim-list, .pivot-measure-list { display: flex; flex-direction: column; gap: 0.3rem; }
   .pivot-options-row {
     margin: 0.1rem 0 0.75rem;
@@ -173,7 +175,8 @@
     :root:not([data-theme="light"]) .pivot-section-head { color: #999; }
     :root:not([data-theme="light"]) .pivot-dim-row select,
     :root:not([data-theme="light"]) .pivot-measure-row select,
-    :root:not([data-theme="light"]) .pivot-measure-row input[type="text"] {
+    :root:not([data-theme="light"]) .pivot-measure-row input[type="text"],
+    :root:not([data-theme="light"]) .pivot-measure-row input[type="number"] {
       background: #222; color: #ddd; border-color: #555;
     }
     :root:not([data-theme="light"]) .btn-remove-pivot { border-color: #555; color: #aaa; }
@@ -182,7 +185,8 @@
   :root[data-theme="dark"] .pivot-section-head { color: #999; }
   :root[data-theme="dark"] .pivot-dim-row select,
   :root[data-theme="dark"] .pivot-measure-row select,
-  :root[data-theme="dark"] .pivot-measure-row input[type="text"] {
+  :root[data-theme="dark"] .pivot-measure-row input[type="text"],
+  :root[data-theme="dark"] .pivot-measure-row input[type="number"] {
     background: #222; color: #ddd; border-color: #555;
   }
   :root[data-theme="dark"] .btn-remove-pivot { border-color: #555; color: #aaa; }
@@ -4112,6 +4116,14 @@ function biDetectColType(colName) {
     return col + '_' + fn;
   }
 
+  // A percentile is written into the function name -- p95 -- because the
+  // measure spec is col:fn:as, with nowhere to put a level of its own.
+  function percentileLevel(input) {
+    var n = parseInt(input.value, 10);
+    if (!isFinite(n)) return 95;
+    return Math.min(100, Math.max(1, n));
+  }
+
   function addMeasureRow() {
     var row = document.createElement('div');
     row.className = 'pivot-measure-row';
@@ -4123,11 +4135,29 @@ function biDetectColType(colName) {
 
     var fnSel = document.createElement('select');
     [['sum','Sum'], ['count','Count'], ['avg','Average'], ['min','Min'],
-     ['max','Max'], ['count_distinct','Count distinct']].forEach(function (p) {
+     ['max','Max'], ['count_distinct','Count distinct'], ['median','Median'],
+     ['stdev','Std dev'], ['first','First'], ['last','Last'], ['range','Range'],
+     ['percentile','Percentile\u2026']].forEach(function (p) {
       var opt = document.createElement('option');
       opt.value = p[0]; opt.textContent = p[1];
       fnSel.appendChild(opt);
     });
+
+    // The level a Percentile measure is taken at, shown only while that
+    // function is selected.  Reading the value back clamps it, so the panel
+    // cannot build a spec the server would refuse.
+    var pctInp = document.createElement('input');
+    pctInp.type = 'number'; pctInp.value = '95';
+    pctInp.min = '1'; pctInp.max = '100';
+    pctInp.className = 'pivot-pct-input';
+    pctInp.title = 'Percentile level, 1 to 100';
+    pctInp.setAttribute('aria-label', 'Percentile level');
+    pctInp.style.display = 'none';
+
+    // The function as the measure spec spells it.
+    function fnValue() {
+      return fnSel.value === 'percentile' ? 'p' + percentileLevel(pctInp) : fnSel.value;
+    }
 
     var aliasInp = document.createElement('input');
     aliasInp.type = 'text'; aliasInp.placeholder = 'alias';
@@ -4137,23 +4167,27 @@ function biDetectColType(colName) {
     aliasLabel.textContent = 'as';
 
     function refreshAlias() {
+      pctInp.style.display = (fnSel.value === 'percentile') ? '' : 'none';
       if (!aliasInp.dataset.userEdited) {
-        aliasInp.value = autoAlias(colSel.value, fnSel.value);
+        aliasInp.value = autoAlias(colSel.value, fnValue());
       }
       checkPivot();
     }
     colSel.addEventListener('change', refreshAlias);
     fnSel.addEventListener('change',  refreshAlias);
+    pctInp.addEventListener('input',  refreshAlias);
     aliasInp.addEventListener('input', function () {
       aliasInp.dataset.userEdited = aliasInp.value ? '1' : '';
       checkPivot();
     });
+    refreshAlias();
 
     var rm = document.createElement('button');
     rm.type = 'button'; rm.className = 'btn-remove-pivot'; rm.textContent = '\u00d7';
     rm.addEventListener('click', function () { row.remove(); checkPivot(); });
 
     row.appendChild(colSel); row.appendChild(fnSel);
+    row.appendChild(pctInp);
     row.appendChild(aliasLabel); row.appendChild(aliasInp);
     row.appendChild(rm);
     measureList.appendChild(row);
@@ -4209,7 +4243,10 @@ function biDetectColType(colName) {
     Array.from(measureList.querySelectorAll('.pivot-measure-row')).forEach(function (row) {
       var sels  = row.querySelectorAll('select');
       var col   = sels[0].value;
-      var fn    = sels[1].value;
+      var fnSel = sels[1];
+      var fn    = fnSel.value === 'percentile'
+        ? 'p' + percentileLevel(row.querySelector('input[type="number"]'))
+        : fnSel.value;
       var alias = row.querySelector('input[type="text"]').value.trim();
       if (!alias) return;
       if (fn !== 'count' && !col) return;
