@@ -856,6 +856,9 @@ The aggregating routes bucket the dimension they already take:
     GET /view/sales?span=1d&tcol=at
     GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum&series=region
 
+The chart and pivot panels carry a C<Time bucket> menu for it, and the line
+graph panel an C<Aggregate> menu beside it.
+
 C<span=> takes a count and one of C<s>, C<m>, C<h>, C<d>, C<w>, C<mon>, C<q>
 or C<y> -- C<15m>, C<6h>, C<2d>, C<3mon>, C<1q> -- and is refused, naming the
 interval and the parameter, when the count is zero or the unit is not one of
