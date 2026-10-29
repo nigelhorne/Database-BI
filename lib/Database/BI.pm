@@ -13,7 +13,7 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
-use version; our $VERSION = version->declare('0.017.1');
+use version; our $VERSION = version->declare('0.018.0');
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -40,7 +40,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.017.1
+0.018.0
 
 =head1 DESCRIPTION
 
@@ -287,8 +287,12 @@ in L<Database::BI::Tutorial>, not in this POD.
 =item C<GET /view/:table>
 
 Opens the named table from C<data_dir>.  Accepts C<?f=col:op:val>
-(repeatable) to pre-filter results, and C<?range=name&E<gt>rcol=column> to keep
+(repeatable) to pre-filter results, and C<?range=name&rcol=column> to keep
 only a relative window of rows (see L</Relative time ranges>).
+
+A name that is not a table in C<data_dir> is a C<404> page that says so ("There
+is no table called ..."), with the breadcrumb and site navigation; it does not
+show the data directory.
 
 =item C<GET /browse>
 
@@ -308,6 +312,7 @@ Performs one or more left joins and renders the merged table.  Parameters:
 
   l=<spec>               left table spec (see below)
   j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
+  c=<spec>               table to stack after the joins (repeatable; see /combine)
   f=<col>:<op>:<val>     result filter (repeatable)
   range=<name>           relative time range, with rcol=<column> (see below)
 
@@ -389,6 +394,7 @@ view.  All columns from all sources appear as headers; cells are blank
 where a source file lacks a column.  Parameters:
 
   l=<spec>               left table: "table:name" or "path:/abs/path"
+  j=<spec>|<lk>|<rk>    join step applied to the left table first (repeatable)
   c=<spec>               additional table to stack (repeatable)
   f=<col>:<op>:<val>     result filter applied after combining (repeatable)
 
@@ -580,7 +586,7 @@ removed.  Parameters:
 With C<back=>, each word links to the rows that contain it.
 
 The same cloud is available as a card on a saved canvas: C<POST
-/api/analyses/:id/visuals> takes C<kind = > C<wordcloud> with C<encode.col>,
+/api/analyses/:id/visuals> takes C<< kind => wordcloud >> with C<encode.col>,
 and the card counts the words of its own rows -- its filters, the page's
 cross-filter and its own options -- so a canvas that is narrowed to one
 region shows the words of that region.
@@ -705,10 +711,10 @@ had.
 
 A card may bring a cross-row plan of its own in C<cross_row>, in the spelling
 the canvas page's C<cs>, C<by> and C<order> use:
-C<{ cs = > [ I<col:fn:name[:arg]> ... ], by => I<col>, order => [ I<col:dir> ... ] }>.
+C<< { cs => [ I<col:fn:name[:arg]> ... ], by => I<col>, order => [ I<col:dir> ... ] } >>.
 The card then runs that plan instead of the page's, so one card of a canvas can
 show a running total while the cards beside it show raw rows, and
-C<{ cs = > [] }> is a card that runs no cross-row pass at all -- which is how a
+C<< { cs => [] } >> is a card that runs no cross-row pass at all -- which is how a
 card opts out of the page's.  A card that sends no C<cross_row> inherits the
 page's plan.  The plan is checked against the canvas's columns on every render,
 not only here, so a saved spec that no longer names a column is that card's
@@ -838,6 +844,21 @@ in-process for one hour keyed on the analysis fingerprint.
 
 =back
 
+=head2 Breadcrumbs and missing pages
+
+Every page shows where it is: Home, then each page between Home and this one,
+then this page, which is not a link.  The trail is read from the page's own
+URL -- a chart's C<back=>, drilled rows' C<back2=>, a file's folder -- and each
+step is named from its own URL ("Bar chart: amount by region", "sales (region
+= North)").  Text from the URL is shown only if it is short and has no markup,
+a C<back=> to another site or scheme is not followed, and a chain of C<back=>
+links stops after eight steps.
+
+An address that matches no route, a missing table (C</view/:table>) and a
+missing canvas (C</a/:id>) answer C<404> with an HTML page that keeps the
+breadcrumb and the site navigation.  The JSON API (C</api/...>) still answers
+a C<404> with a JSON body.
+
 =head2 Relative time ranges
 
 Every data route accepts a named window in place of a pair of dates:
@@ -924,6 +945,24 @@ C<?c=hour:span(at,'1h')>.  The timestamp functions are C<epoch(v[, fmt])>,
 C<hour(v)>, C<minute(v)>, C<second(v)> and C<span(v, interval)>; see
 L<Database::BI::Calc> for the shapes each reads and the local-time rule.
 
+=head2 Cross-row columns
+
+Every data route, C</export> and a saved canvas accept a cross-row plan: a
+column worked out from many rows and written beside each one.
+
+  cs=<column>:<function>:<alias>[:<count>]   repeatable
+  by=<column>[,<column>...]                  partition (optional)
+  order=<column>[:asc|desc]                  the order the rows are read in
+
+C<pct_of_total>, C<rank> and C<zscore> need no order.  C<running_total>,
+C<running_count>, C<running_pct>, C<window_sum>, C<window_avg>, C<lag>,
+C<delta> and C<pct_change> need C<order=>; only C<window_sum> and
+C<window_avg> take the C<count>, the width of the window.  The pass runs after
+the filters and before pagination, so page 2 continues page 1's running total.
+An unknown function or column, or a parameter where none is taken, is a 400.
+The table page's Cross-row panel builds the same parameters.  See
+L<Database::BI::Controller::Dashboard/Cross-row columns> for the full rules.
+
 =head1 CONFIGURATION
 
 Place a C<database_bi.conf> file in the application root to override
@@ -949,6 +988,27 @@ application home, an absolute one is used as given, so a deployment whose
 application directory is read-only can stage uploads somewhere writable:
 
     { uploads_dir => '/var/tmp/database-bi-uploads' }
+
+=head2 Compression and the page cache
+
+Every response goes through L<Mojolicious::Plugin::Buffer>: it is compressed
+(gzip or Brotli, as the browser accepts), HTML whitespace is minified (inline
+scripts and styles are left alone), and a C<200> to C<GET> or C<HEAD> carries
+an C<ETag>, so a repeat request can be answered C<304 Not Modified>.  File
+downloads (C</export> as CSV, SQLite or JSON, the pivot as XLSX, and a canvas
+card's data from C</a/:id/visual/:n/:fmt>) opt out and are sent as they are.
+
+Two optional keys keep finished pages on disc:
+
+    {
+        page_cache_dir      => '/var/cache/database-bi',  # relative: under the application home
+        page_cache_duration => '5 minutes',               # the default
+    }
+
+When C<page_cache_dir> is set, C</catalog> and C</tutorial> are stored in a
+L<CHI> File cache there, one copy per C<Accept-Language>, and served from it
+until they expire.  No other page is cached, because the rest read data files
+that can change between requests.  Without the key nothing is cached.
 
 =head2 Self-hosting D3 and Leaflet
 
@@ -998,6 +1058,51 @@ which the legend shows as "Other".  C<series=> is the categorical
 alternative: each distinct value takes the next colour from C<scheme=>,
 cycling through the palette, and the legend lists the categories.  C<color=>
 and C<series=> are mutually exclusive.
+
+=head1 METHODS
+
+=head2 startup
+
+Called once by Mojolicious when the application is loaded, by
+C<script/database-bi>, C<morbo>, C<hypnotoad> or C<< Test::Mojo->new('Database::BI') >>.
+It is not called directly.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	$self   # the Database::BI application object
+
+Configuration comes from C<database_bi.conf> in the application home, if it is
+there (see L</CONFIGURATION>), or from the hashref given to
+C<< Test::Mojo->new('Database::BI', { ... }) >>.  Unset keys default to
+C<< data_dir => 'data' >>, C<< platform => 'web' >>, C<< language => 'en' >> and the
+public D3 URL.
+
+=head4 OUTPUT
+
+Nothing useful is returned.  By the time it returns, the application has:
+
+=over 4
+
+=item * a 50 MiB limit on request bodies (an upload over it is answered C<413>);
+
+=item * Template Toolkit registered as handler C<tt>, and the Buffer plugin
+(see L</Compression and the page cache>);
+
+=item * the CHI cache for tables (the C<Memory> driver unless C<cache =E<gt> { driver }>
+names another), and the page cache when C<page_cache_dir> is set;
+
+=item * the C<before_dispatch> hooks for relative time ranges, cross-row plans and
+the view context, and the C<before_render> hook that sets the breadcrumb, the help link
+and the HTML 404 page;
+
+=item * every route in L</ROUTES>.
+
+=back
+
+A configuration file that does not parse makes the C<Config> plugin croak, and
+the application does not start.
 
 =head1 COMMAND-LINE TOOLS
 

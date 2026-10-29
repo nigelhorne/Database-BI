@@ -2337,7 +2337,7 @@ subtest '3.2: each card has a size menu that sets its width without a drag' => s
 		'and the option that says what the card is is found by its own marker';
 	like $b, qr/id="size-help"[^>]*>[^<]*height to one, two, three or six rows/s,
 		'the help says the menu sets the height as well';
-	like $b, qr/badge\.textContent = st\.w \+ ' × ' \+ st\.h;/,
+	like $b, qr/badge\.textContent = st\.w \+ ' \\u00D7 ' \+ st\.h;/,
 		'as the two numbers the menu spells out in words';
 	like $b, qr/\? sizeSummary\(sel, st\.w, st\.h\)/,
 		'with the menu words for the presets as the title';

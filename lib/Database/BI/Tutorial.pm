@@ -3,7 +3,7 @@ package Database::BI::Tutorial;
 use strict;
 use warnings;
 
-our $VERSION = '0.017.0';
+our $VERSION = '0.018.0';
 
 # ---------------------------------------------------------------------------
 # The tutorial that the application shows at GET /tutorial.
@@ -986,6 +986,17 @@ sub _slug {
 
 Database::BI::Tutorial - the chapters of the in-application tutorial
 
+=head1 SYNOPSIS
+
+  use Database::BI::Tutorial;
+
+  for my $part (@{ Database::BI::Tutorial->parts }) {
+      print $part->{name}, ": ", scalar @{ $part->{chapters} }, " chapters\n";
+  }
+
+  my $chapter = Database::BI::Tutorial->chapter_for_action('bar_view');
+  print $chapter->{title}, "\n" if $chapter;
+
 =head1 DESCRIPTION
 
 The tutorial that the application shows at C<GET /tutorial> is built from the
@@ -1008,6 +1019,101 @@ that page.  The application calls it from a C<before_render> hook and the shared
 layout shows the result as a C<Help: ...> link beside the main Tutorial link.
 A new page action belongs in C<%ACTION_CHAPTERS>; the test fails until it is
 there.
+
+=head1 FUNCTIONS
+
+Each is called as a class method or a plain function; none takes arguments
+except C<chapter_for_action>.  The returned structures are the module's own
+data: read them, do not change them.
+
+=head2 intro
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	[ 'string', ... ]   # the introduction's sentences
+
+=head2 chapters
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	[ {
+	    id     => 'string',     # anchor, unique
+	    part   => 'string',     # the part the chapter belongs to
+	    title  => 'string',
+	    lead   => 'string',
+	    steps  => 'arrayref',   # sentences
+	    tip    => 'string',     # optional
+	    try    => 'hashref',    # optional; { href, label }
+	    routes => 'arrayref',   # the GET routes the chapter covers
+	    walkthrough => 'hashref', # optional; { title, intro, steps => [ { do, see } ], result }
+	}, ... ]
+
+In the order the page shows them.
+
+=head2 faq
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	[ { question => 'string', answer => 'string' }, ... ]
+
+=head2 glossary
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	[ { term => 'string', meaning => 'string' }, ... ]
+
+=head2 parts
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	[ { name => 'string', id => 'string', chapters => 'arrayref' }, ... ]
+
+The chapters grouped by C<part>, in order.  C<id> is the part name in lower
+case with each run of other characters replaced by C<->.  A new list is built
+on each call.
+
+=head2 covered_routes
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	{ '/route' => 'chapter-id', ... }
+
+A route named by two chapters maps to the later one.
+
+=head2 exempt_routes
+
+=head3 API SPECIFICATION
+
+=head4 OUTPUT
+
+	{ '/route' => 'reason', ... }   # a copy: GET pages with no chapter, and why
+
+=head2 chapter_for_action
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	$action   # a controller action name, e.g. 'bar_view'
+
+=head4 OUTPUT
+
+	A chapter hashref (as C<chapters> returns), or an empty list
+
+An undefined or unknown action returns an empty list.  It must be called as a
+class method: the action is the second argument.
 
 =head1 AUTHOR
 

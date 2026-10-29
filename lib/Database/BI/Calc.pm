@@ -8,7 +8,7 @@ use POSIX	qw(floor ceil);
 use Readonly;
 use Scalar::Util	qw(looks_like_number);
 
-our $VERSION = '0.017.0';
+our $VERSION = '0.018.0';
 
 Readonly my $MAX_EXPR_LEN => 512;
 Readonly my $MAX_DEPTH    => 20;
@@ -1112,6 +1112,23 @@ stored in C<error()>.
 
 Always check C<error()> after construction before calling C<evaluate()>.
 
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	{
+	    expr    => 'string',    # the expression; at most 512 characters
+	    columns => 'arrayref',  # optional; column names the expression may read (default [])
+	    params  => 'hashref',   # optional; named constants, read like columns
+	}
+
+=head4 OUTPUT
+
+Always a C<Database::BI::Calc> object; C<new> does not croak.  A bad
+expression, an unknown identifier, an expression over 512 characters, a
+parameter named like a column, or a bad C<span()> interval leaves the reason
+in C<error()> and the object evaluates nothing.
+
 =head1 METHODS
 
 =head2 error
@@ -1123,11 +1140,29 @@ successfully.
 
 Returns true when C<error()> is defined.
 
+=head3 API SPECIFICATION
+
+Neither takes an argument.  C<error> returns C<'string' | undef>;
+C<has_error> returns a boolean.
+
 =head2 evaluate(\%row)
 
 Evaluates the compiled expression against a data row. Returns the computed
 scalar value, or C<undef> on any runtime error (division by zero, non-numeric
 operand, undef column value, etc.) rather than croaking.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	\%row   # hashref of column name => value
+
+=head4 OUTPUT
+
+	'scalar' | undef
+
+C<undef> when the expression did not compile, or when evaluating it fails for
+this row.  Bound C<params> are read in place of same-named row keys.
 
 =head1 OPERATORS
 
@@ -1251,6 +1286,25 @@ rather than disappearing.  The interval is a constant in the expression, so a
 bad one is rejected when the expression is compiled, not when a row is
 reached.
 
+The interval rule is also a function:
+
+    Database::BI::Calc::span_interval('1mon')   # { n => 1, unit => 'mon' }
+    Database::BI::Calc::span_interval('15m')    # { n => 15, unit => 'm', secs => 60 }
+    Database::BI::Calc::span_interval('0h')     # undef
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	$interval   # '<n><unit>', n >= 1, unit one of s m h d w mon q y
+
+=head4 OUTPUT
+
+	{ n => 'integer', unit => 'string', secs => 'integer' } | undef
+
+C<secs> is present only for C<s>, C<m> and C<h>, whose buckets are floored from
+the epoch.  Anything else, including a reference, is C<undef>.
+
 =head2 Date normalisation (standalone helper)
 
     date_normalise($value, $pattern) -> ISO string or undef
@@ -1279,6 +1333,20 @@ pattern that has not changed its meaning has not changed its meaning.
 This is called by C<Dashboard::_apply_date_normalization> before calc fields
 are evaluated, so C<YEAR(date)>, C<HOUR(date)> and C<span(date, '1h')> see ISO
 values regardless of the source format.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	$value     # string
+	$pattern   # one of the three date patterns, or { date, time, as }
+
+=head4 OUTPUT
+
+	'string' | undef   # YYYY-MM-DD, or YYYY-MM-DDTHH:MM:SS with a time or as => 'timestamp'
+
+An undefined or empty value, an unknown pattern, or a value that does not
+match returns C<undef>.  It does not croak.
 
 =head2 Binning
 
@@ -1339,8 +1407,10 @@ L<Database::BI>, L<Database::BI::Controller::Dashboard>
 
 Nigel Horne, C<< <njh@nigelhorne.com> >>
 
-=head1 LICENSE
+=head1 LICENCE AND COPYRIGHT
 
-Same terms as Database::BI.
+Copyright 2026 Nigel Horne.
+
+Usage is subject to the GPL2 licence terms.
 
 =cut

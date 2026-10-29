@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.017.0';
+our $VERSION = '0.018.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -2292,10 +2292,10 @@ sub _measure_pushable {
 	#
 	# Two cases where both paths must agree:
 	#   - All values undef/blank: Perl fold produces no rows; SQL SUM(NULL)
-	#     produces NULL, normalised to 0 by D::A → discrepancy.  Return 0 so
+	#     produces NULL, normalised to 0 by D::A -> discrepancy.  Return 0 so
 	#     the Perl fold runs and yields the expected "No plottable data" result.
 	#   - Currency/accounting notation (e.g. ($1,234)): _numeric_cell strips
-	#     these correctly; SQL sees non-numeric text → SUM = NULL → 0.  Return 0
+	#     these correctly; SQL sees non-numeric text -> SUM = NULL -> 0.  Return 0
 	#     so _numeric_cell is used on every value.
 	require Scalar::Util;
 	my $found = 0;
@@ -3067,7 +3067,7 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	$self->_apply_date_normalization($records, $columns, $date_spec);
 
 	# Build calc spec list: stored fields from models.json first (lower priority),
-	# then URL ?c= params (higher priority — they override stored fields of the
+	# then URL ?c= params (higher priority -- they override stored fields of the
 	# same name so the user can test a new expression without permanently saving).
 	my (@calc_specs, %seen_calc);
 	{
@@ -8634,7 +8634,7 @@ sub pivot_view ($self) {
 				}
 			}
 
-			# Grand total: group by nothing (all rows → one result row).
+			# Grand total: group by nothing (all rows -> one result row).
 			my $gtot = $self->_grouped_totals($pipeline, {
 				by  => [],
 				fn  => $m->{fn},
@@ -9769,7 +9769,7 @@ my %STOP_WORD = map { $_ => 1 } qw(
 #
 # Purpose: Percent-encode one value for a query string.
 # Notes:   url_escape() works on bytes, so a decoded (character) string is
-#          encoded to UTF-8 first; otherwise "café" would become "caf%E9" and a
+#          encoded to UTF-8 first; otherwise "caf\x{e9}" would become "caf%E9" and a
 #          browser would read that back as Latin-1.
 sub _percent_encode {
 	my ($text) = @_;
@@ -9788,7 +9788,7 @@ sub _percent_encode {
 #          point of a column -- while a run of punctuation is not a word at all.
 # Notes:   A CSV cell arrives as bytes, so it is decoded first (the same
 #          _decode_cell() every page uses): without that, \p{L} would see the
-#          bytes of "café" and split the word in two.  The apostrophe stays
+#          bytes of "caf\x{e9}" and split the word in two.  The apostrophe stays
 #          inside a word, so O'Brien is one word rather than "o" and "brien".
 sub _word_tokens {
 	my ($text, $minlen) = @_;

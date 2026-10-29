@@ -38,7 +38,15 @@ jobs:
         exclude:
           - os: windows-latest
             perl: "5.40"
+        # The oldest Perl the distribution supports (MIN_PERL_VERSION in
+        # Makefile.PL): attributes before a signature need 5.28.
+        include:
+          - os: ubuntu-latest
+            perl: "5.28"
     name: Perl ${{ matrix.perl }} on ${{ matrix.os }}
+    # Windows 5.42 cannot build DBD-SQLite, DBD-CSV or DateTime-Locale with its
+    # toolchain yet; report it without failing the run until that is fixed.
+    continue-on-error: ${{ matrix.os == 'windows-latest' && matrix.perl == '5.42' }}
     env:
       AUTOMATED_TESTING: 1
       NO_NETWORK_TESTING: 1

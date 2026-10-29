@@ -1,6 +1,6 @@
 # Generated from Makefile.PL using makefilepl2cpanfile
 
-requires 'perl', '5.020000';
+requires 'perl', '5.028000';
 
 requires 'CGI::Info';
 requires 'CGI::Lingua', '0.85';
@@ -40,6 +40,7 @@ requires 'Scalar::Util';   # Used in DataSource.pm (blessed, looks_like_number)
 requires 'Socket', '2.010';
 requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected', '0.03';
+requires 'Text::CSV';   # script/bi-alert's fallback reader when Database::Abstraction cannot open the file
 requires 'version', '0.77';
 recommends 'Geo::Coder::Free', '0.48';
 recommends 'HTML::OSM', '0.12';

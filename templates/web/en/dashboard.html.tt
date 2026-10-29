@@ -1791,7 +1791,7 @@ function biSetDateRange(colName, inputs) {
     biApplyRange(inputs, domRange);
     return;
   }
-  inputs.forEach(function (inp) { inp.disabled = true; inp.title = 'Loading date range…'; });
+  inputs.forEach(function (inp) { inp.disabled = true; inp.title = 'Loading date range\u2026'; });
   fetch('/api/range?l=' + encodeURIComponent(lSpec) + '&col=' + encodeURIComponent(colName))
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
@@ -2425,7 +2425,7 @@ function biDetectColType(colName) {
     fromInp.style.display = 'none';
 
     var sepSpan = document.createElement('span');
-    sepSpan.textContent = '—';
+    sepSpan.textContent = '\u2014';
     sepSpan.className = 'filter-range-sep';
     sepSpan.style.cssText = 'display:none;font-size:0.82rem;color:#666';
 

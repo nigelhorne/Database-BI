@@ -4,7 +4,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 ## Version
 
-0.017.1
+0.018.0
 
 ## Description
 
@@ -207,8 +207,12 @@ perl Makefile.PL
 - `GET /view/:table`
 
     Opens the named table from `data_dir`.  Accepts `?f=col:op:val`
-    (repeatable) to pre-filter results, and `?range=name&>rcol=column` to keep
+    (repeatable) to pre-filter results, and `?range=name&rcol=column` to keep
     only a relative window of rows (see ["Relative time ranges"](#relative-time-ranges)).
+
+    A name that is not a table in `data_dir` is a `404` page that says so ("There
+    is no table called ..."), with the breadcrumb and site navigation; it does not
+    show the data directory.
 
 - `GET /browse`
 
@@ -229,6 +233,7 @@ perl Makefile.PL
     ```
     l=<spec>               left table spec (see below)
     j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
+    c=<spec>               table to stack after the joins (repeatable; see /combine)
     f=<col>:<op>:<val>     result filter (repeatable)
     range=<name>           relative time range, with rcol=<column> (see below)
     ```
@@ -316,6 +321,7 @@ perl Makefile.PL
 
     ```
     l=<spec>               left table: "table:name" or "path:/abs/path"
+    j=<spec>|<lk>|<rk>    join step applied to the left table first (repeatable)
     c=<spec>               additional table to stack (repeatable)
     f=<col>:<op>:<val>     result filter applied after combining (repeatable)
     ```
@@ -532,7 +538,7 @@ perl Makefile.PL
     With `back=`, each word links to the rows that contain it.
 
     The same cloud is available as a card on a saved canvas: `POST
-    /api/analyses/:id/visuals` takes `kind = ` `wordcloud` with `encode.col`,
+    /api/analyses/:id/visuals` takes `kind => wordcloud` with `encode.col`,
     and the card counts the words of its own rows -- its filters, the page's
     cross-filter and its own options -- so a canvas that is narrowed to one
     region shows the words of that region.
@@ -659,10 +665,10 @@ perl Makefile.PL
 
     A card may bring a cross-row plan of its own in `cross_row`, in the spelling
     the canvas page's `cs`, `by` and `order` use:
-    `{ cs = ` \[ _col:fn:name\[:arg\]_ ... \], by => _col_, order => \[ _col:dir_ ... \] }>.
+    `{ cs => [ _col:fn:name[:arg]_ ... ], by => _col_, order => [ _col:dir_ ... ] }`.
     The card then runs that plan instead of the page's, so one card of a canvas can
     show a running total while the cards beside it show raw rows, and
-    `{ cs = ` \[\] }> is a card that runs no cross-row pass at all -- which is how a
+    `{ cs => [] }` is a card that runs no cross-row pass at all -- which is how a
     card opts out of the page's.  A card that sends no `cross_row` inherits the
     page's plan.  The plan is checked against the canvas's columns on every render,
     not only here, so a saved spec that no longer names a column is that card's
@@ -790,6 +796,21 @@ perl Makefile.PL
     set.  Only aggregate insight facts are sent to the LLM.  Results are cached
     in-process for one hour keyed on the analysis fingerprint.
 
+### Breadcrumbs and Missing Pages
+
+Every page shows where it is: Home, then each page between Home and this one,
+then this page, which is not a link.  The trail is read from the page's own
+URL -- a chart's `back=`, drilled rows' `back2=`, a file's folder -- and each
+step is named from its own URL ("Bar chart: amount by region", "sales (region
+&#x3d; North)").  Text from the URL is shown only if it is short and has no markup,
+a `back=` to another site or scheme is not followed, and a chain of `back=`
+links stops after eight steps.
+
+An address that matches no route, a missing table (`/view/:table`) and a
+missing canvas (`/a/:id`) answer `404` with an HTML page that keeps the
+breadcrumb and the site navigation.  The JSON API (`/api/...`) still answers
+a `404` with a JSON body.
+
 ### Relative Time Ranges
 
 Every data route accepts a named window in place of a pair of dates:
@@ -882,6 +903,26 @@ The same bucket is available by hand, because it is a calculated field:
 `hour(v)`, `minute(v)`, `second(v)` and `span(v, interval)`; see
 [Database::BI::Calc](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACalc) for the shapes each reads and the local-time rule.
 
+### Cross-Row Columns
+
+Every data route, `/export` and a saved canvas accept a cross-row plan: a
+column worked out from many rows and written beside each one.
+
+```
+cs=<column>:<function>:<alias>[:<count>]   repeatable
+by=<column>[,<column>...]                  partition (optional)
+order=<column>[:asc|desc]                  the order the rows are read in
+```
+
+`pct_of_total`, `rank` and `zscore` need no order.  `running_total`,
+`running_count`, `running_pct`, `window_sum`, `window_avg`, `lag`,
+`delta` and `pct_change` need `order=`; only `window_sum` and
+`window_avg` take the `count`, the width of the window.  The pass runs after
+the filters and before pagination, so page 2 continues page 1's running total.
+An unknown function or column, or a parameter where none is taken, is a 400.
+The table page's Cross-row panel builds the same parameters.  See
+["Cross-row columns" in Database::BI::Controller::Dashboard](https://metacpan.org/pod/Database%3A%3ABI%3A%3AController%3A%3ADashboard#Cross-row-columns) for the full rules.
+
 ## Configuration
 
 Place a `database_bi.conf` file in the application root to override
@@ -911,6 +952,29 @@ application directory is read-only can stage uploads somewhere writable:
 ```perl
 { uploads_dir => '/var/tmp/database-bi-uploads' }
 ```
+
+### Compression and the Page Cache
+
+Every response goes through [Mojolicious::Plugin::Buffer](https://metacpan.org/pod/Mojolicious%3A%3APlugin%3A%3ABuffer): it is compressed
+(gzip or Brotli, as the browser accepts), HTML whitespace is minified (inline
+scripts and styles are left alone), and a `200` to `GET` or `HEAD` carries
+an `ETag`, so a repeat request can be answered `304 Not Modified`.  File
+downloads (`/export` as CSV, SQLite or JSON, the pivot as XLSX, and a canvas
+card's data from `/a/:id/visual/:n/:fmt`) opt out and are sent as they are.
+
+Two optional keys keep finished pages on disc:
+
+```perl
+{
+    page_cache_dir      => '/var/cache/database-bi',  # relative: under the application home
+    page_cache_duration => '5 minutes',               # the default
+}
+```
+
+When `page_cache_dir` is set, `/catalog` and `/tutorial` are stored in a
+[CHI](https://metacpan.org/pod/CHI) File cache there, one copy per `Accept-Language`, and served from it
+until they expire.  No other page is cached, because the rest read data files
+that can change between requests.  Without the key nothing is cached.
 
 ### Self-Hosting D3 and Leaflet
 
@@ -962,6 +1026,45 @@ which the legend shows as "Other".  `series=` is the categorical
 alternative: each distinct value takes the next colour from `scheme=`,
 cycling through the palette, and the legend lists the categories.  `color=`
 and `series=` are mutually exclusive.
+
+## Methods
+
+### Startup
+
+Called once by Mojolicious when the application is loaded, by
+`script/database-bi`, `morbo`, `hypnotoad` or `Test::Mojo->new('Database::BI')`.
+It is not called directly.
+
+#### Api Specification
+
+##### Input
+
+```perl
+    $self   # the Database::BI application object
+```
+
+Configuration comes from `database_bi.conf` in the application home, if it is
+there (see ["CONFIGURATION"](#configuration)), or from the hashref given to
+`Test::Mojo->new('Database::BI', { ... })`.  Unset keys default to
+`data_dir => 'data'`, `platform => 'web'`, `language => 'en'` and the
+public D3 URL.
+
+##### Output
+
+Nothing useful is returned.  By the time it returns, the application has:
+
+- a 50 MiB limit on request bodies (an upload over it is answered `413`);
+- Template Toolkit registered as handler `tt`, and the Buffer plugin
+(see ["Compression and the page cache"](#compression-and-the-page-cache));
+- the CHI cache for tables (the `Memory` driver unless `cache => { driver }`
+names another), and the page cache when `page_cache_dir` is set;
+- the `before_dispatch` hooks for relative time ranges, cross-row plans and
+the view context, and the `before_render` hook that sets the breadcrumb, the help link
+and the HTML 404 page;
+- every route in ["ROUTES"](#routes).
+
+A configuration file that does not parse makes the `Config` plugin croak, and
+the application does not start.
 
 ## Command-Line Tools
 

@@ -1752,7 +1752,7 @@ menu, so it reads without the menu being opened.</p>
 		var st  = state || resizeState(card);
 		var sel = card.querySelector('.visual-size-select');
 
-		badge.textContent = st.w + ' × ' + st.h;
+		badge.textContent = st.w + ' \u00D7 ' + st.h;
 		badge.setAttribute('title', sel
 			? sizeSummary(sel, st.w, st.h)
 			: st.w + ' columns wide, ' + st.h + ' rows high');
@@ -2223,7 +2223,7 @@ menu, so it reads without the menu being opened.</p>
 			var name = btnDeleteCanvas.getAttribute('data-canvas-name') || 'this canvas';
 			if (!confirm('Delete canvas "' + name + '"?\n\nThis cannot be undone.')) return;
 			btnDeleteCanvas.disabled = true;
-			btnDeleteCanvas.textContent = 'Deleting…';
+			btnDeleteCanvas.textContent = 'Deleting\u2026';
 			fetch('/api/analyses/[% canvas_id | uri %]', { method: 'DELETE' })
 				.then(function (r) {
 					if (r.ok) {
@@ -2511,7 +2511,7 @@ menu, so it reads without the menu being opened.</p>
 		var allCols = canvasColumns.map(function (c) { return { value: c.name }; });
 		var numCols = canvasColumns.filter(function (c) { return c.numeric; })
 			.map(function (c) { return { value: c.name }; });
-		var choose   = [{ value: '', label: 'Choose a column…' }];
+		var choose   = [{ value: '', label: 'Choose a column\u2026' }];
 		var countOpt = [{ value: '__count__', label: 'Count (no column needed)' }];
 
 		fill(tableSel, allCols);
@@ -3182,7 +3182,7 @@ menu, so it reads without the menu being opened.</p>
 					opt.textContent = label;
 					sel.appendChild(opt);
 				};
-				add('', 'Choose a column…');
+				add('', 'Choose a column\u2026');
 				columns.forEach(function (name) { add(name, name); });
 				/* A saved column is offered even when the sampler did not call
 				 * it numeric: the server, not this list, decides what a
@@ -3230,7 +3230,7 @@ menu, so it reads without the menu being opened.</p>
 				editLoaded = false;
 				editSave.disabled = true;
 				editSave.textContent = 'Save columns';
-				editLoc.innerHTML = '<option value="">Loading…</option>';
+				editLoc.innerHTML = '<option value="">Loading\u2026</option>';
 				editLat.innerHTML = '';
 				editLon.innerHTML = '';
 				editSetError('');
@@ -3258,7 +3258,7 @@ menu, so it reads without the menu being opened.</p>
 					})
 					.catch(function () {
 						if (editTarget && editTarget.card === card) {
-							editSetError('Could not read the card’s columns. Check the connection and try again.');
+							editSetError('Could not read the card\u2019s columns. Check the connection and try again.');
 						}
 					});
 			};
@@ -3304,7 +3304,7 @@ menu, so it reads without the menu being opened.</p>
 
 				var target = editTarget;
 				editSave.disabled = true;
-				editSave.textContent = 'Saving…';
+				editSave.textContent = 'Saving\u2026';
 
 				fetch('/api/analyses/' + encodeURIComponent(anaId) + '/visuals/' + target.index, {
 					method  : 'PATCH',
@@ -3917,7 +3917,7 @@ menu, so it reads without the menu being opened.</p>
 				crFields.hidden = true;
 				crList.innerHTML = '';
 				crAlias.value = '';
-				crEmpty.textContent = 'Loading…';
+				crEmpty.textContent = 'Loading\u2026';
 				crEmpty.hidden = false;
 				crSetError('');
 				crPosition();
@@ -3947,7 +3947,7 @@ menu, so it reads without the menu being opened.</p>
 							? { col: first[0] || '', dir: (first[1] || 'asc').toLowerCase() }
 							: { col: '', dir: 'asc' };
 
-						crFill(crCol, num, 'Choose a column…', '');
+						crFill(crCol, num, 'Choose a column\u2026', '');
 						crFill(crOrder, all, '\u2014 none \u2014', crOrderShown.col);
 						crFill(crBy, all, '\u2014 the whole view \u2014',
 							(plan && typeof plan === 'object' && plan.by) ? plan.by : '');
@@ -3986,7 +3986,7 @@ menu, so it reads without the menu being opened.</p>
 					})
 					.catch(function () {
 						if (crTarget && crTarget.card === card) {
-							crSetError('Could not read the card’s cross-row columns. Check the connection and try again.');
+							crSetError('Could not read the card\u2019s cross-row columns. Check the connection and try again.');
 						}
 					});
 			};
@@ -4163,7 +4163,7 @@ menu, so it reads without the menu being opened.</p>
 
 				var target = crTarget;
 				crSave.disabled = true;
-				crSave.textContent = 'Saving…';
+				crSave.textContent = 'Saving\u2026';
 
 				fetch('/api/analyses/' + encodeURIComponent(anaId) + '/visuals/' + target.index, {
 					method  : 'PATCH',
@@ -4299,7 +4299,7 @@ menu, so it reads without the menu being opened.</p>
 
 			addBtn.disabled = true;
 			btn.disabled = true;
-			addBtn.textContent = 'Adding…';
+			addBtn.textContent = 'Adding\u2026';
 
 			fetch('/api/analyses/' + encodeURIComponent(anaId) + '/visuals', {
 				method  : 'POST',
