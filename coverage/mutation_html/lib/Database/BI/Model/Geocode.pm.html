@@ -378,7 +378,7 @@ Approximate LCSAJ segments: 129<br>
 </span><span class="">   37: use Params::Get			();
 </span><span class="">   38: use Params::Validate::Strict	qw(validate_strict);
 </span><span class="">   39: 
-</span><span class="">   40: our $VERSION = &#39;0.017.0&#39;;
+</span><span class="">   40: our $VERSION = &#39;0.018.0&#39;;
 </span><span class="">   41: 
 </span><span class="">   42: # The version of Geo::Coder::Free this module asks for: 0.46 added valid_location()
 </span><span class="">   43: # and on_error =&gt; &#39;undef&#39;, 0.47 added geocode_many(), and 0.48 added the
@@ -867,7 +867,7 @@ Approximate LCSAJ segments: 129<br>
 </span><span class="">  526: 		return;
 </span><span class="">  527: 	}
 </span><span class="">  528: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  529: 	return Geo::Coder::Free-&gt;new(
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  529: 	return Geo::Coder::Free-&gt;new(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1994,15 +1994,19 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1632:        |
 </span><span class=""> 1633:        +--[beyond cap]-------------------&gt; NOT_ATTEMPTED
 </span><span class=""> 1634: 
-</span><span class=""> 1635: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 1635: =head1 AUTHOR
 </span><span class=""> 1636: 
-</span><span class=""> 1637: Copyright 2026 Nigel Horne.
+</span><span class=""> 1637: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
 </span><span class=""> 1638: 
-</span><span class=""> 1639: Usage is subject to the GPL2 licence terms.
-</span><span class=""> 1640: If you use it,
-</span><span class=""> 1641: please let me know.
+</span><span class=""> 1639: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 1640: 
+</span><span class=""> 1641: Copyright 2026 Nigel Horne.
 </span><span class=""> 1642: 
-</span><span class=""> 1643: =cut
+</span><span class=""> 1643: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 1644: If you use it,
+</span><span class=""> 1645: please let me know.
+</span><span class=""> 1646: 
+</span><span class=""> 1647: =cut
 </span></pre>
 
 <script>

@@ -344,7 +344,7 @@ Approximate LCSAJ segments: 159<br>
 </span><span class="">    3: use strict;
 </span><span class="">    4: use warnings;
 </span><span class="">    5: 
-</span><span class="">    6: our $VERSION = &#39;0.017.0&#39;;
+</span><span class="">    6: our $VERSION = &#39;0.018.0&#39;;
 </span><span class="">    7: 
 </span><span class="">    8: use Database::BI::Util  qw(urlencode);
 </span><span class="">    9: use List::Util          qw(sum min max);
@@ -475,7 +475,7 @@ Approximate LCSAJ segments: 159<br>
 </span><span class="">  134: # EU slash-dates (22/12/2025), and dash-Mon dates (22-Oct-2026) are never
 </span><span class="">  135: # stripped of their punctuation and misread as large integers like 12222025.
 </span><span class="">  136: sub _looks_like_date {
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  137: 	my $v = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  137: 	my $v = shift;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -651,7 +651,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  168: }
 </span><span class="">  169: 
 </span><span class="">  170: sub _to_num {
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  171: 	my $v = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  171: 	my $v = shift;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1014,7 +1014,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  332: }
 </span><span class="">  333: 
 </span><span class="">  334: sub _fence_distance {
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  335: 	my ($val, $lo, $hi) = @_;
+</span><span class="survived-3 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Boolean logic mutation survived. Add tests covering both true and false paths.">  335: 	my ($val, $lo, $hi) = @_;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 5, Killed: 0, Survived: 5)</summary>
@@ -1656,7 +1656,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  568: # _fmt_num($n) -&gt; $string
 </span><span class="">  569: # Format a number to 4 significant figures, stripping trailing zeros.
 </span><span class="">  570: sub _fmt_num {
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  571: 	my $n = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  571: 	my $n = shift;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1762,7 +1762,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  595: 1;
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  596: 
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  597: __END__
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  598: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  598: 
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1849,40 +1849,72 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  661:     view_url  -- URL to the view showing the data
 </span><span class="">  662:     method    -- key for method_note()
 </span><span class="">  663: 
-</span><span class="">  664: =head2 method_note($key)
+</span><span class="">  664: =head3 API SPECIFICATION
 </span><span class="">  665: 
-</span><span class="">  666: Returns a one-sentence description of the algorithm behind C&lt;$key&gt;.
+</span><span class="">  666: =head4 INPUT
 </span><span class="">  667: 
-</span><span class="">  668: =head1 ALGORITHM NOTES
-</span><span class="">  669: 
-</span><span class="">  670: =head3 Outliers
-</span><span class="">  671: 
-</span><span class="">  672: Tukey IQR fence: Q1 - 1.5*IQR and Q3 + 1.5*IQR.  Requires at least 4 values
-</span><span class="">  673: per group.  Results are sorted by distance from the nearest fence; up to 5
-</span><span class="">  674: outliers are reported per column.
-</span><span class="">  675: 
-</span><span class="">  676: =head3 Period-over-period
-</span><span class="">  677: 
-</span><span class="">  678: Year-month (YYYY-MM) buckets from ISO-8601 date columns.  Requires at least
-</span><span class="">  679: 2 distinct periods.
-</span><span class="">  680: 
-</span><span class="">  681: =head3 Seasonality
-</span><span class="">  682: 
-</span><span class="">  683: Lag-1 autocorrelation r(1) on the sequence of period sums.
-</span><span class="">  684: Formula: r(1) = cov(y[t], y[t+1]) / var(y[t]).
-</span><span class="">  685: Threshold: r &gt;= 0.6.  Requires at least 8 distinct month-periods.
-</span><span class="">  686: 
-</span><span class="">  687: =head1 AUTHOR
-</span><span class="">  688: 
-</span><span class="">  689: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class="">  690: 
-</span><span class="">  691: =head1 LICENCE AND COPYRIGHT
-</span><span class="">  692: 
-</span><span class="">  693: Copyright 2026 Nigel Horne.
-</span><span class="">  694: 
-</span><span class="">  695: Usage is subject to the GPL2 licence terms.
-</span><span class="">  696: 
-</span><span class="">  697: =cut
+</span><span class="">  668: 	{
+</span><span class="">  669: 	    records  =&gt; &#39;arrayref&#39;,  # row hashrefs, already filtered and with calculated fields
+</span><span class="">  670: 	    columns  =&gt; &#39;arrayref&#39;,  # column names, in order
+</span><span class="">  671: 	    spec_key =&gt; &#39;string&#39;,    # optional; the l= spec (default &#39;&#39;)
+</span><span class="">  672: 	    base_url =&gt; &#39;string&#39;,    # optional; default &quot;/insights?l=&lt;spec_key&gt;&quot;
+</span><span class="">  673: 	}
+</span><span class="">  674: 
+</span><span class="">  675: =head4 OUTPUT
+</span><span class="">  676: 
+</span><span class="">  677: 	[ { kind =&gt; &#39;string&#39;, headline =&gt; &#39;string&#39;, detail =&gt; &#39;string&#39;,
+</span><span class="">  678: 	    view_url =&gt; &#39;string&#39;, method =&gt; &#39;string&#39; }, ... ]
+</span><span class="">  679: 
+</span><span class="">  680: No rows or no columns returns C&lt;[]&gt;.  Outliers need a numeric column.
+</span><span class="">  681: Period-over-period, top movers and seasonality also need an ISO
+</span><span class="">  682: C&lt;YYYY-MM-DD&gt; date column; only the first one found is used.  Every insight
+</span><span class="">  683: has a C&lt;view_url&gt;.  The function is pure arithmetic: it makes no network
+</span><span class="">  684: call and does not croak.
+</span><span class="">  685: 
+</span><span class="">  686: =head2 method_note($key)
+</span><span class="">  687: 
+</span><span class="">  688: Returns a one-sentence description of the algorithm behind C&lt;$key&gt;.
+</span><span class="">  689: 
+</span><span class="">  690: =head3 API SPECIFICATION
+</span><span class="">  691: 
+</span><span class="">  692: =head4 INPUT
+</span><span class="">  693: 
+</span><span class="">  694: 	$key   # &#39;iqr_fence&#39; | &#39;pop_delta&#39; | &#39;top_mover&#39; | &#39;autocorr&#39;
+</span><span class="">  695: 
+</span><span class="">  696: =head4 OUTPUT
+</span><span class="">  697: 
+</span><span class="">  698: 	&#39;string&#39;   # the note; an unknown key is returned unchanged
+</span><span class="">  699: 
+</span><span class="">  700: =head1 ALGORITHM NOTES
+</span><span class="">  701: 
+</span><span class="">  702: =head3 Outliers
+</span><span class="">  703: 
+</span><span class="">  704: Tukey IQR fence: Q1 - 1.5*IQR and Q3 + 1.5*IQR.  Requires at least 4 values
+</span><span class="">  705: per group.  Results are sorted by distance from the nearest fence; up to 5
+</span><span class="">  706: outliers are reported per column.
+</span><span class="">  707: 
+</span><span class="">  708: =head3 Period-over-period
+</span><span class="">  709: 
+</span><span class="">  710: Year-month (YYYY-MM) buckets from ISO-8601 date columns.  Requires at least
+</span><span class="">  711: 2 distinct periods.
+</span><span class="">  712: 
+</span><span class="">  713: =head3 Seasonality
+</span><span class="">  714: 
+</span><span class="">  715: Lag-1 autocorrelation r(1) on the sequence of period sums.
+</span><span class="">  716: Formula: r(1) = cov(y[t], y[t+1]) / var(y[t]).
+</span><span class="">  717: Threshold: r &gt;= 0.6.  Requires at least 8 distinct month-periods.
+</span><span class="">  718: 
+</span><span class="">  719: =head1 AUTHOR
+</span><span class="">  720: 
+</span><span class="">  721: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  722: 
+</span><span class="">  723: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  724: 
+</span><span class="">  725: Copyright 2026 Nigel Horne.
+</span><span class="">  726: 
+</span><span class="">  727: Usage is subject to the GPL2 licence terms.
+</span><span class="">  728: 
+</span><span class="">  729: =cut
 </span></pre>
 
 <script>
