@@ -1655,7 +1655,10 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 	require HTTP::Response;
 
 	# Helper: wraps an LLM text response in the Anthropic Messages API envelope.
-	my sub make_llm_response {
+	# A package sub, not "my sub": on perl 5.42 a lexical sub here makes
+	# Devel::Cover segfault in B::CV::GV at global destruction, after every
+	# test has passed.
+	sub make_llm_response {
 		my ($text, $status) = @_;
 		$status //= 200;
 		if ($status != 200) {
