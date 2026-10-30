@@ -11562,7 +11562,7 @@ into the data behind a slice without leaving the application.
 
   200 text/html   TT-rendered pie chart page containing:
                   - Two-level breadcrumb (Home > Back to table).
-                  - Export buttons for SVG and PNG (legend is composited in).
+                  - Export buttons for SVG, PNG and PDF (legend is composited in).
                   - An animated D3.js pie or donut chart with a colour-coded
                     legend.  Each slice and legend entry is clickable and
                     navigates to the filtered table view.

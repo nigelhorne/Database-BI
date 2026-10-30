@@ -37,6 +37,7 @@
 <div class="graph-export-bar">
   <button class="btn-graph-export" onclick="biPieExportSVG()">Export SVG</button>
   <button class="btn-graph-export" onclick="biPieExportPNG()">Export PNG</button>
+  <button class="btn-graph-export" onclick="biPieExportPDF()">Export PDF</button>
   <button class="btn-graph-export" id="btn-copy-chart-link" onclick="navigator.clipboard.writeText(window.location.href).then(function(){var b=document.getElementById('btn-copy-chart-link');var t=b.textContent;b.textContent='Copied!';setTimeout(function(){b.textContent=t;},1500)}).catch(function(){})">&#x1F517; Copy link</button>
   <span class="graph-point-count">
     [% slice_count %] slice[% IF slice_count != 1 %]s[% END %]
@@ -238,7 +239,7 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
   }
 
   // Render the SVG to a canvas, then draw the legend items using 2D canvas ops.
-  function biPieExportPNG() {
+  function drawExportCanvas(scale, done) {
     var svg = document.getElementById('pie_chart');
     if (!svg) return;
     var attr   = _getAttribution();
@@ -252,8 +253,9 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
     var legTotalH = entries.length * ROW_H;
     var legStartY = Math.max(0, (svgH - legTotalH) / 2);
     var canvas = document.createElement('canvas');
-    canvas.width = totalW; canvas.height = svgH + extraH;
+    canvas.width = totalW * scale; canvas.height = (svgH + extraH) * scale;
     var ctx = canvas.getContext('2d');
+    ctx.scale(scale, scale);
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, totalW, svgH + extraH);
     var src = new XMLSerializer().serializeToString(svg);
@@ -282,18 +284,28 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
         ctx.fillText('Source: ' + urlText,       10, svgH + 16);
         ctx.fillText('Accessed on ' + attr.date,  10, svgH + 30);
       }
+      done(canvas);
+    };
+    img.src = url;
+  }
+  function biPieExportPNG() {
+    drawExportCanvas(1, function (canvas) {
       var a = document.createElement('a');
       a.href = canvas.toDataURL('image/png');
       a.download = 'pie.png';
       a.click();
-    };
-    img.src = url;
+    });
+  }
+  function biPieExportPDF() {
+    biSaveChartPDF(drawExportCanvas, 'pie.pdf');
   }
 
   window.biPieExportSVG = biPieExportSVG;
   window.biPieExportPNG = biPieExportPNG;
+  window.biPieExportPDF = biPieExportPDF;
 }());
 </script>
+[% PROCESS "web/en/layouts/chart_pdf.html.tt" %]
 
 [% IF source_url %]
 <div id="chart-attribution" data-url="[% source_url | html %]" data-date="[% source_accessed | html %]" hidden></div>

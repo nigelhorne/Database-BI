@@ -1,0 +1,54 @@
+[%# Shared by the chart pages' Export PDF buttons.  The chart is painted onto a
+    canvas by the page's own draw function, then wrapped as a one-page PDF the
+    size of the chart.  A picture keeps every glyph as it is on screen, and needs
+    no PDF library; PDF_SCALE keeps it sharp when printed or zoomed. -%]
+<script>
+(function () {
+  var PDF_SCALE = 3;
+  var PX_TO_PT  = 0.75;
+
+  function buildPDF(canvas) {
+    var jpeg = atob(canvas.toDataURL('image/jpeg', 0.92).split(',')[1]);
+    var pageW = (canvas.width  / PDF_SCALE * PX_TO_PT).toFixed(2);
+    var pageH = (canvas.height / PDF_SCALE * PX_TO_PT).toFixed(2);
+    var draw  = 'q ' + pageW + ' 0 0 ' + pageH + ' 0 0 cm /Im0 Do Q';
+    var objects = [
+      '<< /Type /Catalog /Pages 2 0 R >>',
+      '<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+      '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ' + pageW + ' ' + pageH + ']'
+        + ' /Resources << /XObject << /Im0 4 0 R >> >> /Contents 5 0 R >>',
+      '<< /Type /XObject /Subtype /Image /Width ' + canvas.width + ' /Height ' + canvas.height
+        + ' /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ' + jpeg.length
+        + ' >>\nstream\n' + jpeg + '\nendstream',
+      '<< /Length ' + draw.length + ' >>\nstream\n' + draw + '\nendstream'
+    ];
+    var pdf = '%PDF-1.4\n';
+    var offsets = objects.map(function (body, i) {
+      var at = pdf.length;
+      pdf += (i + 1) + ' 0 obj\n' + body + '\nendobj\n';
+      return at;
+    });
+    var xref = pdf.length;
+    pdf += 'xref\n0 ' + (objects.length + 1) + '\n0000000000 65535 f \n';
+    offsets.forEach(function (at) {
+      pdf += ('0000000000' + at).slice(-10) + ' 00000 n \n';
+    });
+    pdf += 'trailer\n<< /Size ' + (objects.length + 1) + ' /Root 1 0 R >>\n'
+         + 'startxref\n' + xref + '\n%%EOF\n';
+    /* pdf is a binary string, one character to a byte, so its offsets are bytes. */
+    var bytes = new Uint8Array(pdf.length);
+    for (var i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i);
+    return new Blob([bytes], { type: 'application/pdf' });
+  }
+
+  window.biSaveChartPDF = function (drawCanvas, filename) {
+    drawCanvas(PDF_SCALE, function (canvas) {
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(buildPDF(canvas));
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+    });
+  };
+}());
+</script>

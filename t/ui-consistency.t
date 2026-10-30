@@ -239,4 +239,26 @@ subtest 'a view joins and combines at once, whichever came first' => sub {
 	}
 };
 
+subtest 'every chart page that exports SVG and PNG exports PDF too' => sub {
+	for my $page (
+		[ 'line',      '/graph?l=table:sales&x=region&y=amount',           'chart.pdf' ],
+		[ 'bar',       '/bar?l=table:sales&cat=region&val=amount',         'bar_chart.pdf' ],
+		[ 'pie',       '/pie?l=table:sales&cat=region&val=amount',         'pie.pdf' ],
+		[ 'heatmap',   '/heatmap?l=table:sales&x=region&y=id&val=amount',  'heatmap.pdf' ],
+		[ 'scatter',   '/scatter?l=table:sales&x=id&y=amount',             'scatter_chart.pdf' ],
+		[ 'stacked',   '/stacked?l=table:sales&cat=region&seg=id',         'stacked_bar.pdf' ],
+		[ 'combo',     '/combo?l=table:sales&x=region&bar=amount&line=id', 'combo_chart.pdf' ],
+		[ 'treemap',   '/treemap?l=table:sales&group=region&size=amount',  'treemap.pdf' ],
+		[ 'histogram', '/histogram?l=table:sales&col=amount',              'histogram.pdf' ],
+	) {
+		my ($name, $url, $file) = @{$page};
+		my $b = $t->get_ok($url)->status_is(200)->tx->res->body;
+		like($b, qr/>Export SVG</, "$name: SVG button");
+		like($b, qr/>Export PNG</, "$name: PNG button");
+		like($b, qr/>Export PDF</, "$name: PDF button");
+		like($b, qr/biSaveChartPDF\(drawExportCanvas, '\Q$file\E'\)/, "$name: the PDF is named $file");
+		like($b, qr/window\.biSaveChartPDF = /, "$name: the shared PDF writer is on the page");
+	}
+};
+
 done_testing();

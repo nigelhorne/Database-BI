@@ -326,7 +326,7 @@ my @CHAPTERS = (
 			'Click a chart button in the toolbar. Bar chart... is a good first choice.',
 			'Choose a category column and a number column.',
 			'Click Plot.',
-			'Use Export SVG or Export PNG to save the chart. Use Copy link to share the page.',
+			'Use Export SVG, Export PNG or Export PDF to save the chart. Use Copy link to share the page.',
 		],
 		tip   => 'If the chart is empty, check that you chose a number column for the value.',
 		routes => [],
@@ -384,7 +384,7 @@ my @CHAPTERS = (
 			'For a total per period, set Time bucket and then set Aggregate to Sum.',
 			'Click Plot.',
 		],
-		tip   => 'Use Copy link to share the chart. Use Export SVG or Export PNG to save the picture.',
+		tip   => 'Use Copy link to share the chart. Use Export SVG, Export PNG or Export PDF to save the picture.',
 		routes => [ '/graph', '/line' ],
 	},
 	{

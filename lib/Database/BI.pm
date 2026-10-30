@@ -116,7 +116,7 @@ histogram (server-side binning, C<?bins=N>).  All charts can be resized
 by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
-as it changes.  All chart pages include Copy-link and Export SVG/PNG buttons.
+as it changes.  All chart pages include Copy-link and Export SVG/PNG/PDF buttons.
 
 =item *
 
