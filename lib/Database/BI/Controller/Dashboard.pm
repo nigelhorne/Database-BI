@@ -13,6 +13,7 @@ use List::Util		qw(min max sum);
 use CGI::Info;
 use CGI::Lingua;
 use Database::BI::Tutorial;
+use Database::BI::Util;
 use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json);
 use Mojo::Parameters;
@@ -32,6 +33,16 @@ use version ();
 
 # File extensions that Database::Abstraction can probe, in probe order.
 # .sql, .sqlite, and .sqlite3 are all SQLite databases; .db is Berkeley DB.
+# As many digits as a request parameter may have and still be exact in a Perl
+# number.  More than this is not a page number or a limit, it is someone probing.
+Readonly my $MAX_WHOLE_NUMBER_DIGITS => 15;
+Readonly my $MAX_HISTOGRAM_BINS      => 200;
+
+# What HTML::D3 calls its heatmap colour scales.
+Readonly my %SEQUENTIAL_SCHEMES => map { $_ => 1 } qw(YlOrRd Blues Greens Purples RdPu YlGnBu);
+Readonly my $DEFAULT_SEQUENTIAL_SCHEME  => 'YlOrRd';
+Readonly my $DEFAULT_CATEGORICAL_SCHEME => 'tableau10';
+
 Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx );
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
@@ -324,6 +335,34 @@ Readonly my $SHARE_TOKEN_TTL => 30 * 86_400;
 # Protected helpers
 # ---------------------------------------------------------------------------
 
+# _whole_number($value) -> $integer | undef
+#
+# A request parameter as an integer, or undef if it does not spell one.  int()
+# on the raw text warns on 'abc' and turns it into 0, and reads a long run of
+# digits or '1e400' as infinity, which no LIMIT or OFFSET can use.
+sub _whole_number {
+	my $value = $_[0];
+	return undef unless defined($value) && $value =~ /\A-?\d{1,$MAX_WHOLE_NUMBER_DIGITS}\z/;
+	return $value + 0;
+}
+
+# _categorical_scheme($name) -> $name
+# _sequential_scheme($name) -> $name
+#
+# A colour scheme the chart can use, or the default.  These must be checked here:
+# HTML::D3 writes a categorical name into its script as SCHEMES['name'], so an
+# unchecked value is script on the page, and it dies on a sequential name it does
+# not know, which is a 500.  An unknown name has always drawn the default colours.
+sub _categorical_scheme {
+	my $name = $_[0];
+	return (defined($name) && !ref($name) && $SCATTER_SCHEMES{$name}) ? $name : $DEFAULT_CATEGORICAL_SCHEME;
+}
+
+sub _sequential_scheme {
+	my $name = $_[0];
+	return (defined($name) && !ref($name) && $SEQUENTIAL_SCHEMES{$name}) ? $name : $DEFAULT_SEQUENTIAL_SCHEME;
+}
+
 # _pagination($self) -> ($page, $per_page, $offset)
 #
 # Reads ?page= and ?per_page= from the current request, clamps them to sane
@@ -333,10 +372,10 @@ Readonly my $SHARE_TOKEN_TTL => 30 * 86_400;
 sub _pagination {
 	my $self = $_[0];
 
-	my $per_page = int($self->param('per_page') || $DEFAULT_PER_PAGE);
+	my $per_page = _whole_number($self->param('per_page')) || $DEFAULT_PER_PAGE;
 	$per_page = 1         if $per_page < 1;
 	$per_page = $MAX_PER_PAGE if $per_page > $MAX_PER_PAGE;
-	my $page = int($self->param('page') || 1);
+	my $page = _whole_number($self->param('page')) || 1;
 	$page = 1 if $page < 1;
 	my $offset = ($page - 1) * $per_page;
 	return ($page, $per_page, $offset);
@@ -565,7 +604,9 @@ sub _crumb_label :Protected ($self, $url) {
 	return _crumb_spec_name("table:$1") . $view if $path =~ m{\A/view/([^/]+)\z};
 
 	if ($path eq '/open') {
-		my $name = Mojo::File->new($q->param('path') // '')->basename;
+		my $file = $q->param('path') // '';
+		return undef unless length $file;
+		my $name = Mojo::File->new($file)->basename;
 		my $it   = $q->param('it');
 		$name .= ": $it" if defined $it && length $it;
 		return length $name ? "$name$view" : undef;
@@ -1113,7 +1154,7 @@ sub _get_columns {
 #          timestamp (YYYY-MM-DDTHH:MM:SS) or the same with a space separator,
 #          which is what CSV exports and SQLite text columns usually hold.
 sub _is_iso_date {
-	return $_[0] =~ /\A\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\z/;
+	return defined($_[0]) && $_[0] =~ /\A\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\z/;
 }
 
 # Convert M/D/YYYY or YYYY-MM-DD to YYYY-MM-DD; returns undef for other formats.
@@ -1121,6 +1162,7 @@ sub _is_iso_date {
 # timestamp cell is the caller's to compare, not this sub's to truncate.
 sub _to_iso_date {
 	my ($v) = @_;
+	return unless defined $v;
 	return $v if _is_iso_date($v);
 	if (my ($m, $d, $y) = $v =~ m{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}) {
 		return sprintf '%04d-%02d-%02d', $y, $m, $d;
@@ -2175,13 +2217,7 @@ sub _measure {
 # Used by the Perl fold path of _grouped_totals so all four chart routes
 # share one extraction function.
 sub _numeric_cell {
-	my $v = shift;
-	return undef unless defined $v && length($v);
-	my $is_acct_neg = ($v =~ /\A\s*\(/);
-	(my $n = $v) =~ s/[^\d.-]//g;
-	$n = "-$n" if $is_acct_neg && $n =~ /\A\d/;
-	return undef unless $n =~ /\A-?\d+(?:\.\d+)?\z/;
-	return $n + 0;
+	return Database::BI::Util::parse_number($_[0]);
 }
 
 # _percentile_of(\@sorted, $level) -> $number | undef
@@ -3278,9 +3314,13 @@ sub _read_models :Protected ($self) {
 	return $scaffold unless $json && !$@;
 	my $data = eval { decode_json($json) };
 	return $scaffold unless ref $data eq 'HASH';
-	$data->{fields}        //= {};
-	$data->{groups}        //= {};
-	$data->{date_patterns} //= {};
+	# Callers go straight to ->{fields}{$spec}{$name}, so a hand-edited section of
+	# the wrong shape would otherwise be a strict-refs crash on every page.
+	for my $section (qw(fields groups date_patterns)) {
+		$data->{$section} = {} unless ref $data->{$section} eq 'HASH';
+		my $by_spec = $data->{$section};
+		delete @{$by_spec}{ grep { ref $by_spec->{$_} ne 'HASH' } keys %$by_spec };
+	}
 	return $data;
 }
 
@@ -3309,7 +3349,7 @@ sub _analyses_path :Protected ($self) {
 	my $bi_dir   = Mojo::File->new($cfg_dir)->is_abs
 	                ? Mojo::File->new($cfg_dir)
 	                : $home->child($cfg_dir);
-	my $data_dir = $home->child($app->config('data_dir') // 'data');
+	my $data_dir = _data_dir_for($app);
 
 	# The same refusal as the model store, with its own message: see
 	# _canonical_path for why the comparison is on resolved paths.
@@ -3336,10 +3376,59 @@ sub _read_analyses :Protected ($self) {
 	return {} unless $json && !$@;
 	my $data = eval { decode_json($json) };
 	return {} unless ref $data eq 'HASH';
-	return $data;
+	return { map { $_ => _tidy_analysis($data->{$_}) } grep { ref $data->{$_} eq 'HASH' } keys %$data };
 }
 
-# _write_analyses($self, \%analyses) -- atomic write (temp + rename)
+# _tidy_analysis(\%doc) -> \%doc
+#
+# A stored canvas can hold anything: it may be hand-edited or older than a rule.
+# Every page that reads one goes straight to ->{visuals}[0]{encode}{cat}, so the
+# shape is put right here, once, and a part of the wrong shape is treated as
+# absent: a canvas with one bad part still shows the rest, not a 500.  A visual
+# of the wrong shape becomes an empty one rather than going away, because a
+# visual's index is its identity in the layout and in /a/:id/visual/:n.
+sub _tidy_analysis {
+	my $doc = $_[0];
+
+	delete $doc->{$_} for grep { ref $doc->{$_} ne 'ARRAY' } qw(datasets visuals joins measures combines bookmarks layout hierarchies);
+	delete $doc->{$_} for grep { ref $doc->{$_} ne 'HASH' } qw(fields params);
+	delete $doc->{$_} for grep { ref $doc->{$_} } qw(name updated);
+
+	if ($doc->{datasets}) {
+		$doc->{datasets} = [ grep { ref $_ eq 'HASH' && defined $_->{spec} && !ref $_->{spec} } @{ $doc->{datasets} } ];
+		for my $ds (@{ $doc->{datasets} }) {
+			delete $ds->{filters} if ref $ds->{filters} ne 'ARRAY';
+		}
+	}
+	for my $key (grep { $doc->{$_} } qw(joins layout)) {
+		$doc->{$key} = [ grep { ref $_ eq 'HASH' } @{ $doc->{$key} } ];
+	}
+	if ($doc->{visuals}) {
+		$doc->{visuals} = [ map { ref $_ eq 'HASH' ? $_ : {} } @{ $doc->{visuals} } ];
+		_tidy_visual($_) for @{ $doc->{visuals} };
+	}
+	if ($doc->{params}) {
+		for my $def (values %{ $doc->{params} }) {
+			$def = {} unless ref $def eq 'HASH';
+		}
+	}
+	return $doc;
+}
+
+# _tidy_visual(\%visual) -> \%visual
+#
+# The same for one card, whose parts are read as blindly as the document's.
+sub _tidy_visual {
+	my $vis = $_[0];
+
+	delete $vis->{$_} for grep { ref $vis->{$_} ne 'HASH' } qw(encode options);
+	delete $vis->{filters} if ref $vis->{filters} ne 'ARRAY';
+	delete $vis->{$_} for grep { ref $vis->{$_} } qw(kind title);
+	return $vis;
+}
+
+# _write_analyses($self, \%analyses) -> 1 | 0 | nothing -- atomic write (temp + rename)
+# Nothing means the store is switched off (see _analyses_path).
 sub _write_analyses :Protected ($self, $analyses) {
 	my $path = $self->_analyses_path;
 	return unless defined $path;
@@ -3350,15 +3439,17 @@ sub _write_analyses :Protected ($self, $analyses) {
 		return;
 	}
 	my $ok = eval {
-		print {$fh} encode_json($analyses);
-		close $fh;
-		rename($tmpfile, $path);
+		print {$fh} encode_json($analyses) or croak "print: $!";
+		close $fh or croak "close: $!";
+		rename($tmpfile, $path) or croak "rename: $!";
 		1;
 	};
 	unless ($ok) {
 		$self->app->log->warn("Cannot write $path: $@");
 		unlink $tmpfile;
+		return 0;
 	}
+	return 1;
 }
 
 # _gen_analysis_id($self) -> $id_string
@@ -3435,25 +3526,45 @@ sub _validate_layout :Protected ($self, $layout) {
 # so that a PATCH of one field cannot fail because of another field it never
 # read.
 sub _validate_analysis :Protected ($self, $doc) {
-	return 'Missing required field: name'
-		unless defined $doc->{name} && length $doc->{name};
-	return 'Missing required field: datasets'
-		unless ref $doc->{datasets} eq 'ARRAY' && @{ $doc->{datasets} };
-	for my $ds (@{ $doc->{datasets} }) {
-		return 'Each dataset entry must have a spec field'
-			unless defined $ds->{spec} && length $ds->{spec};
-		return qq{"$ds->{spec}" is not a valid spec (must start with table:, path:, url:, or redis:)}
-			unless $ds->{spec} =~ m{\A(?:table:|path:|url:|redis:)};
+	for my $required (qw(name datasets)) {
+		return "Missing required field: $required" unless defined $doc->{$required};
+	}
+	return $self->_validate_analysis_parts($doc);
+}
+
+# _validate_analysis_parts($self, \%doc) -> $error_string_or_undef
+#
+# Checks only the keys present, which is all a PATCH may be judged on.  This body
+# is whatever a client sent, so nothing about the shape of a value is assumed.
+sub _validate_analysis_parts :Protected ($self, $doc) {
+	if (exists $doc->{name}) {
+		return 'Missing required field: name'
+			unless defined $doc->{name} && !ref $doc->{name} && length $doc->{name};
+	}
+	if (exists $doc->{datasets}) {
+		return 'Missing required field: datasets'
+			unless ref $doc->{datasets} eq 'ARRAY' && @{ $doc->{datasets} };
+		for my $ds (@{ $doc->{datasets} }) {
+			return 'Each dataset entry must have a spec field'
+				unless ref $ds eq 'HASH' && defined $ds->{spec} && !ref $ds->{spec} && length $ds->{spec};
+			return qq{"$ds->{spec}" is not a valid spec (must start with table:, path:, url:, or redis:)}
+				unless $ds->{spec} =~ m{\A(?:table:|path:|url:|redis:)};
+		}
 	}
 	if (defined $doc->{version}) {
 		return sprintf($MESSAGES{error_analysis_version}, $doc->{version})
-			unless $doc->{version} =~ /\A\d+\z/ && $doc->{version} <= 1;
+			unless !ref $doc->{version} && $doc->{version} =~ /\A\d+\z/ && $doc->{version} <= 1;
 	}
 	for my $key (qw( visuals joins measures combines bookmarks layout hierarchies )) {
 		if (defined $doc->{$key}) {
 			return "$key must be an array"
 				unless ref $doc->{$key} eq 'ARRAY';
 		}
+	}
+	for my $key (qw( visuals joins )) {
+		next unless defined $doc->{$key};
+		return "Each entry in $key must be an object"
+			if grep { ref $_ ne 'HASH' } @{ $doc->{$key} };
 	}
 	my $lerr = $self->_validate_layout($doc->{layout});
 	return $lerr if $lerr;
@@ -3486,6 +3597,7 @@ sub _analysis_to_url :Protected ($self, $a) {
 	}
 
 	for my $j (@{ $a->{joins} // [] }) {
+		next unless ref $j eq 'HASH';
 		my $right_spec = $spec_by_alias{ $j->{right} // '' } // '';
 		next unless $right_spec;
 		push @params, 'j=' . url_escape(
@@ -3495,7 +3607,8 @@ sub _analysis_to_url :Protected ($self, $a) {
 
 	# Filters from all datasets
 	for my $ds (@datasets) {
-		for my $f (@{ $ds->{filters} // [] }) {
+		next unless ref $ds->{filters} eq 'ARRAY';
+		for my $f (@{ $ds->{filters} }) {
 			push @params, 'f=' . url_escape($f);
 		}
 	}
@@ -3608,11 +3721,9 @@ sub analyses_patch ($self) {
 	# Only the keys actually supplied are validated here: the canvas PATCHes
 	# nothing but the layout (a drag) or the bookmarks, and a document that
 	# fails on some other field it never mentioned is not this request's fault.
-	if (exists $body->{layout}) {
-		my $lerr = $self->_validate_layout($body->{layout});
-		return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $lerr) }, status => 400)
-			if $lerr;
-	}
+	my $perr = $self->_validate_analysis_parts($body);
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $perr) }, status => 400)
+		if $perr;
 
 	my $existing = { %{ $analyses->{$id} } };
 	for my $key (keys %$body) {
@@ -4292,7 +4403,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 
 		$title ||= "$m->{label} by $cat_col";
 		my @slices = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
-		my $scheme = $options->{scheme} // 'tableau10';
+		my $scheme = _categorical_scheme($options->{scheme});
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
 			->render_pie_chart_snippet(\@slices, {
 				donut        => $options->{donut} ? 1 : 0,
@@ -4417,7 +4528,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		return { error => 'No plottable data' } unless @triples;
 
 		$title ||= "$m->{label} by $x_col and $y_col";
-		my $scheme = $options->{scheme} // 'YlOrRd';
+		my $scheme = _sequential_scheme($options->{scheme});
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
 			->render_heatmap_snippet(\@triples, {
 				x_label      => $x_col,
@@ -4464,7 +4575,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		return { error => 'No plottable data' } unless @data;
 
 		$title ||= "$m->{label} by $cat_col and $seg_col";
-		my $scheme = $options->{scheme} // 'tableau10';
+		my $scheme = _categorical_scheme($options->{scheme});
 		my $orient = (_chart_orientation($options) eq 'horizontal') ? 'h' : 'v';
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
 			->render_stacked_bar_snippet(\@data, {
@@ -4561,7 +4672,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		return { error => 'No plottable data' } unless @$agg;
 
 		$title ||= "$m->{label} by $cat_col";
-		my $scheme = $options->{scheme} // 'tableau10';
+		my $scheme = _categorical_scheme($options->{scheme});
 		# The snippet takes one row per tile as { path, value }, the shape the
 		# treemap page builds; a [label, value] pair is not a path and croaks.
 		my @tiles = map {
@@ -4587,9 +4698,9 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		}
 		return { error => 'No plottable data' } unless @values;
 
-		my $bins = int($options->{bins} // 10);
+		my $bins = _whole_number($options->{bins}) // 10;
 		$bins = 1   if $bins < 1;
-		$bins = 200 if $bins > 200;
+		$bins = $MAX_HISTOGRAM_BINS if $bins > $MAX_HISTOGRAM_BINS;
 		my $min_v = min(@values);
 		my $max_v = max(@values);
 		my @bin_data;
@@ -4832,7 +4943,7 @@ sub _bound_canvas_params :Protected ($self, $a, $lookup) {
 	my (%bound_params, @errors);
 
 	for my $pname (sort keys %param_defs) {
-		my $def     = $param_defs{$pname};
+		my $def     = ref $param_defs{$pname} eq 'HASH' ? $param_defs{$pname} : {};
 		my $type    = $def->{type}    // 'string';
 		my $default = $def->{default} // '';
 		my $raw     = $lookup->("p.$pname");
@@ -4840,7 +4951,9 @@ sub _bound_canvas_params :Protected ($self, $a, $lookup) {
 
 		if ($type eq 'number') {
 			require Scalar::Util;
-			unless (Scalar::Util::looks_like_number($val)) {
+			# looks_like_number accepts these, and every comparison with NaN is
+			# false, so it would walk straight past min and max below.
+			unless (Scalar::Util::looks_like_number($val) && $val !~ /\A\s*[-+]?(?:nan|inf)/i) {
 				push @errors, sprintf($MESSAGES{error_param_type}, $pname);
 				next;
 			}
@@ -5292,7 +5405,11 @@ sub _run_export_pipeline :Protected ($self) {
 	# dimension params of the aggregating routes so a chart's own URL can be
 	# pasted into /export and mean the same thing.
 	my $span = $self->_span_calc_spec($columns, 'cat', 'x', 'rows', 'group');
+	# The stash says the reply has gone.  Without it the caller takes the empty list
+	# for "no such table" and renders a second time, and the client is left hanging
+	# on a reply that never finishes.
 	if ($span && $span->{error}) {
+		$self->stash('_reduce_error' => 1);
 		$self->render(text => $span->{error}, status => 400);
 		return ();
 	}
@@ -5301,6 +5418,7 @@ sub _run_export_pipeline :Protected ($self) {
 		($span ? { calc => $span->{calc} } : undef)) };
 	if ($@) {
 		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+		$self->stash('_reduce_error' => 1);
 		$self->render(text => $e, status => 400);
 		return ();
 	}
@@ -6869,6 +6987,9 @@ sub export_write ($self) {
 		);
 	}
 
+	# A NUL is not part of any file name, only a way of hiding the real extension.
+	$filename = '' if $filename =~ /\0/;
+
 	# Strip any path separators the browser might include.
 	($filename) = $filename =~ m{([^/\\]+)\z};
 	my $format;
@@ -7582,7 +7703,7 @@ sub pie_view ($self) {
 	);
 
 	# Top-N: keep the highest-N slices, aggregate the rest as "Other".
-	my $topn_n = int($self->param('topn') || 0);
+	my $topn_n = _whole_number($self->param('topn')) // 0;
 	if ($topn_n > 0 && @$agg_rows > $topn_n) {
 		my @sorted   = sort { ($b->{value} // 0) <=> ($a->{value} // 0) } @$agg_rows;
 		my @top_agg  = @sorted[0 .. $topn_n - 1];
@@ -7612,7 +7733,7 @@ sub pie_view ($self) {
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
 	require HTML::D3;
-	my $scheme  = $self->param('scheme') // 'tableau10';
+	my $scheme  = _categorical_scheme($self->param('scheme'));
 	my $title   = $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
 	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
 		->render_pie_chart_snippet(\@slices, {
@@ -7713,7 +7834,7 @@ sub heatmap_view ($self) {
 	my $x_col     = $self->param('x')        // '';
 	my $y_col     = $self->param('y')        // '';
 	my $val_col   = $self->param('val')      // '';
-	my $scheme    = $self->param('scheme')   // 'YlOrRd';
+	my $scheme    = _sequential_scheme($self->param('scheme'));
 	my $show_v    = $self->param('show_val') ? 1 : 0;
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
@@ -7938,7 +8059,7 @@ sub bar_view ($self) {
 	);
 
 	# Top-N: keep the highest-N categories, aggregate the rest as "Other".
-	my $topn_n = int($self->param('topn') || 0);
+	my $topn_n = _whole_number($self->param('topn')) // 0;
 	if ($topn_n > 0 && @$agg_rows > $topn_n) {
 		my @sorted   = sort { ($b->{value} // 0) <=> ($a->{value} // 0) } @$agg_rows;
 		my @top_agg  = @sorted[0 .. $topn_n - 1];
@@ -8562,7 +8683,7 @@ sub pivot_view ($self) {
 	# across all col combos); aggregate the remaining rows as an "Other" row.
 	# -----------------------------------------------------------------------
 	{
-		my $topn_n   = int($self->param('topn') || 0);
+		my $topn_n   = _whole_number($self->param('topn')) // 0;
 		my $topn_col = $self->param('topn_col') // '';
 
 		if ($topn_n > 0 && @row_key_order > $topn_n) {
@@ -9307,7 +9428,7 @@ sub stacked_view ($self) {
 	my $seg_col   = $self->param('series') // $self->param('seg') // '';
 	my $val_col   = $self->param('val')    // '';
 	my $orient    = $self->param('orient') // 'v';
-	my $scheme    = $self->param('scheme') // 'tableau10';
+	my $scheme    = _categorical_scheme($self->param('scheme'));
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
@@ -9531,7 +9652,7 @@ sub treemap_view ($self) {
 	my $cat_col   = $self->param('group') // $self->param('cat') // '';
 	# ?size= is the canonical spec name; ?val= is the legacy alias (keep both).
 	my $val_col   = $self->param('size')  // $self->param('val') // '';
-	my $scheme    = $self->param('scheme') // 'tableau10';
+	my $scheme    = _categorical_scheme($self->param('scheme'));
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
@@ -9573,7 +9694,7 @@ sub treemap_view ($self) {
 	);
 
 	# Top-N: keep the highest-N tiles, aggregate the rest as "Other".
-	my $topn_n = int($self->param('topn') || 0);
+	my $topn_n = _whole_number($self->param('topn')) // 0;
 	if ($topn_n > 0 && @$agg_rows > $topn_n) {
 		my @sorted   = sort { ($b->{value} // 0) <=> ($a->{value} // 0) } @$agg_rows;
 		my @top_agg  = @sorted[0 .. $topn_n - 1];
@@ -9677,9 +9798,9 @@ sub histogram_view ($self) {
 		status => 200,
 	) unless @values;
 
-	$bins = int($bins);
+	$bins = _whole_number($bins) // ($bins =~ /\A\d+\z/ ? $MAX_HISTOGRAM_BINS : 1);	# more digits than a number holds is a lot of bins
 	$bins = 1   if $bins < 1;
-	$bins = 200 if $bins > 200;
+	$bins = $MAX_HISTOGRAM_BINS if $bins > $MAX_HISTOGRAM_BINS;
 
 	# Server-side binning: compute equal-width bins over the data range.
 	# Values equal to $max land in the highest bin (no overflow bar).
@@ -10788,7 +10909,7 @@ sub _map_radius {
 sub _map_limit {
 	my ($value, $default) = @_;
 
-	return $default unless defined($value) && ($value =~ /\A\d+\z/) && ($value > 0);
+	return $default unless defined($value) && ($value =~ /\A\d{1,$MAX_WHOLE_NUMBER_DIGITS}\z/) && ($value > 0);
 
 	return $value + 0;
 }
@@ -11157,15 +11278,18 @@ sub visual_download ($self) {
 
 	if ($format eq 'csv') {
 		$self->stash(buffer => 0);
-		# Run the pipeline and return CSV for this visual's data.
-		my (undef, $records, $columns) = $self->_run_pipeline_source;
-		return $self->render(text => 'Cannot open data source', status => 422)
-			unless defined $records;
-		my $csv = $self->_serialize_csv($records, $columns);
+		# The canvas names its own source: l= on this URL is no way to reach another.
+		my $ctx = $self->_canvas_render_context($a, $self->req->url->query->to_string);
+		return $self->render(text => $ctx->{error}, status => $ctx->{status})
+			if $ctx->{error};
+		my $records = $ctx->{records};
+		for my $spec (@{ $visuals[$n]{filters} // [] }) {
+			$records = _apply_filter_spec($records, $spec);
+		}
 		$self->res->headers->content_disposition(
 			"attachment; filename=\"visual-$n.csv\""
 		);
-		return $self->render(data => encode('UTF-8', $csv), format => 'txt');
+		return $self->render(data => _serialize_csv($records, $ctx->{columns}), format => 'txt');
 	}
 
 	# PNG: not implemented in the server (canvas/SVG rendering is client-side).

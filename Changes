@@ -13,6 +13,44 @@ Revision history for Database-BI
 	  "Database::BI" at the bottom right.  In the PDF it links to
 	  https://metacpan.org/dist/Database-BI.
 	[ Bug Fixes ]
+	- /export and /folder with a bad span= or calculated field never replied:
+	  the connection hung until it timed out.  They now answer 400.
+	- Security: error replies that repeat a parameter were sent as HTML, so a
+	  crafted link such as /bar?range=<script> ran script on this site.  They
+	  are now plain text.  scheme= (and a saved card's scheme) reached a chart's
+	  script unchecked; only known palettes are used now.
+	- A canvas card's CSV download (/a/:id/visual/:n/csv) always failed: it was
+	  a 500, or a 422 without l=.  It now uses the canvas's own data, and l=
+	  cannot point it at anything else.
+	- A saved canvas of the wrong shape, hand-edited or otherwise, was a 500 on
+	  its page, its share link, the catalog and /api/analyses.  The bad part is
+	  now treated as absent.  POST, PUT and PATCH refuse such a document, and
+	  PATCH now checks all the keys it is given.
+	- models.json with a section of the wrong shape was a 500 on every page.
+	- An unknown scheme= on a heatmap was a 500; it now draws the default.
+	- A save of analyses.json that failed left a temp file behind and went
+	  unreported.
+	- An absolute data_dir defeated the check that keeps analyses.json out of it.
+	- page=, per_page=, topn= and bins= that are not numbers no longer warn, or
+	  turn into one row or an infinite offset.
+	- A column of codes (SKU123, AB-100) or dates was read as numbers, and so
+	  was offered and totalled as a measure; 1e3 was read as 13.  A number with
+	  a currency code (USD 100) is still a number.
+	- Insights: Q3 was wrong for an odd number of values, and an en dash in a
+	  detail line printed as the text \x2013.
+	- Calculated fields: month, day and quarter accepted impossible dates (month
+	  00 was December); round() with negative or huge places; a date pattern
+	  produced dates that do not exist; deep unary chains passed the depth limit.
+	- Summary: the cache key left out the detail, so stale figures could be
+	  shown; column names with non-ASCII characters crashed it.
+	- Ask: a reply with non-ASCII text, or with a brace inside a string, was
+	  refused.
+	- Extracts: an empty model_dir was accepted, and evict failed on a path with
+	  spaces or brackets.
+	- Links built from non-ASCII text were wrong (U+263A as %263A), and an error
+	  could show the server's paths when they contained spaces.
+	- Map: a limit too long to be a real number is ignored; a stored geocode cache
+	  of the wrong shape no longer crashes.
 	- Line chart: rotated x-axis labels were cut off at the bottom of Export
 	  SVG, PNG and PDF, and spilled out of the chart's frame on the page.  The
 	  chart now grows to fit them, and exports leave out the page's frame.

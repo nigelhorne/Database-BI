@@ -1187,7 +1187,10 @@ entry, or for a C<\%models> argument that is not a hashref.  Never croaks.
 sub shared_cache_from_models {
 	my ($class, $models) = @_;
 
-	my $entry = (ref($models) eq 'HASH') ? $models->{'geo'}{$SHARED_CACHE_KEY} : undef;
+	# One level at a time: a nested read would add an empty 'geo' to the caller's
+	# store, and the next write would save it.
+	my $geo   = (ref($models) eq 'HASH') ? $models->{'geo'} : undef;
+	my $entry = (ref($geo) eq 'HASH') ? $geo->{$SHARED_CACHE_KEY} : undef;
 
 	return {} unless ref($entry) eq 'HASH' && (ref($entry->{'places'}) eq 'HASH');
 
@@ -1261,7 +1264,10 @@ sub models_with_shared_cache {
 		%{ (ref($cache) eq 'HASH') ? $cache : {} },
 	);
 
-	my $spec = { %{ (ref($models) eq 'HASH') ? ($models->{'geo'}{$SHARED_CACHE_KEY} // {}) : {} } };
+	# A section of the wrong shape (a hand-edited store) is rebuilt, not dereferenced.
+	my $geo   = (ref($models) eq 'HASH' && ref($models->{'geo'}) eq 'HASH') ? $models->{'geo'} : {};
+	my $entry = $geo->{$SHARED_CACHE_KEY};
+	my $spec  = { %{ (ref($entry) eq 'HASH') ? $entry : {} } };
 
 	$spec->{'places'} = \%places;
 
@@ -1271,7 +1277,7 @@ sub models_with_shared_cache {
 
 	my %updated = %{ (ref($models) eq 'HASH') ? $models : {} };
 
-	$updated{'geo'} = { %{ $updated{'geo'} // {} }, $SHARED_CACHE_KEY => $spec };
+	$updated{'geo'} = { %$geo, $SHARED_CACHE_KEY => $spec };
 
 	return \%updated;
 }

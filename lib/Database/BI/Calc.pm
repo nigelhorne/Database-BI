@@ -13,6 +13,11 @@ our $VERSION = '0.018.0';
 Readonly my $MAX_EXPR_LEN => 512;
 Readonly my $MAX_DEPTH    => 20;
 
+# A double holds about 15 significant digits, so round() has nothing to say past
+# that, and the count reaches sprintf from a URL: it must not be able to ask for
+# two thousand million of them.
+Readonly my $MAX_ROUND_PLACES => 15;
+
 # --- token type constants ---
 Readonly my $T_NUM    => 'NUM';
 Readonly my $T_STR    => 'STR';
@@ -104,6 +109,9 @@ my %FUNCTIONS = (
 		my ($s, $start, $len) = @_;
 		return undef unless defined $s;
 		$start //= 0;
+		# A start past the end is undef, the empty-cell result; it is not worth one
+		# log line per row.
+		no warnings 'substr';
 		defined $len ? CORE::substr($s, $start, $len)
 		             : CORE::substr($s, $start);
 	},
@@ -113,7 +121,13 @@ my %FUNCTIONS = (
 		my ($n, $d) = @_;
 		return undef unless defined $n && looks_like_number($n);
 		$d = (defined $d && looks_like_number($d)) ? int($d) : 0;
-		sprintf("%.${d}f", $n) + 0;
+		$d = $MAX_ROUND_PLACES  if $d >  $MAX_ROUND_PLACES;
+		$d = -$MAX_ROUND_PLACES if $d < -$MAX_ROUND_PLACES;
+		return sprintf("%.${d}f", $n) + 0 if $d >= 0;
+
+		# Negative places round to the left of the point: round(1234, -2) is 1200.
+		my $unit = 10 ** -$d;
+		sprintf('%.0f', $n / $unit) * $unit;
 	},
 	floor    => sub {
 		defined $_[0] && looks_like_number($_[0]) ? POSIX::floor($_[0]) : undef;
@@ -138,23 +152,23 @@ my %FUNCTIONS = (
 		$1 + 0;
 	},
 	month => sub {
-		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(\d\d)-\d\d/;
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(0[1-9]|1[0-2])-\d\d/;
 		$1 + 0;
 	},
 	day => sub {
-		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-\d\d-(\d\d)/;
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-\d\d-(0[1-9]|[12]\d|3[01])/;
 		$1 + 0;
 	},
 	quarter => sub {
-		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(\d\d)-/;
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(0[1-9]|1[0-2])-/;
 		int(($1 - 1) / 3) + 1;
 	},
 	week => sub {
 		# Returns ISO 8601 week number (1-53); week containing the first
 		# Thursday of the year is week 1.
 		return undef unless defined $_[0] && $_[0] =~ /\A(\d{4})-(\d\d)-(\d\d)/;
-		my ($yr, $mo, $dy) = ($1 + 0, $2 + 0, $3 + 0);
-		my $t  = POSIX::mktime(0, 0, 12, $dy, $mo - 1, $yr - 1900);
+		my $t = _epoch_of($1 + 0, $2 + 0, $3 + 0, 12, 0, 0);
+		return undef unless defined $t;
 		my @lt = localtime($t);
 		POSIX::strftime('%V', @lt) + 0;
 	},
@@ -162,14 +176,14 @@ my %FUNCTIONS = (
 		# Returns full English month name, e.g. 'January'.
 		my @M = qw(January February March April May June
 		           July August September October November December);
-		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(\d\d)-/;
-		$M[$1 - 1] // undef;
+		return undef unless defined $_[0] && $_[0] =~ /\A\d{4}-(0[1-9]|1[0-2])-/;
+		$M[$1 - 1];
 	},
 	weekday => sub {
 		# Returns ISO 8601 weekday: 1 = Monday, 7 = Sunday.
 		return undef unless defined $_[0] && $_[0] =~ /\A(\d{4})-(\d\d)-(\d\d)/;
-		my ($yr, $mo, $dy) = ($1 + 0, $2 + 0, $3 + 0);
-		my $t  = POSIX::mktime(0, 0, 12, $dy, $mo - 1, $yr - 1900);
+		my $t = _epoch_of($1 + 0, $2 + 0, $3 + 0, 12, 0, 0);
+		return undef unless defined $t;
 		my $wd = (localtime($t))[6];	# 0 = Sunday
 		$wd == 0 ? 7 : $wd;
 	},
@@ -509,6 +523,15 @@ sub _span_label {
 
 sub new {
 	my ($class, %args) = @_;
+	# Takes off the where-it-happened tail that croak adds.  A path can hold spaces,
+	# and this text reaches the reader, so the tail is everything from the last
+	# " at " on rather than one word.
+	my $tidy = sub {
+		my ($err) = @_;
+		$err =~ s/\A(.*) at .+? line \d+\.?\n?\z/$1/s;
+		return $err;
+	};
+
 	my $self = bless {
 		_error   => undef,
 		_code    => undef,
@@ -544,8 +567,7 @@ sub new {
 	my $tokens;
 	my $ok = eval { $tokens = _tokenize($expr); 1 };
 	unless ($ok) {
-		my $err = $@; $err =~ s/ at \S+ line \d+\.?\n?$//;
-		$self->{_error} = $err;
+		$self->{_error} = $tidy->($@);
 		return $self;
 	}
 
@@ -554,8 +576,7 @@ sub new {
 	my $code;
 	$ok = eval { $code = _parse_cmp($tokens, \$pos, \$depth, $self->{_columns}); 1 };
 	unless ($ok) {
-		my $err = $@; $err =~ s/ at \S+ line \d+\.?\n?$//;
-		$self->{_error} = $err;
+		$self->{_error} = $tidy->($@);
 		return $self;
 	}
 
@@ -579,6 +600,8 @@ sub has_error { defined $_[0]->{_error} }
 sub evaluate {
 	my ($self, $row) = @_;
 	return undef unless defined $self->{_code};
+	$row //= {};
+	return undef unless ref $row eq 'HASH';
 	# Merge bound parameters into the evaluation context.  Parameters take
 	# precedence over same-named columns: the clash check in new() ensures this
 	# never happens legitimately, but a column added to the data after compile
@@ -840,7 +863,10 @@ sub _parse_factor {
 	# unary minus
 	if ($tok->{type} eq $T_MINUS) {
 		$$pos_ref++;
+		_check_depth($depth_ref);
+		$$depth_ref++;
 		my $inner = _parse_factor($tokens, $pos_ref, $depth_ref, $cols);
+		$$depth_ref--;
 		return sub {
 			my $v = $inner->($_[0]);
 			return undef unless defined $v && looks_like_number($v);
@@ -851,7 +877,11 @@ sub _parse_factor {
 	# unary plus (no-op)
 	if ($tok->{type} eq $T_PLUS) {
 		$$pos_ref++;
-		return _parse_factor($tokens, $pos_ref, $depth_ref, $cols);
+		_check_depth($depth_ref);
+		$$depth_ref++;
+		my $inner = _parse_factor($tokens, $pos_ref, $depth_ref, $cols);
+		$$depth_ref--;
+		return $inner;
 	}
 
 	# parenthesized sub-expression: allow full cmp_expr so (qty > 0) works
@@ -1003,18 +1033,33 @@ sub _normalise_with_format {
 	my ($val, $pattern) = @_;
 	return undef unless defined $pattern->{date} && length $pattern->{date};
 
+	# The pattern is stored JSON and the caller has no eval: one that cannot be
+	# compiled is an unknown pattern, which is undef, not a 500 on every page.
 	my $time_fmt = $pattern->{time};
 	if (defined $time_fmt && length $time_fmt) {
-		my $t = _time_from_format($val, _fmt_compile_pair($pattern->{date}, $time_fmt));
+		my $compiled = eval { _fmt_compile_pair($pattern->{date}, $time_fmt) } or return undef;
+		my $t = _time_from_format($val, $compiled);
 		return undef unless $t;
 		return _iso_second_label($t->{epoch});
 	}
 
-	my $t = _time_from_format($val, _fmt_compile($pattern->{date}));
+	my $compiled = eval { _fmt_compile($pattern->{date}) } or return undef;
+	my $t = _time_from_format($val, $compiled);
 	return undef unless $t;
 	return ($pattern->{as} // '') eq 'timestamp'
 		? _iso_second_label($t->{epoch})
 		: _iso_day_label($t->{epoch});
+}
+
+# _iso_date_if_real($y, $mon, $day) -> 'YYYY-MM-DD' or undef
+#
+# A UK file read with the US pattern has "months" up to 31.  Undef sends it to the
+# '(unparseable)' bucket, where it can be seen; "2026-15-01" looks like a date and
+# sorts among the real ones.
+sub _iso_date_if_real {
+	my ($y, $mon, $day) = @_;
+	return undef unless defined _epoch_of($y + 0, $mon + 0, $day + 0, 12, 0, 0);
+	return sprintf('%04d-%02d-%02d', $y, $mon, $day);
 }
 
 # date_normalise($value, $pattern) -> ISO string or undef
@@ -1037,15 +1082,15 @@ sub date_normalise {
 	return _normalise_with_format($val, $pattern) if ref $pattern eq 'HASH';
 	if ($pattern eq '%m/%d/%Y') {
 		return undef unless $val =~ /\A(\d{1,2})\/(\d{1,2})\/(\d{4})\z/;
-		return sprintf('%04d-%02d-%02d', $3, $1, $2);
+		return _iso_date_if_real($3, $1, $2);
 	} elsif ($pattern eq '%d/%m/%Y') {
 		return undef unless $val =~ /\A(\d{1,2})\/(\d{1,2})\/(\d{4})\z/;
-		return sprintf('%04d-%02d-%02d', $3, $2, $1);
+		return _iso_date_if_real($3, $2, $1);
 	} elsif ($pattern eq '%d-%b-%Y') {
 		return undef unless $val =~ /\A(\d{1,2})-([A-Za-z]{3})-(\d{4})\z/;
 		my $mon = $_MONTH_NAME_TO_NUM{lc($2)};
 		return undef unless defined $mon;
-		return sprintf('%04d-%02d-%02d', $3, $mon, $1);
+		return _iso_date_if_real($3, $mon, $1);
 	}
 	return undef;
 }

@@ -2003,13 +2003,11 @@ subtest '_numeric_cell -- non-numeric strings return undef' => sub {
 	is $NUMERIC_CELL->('<script>'),  undef, 'XSS payload -> undef';
 };
 
-# _numeric_cell strips every character that is not \d, '.', or '-', so
-# scientific notation '1e5' loses the 'e' and becomes '15', not 100000 and
-# not undef.  This is intentional for financial-data columns where 'e' has
-# no meaning.
-subtest '_numeric_cell -- scientific notation: e stripped, not interpreted' => sub {
-	is $NUMERIC_CELL->('1e5'),   15, '1e5 -> 15 (e stripped)';
-	is $NUMERIC_CELL->('2.5e3'), 2.53, '2.5e3 -> 2.53 (e stripped)';
+# Only what dresses up a number is stripped, so scientific notation keeps its
+# value.  '2.5e3' as 2.53 would be silently wrong by three orders of magnitude.
+subtest '_numeric_cell -- scientific notation is read as a number' => sub {
+	is $NUMERIC_CELL->('1e5'),   100000, '1e5 -> 100000';
+	is $NUMERIC_CELL->('2.5e3'), 2500, '2.5e3 -> 2500';
 };
 
 subtest '_numeric_cell -- large values do not overflow or warn' => sub {

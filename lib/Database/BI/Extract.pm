@@ -7,6 +7,7 @@ our $VERSION = '0.018.0';
 
 use Carp		qw(croak carp);
 use Digest::MD5		qw(md5_hex);
+use Encode		qw(encode_utf8);
 use File::Path		qw(make_path remove_tree);
 use Mojo::File;
 
@@ -27,7 +28,7 @@ use Mojo::File;
 # new( model_dir => $dir ) -> $self
 sub new {
 	my ($class, %args) = @_;
-	croak 'model_dir is required' unless defined $args{model_dir};
+	croak 'model_dir is required' unless defined $args{model_dir} && length $args{model_dir};
 	return bless { model_dir => $args{model_dir} }, $class;
 }
 
@@ -36,7 +37,7 @@ sub _fingerprint {
 	my ($spec, $mtime, $size) = @_;
 	$mtime //= 0;
 	$size  //= 0;
-	return md5_hex(join("\0", $spec, $mtime, $size));
+	return md5_hex(encode_utf8(join("\0", $spec, $mtime, $size)));
 }
 
 # _extract_dir( $self ) -> $path_string
@@ -101,7 +102,9 @@ sub evict {
 	return 0 unless -d $dir;
 
 	my $count = 0;
-	for my $f (glob "$dir/*.db") {
+	# Listed rather than globbed: glob() splits its pattern on spaces and reads
+	# brackets as a class, so the name of the directory could defeat it.
+	for my $f (grep { /\.db\z/ } @{ Mojo::File->new($dir)->list->map('to_string') }) {
 		if (unlink $f) {
 			$count++;
 		}

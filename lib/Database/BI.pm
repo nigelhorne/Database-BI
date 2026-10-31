@@ -1577,6 +1577,13 @@ sub startup ($self) {
 	$self->hook(before_render => sub {
 		my ($c, $args) = @_;
 
+		# Mojolicious sends render(text => ...) as text/html.  The error replies
+		# that use it repeat what was asked for (a column, a range), so as HTML a
+		# crafted link would run script on this site.  A template or JSON escapes
+		# for itself; plain text only has to say that it is plain text.
+		$args->{format} //= 'txt'
+			if defined $args->{text} && !defined $c->stash('format');
+
 		# AI availability flag used by dashboard and insights templates.
 		$c->stash(ai_available => (length($c->app->config('ai_api_key') // '') ? 1 : 0))
 			unless defined $c->stash('ai_available');
