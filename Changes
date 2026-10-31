@@ -16,6 +16,14 @@ Revision history for Database-BI
 	- Saved charts: axis titles and other text styled by the page came out in
 	  the browser's default serif font, too big.  SVG, PNG and PDF now keep the
 	  fonts the chart has on screen.
+	- SQLite: a file was refused outright when the first table, alphabetically,
+	  had a name with characters other than letters, digits and underscores
+	  (such as chi_CGI::Info in a CHI cache).  The file now opens with the first
+	  table it can use, and the table list marks the others, saying why and how
+	  to rename them.  When no table can be used, or one is asked for by name,
+	  the error says what is wrong and what to do.  Errors opening a file or
+	  table no longer end in "at FILE line N"; .sqlite and .sqlite3 files now get
+	  the SQLite hint too.
 	- Canvas: a saved pie card had no legend, so no way to tell its slices
 	  apart.  SVG, PNG and PDF now draw it beside the pie.
 	- Canvas: after a card was edited, its download button saved one file per

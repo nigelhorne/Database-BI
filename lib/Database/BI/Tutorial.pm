@@ -909,6 +909,10 @@ my @FAQ = (
 		answer   => 'A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.',
 	},
 	{
+		question => 'A table in my SQLite file says Cannot be opened.',
+		answer   => 'The name of that table has characters other than letters, digits and underscores, such as a colon or a space. The other tables in the file still open. To open this one, rename it in a copy of the file. The message shows the command to use.',
+	},
+	{
 		question => 'The page says Page not found.',
 		answer   => 'The address names a table, a canvas or a page that is not there. Use the breadcrumb or Go to Home to find it again.',
 	},

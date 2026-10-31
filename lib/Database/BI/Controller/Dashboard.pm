@@ -879,6 +879,16 @@ sub _scan_join_tables :Protected ($self) {
 	return \@all;
 }
 
+# _tidy_error($error) -> $string
+#
+# Purpose: A backend error as a reader should see it: without the "at FILE line N"
+#          that croak adds each time the error is passed up.
+sub _tidy_error {
+	my $error = $_[0] // '';
+	$error =~ s/(?:\s+at \S.*? line \d+\.?)+\s*\z//;
+	return $error;
+}
+
 # _open_spec($self, $spec) -> ($DataSource, $label) or ()
 #
 # Purpose: Parse a "table:name", "table:file/table" or "path:/abs/path" spec,
@@ -5605,7 +5615,7 @@ sub view ($self) {
 			format   => 'html',
 			tables   => [],
 			title    => 'Choose a Database',
-			error    => $self->_i18n('error_table_open', $table, $@),
+			error    => $self->_i18n('error_table_open', $table, _tidy_error($@)),
 			language => $language,
 		);
 	}
@@ -5881,7 +5891,7 @@ sub open_file ($self) {
 				format     => 'html',
 				tables     => [],
 				title      => 'Error',
-				error      => $self->_i18n('error_file_open', $label, $@),
+				error      => $self->_i18n('error_file_open', $label, _tidy_error($@)),
 				back_url   => '/',
 				back_label => 'Home',
 				language   => $language,
@@ -5949,7 +5959,7 @@ sub open_file ($self) {
 				format     => 'html',
 				tables     => [],
 				title      => 'Error',
-				error      => $self->_i18n('error_file_open', $filename, $@),
+				error      => $self->_i18n('error_file_open', $filename, _tidy_error($@)),
 				back_url   => '/',
 				back_label => 'Home',
 				language   => $language,
@@ -6040,12 +6050,13 @@ sub open_file ($self) {
 	};
 	if ($@) {
 		# Provide a SQLite-specific hint when the error looks like a table-name
-		# mismatch or a missing-tables failure so the user knows what to do.
+		# mismatch or a missing-tables failure so the user knows what to do.  A
+		# table whose name cannot be used has its own advice in the message.
 		my $hint;
-		if ($filename =~ /\.(?:sql|db)\z/i) {
+		if ($filename =~ /\.(?:sql|sqlite|sqlite3|db)\z/i && $@ !~ /cannot be opened|can be opened/) {
 			$hint = 'SQLite files must contain at least one user-defined table. '
 				. 'The table name inside the database does not need to match the '
-				. 'filename -- the application auto-detects and uses the first table found.';
+				. 'filename -- the application auto-detects and uses the first table it can open.';
 		}
 		return $self->render(
 			template    => "$platform/$language/home",
@@ -6053,7 +6064,7 @@ sub open_file ($self) {
 			format      => 'html',
 			tables      => [],
 			title       => 'Error',
-			error       => $self->_i18n('error_file_open', $filename, $@),
+			error       => $self->_i18n('error_file_open', $filename, _tidy_error($@)),
 			hint        => $hint,
 			back_url    => $back,
 			back_label  => $back_label_default,
@@ -8352,6 +8363,14 @@ sub tables_view ($self) {
 				while (my $row = $sth->fetchrow_hashref) {
 					push @cols, $row->{name};
 				}
+			}
+			# Database::Abstraction refuses this name, so the card says so
+			# rather than linking to an error.
+			if ($tname !~ $TABLE_NAME_RE) {
+				(my $safe = $tname) =~ s/[^A-Za-z0-9_]/_/g;
+				$safe = "_$safe" unless $safe =~ /\A[A-Za-z_]/;
+				push @tables, { name => $tname, columns => \@cols, unusable => 1, safe_name => $safe };
+				next;
 			}
 			my $open_url = '/open?path=' . url_escape($file_path)
 				. '&it=' . url_escape($tname)

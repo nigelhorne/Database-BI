@@ -261,6 +261,9 @@ Readonly our %MESSAGES => (
 	error_no_safe_id		=> 'DataSource: table "%s" has no column with a safe identifier name (letters, digits, underscore); rename at least one column header',
 	error_no_tables			=> 'DataSource: SQLite file "%s" contains no user-defined tables',
 	error_table_not_found		=> 'DataSource: SQLite file "%s" does not contain a table named "%s"',
+	error_table_name_unsafe		=> 'The table "%s" in "%s" cannot be opened, because its name contains characters other than letters, digits and underscores. %s To open this one, rename it in a copy of the file, for example with sqlite3: ALTER TABLE "%s" RENAME TO %s;',
+	error_table_name_others		=> 'Open another table in the file instead: %s.',
+	error_no_usable_tables		=> 'No table in "%s" can be opened, because their names contain characters other than letters, digits and underscores: %s. To open one, rename it in a copy of the file, for example with sqlite3: ALTER TABLE "%s" RENAME TO %s;',
 	error_unsupported_db		=> 'DataSource: "%s" is a Berkeley DB file but the installed DB_File library cannot open it (file may use a newer Berkeley DB format)',
 	error_redis_invalid		=> 'DataSource: Redis URL "%s" must begin with redis://',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
@@ -274,6 +277,17 @@ Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 # ---------------------------------------------------------------------------
 # Protected helpers
 # ---------------------------------------------------------------------------
+
+# _safe_table_name( $name ) -> $string
+#
+# The name to suggest for a table whose own name Database::Abstraction refuses:
+# each illegal character becomes an underscore, and a leading digit gets one.
+sub _safe_table_name {
+	my $name = $_[0];
+	$name =~ s/[^A-Za-z0-9_]/_/g;
+	$name = "_$name" unless $name =~ /\A[A-Za-z_]/;
+	return $name;
+}
 
 # _url_label( $url ) -> $string
 #
@@ -412,6 +426,10 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
   error_table_required        -- "table" argument was not supplied
   error_directory_missing     -- supplied directory does not exist / is unreadable
   error_table_name_invalid    -- table name contains illegal characters or is empty
+  error_table_name_unsafe     -- internal_table names a SQLite table whose own name
+                                 has illegal characters; says what else to open and
+                                 how to rename it
+  error_no_usable_tables      -- every table in a SQLite file has such a name
   error_no_safe_id            -- no column in the file has a safe SQL identifier name;
                                  rename at least one column header to an alphanumeric name
   error_backend_init          -- backend initialisation failed; sub-cases:
@@ -1276,10 +1294,21 @@ sub _init_backend :Protected {
 			my ($found) = grep { $_ eq $desired } @tbls;
 			croak $self->_msg('error_table_not_found', $raw_table, $desired)
 				unless defined $found;
+			if ($desired !~ $TABLE_NAME_RE) {
+				my @others = grep { $_ =~ $TABLE_NAME_RE } @tbls;
+				croak $self->_msg('error_table_name_unsafe', $desired, $raw_table,
+					(@others ? $self->_msg('error_table_name_others', join(', ', @others)) : ''),
+					$desired, _safe_table_name($desired));
+			}
 			$target = $desired;
 		} else {
-			my ($match) = grep { $_ eq $dbname } @tbls;
-			$target = defined $match ? $match : $tbls[0];
+			# D::A refuses a table name that is not a safe identifier, so the
+			# first table it can open is chosen, not simply the first table.
+			my @usable = grep { $_ =~ $TABLE_NAME_RE } @tbls;
+			croak $self->_msg('error_no_usable_tables', $raw_table, join(', ', @tbls),
+				$tbls[0], _safe_table_name($tbls[0])) unless @usable;
+			my ($match) = grep { $_ eq $dbname } @usable;
+			$target = defined $match ? $match : $usable[0];
 		}
 
 		# When the target differs from dbname, create a symlink so D::A can
@@ -2103,7 +2132,8 @@ the detected extension before further processing.
 When a SQLite file contains more than one user-defined table and you call
 C<new()> without C<internal_table>, C<DataSource> auto-selects the first
 table whose name matches the filename stem; if there is no match, it picks
-whatever C<sqlite_master> lists first.  This is B<silent> -- you get data
+whatever C<sqlite_master> lists first, skipping any whose name is not a safe
+identifier (letters, digits, underscore).  This is B<silent> -- you get data
 from a table you may not have intended to open.
 
 Always check C<sqlite_tables()> after construction if you are dealing
