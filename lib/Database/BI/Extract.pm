@@ -74,6 +74,9 @@ sub put {
 	my ($self, $spec, $mtime, $size, $bytes) = @_;
 	croak 'sqlite_bytes are required' unless defined $bytes && length $bytes;
 
+	# A caller's $@ and $! are its own: the writes below use both on the way.
+	local ($@, $!);
+
 	my $dir = $self->_extract_dir;
 	unless (-d $dir) {
 		eval { make_path($dir) };

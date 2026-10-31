@@ -36,6 +36,7 @@ use version ();
 # As many digits as a request parameter may have and still be exact in a Perl
 # number.  More than this is not a page number or a limit, it is someone probing.
 Readonly my $MAX_WHOLE_NUMBER_DIGITS => 15;
+Readonly my %ANALYSIS_KEYS => map { $_ => 1 } qw(id version created updated name datasets joins combines fields measures params visuals layout bookmarks hierarchies);
 Readonly my $MAX_HISTOGRAM_BINS      => 200;
 
 # What HTML::D3 calls its heatmap colour scales.
@@ -3472,6 +3473,17 @@ Readonly my $GRID_COLUMNS => 12;
 # how tall a single visual can be made from the canvas.
 Readonly my $MAX_ROW_SPAN => 6;
 
+# _save_analyses_or_503($self, \%analyses) -> $bool
+#
+# Writes the store, or answers 503 and returns false, so that no route tells a
+# client something was saved when it was not.
+sub _save_analyses_or_503 :Protected ($self, $analyses) {
+	return 1 if $self->_write_analyses($analyses);
+
+	$self->render(json => { error => $MESSAGES{error_analysis_storage} }, status => 503);
+	return 0;
+}
+
 # _validate_layout($self, $layout_or_undef) -> $error_string_or_undef
 #
 # A layout entry is { visual, x, y, w, h } -- the grid position of one visual
@@ -3530,6 +3542,16 @@ sub _validate_analysis :Protected ($self, $doc) {
 		return "Missing required field: $required" unless defined $doc->{$required};
 	}
 	return $self->_validate_analysis_parts($doc);
+}
+
+# _drop_unknown_keys(\%doc) -> void
+#
+# Only these keys are ever read back, so anything else a client sends is not kept
+# on any write: the POD promises this, and a store should not grow what nothing uses.
+sub _drop_unknown_keys {
+	my $doc = $_[0];
+
+	delete @{$doc}{ grep { !$ANALYSIS_KEYS{$_} } keys %$doc };
 }
 
 # _validate_analysis_parts($self, \%doc) -> $error_string_or_undef
@@ -3653,10 +3675,10 @@ sub analyses_create ($self) {
 	$body->{updated} = time();
 
 	# Strip caller-supplied immutable fields except id/version/created/updated
-	delete $body->{$_} for grep { !m/\A(?:id|version|created|updated|name|datasets|joins|combines|fields|measures|params|visuals|layout|bookmarks|hierarchies)\z/ } keys %$body;
+	_drop_unknown_keys($body);
 
 	$analyses->{$id} = $body;
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	$self->res->headers->location("/api/analyses/$id");
 	$self->render(json => { id => $id, created => 1 }, status => 201);
@@ -3693,13 +3715,14 @@ sub analyses_update ($self) {
 	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
 		if $err;
 
+	_drop_unknown_keys($body);
 	$body->{id}      = $id;
 	$body->{version} //= 1;
 	$body->{created} = $analyses->{$id}{created} // time();
 	$body->{updated} = time();
 
 	$analyses->{$id} = $body;
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	$self->render(json => { id => $id, updated => 1 });
 }
@@ -3725,6 +3748,7 @@ sub analyses_patch ($self) {
 	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $perr) }, status => 400)
 		if $perr;
 
+	_drop_unknown_keys($body);
 	my $existing = { %{ $analyses->{$id} } };
 	for my $key (keys %$body) {
 		next if $key eq 'id' || $key eq 'created';  # immutable
@@ -3733,7 +3757,7 @@ sub analyses_patch ($self) {
 	$existing->{updated} = time();
 
 	$analyses->{$id} = $existing;
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	$self->render(json => { id => $id, updated => 1 });
 }
@@ -3749,7 +3773,7 @@ sub analyses_delete ($self) {
 		unless exists $analyses->{$id};
 
 	delete $analyses->{$id};
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	$self->render(json => { deleted => 1 });
 }
@@ -3844,7 +3868,7 @@ sub analyses_add_visual ($self) {
 
 	push @{ $a->{visuals} //= [] }, $vis;
 	$a->{updated} = time();
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	return $self->render(
 		json   => {
@@ -3955,7 +3979,7 @@ sub analyses_update_visual ($self) {
 
 	$a->{visuals}[$index] = $vis;
 	$a->{updated} = time();
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	return $self->render(
 		json => {
@@ -3996,6 +4020,7 @@ sub analyses_import ($self) {
 
 	# Strip any id/timestamps from imported document; assign fresh ones below
 	delete @{$body}{qw( id created updated )};
+	_drop_unknown_keys($body);
 
 	my $err = $self->_validate_analysis($body);
 	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
@@ -4018,7 +4043,7 @@ sub analyses_import ($self) {
 	$body->{updated} = time();
 
 	$analyses->{$id} = $body;
-	$self->_write_analyses($analyses);
+	$self->_save_analyses_or_503($analyses) or return;
 
 	$self->res->headers->location("/api/analyses/$id");
 	$self->render(json => { id => $id, imported => 1 }, status => 201);
@@ -5601,6 +5626,23 @@ C<GET /tutorial> -- Render the tutorial that is part of the application.
 The chapters, questions and glossary are data in L<Database::BI::Tutorial>.
 They are not in this module's POD, so adding a feature means adding a chapter
 there and no change to this action or to the template.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+  200 text/html   The tutorial page.  It is cached when page_cache_dir is set.
+
+=head3 FORMAL SPECIFICATION
+
+  tutorial
+    response! : HTTP
+    ──────────
+    response!.status = 200
 
 =cut
 
@@ -8532,6 +8574,29 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
   page= / per_page=      Pagination over row groups
   format=csv|sqlite|json Export the pivot grid
 
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+The query parameters above, with C<l=> required as well.
+
+=head4 OUTPUT
+
+  200 text/html (or the export format)   The grid.
+  400 text/plain   'Missing l= parameter', error_pivot_rows_required,
+                   error_pivot_measure_req, error_pivot_measure_invalid,
+                   error_measure_column, error_pivot_dim_not_found or error_topn_col.
+  404 text/plain   The source cannot be opened.
+
+=head3 FORMAL SPECIFICATION
+
+  pivot_view
+    l?, rows?, m? : seq Char
+    response! : HTTP
+    ──────────
+    l? = ⟨⟩ ∨ rows? = ⟨⟩ ∨ m? = ⟨⟩ ⇒ response!.status = 400
+    l? ≠ ⟨⟩ ∧ ¬ opens(l?) ⇒ response!.status = 404
+
 =cut
 
 sub pivot_view ($self) {
@@ -8957,6 +9022,28 @@ values, through the same C<_percentile_of>, C<_median_of>, C<_stdev_of> and
 C<_range_of> arithmetic the pivot's C<median>, C<pN>, C<stdev> and C<range>
 measures use -- so a median here and a median measure there are the same number.
 
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+The query parameters above, with C<l=> required.
+
+=head4 OUTPUT
+
+  200 text/html    The statistics.
+  400 text/plain   'Missing l= parameter', or error_stats_percentile when p= is
+                   not a whole number from 1 to 100.
+  404 text/plain   The source cannot be opened.
+
+=head3 FORMAL SPECIFICATION
+
+  stats_view
+    l?, p? : seq Char
+    response! : HTTP
+    ──────────
+    l? = ⟨⟩ ⇒ response!.status = 400
+    p? ≠ ⟨⟩ ∧ p? ∉ { "1" .. "100" } ⇒ response!.status = 400
+
 =cut
 
 sub stats_view ($self) {
@@ -9127,7 +9214,10 @@ sub groups_save ($self) {
 	my $spec       = $self->param('l')     // '';
 	my $col        = $self->param('col')   // '';
 	my $group_name = $self->param('group') // '';
-	my @values     = @{ $self->every_param('values') // [] };
+
+	# The panel sends one values= holding a line for each value; a script may just
+	# as well repeat the parameter.
+	my @values = map { split /\r?\n/ } @{ $self->every_param('values') // [] };
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
@@ -10167,7 +10257,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my $by_location = length $loc_col;
 
 	return { error => $self->_i18n('error_map_source'), status => 400 }
-		unless $by_location || (length($lat_col) && length($lon_col));
+		unless $by_location || length($lat_col) || length($lon_col);
 	return { error => $self->_i18n('error_map_coordinates'), status => 400 }
 		if !$by_location && (!length($lat_col) || !length($lon_col));
 
@@ -10695,7 +10785,7 @@ sub map_view ($self) {
 	my $by_location = length $loc_col;
 
 	return $self->render(text => $self->_i18n('error_map_source'), status => 400)
-		unless $by_location || (length($lat_col) && length($lon_col));
+		unless $by_location || length($lat_col) || length($lon_col);
 	return $self->render(text => $self->_i18n('error_map_coordinates'), status => 400)
 		if !$by_location && (!length($lat_col) || !length($lon_col));
 
@@ -11224,22 +11314,29 @@ sub embed_view ($self) {
 		return $self->render(text => 'This shared analysis has no visuals', status => 404);
 	}
 
-	# Build a minimal context for the embed template.
-	# Reuse the canvas pipeline helper to render visuals.
-	my ($src, $records, $columns) = $self->_build_canvas_pipeline($a);
-	return $self->render(text => 'Cannot open data source', status => 422)
-		unless defined $records;
+	# Drawn as on the canvas page, each card through its own failure: one card that
+	# cannot be drawn says so, and leaves the others.
+	my $ctx = $self->_canvas_render_context($a, $self->req->url->query->to_string);
+	return $self->render(text => $ctx->{error}, status => $ctx->{status})
+		if $ctx->{error};
 
-	my @rendered;
+	my (@rendered, $head);
 	for my $i (0 .. $#visuals) {
-		my $vis = $visuals[$i];
-		my $ctx = eval { $self->_canvas_render_context($a, $self->req->url->query->to_string) };
-		next unless $ctx && ref $ctx eq 'HASH' && !$ctx->{error};
-		push @rendered, $ctx;
+		my $vis  = $visuals[$i];
+		my $card = eval {
+			$self->_render_visual_html(
+				$vis, $ctx->{records}, $ctx->{columns}, $ctx->{src}, $i, $ctx->{spec_key}, 0, $ctx->{cross_row},
+			);
+		} // { error => _tidy_error($@) };
+		$head //= $card->{head} if length($card->{head} // '');
+		push @rendered, {
+			id    => $i,
+			title => ($vis->{title} // $card->{title} // ''),
+			html  => $card->{html},
+			error => $card->{error},
+		};
 	}
 
-	# Simpler: delegate to canvas_render and let it handle the heavy lifting.
-	# Just set a flag so the embed template is selected.
 	$self->stash(embed_mode => 1, sharing_mode => 1);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
@@ -11250,6 +11347,7 @@ sub embed_view ($self) {
 		canvas_id   => $id,
 		canvas_name => $a->{name},
 		visuals     => \@rendered,
+		card_head   => ($head // ''),
 		language    => $language,
 	);
 }
@@ -12222,45 +12320,52 @@ over the rows that card draws.
 C</api/analyses> -- CRUD and import/export for saved analyses.  Documents are
 validated on write: unknown top-level keys are dropped and a document that is
 not a JSON object is refused.  Import accepts a document exported by
-C<GET /api/analyses/:id/export> and creates a new id.
+C<GET /api/analyses/:id/export> and creates a new id.  A document on disc that
+has been edited into the wrong shape is read with the bad parts treated as
+absent, so it is still served.
 
 =head3 API SPECIFICATION
 
 =head4 INPUT / OUTPUT
 
   GET    /api/analyses                 -> 200 { analyses: [ { id, name, datasets, updated }, ... ] }
-  POST   /api/analyses                 <- JSON document; 201 { id } or 400 { error }
-  POST   /api/analyses/import          <- JSON document; 201 { id } or 400 { error }
+  POST   /api/analyses                 <- JSON document; 201 { id, created: 1 } or 400 { error }
+  POST   /api/analyses/import          <- JSON document, or upload "file"; 201 { id, imported: 1 } or 400 { error }
   GET    /api/analyses/:id             -> 200 document, 400 invalid id, 404 unknown
-  PUT    /api/analyses/:id             <- JSON document; 200 { saved: 1 }, 400, 404
-  PATCH  /api/analyses/:id             <- partial JSON document; 200 { saved: 1 }, 400, 404
+  PUT    /api/analyses/:id             <- JSON document; 200 { id, updated: 1 }, 400, 404
+  PATCH  /api/analyses/:id             <- partial JSON document; 200 { id, updated: 1 }, 400, 404
   DELETE /api/analyses/:id             -> 200 { deleted: 1 }, 400, 404
   GET    /api/analyses/:id/export      -> 200 JSON document, 400, 404
-  POST   /api/analyses/:id/visuals     <- JSON visual; 201 { visual }, 400, 404
-  PATCH  /api/analyses/:id/visuals/:visual  <- partial JSON visual; 200, 400, 404
+  POST   /api/analyses/:id/visuals     <- JSON visual { kind, encode, options, title, cross_row, query };
+                                       201 { visual, html, head, title, ... }, 400, 404, 422
+  PATCH  /api/analyses/:id/visuals/:visual  <- { encode, cross_row, query }; 200, 400, 404, 422
 
-Writes return 503 when the model store is not writable.
+PATCH checks only the keys it is given.  Every write answers 503 with
+C<error_analysis_storage> when the model store is not writable, and then nothing
+has been saved.
 
 =head2 analyses_share / share_view / embed_view / visual_download
 
-C<POST /api/analyses/:id/share> issues a signed, expiring read-only token;
-C<GET /share/:id?token=...> renders the canvas without edit controls, and
-C<GET /embed/:id?token=...> renders it without page chrome for an iframe.
-C<GET /a/:id/visual/:n/csv> downloads one visual's rows as CSV; the C<png>
-form is not rendered server-side and returns 501, because the chart pages
+C<POST /api/analyses/:id/share> issues a signed read-only token that lasts a
+fixed time; C<GET /share/:id?token=...> renders the canvas without edit controls,
+and C<GET /embed/:id?token=...> renders its cards without page chrome for an
+iframe.  C<GET /a/:id/visual/:n/csv> downloads the rows behind one visual as CSV,
+always from the canvas's own dataset, with that card's filters applied; the
+C<png> form is not rendered server-side and returns 501, because the chart pages
 rasterise their own SVG in the browser.
 
 =head3 API SPECIFICATION
 
 =head4 INPUT / OUTPUT
 
-  POST /api/analyses/:id/share   <- expires=<seconds> (optional)
-                                 -> 200 { token, expires }, 400, 404
-  GET  /share/:id?token=...      -> 200 text/html, 400 missing token,
-                                    401/403 bad or expired token, 404 unknown
-  GET  /embed/:id?token=...      -> as /share/:id, plus 422 invalid document
+  POST /api/analyses/:id/share   -> 200 { token, url, expires }, 400 invalid id, 404 unknown
+  GET  /share/:id?token=...      -> 200 text/html, 400 invalid id, 401 missing token,
+                                    403 bad or expired token, 404 unknown or no visuals
+  GET  /embed/:id?token=...      -> as /share/:id, plus 422 when the data cannot be opened;
+                                    a card that cannot be drawn shows its error in place
   GET  /a/:id/visual/:n/:fmt     -> 200 text/csv for fmt=csv; 501 for fmt=png;
-                                    400 bad visual index; 404 unknown analysis
+                                    400 bad format or visual index; 404 unknown analysis or visual;
+                                    422 when the data cannot be opened
 
 =head2 catalog_view
 
@@ -12352,9 +12457,9 @@ open and pre-populates its column selects.
   GET  /geo/list?l=<spec>   -> 200 { columns: { <col>: { kind: lat|lon|location } } }
                                400 { error }
   POST /geo/save            <- l=, col=, kind=lat|lon|location
-                            -> 200 { saved: 1 }, 400 { error }
+                            -> 200 { ok: 1 }, 400 { error }
   POST /geo/delete          <- l=, col= (omit col to clear the spec)
-                            -> 200 { deleted: 1 }, 400 { error }
+                            -> 200 { ok: 1 }, 400 { error }
 
 =head2 calc_list / calc_save / calc_delete
 
@@ -12377,20 +12482,20 @@ C<Database::BI::Calc> and appended as virtual columns before any aggregation.
   INPUT:  l=<spec>   (required)
           name=<id>  (required; must match /\A[A-Za-z_][A-Za-z0-9_]*\z/)
           expr=<expression>  (required; max 512 chars; hostile patterns rejected)
-  OUTPUT: 200 application/json  { "saved": 1 }
+  OUTPUT: 200 application/json  { "ok": 1 }
           400 application/json  { "error": "..." }  (compile error or hostile input)
 
 =head4 calc_delete (POST /calc/delete)
 
   INPUT:  l=<spec>   (required)
           name=<id>  (required)
-  OUTPUT: 200 application/json  { "deleted": 1 }
+  OUTPUT: 200 application/json  { "ok": 1 }
           400 application/json  { "error": "l= required" }
 
 =head3 EXAMPLE
 
   POST /calc/save  l=path:/data/sales.csv&name=margin&expr=amount-cost
-    -> 200 { "saved": 1 }
+    -> 200 { "ok": 1 }
   GET /calc/list?l=path:/data/sales.csv
     -> 200 { "fields": { "margin": "amount-cost" } }
 
@@ -12405,26 +12510,26 @@ named value groups that produce virtual C<${col}_group> columns.
 
 =head4 groups_list (GET /groups/list)
 
-  INPUT:  l=<spec>  (required), col=<col>  (required)
-  OUTPUT: 200 application/json  { "groups": { "<label>": ["<val>", ...], ... } }
+  INPUT:  l=<spec>  (required)
+  OUTPUT: 200 application/json  { "groups": { "<col>": { "<label>": ["<val>", ...], ... }, ... } }
           400 application/json  { "error": "l= required" } or "col= required"
 
 =head4 groups_save (POST /groups/save)
 
-  INPUT:  l=<spec>, col=<col>, group=<label>, values=<newline-separated values>
-  OUTPUT: 200 application/json  { "saved": 1 }
+  INPUT:  l=<spec>, col=<col>, group=<label>, values=<newline-separated values, and/or repeated>
+  OUTPUT: 200 application/json  { "ok": 1 }
           400 application/json  { "error": "..." }
 
 =head4 groups_delete (POST /groups/delete)
 
-  INPUT:  l=<spec>, col=<col>, group=<label>  (omit group= to delete all groups for col)
-  OUTPUT: 200 application/json  { "deleted": 1 }
+  INPUT:  l=<spec>, col=<col>, group=<label>  (omit group= for all of col's groups, and col= as well for all of the spec's)
+  OUTPUT: 200 application/json  { "ok": 1 }
           400 application/json  { "error": "l= required" }
 
 =head3 EXAMPLE
 
   POST /groups/save  l=path:/data/sales.csv&col=region&group=North&values=MN%0AWI%0AIA
-    -> 200 { "saved": 1 }
+    -> 200 { "ok": 1 }
   GET /groups/list?l=path:/data/sales.csv&col=region
     -> 200 { "groups": { "North": ["MN","WI","IA"] } }
 
@@ -12454,7 +12559,7 @@ date-normalisation patterns that convert non-ISO date columns to ISO-8601
 =head4 dates_delete (POST /dates/delete)
 
   INPUT:  l=<spec>, col=<col>  (omit col= to delete all patterns for the spec)
-  OUTPUT: 200 application/json  { "deleted": 1 }
+  OUTPUT: 200 application/json  { "ok": 1 }
           400 application/json  { "error": "l= required" }
 
 =head3 EXAMPLE

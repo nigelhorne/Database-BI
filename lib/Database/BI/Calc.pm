@@ -523,6 +523,9 @@ sub _span_label {
 
 sub new {
 	my ($class, %args) = @_;
+	# A bad expression is an answer here, not an exception, so nothing of the
+	# compile may reach the caller's $@.
+	local $@;
 	# Takes off the where-it-happened tail that croak adds.  A path can hold spaces,
 	# and this text reaches the reader, so the tail is everything from the last
 	# " at " on rather than one word.
@@ -602,6 +605,7 @@ sub evaluate {
 	return undef unless defined $self->{_code};
 	$row //= {};
 	return undef unless ref $row eq 'HASH';
+	local $@;	# a failed row is undef, and the caller's $@ is its own
 	# Merge bound parameters into the evaluation context.  Parameters take
 	# precedence over same-named columns: the clash check in new() ensures this
 	# never happens legitimately, but a column added to the data after compile

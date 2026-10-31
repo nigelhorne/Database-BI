@@ -2079,7 +2079,7 @@ subtest '_sniff_data_ext -- comma-delimited or unknown content falls back to csv
 #   3. Neither -> return undef
 # ============================================================================
 
-subtest 'DataSource::updated -- delegates to _db->updated() when available' => sub {
+subtest 'DataSource::updated -- the file comes first, then _db->updated()' => sub {
 	my $src = $DS->new(directory => $DATA_DIR, table => $SALES_CSV);
 
 	# Inject a mock backend whose updated() returns a sentinel mtime.
@@ -2092,8 +2092,14 @@ subtest 'DataSource::updated -- delegates to _db->updated() when available' => s
 	}
 	$src->{_db} = $mock_db;
 
+	# Why: the backend only learns an mtime when it opens the file, so it answers
+	# undef before the first read, and the time of that read after it.
+	is $src->updated, (stat($src->{_file_path}))[9],
+		'updated() trusts the file over what the backend remembers';
+
+	delete $src->{_file_path};
 	is $src->updated, $FAKE_MTIME,
-		'updated() returns value from _db->updated() when _db implements it';
+		'updated() asks _db->updated() when there is no file to stat';
 };
 
 subtest 'DataSource::updated -- stat fallback when _db absent' => sub {

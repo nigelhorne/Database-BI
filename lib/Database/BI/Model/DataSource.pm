@@ -453,9 +453,13 @@ sub new {
 	# with Params::Validate before touching any value.
 	# When a "url" key is present, dispatch to the URL/HTML-table path instead.
 	my $class = shift;
+	# Opening a file tries several drivers in turn; what they leave in $@ and $! is
+	# of no interest to a caller, who may be holding its own.
+	local ($@, $!);
 	my $raw   = Params::Get::get_params(undef, \@_) // {};
 	return $class->_new_from_url($raw)   if exists $raw->{url};
 	return $class->_new_from_redis($raw) if exists $raw->{redis};
+	croak _fmt('error_table_required') unless defined $raw->{table};
 
 	my $args = validate_strict(
 		schema => {
@@ -1512,6 +1516,7 @@ None.
 
 sub columns {
 	my $self = shift;
+	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return $self->{_columns} if defined $self->{_columns};
 	# URL-backed tables have no canonical column order at construction time;
 	# calling _db->columns() would trigger a live HTTP request which may fail.
@@ -1625,6 +1630,7 @@ None.
 
 sub aggregate {
 	my ($self, @args) = @_;
+	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return [] if $self->{_file_is_empty};
 	return [] if $self->{_file_data};
 	return [] unless $self->{_db};
@@ -1729,10 +1735,11 @@ None.
 
 sub updated {
 	my $self = shift;
-	# Delegate to the D::A backend when available -- it tracks mtime internally.
-	return $self->{_db}->updated() if $self->{_db} && $self->{_db}->can('updated');
-	# Fallback: stat the file path directly (header-less CSV and XLSX bypass D::A).
+	# The file itself comes first.  D::A only learns an mtime when it opens the file,
+	# which it does lazily, so before the first read it answers undef, and after it
+	# goes on answering the time of that read however the file has changed since.
 	return (stat($self->{_file_path}))[9] if defined $self->{_file_path} && -f $self->{_file_path};
+	return $self->{_db}->updated() if $self->{_db} && $self->{_db}->can('updated');
 	return undef;
 }
 
@@ -1769,6 +1776,7 @@ None.
 
 sub schema {
 	my $self = shift;
+	local ($@, $!);	# the backend opens lazily, and uses both on the way
 
 	return {} unless $self->{_db} && $self->{_db}->can('schema');
 
@@ -1900,6 +1908,7 @@ calls in C<eval> if you need to recover.
 
 sub selectall_arrayref {
 	my ($self, @args) = @_;
+	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return [] if $self->{_file_is_empty};
 	return $self->{_file_data} if $self->{_file_data};
 
@@ -1931,6 +1940,7 @@ sub selectall_arrayref {
 
 sub fetch_all {
 	my $self  = shift;
+	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	my $table = $self->{_table};
 
 	# 0-byte file: no backend was created; nothing to fetch.
@@ -2020,6 +2030,7 @@ None.
 
 sub count {
 	my ($self) = @_;
+	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return 0 if $self->{_file_is_empty};
 	return scalar @{ $self->{_file_data} } if $self->{_file_data};
 	return $self->{_db}->count();
@@ -2297,8 +2308,8 @@ C<|S|> means the cardinality (size) of set or sequence S.
 =head2 updated
 
   updated == lambda self .
-    if defined self._db /\ can(self._db, 'updated')  then self._db.updated()
-    else if defined self._file_path /\ -f self._file_path then (stat self._file_path)[9]
+    if defined self._file_path /\ -f self._file_path then (stat self._file_path)[9]
+    else if defined self._db /\ can(self._db, 'updated')  then self._db.updated()
     else undef
 
   pre  true

@@ -12,7 +12,22 @@ Revision history for Database-BI
 	- Saved charts (SVG, PNG and PDF, from chart pages and canvas cards) carry
 	  "Database::BI" at the bottom right.  In the PDF it links to
 	  https://metacpan.org/dist/Database-BI.
+	- Added website
 	[ Bug Fixes ]
+	- DataSource->updated() gave undef for a file not read yet, and after a read
+	  went on giving the time of that read.  It now gives the file's mtime, so a
+	  canvas can tell its data has changed.
+	- DataSource->new without a table croaks error_table_required, not the
+	  validator's text.
+	- /map with only one of lat= and lon= now says so, rather than asking for a
+	  source.
+	- Calc, Extract and DataSource no longer overwrite the caller's $@ and $!.
+	- /embed/:id drew no charts at all, so an embedded canvas was empty.
+	- Writes to analyses.json reported success even when nothing was saved.  They
+	  now answer 503, as the documentation says.
+	- Named groups saved from the panel were stored as one long value holding
+	  every line, so no row ever matched them.
+	- PUT, PATCH and import now drop unknown top-level keys, as POST did.
 	- /export and /folder with a bad span= or calculated field never replied:
 	  the connection hung until it timed out.  They now answer 400.
 	- Security: error replies that repeat a parameter were sent as HTML, so a
