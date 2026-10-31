@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">78.6%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">81.0%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -31,27 +31,28 @@ https://pjcj.net
 <tr><td class="h"><a id="L1525">1525</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$page_chi ? :</td></tr>
 <tr><td class="h"><a id="L1567">1567</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$jtype =~ /\A(?:left|inner|outer)\z/u ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$c-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L1581">1581</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length($c-&gt;app-&gt;config(&#39;ai_api_key&#39;) // &#39;&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L1585">1585</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $args-&gt;{&#39;text&#39;} and not defined $c-&gt;stash(&quot;format&quot;)</td></tr>
+<tr><td class="h"><a id="L1588">1588</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length($c-&gt;app-&gt;config(&#39;ai_api_key&#39;) // &#39;&#39;) ? :</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless defined $c-&gt;stash(&quot;ai_available&quot;)</td></tr>
-<tr><td class="h"><a id="L1588">1588</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $d3_url &amp;&amp; !ref($d3_url) &amp;&amp; length $d3_url ? :</td></tr>
-<tr><td class="h"><a id="L1598">1598</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (($args-&gt;{&#39;template&#39;} // &quot;&quot;) =~ /\Anot_found\.\w+\z/u and (($args-&gt;{&#39;format&#39;} // $c-&gt;stash(&quot;format&quot;)) // &quot;html&quot;) eq &quot;html&quot;)</td></tr>
-<tr><td class="h"><a id="L1603">1603</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/u and -d $c-&gt;app-&gt;home-&gt;child(&quot;templates/$platform/$language&quot;)</td></tr>
-<tr><td class="h"><a id="L1614">1614</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless (defined $c-&gt;stash(&quot;trail&quot;))</td></tr>
-<tr><td class="h"><a id="L1619">1619</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $c-&gt;stash(&quot;tutorial_chapter&quot;)</td></tr>
-<tr><td class="h"><a id="L1622">1622</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $chapter</td></tr>
-<tr><td class="h"><a id="L1645">1645</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $data_path-&gt;is_abs</td></tr>
-<tr><td class="h"><a id="L1663">1663</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;url&#39;})</td></tr>
-<tr><td class="h"><a id="L1670">1670</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;html_table_index&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1675">1675</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;redis&#39;})</td></tr>
-<tr><td class="h"><a id="L1683">1683</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;directory&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1691">1691</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;host&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1595">1595</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $d3_url &amp;&amp; !ref($d3_url) &amp;&amp; length $d3_url ? :</td></tr>
+<tr><td class="h"><a id="L1605">1605</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (($args-&gt;{&#39;template&#39;} // &quot;&quot;) =~ /\Anot_found\.\w+\z/u and (($args-&gt;{&#39;format&#39;} // $c-&gt;stash(&quot;format&quot;)) // &quot;html&quot;) eq &quot;html&quot;)</td></tr>
+<tr><td class="h"><a id="L1610">1610</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/u and -d $c-&gt;app-&gt;home-&gt;child(&quot;templates/$platform/$language&quot;)</td></tr>
+<tr><td class="h"><a id="L1621">1621</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless (defined $c-&gt;stash(&quot;trail&quot;))</td></tr>
+<tr><td class="h"><a id="L1626">1626</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $c-&gt;stash(&quot;tutorial_chapter&quot;)</td></tr>
+<tr><td class="h"><a id="L1629">1629</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $chapter</td></tr>
+<tr><td class="h"><a id="L1652">1652</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $data_path-&gt;is_abs</td></tr>
+<tr><td class="h"><a id="L1670">1670</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;url&#39;})</td></tr>
+<tr><td class="h"><a id="L1677">1677</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;html_table_index&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1682">1682</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;redis&#39;})</td></tr>
+<tr><td class="h"><a id="L1690">1690</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;directory&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1698">1698</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;host&#39;} ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;file_ext&#39;} ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;internal_table&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1787">1787</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $dir and not ref $dir and length $dir</td></tr>
-<tr><td class="h"><a id="L1791">1791</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$path-&gt;is_abs ? :</td></tr>
-<tr><td class="h"><a id="L1803">1803</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
-<tr><td class="h"><a id="L1810">1810</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $mtime &gt;= $cutoff</td></tr>
-<tr><td class="h"><a id="L1811">1811</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-d $entry) { }</td></tr>
+<tr><td class="h"><a id="L1794">1794</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and not ref $dir and length $dir</td></tr>
+<tr><td class="h"><a id="L1798">1798</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$path-&gt;is_abs ? :</td></tr>
+<tr><td class="h"><a id="L1810">1810</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
+<tr><td class="h"><a id="L1817">1817</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $mtime &gt;= $cutoff</td></tr>
+<tr><td class="h"><a id="L1818">1818</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-d $entry) { }</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif (-f $entry) { }</td></tr>
 </table>
 </body>

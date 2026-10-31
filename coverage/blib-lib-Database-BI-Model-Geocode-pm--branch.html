@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Model/Geocode.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">87.5%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">90.9%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -54,7 +54,7 @@ https://pjcj.net
 <tr><td class="h"><a id="L693">693</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (@attempt)</td></tr>
 <tr><td class="h"><a id="L694">694</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $region ? :</td></tr>
 <tr><td class="h"><a id="L704">704</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $batch eq &#39;HASH&#39; &amp;&amp; defined $batch-&gt;{&#39;lookups&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L708">708</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">ref $batch eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L708">708</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $batch eq &#39;HASH&#39; ? :</td></tr>
 <tr><td class="h"><a id="L711">711</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $lat and defined $lon) { }</td></tr>
 <tr><td class="h"><a id="L715">715</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $backend ? :</td></tr>
 <tr><td class="h"><a id="L720">720</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if defined $backend</td></tr>
@@ -83,12 +83,14 @@ https://pjcj.net
 <tr><td class="h"><a id="L1134">1134</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
 <tr><td class="h"><a id="L1139">1139</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $meta{$key}</td></tr>
 <tr><td class="h"><a id="L1142">1142</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
-<tr><td class="h"><a id="L1190">1190</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
-<tr><td class="h"><a id="L1192">1192</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $entry eq &quot;HASH&quot; and ref $entry-&gt;{&#39;places&#39;} eq &quot;HASH&quot;</td></tr>
-<tr><td class="h"><a id="L1261">1261</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">ref $cache eq &#39;HASH&#39; ? :</td></tr>
-<tr><td class="h"><a id="L1264">1264</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
-<tr><td class="h"><a id="L1269">1269</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $meta{$key}</td></tr>
-<tr><td class="h"><a id="L1272">1272</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1192">1192</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1193">1193</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $geo eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1195">1195</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $entry eq &quot;HASH&quot; and ref $entry-&gt;{&#39;places&#39;} eq &quot;HASH&quot;</td></tr>
+<tr><td class="h"><a id="L1264">1264</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $cache eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1268">1268</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $models eq &#39;HASH&#39; &amp;&amp; ref $models-&gt;{&#39;geo&#39;} eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1270">1270</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $entry eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1275">1275</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $meta{$key}</td></tr>
+<tr><td class="h"><a id="L1278">1278</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $models eq &#39;HASH&#39; ? :</td></tr>
 </table>
 </body>
 </html>

@@ -293,9 +293,9 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="Insights.pm.html">⬅ Previous</a> <a href="../../../../index.html">Index</a>
  <a href="Model/DataSource.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 84.91%<br>
-TER2 (Branch): 43.75%<br>
-TER3 (LCSAJ): 50.0% (1/2)<br>
+TER1 (Statement): 100.00%<br>
+TER2 (Branch): 93.75%<br>
+TER3 (LCSAJ): 100.0% (2/2)<br>
 Approximate LCSAJ segments: 17<br>
 </div>
 
@@ -348,98 +348,98 @@ Approximate LCSAJ segments: 17<br>
 </span><span class="">    7: 
 </span><span class="">    8: use Carp		qw(croak carp);
 </span><span class="">    9: use Digest::MD5		qw(md5_hex);
-</span><span class="">   10: use File::Path		qw(make_path remove_tree);
-</span><span class="">   11: use Mojo::File;
-</span><span class="">   12: 
-</span><span class="">   13: # ---------------------------------------------------------------------------
-</span><span class="">   14: # An extract is a SQLite materialisation of one dataset, stored at:
-</span><span class="">   15: #   &lt;model_dir&gt;/extracts/&lt;fingerprint&gt;.db
-</span><span class="">   16: #
-</span><span class="">   17: # The fingerprint is md5_hex(spec . &quot;\0&quot; . mtime . &quot;\0&quot; . size).
-</span><span class="">   18: # It is a pure cache: deleting the extracts/ directory at any time leaves
-</span><span class="">   19: # the application fully functional.  No file under data_dir is created.
-</span><span class="">   20: #
-</span><span class="">   21: # This is a standalone cache class: the web application does not call it (the
-</span><span class="">   22: # routes read their sources directly), and the tests cover the class itself.
-</span><span class="">   23: # A caller decides whether to build a new extract; Extract only stores and
-</span><span class="">   24: # retrieves bytes.
-</span><span class="">   25: # ---------------------------------------------------------------------------
-</span><span class="">   26: 
-</span><span class="">   27: # new( model_dir =&gt; $dir ) -&gt; $self
-</span><span class="">   28: sub new {
-</span><span class="">   29: 	my ($class, %args) = @_;
-</span><span class="">   30: 	croak &#39;model_dir is required&#39; unless defined $args{model_dir};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   31: 	return bless { model_dir =&gt; $args{model_dir} }, $class;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   32: }
-</span><span class="">   33: 
-</span><span class="">   34: # _fingerprint( $spec, $mtime, $size ) -&gt; $hex_string
-</span><span class="">   35: sub _fingerprint {
-</span><span class="">   36: 	my ($spec, $mtime, $size) = @_;
-</span><span class="">   37: 	$mtime //= 0;
-</span><span class="">   38: 	$size  //= 0;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   39: 	return md5_hex(join(&quot;\0&quot;, $spec, $mtime, $size));
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   40: }
-</span><span class="">   41: 
-</span><span class="">   42: # _extract_dir( $self ) -&gt; $path_string
-</span><span class="">   43: sub _extract_dir {
-</span><span class="">   44: 	my $self = shift;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   45: 	return Mojo::File-&gt;new($self-&gt;{model_dir})-&gt;child(&#39;extracts&#39;)-&gt;to_string;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   46: }
-</span><span class="">   47: 
-</span><span class="">   48: # path( $spec, $mtime, $size ) -&gt; $path_string
-</span><span class="">   49: #
-</span><span class="">   50: # Returns the filesystem path an extract for this fingerprint would occupy.
-</span><span class="">   51: # Does not test for existence.
-</span><span class="">   52: sub path {
-</span><span class="">   53: 	my ($self, $spec, $mtime, $size) = @_;
-</span><span class="">   54: 	my $fp = _fingerprint($spec, $mtime, $size);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   55: 	return Mojo::File-&gt;new($self-&gt;_extract_dir)-&gt;child(&quot;$fp.db&quot;)-&gt;to_string;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   56: }
-</span><span class="">   57: 
-</span><span class="">   58: # get( $spec, $mtime, $size ) -&gt; $path_string | undef
-</span><span class="">   59: #
-</span><span class="">   60: # Returns the path to the cached SQLite file when the fingerprint matches and
-</span><span class="">   61: # the file exists on disk; returns undef on a cache miss.
-</span><span class="">   62: sub get {
-</span><span class="">   63: 	my ($self, $spec, $mtime, $size) = @_;
-</span><span class="">   64: 	my $p = $self-&gt;path($spec, $mtime, $size);
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   65: 	return -f $p ? $p : undef;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   66: }
-</span><span class="">   67: 
-</span><span class="">   68: # put( $spec, $mtime, $size, $sqlite_bytes ) -&gt; $path_string
-</span><span class="">   69: #
-</span><span class="">   70: # Writes $sqlite_bytes to the cache.  Creates the extracts/ directory if it
-</span><span class="">   71: # does not exist yet.  Returns the path written to.  Croaks on I/O failure.
-</span><span class="">   72: sub put {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">73 → 77 → 82</span></span>   73: 	my ($self, $spec, $mtime, $size, $bytes) = @_;
-</span><span class="">   74: 	croak &#39;sqlite_bytes are required&#39; unless defined $bytes &amp;&amp; length $bytes;
-</span><span class="">   75: 
-</span><span class="">   76: 	my $dir = $self-&gt;_extract_dir;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   77: 	unless (-d $dir) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">   78: 		eval { make_path($dir) };
-</span><span class="">   79: 		croak &quot;Cannot create extract dir &#39;$dir&#39;: $@&quot; if $@;
-</span><span class="">   80: 	}
-</span><span class="">   81: 
-</span><span class="">   82: 	my $p = $self-&gt;path($spec, $mtime, $size);
-</span><span class="">   83: 	eval { Mojo::File-&gt;new($p)-&gt;spurt($bytes) };
-</span><span class="">   84: 	croak &quot;Cannot write extract &#39;$p&#39;: $@&quot; if $@;
+</span><span class="">   10: use Encode		qw(encode_utf8);
+</span><span class="">   11: use File::Path		qw(make_path remove_tree);
+</span><span class="">   12: use Mojo::File;
+</span><span class="">   13: 
+</span><span class="">   14: # ---------------------------------------------------------------------------
+</span><span class="">   15: # An extract is a SQLite materialisation of one dataset, stored at:
+</span><span class="">   16: #   &lt;model_dir&gt;/extracts/&lt;fingerprint&gt;.db
+</span><span class="">   17: #
+</span><span class="">   18: # The fingerprint is md5_hex(spec . &quot;\0&quot; . mtime . &quot;\0&quot; . size).
+</span><span class="">   19: # It is a pure cache: deleting the extracts/ directory at any time leaves
+</span><span class="">   20: # the application fully functional.  No file under data_dir is created.
+</span><span class="">   21: #
+</span><span class="">   22: # This is a standalone cache class: the web application does not call it (the
+</span><span class="">   23: # routes read their sources directly), and the tests cover the class itself.
+</span><span class="">   24: # A caller decides whether to build a new extract; Extract only stores and
+</span><span class="">   25: # retrieves bytes.
+</span><span class="">   26: # ---------------------------------------------------------------------------
+</span><span class="">   27: 
+</span><span class="">   28: # new( model_dir =&gt; $dir ) -&gt; $self
+</span><span class="">   29: sub new {
+</span><span class="">   30: 	my ($class, %args) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   31: 	croak &#39;model_dir is required&#39; unless defined $args{model_dir} &amp;&amp; length $args{model_dir};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   32: 	return bless { model_dir =&gt; $args{model_dir} }, $class;
+</span><span class="">   33: }
+</span><span class="">   34: 
+</span><span class="">   35: # _fingerprint( $spec, $mtime, $size ) -&gt; $hex_string
+</span><span class="">   36: sub _fingerprint {
+</span><span class="">   37: 	my ($spec, $mtime, $size) = @_;
+</span><span class="">   38: 	$mtime //= 0;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   39: 	$size  //= 0;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   40: 	return md5_hex(encode_utf8(join(&quot;\0&quot;, $spec, $mtime, $size)));
+</span><span class="">   41: }
+</span><span class="">   42: 
+</span><span class="">   43: # _extract_dir( $self ) -&gt; $path_string
+</span><span class="">   44: sub _extract_dir {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   45: 	my $self = shift;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   46: 	return Mojo::File-&gt;new($self-&gt;{model_dir})-&gt;child(&#39;extracts&#39;)-&gt;to_string;
+</span><span class="">   47: }
+</span><span class="">   48: 
+</span><span class="">   49: # path( $spec, $mtime, $size ) -&gt; $path_string
+</span><span class="">   50: #
+</span><span class="">   51: # Returns the filesystem path an extract for this fingerprint would occupy.
+</span><span class="">   52: # Does not test for existence.
+</span><span class="">   53: sub path {
+</span><span class="">   54: 	my ($self, $spec, $mtime, $size) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   55: 	my $fp = _fingerprint($spec, $mtime, $size);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   56: 	return Mojo::File-&gt;new($self-&gt;_extract_dir)-&gt;child(&quot;$fp.db&quot;)-&gt;to_string;
+</span><span class="">   57: }
+</span><span class="">   58: 
+</span><span class="">   59: # get( $spec, $mtime, $size ) -&gt; $path_string | undef
+</span><span class="">   60: #
+</span><span class="">   61: # Returns the path to the cached SQLite file when the fingerprint matches and
+</span><span class="">   62: # the file exists on disk; returns undef on a cache miss.
+</span><span class="">   63: sub get {
+</span><span class="">   64: 	my ($self, $spec, $mtime, $size) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   65: 	my $p = $self-&gt;path($spec, $mtime, $size);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   66: 	return -f $p ? $p : undef;
+</span><span class="">   67: }
+</span><span class="">   68: 
+</span><span class="">   69: # put( $spec, $mtime, $size, $sqlite_bytes ) -&gt; $path_string
+</span><span class="">   70: #
+</span><span class="">   71: # Writes $sqlite_bytes to the cache.  Creates the extracts/ directory if it
+</span><span class="">   72: # does not exist yet.  Returns the path written to.  Croaks on I/O failure.
+</span><span class="">   73: sub put {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">74 → 81 → 86</span></span>   74: 	my ($self, $spec, $mtime, $size, $bytes) = @_;
+</span><span class="">   75: 	croak &#39;sqlite_bytes are required&#39; unless defined $bytes &amp;&amp; length $bytes;
+</span><span class="">   76: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   77: 	# A caller&#39;s $@ and $! are its own: the writes below use both on the way.
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">   78: 	local ($@, $!);
+</span><span class="">   79: 
+</span><span class="">   80: 	my $dir = $self-&gt;_extract_dir;
+</span><span class="">   81: 	unless (-d $dir) {
+</span><span class="">   82: 		eval { make_path($dir) };
+</span><span class="">   83: 		croak &quot;Cannot create extract dir &#39;$dir&#39;: $@&quot; if $@;
+</span><span class="">   84: 	}
 </span><span class="">   85: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   86: 	return $p;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   87: }
-</span><span class="">   88: 
-</span><span class="">   89: # evict( $spec ) -&gt; $count_removed
-</span><span class="">   90: #
-</span><span class="">   91: # Removes all cached extract files that begin with a fingerprint that could
-</span><span class="">   92: # belong to $spec.  Because the fingerprint includes mtime+size, a changed
-</span><span class="">   93: # file naturally produces a miss without eviction; evict() is provided for
-</span><span class="">   94: # explicit cache clearing.  Returns the number of files removed.
-</span><span class="">   95: # NOTE: because fingerprints are global md5 hashes we cannot identify which
-</span><span class="">   96: # belong to a spec without re-computing; this method removes ALL extracts.
-</span><span class="">   97: # Call it only when clearing the whole extract store is desired.
-</span><span class="">   98: sub evict {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 99 → 104 → 109</span></span>   99: 	my ($self, $spec) = @_;
-</span><span class="">  100: 	my $dir = $self-&gt;_extract_dir;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  101: 	return 0 unless -d $dir;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   86: 	my $p = $self-&gt;path($spec, $mtime, $size);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   87: 	eval { Mojo::File-&gt;new($p)-&gt;spurt($bytes) };
+</span><span class="">   88: 	croak &quot;Cannot write extract &#39;$p&#39;: $@&quot; if $@;
+</span><span class="">   89: 
+</span><span class="">   90: 	return $p;
+</span><span class="">   91: }
+</span><span class="">   92: 
+</span><span class="">   93: # evict( $spec ) -&gt; $count_removed
+</span><span class="">   94: #
+</span><span class="">   95: # Removes all cached extract files that begin with a fingerprint that could
+</span><span class="">   96: # belong to $spec.  Because the fingerprint includes mtime+size, a changed
+</span><span class="">   97: # file naturally produces a miss without eviction; evict() is provided for
+</span><span class="">   98: # explicit cache clearing.  Returns the number of files removed.
+</span><span class="">   99: # NOTE: because fingerprints are global md5 hashes we cannot identify which
+</span><span class="">  100: # belong to a spec without re-computing; this method removes ALL extracts.
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  101: # Call it only when clearing the whole extract store is desired.
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -461,20 +461,20 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  102: 
-</span><span class="">  103: 	my $count = 0;
-</span><span class="">  104: 	for my $f (glob &quot;$dir/*.db&quot;) {
-</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  105: 		if (unlink $f) {
+<span class="">  102: sub evict {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">103 → 110 → 115</span></span>  103: 	my ($self, $spec) = @_;
+</span><span class="">  104: 	my $dir = $self-&gt;_extract_dir;
+</span><span class="survived-1 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch.">  105: 	return 0 unless -d $dir;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 1, Killed: 0, Survived: 1)</summary>
 					<ul>
 				<li><b>COND_INV_105_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
-<span class="">  106: 			$count++;
-</span><span class="">  107: 		}
-</span><span class="">  108: 	}
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  109: 	return $count;
+<span class="">  106: 
+</span><span class="">  107: 	my $count = 0;
+</span><span class="">  108: 	# Listed rather than globbed: glob() splits its pattern on spaces and reads
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  109: 	# brackets as a class, so the name of the directory could defeat it.
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -496,126 +496,132 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  110: }
-</span><span class="">  111: 
-</span><span class="">  112: 1;
-</span><span class="">  113: 
-</span><span class="">  114: __END__
-</span><span class="">  115: 
-</span><span class="">  116: =head1 NAME
+<span class="">  110: 	for my $f (grep { /\.db\z/ } @{ Mojo::File-&gt;new($dir)-&gt;list-&gt;map(&#39;to_string&#39;) }) {
+</span><span class="">  111: 		if (unlink $f) {
+</span><span class="">  112: 			$count++;
+</span><span class="">  113: 		}
+</span><span class="">  114: 	}
+</span><span class="">  115: 	return $count;
+</span><span class="">  116: }
 </span><span class="">  117: 
-</span><span class="">  118: Database::BI::Extract -- SQLite materialisation cache for Database::BI
+</span><span class="">  118: 1;
 </span><span class="">  119: 
-</span><span class="">  120: =head1 SYNOPSIS
+</span><span class="">  120: __END__
 </span><span class="">  121: 
-</span><span class="">  122:   use Database::BI::Extract;
+</span><span class="">  122: =head1 NAME
 </span><span class="">  123: 
-</span><span class="">  124:   my $cache = Database::BI::Extract-&gt;new(model_dir =&gt; &#39;.bi&#39;);
+</span><span class="">  124: Database::BI::Extract -- SQLite materialisation cache for Database::BI
 </span><span class="">  125: 
-</span><span class="">  126:   # Check cache
-</span><span class="">  127:   my $path = $cache-&gt;get($spec, $mtime, $size);
-</span><span class="">  128:   unless ($path) {
-</span><span class="">  129:       my $bytes = ...; # build the SQLite file
-</span><span class="">  130:       $path = $cache-&gt;put($spec, $mtime, $size, $bytes);
-</span><span class="">  131:   }
-</span><span class="">  132: 
-</span><span class="">  133: =head1 DESCRIPTION
-</span><span class="">  134: 
-</span><span class="">  135: Stores SQLite materialisation files (extracts) under C&lt;model_dir/extracts/&gt;.
-</span><span class="">  136: The cache key is an MD5 of the dataset spec, its source mtime, and its size.
-</span><span class="">  137: Deleting the extracts directory leaves the application fully functional.
+</span><span class="">  126: =head1 SYNOPSIS
+</span><span class="">  127: 
+</span><span class="">  128:   use Database::BI::Extract;
+</span><span class="">  129: 
+</span><span class="">  130:   my $cache = Database::BI::Extract-&gt;new(model_dir =&gt; &#39;.bi&#39;);
+</span><span class="">  131: 
+</span><span class="">  132:   # Check cache
+</span><span class="">  133:   my $path = $cache-&gt;get($spec, $mtime, $size);
+</span><span class="">  134:   unless ($path) {
+</span><span class="">  135:       my $bytes = ...; # build the SQLite file
+</span><span class="">  136:       $path = $cache-&gt;put($spec, $mtime, $size, $bytes);
+</span><span class="">  137:   }
 </span><span class="">  138: 
-</span><span class="">  139: This is a standalone cache class.  The web application does not call it; the
-</span><span class="">  140: caller decides when to build an extract, and the class only stores and finds
-</span><span class="">  141: the bytes.
-</span><span class="">  142: 
-</span><span class="">  143: =head1 METHODS
+</span><span class="">  139: =head1 DESCRIPTION
+</span><span class="">  140: 
+</span><span class="">  141: Stores SQLite materialisation files (extracts) under C&lt;model_dir/extracts/&gt;.
+</span><span class="">  142: The cache key is an MD5 of the dataset spec, its source mtime, and its size.
+</span><span class="">  143: Deleting the extracts directory leaves the application fully functional.
 </span><span class="">  144: 
-</span><span class="">  145: =head2 new
-</span><span class="">  146: 
-</span><span class="">  147: =head3 API SPECIFICATION
+</span><span class="">  145: This is a standalone cache class.  The web application does not call it; the
+</span><span class="">  146: caller decides when to build an extract, and the class only stores and finds
+</span><span class="">  147: the bytes.
 </span><span class="">  148: 
-</span><span class="">  149: =head4 INPUT
+</span><span class="">  149: =head1 METHODS
 </span><span class="">  150: 
-</span><span class="">  151: 	{ model_dir =&gt; &#39;string&#39; }   # required; extracts live in &lt;model_dir&gt;/extracts/
+</span><span class="">  151: =head2 new
 </span><span class="">  152: 
-</span><span class="">  153: =head4 OUTPUT
+</span><span class="">  153: =head3 API SPECIFICATION
 </span><span class="">  154: 
-</span><span class="">  155: A C&lt;Database::BI::Extract&gt; object.  Croaks C&lt;model_dir is required&gt; without
-</span><span class="">  156: C&lt;model_dir&gt;.  Nothing is created on disc until C&lt;put&gt;.
-</span><span class="">  157: 
-</span><span class="">  158: =head2 path
-</span><span class="">  159: 
-</span><span class="">  160: =head3 API SPECIFICATION
-</span><span class="">  161: 
-</span><span class="">  162: =head4 INPUT
+</span><span class="">  155: =head4 INPUT
+</span><span class="">  156: 
+</span><span class="">  157: 	{ model_dir =&gt; &#39;string&#39; }   # required; extracts live in &lt;model_dir&gt;/extracts/
+</span><span class="">  158: 
+</span><span class="">  159: =head4 OUTPUT
+</span><span class="">  160: 
+</span><span class="">  161: A C&lt;Database::BI::Extract&gt; object.  Croaks C&lt;model_dir is required&gt; without
+</span><span class="">  162: C&lt;model_dir&gt;.  Nothing is created on disc until C&lt;put&gt;.
 </span><span class="">  163: 
-</span><span class="">  164: 	$spec    # the dataset spec, e.g. &#39;table:sales&#39;
-</span><span class="">  165: 	$mtime   # source modification time (undef is 0)
-</span><span class="">  166: 	$size    # source size in bytes (undef is 0)
+</span><span class="">  164: =head2 path
+</span><span class="">  165: 
+</span><span class="">  166: =head3 API SPECIFICATION
 </span><span class="">  167: 
-</span><span class="">  168: =head4 OUTPUT
+</span><span class="">  168: =head4 INPUT
 </span><span class="">  169: 
-</span><span class="">  170: 	&#39;string&#39;   # &lt;model_dir&gt;/extracts/&lt;md5 of spec, mtime and size&gt;.db
-</span><span class="">  171: 
-</span><span class="">  172: The path is computed, not checked: the file need not exist.
+</span><span class="">  170: 	$spec    # the dataset spec, e.g. &#39;table:sales&#39;
+</span><span class="">  171: 	$mtime   # source modification time (undef is 0)
+</span><span class="">  172: 	$size    # source size in bytes (undef is 0)
 </span><span class="">  173: 
-</span><span class="">  174: =head2 get
+</span><span class="">  174: =head4 OUTPUT
 </span><span class="">  175: 
-</span><span class="">  176: =head3 API SPECIFICATION
+</span><span class="">  176: 	&#39;string&#39;   # &lt;model_dir&gt;/extracts/&lt;md5 of spec, mtime and size&gt;.db
 </span><span class="">  177: 
-</span><span class="">  178: =head4 INPUT
+</span><span class="">  178: The path is computed, not checked: the file need not exist.
 </span><span class="">  179: 
-</span><span class="">  180: The same three arguments as C&lt;path&gt;.
+</span><span class="">  180: =head2 get
 </span><span class="">  181: 
-</span><span class="">  182: =head4 OUTPUT
+</span><span class="">  182: =head3 API SPECIFICATION
 </span><span class="">  183: 
-</span><span class="">  184: 	&#39;string&#39; | undef   # the path when that file exists, otherwise undef
+</span><span class="">  184: =head4 INPUT
 </span><span class="">  185: 
-</span><span class="">  186: A changed mtime or size gives a different path, so a stale extract is a miss.
+</span><span class="">  186: The same three arguments as C&lt;path&gt;.
 </span><span class="">  187: 
-</span><span class="">  188: =head2 put
+</span><span class="">  188: =head4 OUTPUT
 </span><span class="">  189: 
-</span><span class="">  190: =head3 API SPECIFICATION
+</span><span class="">  190: 	&#39;string&#39; | undef   # the path when that file exists, otherwise undef
 </span><span class="">  191: 
-</span><span class="">  192: =head4 INPUT
+</span><span class="">  192: A changed mtime or size gives a different path, so a stale extract is a miss.
 </span><span class="">  193: 
-</span><span class="">  194: 	$spec, $mtime, $size   # as for path
-</span><span class="">  195: 	$bytes                 # required; the SQLite file&#39;s contents
-</span><span class="">  196: 
-</span><span class="">  197: =head4 OUTPUT
-</span><span class="">  198: 
-</span><span class="">  199: 	&#39;string&#39;   # the path written
-</span><span class="">  200: 
-</span><span class="">  201: Creates C&lt;extracts/&gt; when it is missing.  Croaks C&lt;sqlite_bytes are required&gt;
-</span><span class="">  202: when C&lt;$bytes&gt; is undefined or empty, and croaks naming the path when the
-</span><span class="">  203: directory or file cannot be written.
+</span><span class="">  194: =head2 put
+</span><span class="">  195: 
+</span><span class="">  196: =head3 API SPECIFICATION
+</span><span class="">  197: 
+</span><span class="">  198: =head4 INPUT
+</span><span class="">  199: 
+</span><span class="">  200: 	$spec, $mtime, $size   # as for path
+</span><span class="">  201: 	$bytes                 # required; the SQLite file&#39;s contents
+</span><span class="">  202: 
+</span><span class="">  203: =head4 OUTPUT
 </span><span class="">  204: 
-</span><span class="">  205: =head2 evict
+</span><span class="">  205: 	&#39;string&#39;   # the path written
 </span><span class="">  206: 
-</span><span class="">  207: =head3 API SPECIFICATION
-</span><span class="">  208: 
-</span><span class="">  209: =head4 INPUT
+</span><span class="">  207: Creates C&lt;extracts/&gt; when it is missing.  Croaks C&lt;sqlite_bytes are required&gt;
+</span><span class="">  208: when C&lt;$bytes&gt; is undefined or empty, and croaks naming the path when the
+</span><span class="">  209: directory or file cannot be written.
 </span><span class="">  210: 
-</span><span class="">  211: 	$spec   # accepted but not used: see below
+</span><span class="">  211: =head2 evict
 </span><span class="">  212: 
-</span><span class="">  213: =head4 OUTPUT
+</span><span class="">  213: =head3 API SPECIFICATION
 </span><span class="">  214: 
-</span><span class="">  215: 	&#39;integer&#39;   # the number of files removed (0 when there is no extracts/)
+</span><span class="">  215: =head4 INPUT
 </span><span class="">  216: 
-</span><span class="">  217: A fingerprint cannot be traced back to its spec, so C&lt;evict&gt; removes every
-</span><span class="">  218: C&lt;.db&gt; file in C&lt;extracts/&gt;, not only C&lt;$spec&gt;&#39;s.
-</span><span class="">  219: 
-</span><span class="">  220: =head1 AUTHOR
-</span><span class="">  221: 
-</span><span class="">  222: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class="">  223: 
-</span><span class="">  224: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  217: 	$spec   # accepted but not used: see below
+</span><span class="">  218: 
+</span><span class="">  219: =head4 OUTPUT
+</span><span class="">  220: 
+</span><span class="">  221: 	&#39;integer&#39;   # the number of files removed (0 when there is no extracts/)
+</span><span class="">  222: 
+</span><span class="">  223: A fingerprint cannot be traced back to its spec, so C&lt;evict&gt; removes every
+</span><span class="">  224: C&lt;.db&gt; file in C&lt;extracts/&gt;, not only C&lt;$spec&gt;&#39;s.
 </span><span class="">  225: 
-</span><span class="">  226: Copyright 2026 Nigel Horne.
-</span><span class="">  227: Usage is subject to the GPL2 licence terms.
-</span><span class="">  228: 
-</span><span class="">  229: =cut
+</span><span class="">  226: =head1 AUTHOR
+</span><span class="">  227: 
+</span><span class="">  228: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  229: 
+</span><span class="">  230: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  231: 
+</span><span class="">  232: Copyright 2026 Nigel Horne.
+</span><span class="">  233: Usage is subject to the GPL2 licence terms.
+</span><span class="">  234: 
+</span><span class="">  235: =cut
 </span></pre>
 
 <script>
