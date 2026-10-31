@@ -756,6 +756,7 @@ my @CHAPTERS = (
 				{ do => 'Click Edit cross-row in a card header and click one of its columns.', see => 'The chip puts its column, function and name back in the fields, ready to change.' },
 				{ do => 'Click Bookmarks, type a name and click Save.', see => 'A link to this exact view appears under the button.' },
 				{ do => 'Click Print.', see => 'The browser print window opens with the canvas ready for paper or PDF.' },
+				{ do => 'To save just one chart, use the SVG, PNG or PDF button in its card header.', see => 'The chart downloads as a file named after the card.' },
 			],
 			result => 'You filtered and arranged one dashboard, and saved a named view without changing any data file.',
 		},

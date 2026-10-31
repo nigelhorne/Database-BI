@@ -692,7 +692,11 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	font-variant-numeric: tabular-nums;
 }
 .visual-size-badge:empty { display: none; }
-/* Per-visual PNG download button (3.7) */
+/* Per-visual SVG, PNG and PDF download buttons (3.7) */
+.visual-dl-group {
+	flex-shrink: 0;
+	white-space: nowrap;
+}
 .visual-dl-btn {
 	font-size: 0.7rem;
 	padding: 0.1rem 0.35rem;
@@ -1211,7 +1215,11 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 			     knows what a preset is called. -->
 			<span class="visual-size-badge" data-size-badge="1"[%- IF v.w %] title="[% v.w %] column[% v.w == 1 ? '' : 's' %] wide, [% v.h %] row[% v.h == 1 ? '' : 's' %] high"[%- END %]>[% IF v.w %][% v.w %] &times; [% v.h %][% END %]</span>
 			[% END %]
-			<button class="visual-dl-btn" data-title="[% v.title | html %]" title="Download as PNG" hidden>&#x2B07; Save image</button>
+			<span class="visual-dl-group" data-title="[% v.title | html %]" hidden>
+				<button class="visual-dl-btn" data-fmt="svg" title="Download as SVG">SVG</button>
+				<button class="visual-dl-btn" data-fmt="png" title="Download as PNG">PNG</button>
+				<button class="visual-dl-btn" data-fmt="pdf" title="Download as PDF">PDF</button>
+			</span>
 		</div>
 		<div class="visual-card-body">
 		[% IF v.error %]
@@ -2242,62 +2250,177 @@ menu, so it reads without the menu being opened.</p>
 		});
 	}
 
-	/* ---- per-visual PNG download (3.7) ----
+	/* ---- per-visual SVG, PNG and PDF download (3.7) ----
 	 *
-	 * For SVG-based chart visuals: serialise the SVG with XMLSerializer, paint it
-	 * onto a hidden <canvas> element, then trigger a PNG download.  Table visuals
-	 * have no SVG so their button stays hidden.
+	 * For SVG-based chart visuals: serialise the SVG with XMLSerializer, and save
+	 * that, or paint it onto a hidden <canvas> element for a PNG or PDF.  Table
+	 * and map visuals have no chart SVG of their own, so their buttons stay hidden.
 	 *
 	 * Run inside the same setTimeout as initCrossFilters so D3 has finished
-	 * drawing before we probe for SVG elements.
+	 * drawing before we probe for SVG elements.  The chart is looked up on each
+	 * click because editing a card replaces it, and this runs again after that.
 	 */
+	function cardChartSvg(card) {
+		var svg = card.querySelector('.visual-card-body svg');
+		return svg && !svg.closest('.leaflet-container') ? svg : null;
+	}
+
 	function initDownloadButtons(root) {
 		var cards = cardsIn(root);
 		cards.forEach(function (card) {
-			var svg = card.querySelector('svg');
-			var btn = card.querySelector('.visual-dl-btn');
-			if (!svg || !btn) return;
-			btn.hidden = false;
-			btn.addEventListener('click', function (e) {
+			var group = card.querySelector('.visual-dl-group');
+			if (!group) return;
+			var chart = cardChartSvg(card);
+			group.hidden = !chart;
+			if (chart) fitCardChart(chart);
+			if (group.getAttribute('data-bound')) return;
+			group.setAttribute('data-bound', '1');
+			group.addEventListener('click', function (e) {
+				var fmt = e.target.getAttribute('data-fmt');
+				var svg = cardChartSvg(card);
+				if (!fmt || !svg) return;
 				e.stopPropagation();
-				downloadCardPng(card, svg, btn.getAttribute('data-title') || 'visual');
+				var name = (group.getAttribute('data-title') || 'visual').replace(/[^A-Za-z0-9_\- ]/g, '_');
+				if (fmt === 'svg') downloadCardSvg(svg, name);
+				else if (fmt === 'png') downloadCardPng(svg, name);
+				else biSaveChartPDF(cardCanvasDrawer(svg), name + '.pdf');
 			});
 		});
 	}
 
-	function downloadCardPng(card, svg, title) {
-		/* Clone and inline computed styles so the PNG looks like the screen. */
-		var bbox = svg.getBoundingClientRect();
-		var w = Math.round(bbox.width)  || 800;
-		var h = Math.round(bbox.height) || 400;
+	/* The area a chart takes up, in its own units: its viewport, grown to take in
+	 * anything drawn past the edges.  Rotated axis labels hang out of the SVG, and
+	 * both the card and a saved file would crop them. */
+	function cardChartBounds(svg) {
+		var rect = svg.getBoundingClientRect();
+		var vb   = svg.getAttribute('viewBox') ? svg.getAttribute('viewBox').trim().split(/[\s,]+/).map(parseFloat) : null;
+		var left = vb ? vb[0] : 0;
+		var top  = vb ? vb[1] : 0;
+		var w    = vb ? vb[2] : (/^[\d.]+$/.test(svg.getAttribute('width') || '')  ? parseFloat(svg.getAttribute('width'))  : rect.width)  || 800;
+		var h    = vb ? vb[3] : (/^[\d.]+$/.test(svg.getAttribute('height') || '') ? parseFloat(svg.getAttribute('height')) : rect.height) || 400;
+		var drawn = svg.getBBox();
+		var x0 = Math.floor(Math.min(left, drawn.x));
+		var y0 = Math.floor(Math.min(top, drawn.y));
+		return {
+			x: x0,
+			y: y0,
+			w: Math.ceil(Math.max(left + w, drawn.x + drawn.width))  - x0,
+			h: Math.ceil(Math.max(top + h, drawn.y + drawn.height)) - y0,
+		};
+	}
 
-		/* Embed the SVG width/height so the image element sizes correctly. */
-		var clone = svg.cloneNode(true);
-		clone.setAttribute('width',  w);
-		clone.setAttribute('height', h);
+	function viewBoxOf(box) {
+		return box.x + ' ' + box.y + ' ' + box.w + ' ' + box.h;
+	}
+
+	/* Makes the card show the whole chart.  Running it again changes nothing. */
+	function fitCardChart(svg) {
+		var box = cardChartBounds(svg);
+		if (svg.getAttribute('viewBox') !== viewBoxOf(box)) svg.setAttribute('viewBox', viewBoxOf(box));
+	}
+
+	/* A pie's legend is HTML beside its SVG, so a saved chart would have no key.
+	 * This draws it into the copy, down the right of the chart, and widens box
+	 * (and heightens it, for a long legend) to take it in. */
+	function addCardLegend(card, clone, box) {
+		var entries = Array.prototype.slice.call(card.querySelectorAll('.bi-pie-legend-entry'));
+		if (!entries.length) return;
+		var SWATCH = 14, GAP = 20, ROW_H = 22, FONT = 12;
+		var measure = document.createElement('canvas').getContext('2d');
+		measure.font = FONT + 'px sans-serif';
+		var legendW = 0;
+		var ns = 'http://www.w3.org/2000/svg';
+		var legend = document.createElementNS(ns, 'g');
+		var legendH = entries.length * ROW_H;
+		var x = box.x + box.w + GAP;
+		var y0 = box.y + Math.max(0, (box.h - legendH) / 2);
+		entries.forEach(function (entry, i) {
+			var label  = entry.textContent.trim();
+			var swatch = entry.querySelector('.bi-pie-swatch');
+			var rect   = document.createElementNS(ns, 'rect');
+			rect.setAttribute('x', x);
+			rect.setAttribute('y', y0 + i * ROW_H);
+			rect.setAttribute('width', SWATCH);
+			rect.setAttribute('height', SWATCH);
+			rect.setAttribute('rx', 2);
+			rect.setAttribute('fill', swatch ? window.getComputedStyle(swatch).backgroundColor : '#999');
+			legend.appendChild(rect);
+			var text = document.createElementNS(ns, 'text');
+			text.setAttribute('x', x + SWATCH + 5);
+			text.setAttribute('y', y0 + i * ROW_H + SWATCH - 2);
+			text.setAttribute('font-size', FONT);
+			text.setAttribute('font-family', 'sans-serif');
+			text.setAttribute('fill', '#333');
+			text.textContent = label;
+			legend.appendChild(text);
+			legendW = Math.max(legendW, measure.measureText(label).width);
+		});
+		clone.appendChild(legend);
+		box.w += GAP + Math.ceil(SWATCH + 5 + legendW) + 10;
+		box.h = Math.max(box.h, legendH);
+	}
+
+	/* A copy of the chart to save: the whole of it, at the size the card shows it
+	 * if that is bigger than the size it was drawn at. */
+	function cardExportClone(svg) {
+		var box  = cardChartBounds(svg);
+		var zoom = Math.max(1, svg.getBoundingClientRect().width / box.w);
+		var clone = biChartExportClone(svg);
+		addCardLegend(svg.closest('.visual-card'), clone, box);
 		clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+		clone.setAttribute('viewBox', viewBoxOf(box));
+		clone.setAttribute('width',  Math.round(box.w * zoom));
+		clone.setAttribute('height', Math.round(box.h * zoom));
+		clone.style.removeProperty('border');
+		clone.style.removeProperty('max-width');
+		return clone;
+	}
 
-		var svgStr  = new XMLSerializer().serializeToString(clone);
-		var svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
-		var url     = URL.createObjectURL(svgBlob);
+	function downloadCardSvg(svg, name) {
+		var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
+		        + new XMLSerializer().serializeToString(cardExportClone(svg));
+		var a = document.createElement('a');
+		a.href = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
+		a.download = name + '.svg';
+		a.click();
+		URL.revokeObjectURL(a.href);
+	}
 
-		var img = new Image();
-		img.onload = function () {
-			var canv = document.createElement('canvas');
-			canv.width  = w;
-			canv.height = h;
-			var ctx = canv.getContext('2d');
-			ctx.fillStyle = '#ffffff';
-			ctx.fillRect(0, 0, w, h);
-			ctx.drawImage(img, 0, 0);
-			URL.revokeObjectURL(url);
+	function cardCanvasDrawer(svg) {
+		return function (scale, done) {
+			var clone = cardExportClone(svg);
+			var w = parseFloat(clone.getAttribute('width'));
+			var h = parseFloat(clone.getAttribute('height'));
+
+			var svgStr  = new XMLSerializer().serializeToString(clone);
+			var svgBlob = new Blob([svgStr], { type: 'image/svg+xml;charset=utf-8' });
+			var url     = URL.createObjectURL(svgBlob);
+
+			var img = new Image();
+			img.onload = function () {
+				var canv = document.createElement('canvas');
+				canv.width  = w * scale;
+				canv.height = h * scale;
+				var ctx = canv.getContext('2d');
+				ctx.scale(scale, scale);
+				ctx.fillStyle = '#ffffff';
+				ctx.fillRect(0, 0, w, h);
+				ctx.drawImage(img, 0, 0);
+				URL.revokeObjectURL(url);
+				done(canv);
+			};
+			img.onerror = function () { URL.revokeObjectURL(url); };
+			img.src = url;
+		};
+	}
+
+	function downloadCardPng(svg, name) {
+		cardCanvasDrawer(svg)(1, function (canv) {
 			var a = document.createElement('a');
-			a.download = title.replace(/[^A-Za-z0-9_\- ]/g, '_') + '.png';
+			a.download = name + '.png';
 			a.href = canv.toDataURL('image/png');
 			a.click();
-		};
-		img.onerror = function () { URL.revokeObjectURL(url); };
-		img.src = url;
+		});
 	}
 
 	/* ---- undo / redo (3.6) ---- */
@@ -2989,11 +3112,13 @@ menu, so it reads without the menu being opened.</p>
 			header.appendChild(size);
 			header.appendChild(element('span', { 'class': 'visual-size-badge', 'data-size-badge': '1' }));
 
-			var download = element('button', {
-				'class': 'visual-dl-btn', 'data-title': title, title: 'Download as PNG',
-			});
+			var download = element('span', { 'class': 'visual-dl-group', 'data-title': title });
 			download.hidden = true;
-			download.innerHTML = '&#x2B07; Save image';
+			['svg', 'png', 'pdf'].forEach(function (fmt) {
+				download.appendChild(element('button', {
+					'class': 'visual-dl-btn', 'data-fmt': fmt, title: 'Download as ' + fmt.toUpperCase(),
+				}, fmt.toUpperCase()));
+			});
 			header.appendChild(download);
 
 			var body = element('div', { 'class': 'visual-card-body' });
@@ -3167,7 +3292,7 @@ menu, so it reads without the menu being opened.</p>
 				if (handle) handle.setAttribute('aria-label', 'Move ' + title);
 				var size = card.querySelector('.visual-size-select');
 				if (size) size.setAttribute('aria-label', 'Size of ' + title);
-				var dl = card.querySelector('.visual-dl-btn');
+				var dl = card.querySelector('.visual-dl-group');
 				if (dl) dl.setAttribute('data-title', title);
 			};
 
@@ -3439,7 +3564,7 @@ menu, so it reads without the menu being opened.</p>
 				if (handle) handle.setAttribute('aria-label', 'Move ' + title);
 				var size = card.querySelector('.visual-size-select');
 				if (size) size.setAttribute('aria-label', 'Size of ' + title);
-				var dl = card.querySelector('.visual-dl-btn');
+				var dl = card.querySelector('.visual-dl-group');
 				if (dl) dl.setAttribute('data-title', title);
 			};
 
@@ -4396,4 +4521,5 @@ menu, so it reads without the menu being opened.</p>
 
 }());
 </script>
+[% PROCESS "web/en/layouts/chart_export.html.tt" %]
 [%- END -%]

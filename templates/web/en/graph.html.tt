@@ -141,10 +141,13 @@ has focus, then press Enter or Space to toggle it.</p>
 
 <script>
 (function () {
-  // Widen the SVG viewport so the first rotated X-axis label is not cropped.
+  // Widen the SVG viewport so the rotated X-axis labels are not cropped.
   // D3 rotates labels -45 deg with text-anchor:end; the leftmost label extends
   // to a negative SVG x-coordinate.  Shifting the viewBox origin to -pad makes
   // that region part of the SVG viewport, bypassing all container overflow rules.
+  // The labels also hang below the chart's bottom margin, by however long they
+  // are, so the viewport grows by what was actually drawn there.  An exported
+  // image is cut off at the viewport, whatever the page's overflow says.
   //
   // Two cases depending on whether the SVG is responsive (width="100%") or
   // fixed-width (width="1100"):
@@ -159,12 +162,16 @@ has focus, then press Enter or Space to toggle it.</p>
     var _svg = document.getElementById('chart');
     if (!_svg) return;
     var _pad  = 80;
+    var _drawn = _svg.getBBox();
     var wAttr = _svg.getAttribute('width') || '';
     if (/^\d+$/.test(wAttr)) {
       // Fixed-width SVG: extend both width and viewBox.
       var _w = parseFloat(wAttr);
       var _h = parseFloat(_svg.getAttribute('height')) || 580;
+      _pad = Math.max(_pad, Math.ceil(-_drawn.x));
+      _h   = Math.max(_h, Math.ceil(_drawn.y + _drawn.height) + 2);
       _svg.setAttribute('width',   _w + _pad);
+      _svg.setAttribute('height',  _h);
       _svg.setAttribute('viewBox', (-_pad) + ' 0 ' + (_w + _pad) + ' ' + _h);
     } else {
       // Responsive SVG: extend viewBox only.
@@ -172,7 +179,8 @@ has focus, then press Enter or Space to toggle it.</p>
       if (vb.length === 4) {
         _svg.setAttribute('viewBox',
           (parseFloat(vb[0]) - _pad) + ' ' + vb[1] + ' ' +
-          (parseFloat(vb[2]) + _pad) + ' ' + vb[3]);
+          (parseFloat(vb[2]) + _pad) + ' ' +
+          Math.max(parseFloat(vb[3]), Math.ceil(_drawn.y + _drawn.height) + 2));
       }
     }
   }, 0);
@@ -213,7 +221,8 @@ has focus, then press Enter or Space to toggle it.</p>
   function biExportSVG() {
     var svg = document.getElementById('chart');
     if (!svg) return;
-    var clone = svg.cloneNode(true);
+    var clone = biChartExportClone(svg);
+    clone.style.removeProperty('border');
     if (!/^\d+$/.test(clone.getAttribute('width') || '')) {
       var rect = svg.getBoundingClientRect();
       clone.setAttribute('width',  Math.round(rect.width)  || 1100);
@@ -244,7 +253,9 @@ has focus, then press Enter or Space to toggle it.</p>
     canvas.width = w * scale; canvas.height = (h + extraH) * scale;
     var ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
-    var src = new XMLSerializer().serializeToString(svg);
+    var clone = biChartExportClone(svg);
+    clone.style.removeProperty('border');
+    var src = new XMLSerializer().serializeToString(clone);
     var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
     var img = new Image();
     img.onload = function () {
@@ -281,7 +292,7 @@ has focus, then press Enter or Space to toggle it.</p>
   window.biExportPDF = biExportPDF;
 }());
 </script>
-[% PROCESS "web/en/layouts/chart_pdf.html.tt" %]
+[% PROCESS "web/en/layouts/chart_export.html.tt" %]
 
 [% IF ref_min_y.defined %]
 <script>

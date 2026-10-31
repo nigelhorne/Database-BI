@@ -111,7 +111,7 @@ Median, Std dev, First, Last, Range or a Percentile with its level, so a card
 can show a median, a spread or a percentile where the chart pages behind it
 could only sum.  Canvases support
 cross-filtering, drill-through hierarchies, parameterisation, bookmarks
-with undo/redo, per-visual PNG download, and print to PDF/paper.
+with undo/redo, per-visual SVG, PNG and PDF download, and print to PDF/paper.
 - **Drag-and-drop upload** -- any supported data file can be dropped directly
 onto the application.  The file is opened immediately; when the "Combine
 data" panel is open the dropped file populates the right-table path field.

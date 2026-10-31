@@ -142,7 +142,7 @@ then press Enter or Space to open the matching rows in the table.</p>
   function biBarExportSVG() {
     var svg = document.getElementById('bar_chart');
     if (!svg) return;
-    var clone = svg.cloneNode(true);
+    var clone = biChartExportClone(svg);
     _addAttrToSVG(clone, _getAttribution());
     var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
             + new XMLSerializer().serializeToString(clone);
@@ -163,7 +163,7 @@ then press Enter or Space to open the matching rows in the table.</p>
     canvas.width = w * scale; canvas.height = (h + extraH) * scale;
     var ctx = canvas.getContext('2d');
     ctx.scale(scale, scale);
-    var src = new XMLSerializer().serializeToString(svg);
+    var src = new XMLSerializer().serializeToString(biChartExportClone(svg));
     var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
     var img = new Image();
     img.onload = function () {
@@ -200,7 +200,7 @@ then press Enter or Space to open the matching rows in the table.</p>
   window.biBarExportPDF = biBarExportPDF;
 }());
 </script>
-[% PROCESS "web/en/layouts/chart_pdf.html.tt" %]
+[% PROCESS "web/en/layouts/chart_export.html.tt" %]
 
 [% IF source_url %]
 <div id="chart-attribution" data-url="[% source_url | html %]" data-date="[% source_accessed | html %]" hidden></div>

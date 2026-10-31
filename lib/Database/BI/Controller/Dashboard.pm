@@ -11152,7 +11152,7 @@ sub visual_download ($self) {
 	# PNG: not implemented in the server (canvas/SVG rendering is client-side).
 	# Return 501 with a descriptive message.
 	return $self->render(
-		text   => 'PNG download requires the browser SVG renderer; use the in-page Save Image button',
+		text   => 'PNG download requires the browser SVG renderer; use the PNG button on the card',
 		status => 501,
 	);
 }

@@ -7,6 +7,19 @@ Revision history for Database-BI
 	  line drawn in as they are in the PNG.  It is made in the browser and
 	  holds a high-resolution picture of the chart, so it needs no PDF library;
 	  use Export SVG for vector output.
+	- Canvas cards: Save image becomes SVG, PNG and PDF buttons.  A card now
+	  shows and saves its whole chart, rotated axis labels included.
+	[ Bug Fixes ]
+	- Line chart: rotated x-axis labels were cut off at the bottom of Export
+	  SVG, PNG and PDF, and spilled out of the chart's frame on the page.  The
+	  chart now grows to fit them, and exports leave out the page's frame.
+	- Saved charts: axis titles and other text styled by the page came out in
+	  the browser's default serif font, too big.  SVG, PNG and PDF now keep the
+	  fonts the chart has on screen.
+	- Canvas: a saved pie card had no legend, so no way to tell its slices
+	  apart.  SVG, PNG and PDF now draw it beside the pie.
+	- Canvas: after a card was edited, its download button saved one file per
+	  edit, and a map card offered to save its marker layer.
 	- Tutorial: new chapters on finding your way (navigation, breadcrumbs,
 	  the Drawn from: strip, missing pages), Ask, bi-geocode and the settings
 	  file.  The map chapter covers Remember columns, the heatmap layer,

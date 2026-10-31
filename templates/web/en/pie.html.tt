@@ -207,7 +207,7 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
     root.setAttribute('width', totalW);
     root.setAttribute('height', svgH);
     // Clone the original pie SVG content into the composite root.
-    Array.from(svg.childNodes).forEach(function (n) { root.appendChild(n.cloneNode(true)); });
+    Array.from(biChartExportClone(svg).childNodes).forEach(function (n) { root.appendChild(n.cloneNode(true)); });
     // Append legend as SVG elements.
     if (entries.length) {
       var legG = document.createElementNS(ns, 'g');
@@ -258,7 +258,7 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
     ctx.scale(scale, scale);
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, totalW, svgH + extraH);
-    var src = new XMLSerializer().serializeToString(svg);
+    var src = new XMLSerializer().serializeToString(biChartExportClone(svg));
     var url = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
     var img = new Image();
     img.onload = function () {
@@ -305,7 +305,7 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
   window.biPieExportPDF = biPieExportPDF;
 }());
 </script>
-[% PROCESS "web/en/layouts/chart_pdf.html.tt" %]
+[% PROCESS "web/en/layouts/chart_export.html.tt" %]
 
 [% IF source_url %]
 <div id="chart-attribution" data-url="[% source_url | html %]" data-date="[% source_accessed | html %]" hidden></div>

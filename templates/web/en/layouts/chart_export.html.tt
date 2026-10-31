@@ -1,7 +1,12 @@
-[%# Shared by the chart pages' Export PDF buttons.  The chart is painted onto a
-    canvas by the page's own draw function, then wrapped as a one-page PDF the
-    size of the chart.  A picture keeps every glyph as it is on screen, and needs
-    no PDF library; PDF_SCALE keeps it sharp when printed or zoomed. -%]
+[%# Shared by the chart pages' export buttons.
+
+    biChartExportClone: a saved SVG leaves the page's stylesheet behind, so a
+    copy of the chart carries each text's computed font and colour on the text.
+
+    biSaveChartPDF: the chart is painted onto a canvas by the page's own draw
+    function, then wrapped as a one-page PDF the size of the chart.  A picture
+    keeps every glyph as it is on screen, and needs no PDF library; PDF_SCALE
+    keeps it sharp when printed or zoomed. -%]
 <script>
 (function () {
   var PDF_SCALE = 3;
@@ -40,6 +45,20 @@
     for (var i = 0; i < pdf.length; i++) bytes[i] = pdf.charCodeAt(i);
     return new Blob([bytes], { type: 'application/pdf' });
   }
+
+  var TEXT_STYLES = ['font-family', 'font-size', 'font-style', 'font-weight', 'fill'];
+
+  window.biChartExportClone = function (svg) {
+    var clone  = svg.cloneNode(true);
+    var copies = clone.querySelectorAll('text');
+    svg.querySelectorAll('text').forEach(function (text, i) {
+      var style = window.getComputedStyle(text);
+      TEXT_STYLES.forEach(function (name) {
+        copies[i].style.setProperty(name, style.getPropertyValue(name));
+      });
+    });
+    return clone;
+  };
 
   window.biSaveChartPDF = function (drawCanvas, filename) {
     drawCanvas(PDF_SCALE, function (canvas) {
