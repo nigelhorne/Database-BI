@@ -261,6 +261,11 @@ subtest 'every chart page that exports SVG and PNG exports PDF too' => sub {
 		like($b, qr/window\.biSaveChartPDF = /, "$name: the shared PDF writer is on the page");
 		like($b, qr/biChartExportClone\(svg\)/, "$name: saved copies keep the fonts on screen");
 		unlike($b, qr/serializeToString\(svg\)/, "$name: nothing saves the chart without them");
+		like($b, qr/biBrandSvg\((?:clone|root)\)/, "$name: a saved SVG names the program");
+		like($b, qr/biBrandCanvas\(canvas, 1\)\.toDataURL/, "$name: so does a saved PNG");
+		like($b, qr/buildPDF\(window\.biBrandCanvas\(canvas, PDF_SCALE\)\)/, "$name: so does a saved PDF");
+		like($b, qr{/URI \(' \+ BRAND_URL}, "$name: the PDF links to the distribution");
+		like($b, qr{BRAND_URL\s+= 'https://metacpan\.org/dist/Database-BI'}, "$name: on MetaCPAN");
 	}
 };
 
@@ -280,6 +285,8 @@ subtest 'a canvas card saves its chart as SVG, PNG and PDF' => sub {
 	like($b, qr/window\.biSaveChartPDF = /, 'the shared PDF writer is on the page');
 	like($b, qr/\['svg', 'png', 'pdf'\]/, 'a card added without a reload gets the same buttons');
 	unlike($b, qr/Save image/, 'the old button has gone');
+	like($b, qr/biBrandSvg\(cardExportClone\(svg\)\)/, 'a saved SVG names the program');
+	like($b, qr/biBrandCanvas\(canv, 1\)\.toDataURL/, 'so does a saved PNG');
 	like($b, qr/addCardLegend\(svg\.closest\('\.visual-card'\), clone, box\)/,
 		'every saved format carries a pie card its legend');
 };

@@ -229,6 +229,7 @@ has focus, then press Enter or Space to toggle it.</p>
       clone.setAttribute('height', Math.round(rect.height) || 580);
     }
     _addAttrToSVG(clone, _getAttribution());
+    biBrandSvg(clone);
     var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
             + new XMLSerializer().serializeToString(clone);
     var a = document.createElement('a');
@@ -279,7 +280,7 @@ has focus, then press Enter or Space to toggle it.</p>
   function biExportPNG() {
     drawExportCanvas(1, function (canvas) {
       var a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
+      a.href = biBrandCanvas(canvas, 1).toDataURL('image/png');
       a.download = 'chart.png';
       a.click();
     });

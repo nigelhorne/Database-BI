@@ -2378,7 +2378,7 @@ menu, so it reads without the menu being opened.</p>
 
 	function downloadCardSvg(svg, name) {
 		var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
-		        + new XMLSerializer().serializeToString(cardExportClone(svg));
+		        + new XMLSerializer().serializeToString(biBrandSvg(cardExportClone(svg)));
 		var a = document.createElement('a');
 		a.href = URL.createObjectURL(new Blob([src], { type: 'image/svg+xml;charset=utf-8' }));
 		a.download = name + '.svg';
@@ -2418,7 +2418,7 @@ menu, so it reads without the menu being opened.</p>
 		cardCanvasDrawer(svg)(1, function (canv) {
 			var a = document.createElement('a');
 			a.download = name + '.png';
-			a.href = canv.toDataURL('image/png');
+			a.href = biBrandCanvas(canv, 1).toDataURL('image/png');
 			a.click();
 		});
 	}

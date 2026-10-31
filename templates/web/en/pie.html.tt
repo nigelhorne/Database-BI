@@ -229,6 +229,7 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
       root.appendChild(legG);
     }
     _addAttrToSVG(root, _getAttribution());
+    biBrandSvg(root);
     var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
             + new XMLSerializer().serializeToString(root);
     var a = document.createElement('a');
@@ -291,7 +292,7 @@ legend entry has focus, then press Enter or Space to open the matching rows in t
   function biPieExportPNG() {
     drawExportCanvas(1, function (canvas) {
       var a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
+      a.href = biBrandCanvas(canvas, 1).toDataURL('image/png');
       a.download = 'pie.png';
       a.click();
     });

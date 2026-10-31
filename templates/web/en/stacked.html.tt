@@ -122,6 +122,7 @@ entry has focus, then press Enter or Space to toggle it.</p>
     if (!svg) return;
     var clone = biChartExportClone(svg);
     _addAttrToSVG(clone, _getAttribution());
+    biBrandSvg(clone);
     var src = '<?xml version="1.0" encoding="UTF-8"?>\n'
             + new XMLSerializer().serializeToString(clone);
     var a = document.createElement('a');
@@ -165,7 +166,7 @@ entry has focus, then press Enter or Space to toggle it.</p>
   function biStackedExportPNG() {
     drawExportCanvas(1, function (canvas) {
       var a = document.createElement('a');
-      a.href = canvas.toDataURL('image/png');
+      a.href = biBrandCanvas(canvas, 1).toDataURL('image/png');
       a.download = 'stacked_bar.png';
       a.click();
     });
