@@ -784,7 +784,10 @@ END_PROGRAM
 
 	delete local $ENV{HARNESS_ACTIVE};
 	my @lib = map { "-I$_" } grep { !ref } @INC;
-	open my $child, '-|', $^X, @lib, '-e', $program, $dir, $TABLE or die "$^X: $!";
+	# From a file: Windows does not pass a program of several lines through -e.
+	my $script = File::Spec->catfile(tempdir(CLEANUP => 1), 'child.pl');
+	Mojo::File->new($script)->spew($program);
+	open my $child, '-|', $^X, @lib, $script, $dir, $TABLE or die "$^X: $!";
 	my @output = <$child>;
 	close $child;
 

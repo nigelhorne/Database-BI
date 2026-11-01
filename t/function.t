@@ -5852,7 +5852,8 @@ sub croak_rethrow {
 	# Why: glob() splits its pattern on spaces and reads brackets as a class, so a
 	# home directory with either one in its name would never be cleared.
 	subtest 'Extract::evict -- the name of the store cannot defeat it' => sub {
-		for my $name ('with space', 'with[bracket]', 'with*star') {
+		# Windows does not allow a '*' in a file name.
+		for my $name ('with space', 'with[bracket]', ($^O eq 'MSWin32' ? () : 'with*star')) {
 			my $dir = File::Spec->catdir(tempdir(CLEANUP => 1), $name);
 			my $ex  = $EX->new(model_dir => $dir);
 			$ex->put($SPEC, 1, 1, 'a');

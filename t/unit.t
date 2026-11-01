@@ -2253,7 +2253,6 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 {
 	Readonly my $SPEC       => 'table:sales';
 	Readonly my $EPOCH      => 1_700_000_000;
-	Readonly my $BIG_UPLOAD => 51 * 1024 * 1024;
 	Readonly my $CAPPED     => 1;
 	Readonly my $ALARM_SECS => 1000;
 	Readonly my $BDB_MAGIC_AT => 12;
@@ -2664,6 +2663,9 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			[ 'DataSource::schema'    => sub { Database::BI::Model::DataSource->new(directory => $DATA_DIR, table => $SALES_TABLE)->schema } ],
 			[ 'DataSource::updated'   => sub { Database::BI::Model::DataSource->new(directory => $DATA_DIR, table => $SALES_TABLE)->updated } ],
 		);
+		# Windows runs an alarm, but alarm(0) there always answers 0.
+		alarm($ALARM_SECS);
+		my $alarm_reports = alarm(0) > 0;
 		for my $case (@calls) {
 			my ($name, $code) = @$case;
 			local $_  = 'caller topic';
@@ -2676,7 +2678,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			is $_, 'caller topic', "$name keeps \$_";
 			is $@, 'caller error', "$name keeps \$\@";
 			is $! + 0, $errno, "$name keeps \$!";
-			cmp_ok $left, '>', $ALARM_SECS - 10, "$name leaves the alarm running";
+			cmp_ok $left, '>', $ALARM_SECS - 10, "$name leaves the alarm running" if $alarm_reports;
 		}
 		delete $ledger{'api.Globals'};
 	};
@@ -3049,7 +3051,12 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(Dashboard => 'error_upload_none', $tm->tx->res->json->{error});
 		$tm->post_ok('/upload' => form => { file => { content => 'x', filename => 'x.exe' } })->status_is(415);
 		message_ok(Dashboard => 'error_upload_ext', $tm->tx->res->json->{error});
-		$tm->post_ok('/upload' => form => { file => { content => 'x' x $BIG_UPLOAD, filename => 'x.csv' } })->status_is(413);
+		# The size is what is mocked, not the body.  A really oversized body has the
+		# server answer and close while the client still writes, which on Windows can
+		# lose the answer; the subtest for POST /upload above sends a real one.
+		mock('Mojo::Upload::size' => sub { 51 * 1024 * 1024 });
+		$tm->post_ok('/upload' => form => { file => { content => 'x', filename => 'x.csv' } })->status_is(413);
+		restore_all();
 		message_ok(Dashboard => 'error_upload_too_large', $tm->tx->res->json->{error}, [undef]);
 	};
 

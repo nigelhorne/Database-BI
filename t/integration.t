@@ -3669,6 +3669,10 @@ subtest 'A temporary directory that refuses new files' => sub {
 	my $plain = _csv_file(tempdir(CLEANUP => 1), 'plain.csv', 'id,v', '1,plain_value');
 	my $tm = _isolated_app();
 
+	# The test's own client keeps a reply over 256 KB in a file, and this page is
+	# about that size, more on a machine with long temporary paths.  Without this it
+	# would have nowhere to put it, and the reply would read as empty.
+	local $ENV{MOJO_TMPDIR} = tempdir(CLEANUP => 1);
 	local $ENV{TMPDIR} = $tmp;
 	File::Spec->tmpdir;	# remembered, as it would be on a server where it was fine at first
 	with_revoked('create', $tmp, sub {
