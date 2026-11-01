@@ -14,6 +14,24 @@ Revision history for Database-BI
 	  https://metacpan.org/dist/Database-BI.
 	- Added website
 	[ Bug Fixes ]
+	- /export with sort= gave a 500 on a SQLite source the first time it was read,
+	  because the rows were sorted in place in the backend's read-only array.
+	- A data directory that could not be read gave a 500 on the home page and on
+	  /view; it is now logged, and shows as having no tables.
+	- A staging directory that refused access gave an exception page from /upload
+	  and /uploads/clear instead of their JSON errors; both are now logged too.
+	- /export?format=sqlite without a usable driver gave an exception page; it now
+	  answers 500 with a message, and logs the reason.
+	- A JSON URL answering with anything but rows, such as [1,2,3], gave a 500 from
+	  /import and every chart; it is now reported as a source that cannot be read.
+	- A map renderer that failed part way gave a 500; the page now says the map
+	  could not be drawn.
+	- models.json or analyses.json that could not be parsed read as empty, and the
+	  next save replaced it, losing everything in it.  It is now kept beside the
+	  store as <file>.corrupt.<time>, and the log says so.
+	- Errors from /import, /export and the canvas routes showed readers Perl source
+	  paths and line numbers, and a missing module's error listed @INC.  A canvas
+	  document that was valid JSON but not an object gave no reason at all.
 	- A file with no header row split a quoted field on the separator inside it,
 	  so "1,234.56" became two columns and every later value moved along one.  It
 	  also dropped an empty field, which did the same.  Such a file is now read

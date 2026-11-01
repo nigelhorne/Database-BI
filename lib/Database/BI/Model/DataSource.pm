@@ -256,6 +256,7 @@ Readonly our %MESSAGES => (
 	error_table_name_invalid	=> 'DataSource: table name "%s" contains illegal characters (alphanumeric and underscore only)',
 	error_backend_init		=> 'DataSource: failed to initialise database backend for table "%s": %s',
 	error_fetch_failed		=> 'DataSource: fetch_all failed for table "%s": %s',
+	error_rows_not_records		=> 'the source did not return a table of rows',
 	error_url_invalid		=> 'DataSource: URL "%s" must begin with http:// or https://',
 	error_url_fetch			=> 'DataSource: failed to open HTML table at "%s": %s',
 	error_no_safe_id		=> 'DataSource: table "%s" has no column with a safe identifier name (letters, digits, underscore); rename at least one column header',
@@ -2016,6 +2017,10 @@ sub selectall_arrayref {
 
 	my $data = $self->{_db}->selectall_arrayref(@args);
 
+	# As in fetch_all: what a URL answers with need not be a table.
+	croak $self->_msg('error_fetch_failed', $self->{_table}, $self->_msg('error_rows_not_records'))
+		if defined $self->{_url} && ref $data eq 'ARRAY' && grep { ref $_ ne 'HASH' } @{$data};
+
 	if ($cache && !@args && defined $data) {
 		my $key = $self->_cache_key;
 		if (defined $key) {
@@ -2066,6 +2071,11 @@ sub fetch_all {
 	if (!@{$data}) {
 		carp $self->_msg('warn_empty_result', $table);
 	}
+
+	# A JSON URL may answer with an array of anything; every layer above reads
+	# each row as a hash, and would die on the first scalar.
+	croak $self->_msg('error_fetch_failed', $table, $self->_msg('error_rows_not_records'))
+		if defined $self->{_url} && grep { ref $_ ne 'HASH' } @{$data};
 
 	# Cache store: URL tables use a TTL so stale pages expire automatically;
 	# file tables encode mtime in the key so a changed file produces a natural

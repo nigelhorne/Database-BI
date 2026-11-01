@@ -3032,6 +3032,25 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(Dashboard => 'error_upload_save', $tm->tx->res->json->{error});
 		restore_all();
 
+		mock('Mojo::File::list' => $boom);
+		$tm->post_ok('/uploads/clear')->status_is(500);
+		message_ok(Dashboard => 'error_uploads_clear', $tm->tx->res->json->{error});
+		restore_all();
+
+		mock('Database::BI::Controller::Dashboard::_write_sqlite_db' => $boom);
+		$tm->get_ok("/export?l=$SPEC&format=sqlite")->status_is(500);
+		message_ok(Dashboard => 'error_export_sqlite', $tm->tx->res->body);
+		restore_all();
+
+		require LWP::UserAgent;
+		mock('LWP::UserAgent::get' => sub {
+			require HTTP::Response;
+			return HTTP::Response->new(200, 'OK', [ 'Content-Type' => 'application/json' ], '[1,2,3]');
+		});
+		$tm->get_ok('/import?url=' . $e->('http://example.invalid/scalars.json'))->status_is(200);
+		message_ok(DataSource => 'error_rows_not_records', $tm->tx->res->body, [], 1);
+		restore_all();
+
 		my $geo = unit_csv('geo.csv', "id,lat,lon,place\n1,10,20,Paris\n2,x,y,Rome\n3,30,40,Oslo\n");
 		my $l   = 'l=' . $e->("path:$geo");
 		$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);
@@ -3047,6 +3066,13 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);
 		message_ok(Dashboard => 'error_map_renderer_old', $tm->tx->res->body, ['0.01'], 1);
 		restore_all();
+		SKIP: {
+			skip 'needs HTML::OSM 0.12 or later', 3 unless eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 };
+			mock('HTML::OSM::new' => $boom);
+			$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);
+			message_ok(Dashboard => 'error_map_renderer_failed', $tm->tx->res->body, [], 1);
+			restore_all();
+		}
 
 		$tm->app->config->{geocoder} = Unit::Geocoder->new;
 		$tm->get_ok("/map?$l&loc=place")->status_is(200);

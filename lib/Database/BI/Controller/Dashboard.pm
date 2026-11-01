@@ -111,6 +111,8 @@ Readonly my %MESSAGES => (
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, SQLite (.sql, .sqlite, .sqlite3), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_upload_save      => 'Could not save uploaded file',
+	error_uploads_clear    => 'Could not clear the uploaded files',
+	error_export_sqlite    => 'Could not build the SQLite export; the server log has the reason',
 	error_path_required    => '"path" parameter is required',
 	error_url_required     => 'Please enter a URL',
 	error_url_invalid      => '"%s" is not a valid http:// or https:// URL',
@@ -148,6 +150,7 @@ Readonly my %MESSAGES => (
 	error_map_coordinate_numeric => 'Columns "%s" and "%s" hold no numeric coordinate pairs; a map needs numbers, or loc=<column> to geocode places',
 	error_map_no_markers        => 'No row has a location that could be plotted',
 	error_map_renderer_missing  => 'Drawing a map needs HTML::OSM 0.12 or later, and it is not installed',
+	error_map_renderer_failed   => 'The map could not be drawn; the server log has the reason',
 	error_map_renderer_old      => 'Drawing a map needs HTML::OSM 0.12 or later, but the installed HTML::OSM is %s',
 	warn_join_schema_mismatch   => 'Column "%s" has type %s in %s but %s in %s; the join keeps both columns, so check which one a calculation uses',
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
@@ -872,7 +875,15 @@ sub _data_dir_for ($app) {
 sub _scan_data_dir :Protected ($self) {
 	my $dir = _data_dir_for($self->app);
 	return [] unless -d $dir;
-	return $dir->list->map(sub {
+
+	# A directory that exists but may not be read holds nothing this application
+	# can show, and must not take the home page with it.
+	my $files = eval { $dir->list };
+	unless ($files) {
+		$self->app->log->error("Cannot read data_dir $dir: " . _tidy_error($@));
+		return [];
+	}
+	return $files->map(sub {
 		my $base = $_->basename;
 		return unless $base =~ $EXT_RE;
 		(my $name = $base) =~ s/\.[^.]+\z//;
@@ -924,11 +935,23 @@ sub _scan_join_tables :Protected ($self) {
 # _tidy_error($error) -> $string
 #
 # Purpose: A backend error as a reader should see it: without the "at FILE line N"
-#          that croak adds each time the error is passed up.
+#          that croak adds each time the error is passed up, or the list of
+#          library directories perl adds when a module is missing.
 sub _tidy_error {
 	my $error = $_[0] // '';
+	$error =~ s/\s*\(\@INC (?:contains|entries checked):.*?\)(?=\s+at\s|\s*\z)//sg;
 	$error =~ s/(?:\s+at \S.*? line \d+\.?)+\s*\z//;
 	return $error;
+}
+
+# _analysis_json_error($error) -> $string
+#
+# Purpose: The message for a canvas request whose body is not a JSON object.
+#          Entry: the error from decode_json, which is empty when the body parsed
+#          but was an array or a scalar, and otherwise ends in a library's path.
+sub _analysis_json_error {
+	my $reason = _tidy_error($_[0]);
+	return sprintf($MESSAGES{error_analysis_json}, length($reason) ? $reason : 'expected a JSON object');
 }
 
 # _open_spec($self, $spec) -> ($DataSource, $label) or ()
@@ -3334,9 +3357,35 @@ sub _read_models :Protected ($self) {
 sub _write_models :Protected ($self, $models) {
 	my $path = $self->_calc_models_path;
 	return 0 unless defined $path;
+	$self->_set_aside_corrupt_store($path);
 	my $ok = eval { Mojo::File->new($path)->spurt(encode_json($models)); 1 };
 	$self->app->log->warn("Cannot write $path: $@") if !$ok && $@;
 	return $ok ? 1 : 0;
+}
+
+# _set_aside_corrupt_store($self, $path) -> void
+#
+# Purpose: Keep a store that cannot be parsed from being overwritten.  A reader
+#          treats such a file as empty, so without this the next save would
+#          replace every saved canvas or model with the one change it carries.
+# Entry:   $path is the store about to be written; it need not exist.
+# Exit:    A file holding anything but a JSON object is renamed to
+#          <path>.corrupt.<time>, for its owner to repair.
+# Side Effects: Renames the file and logs where it went.
+sub _set_aside_corrupt_store :Protected ($self, $path) {
+	return unless -s $path;
+
+	my $json = eval { Mojo::File->new($path)->slurp };
+	return unless defined $json;
+	return if ref(eval { decode_json($json) }) eq 'HASH';
+
+	my $aside = "$path.corrupt." . time();
+	if (rename $path, $aside) {
+		$self->app->log->error("$path could not be parsed; kept it as $aside");
+	} else {
+		$self->app->log->error("$path could not be parsed, and could not be kept as $aside: $!");
+	}
+	return;
 }
 
 # _analyses_path($self) -> $path_string_or_undef
@@ -3433,6 +3482,7 @@ sub _tidy_visual {
 sub _write_analyses :Protected ($self, $analyses) {
 	my $path = $self->_analyses_path;
 	return unless defined $path;
+	$self->_set_aside_corrupt_store($path);
 	my $dir = Mojo::File->new($path)->dirname->to_string;
 	my ($fh, $tmpfile) = eval { tempfile(DIR => $dir, UNLINK => 0) };
 	if ($@ || !$fh) {
@@ -3652,7 +3702,7 @@ sub analyses_list ($self) {
 # POST /api/analyses
 sub analyses_create ($self) {
 	my $body = eval { decode_json($self->req->body) };
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
 	my $err = $self->_validate_analysis($body);
@@ -3708,7 +3758,7 @@ sub analyses_update ($self) {
 		unless exists $analyses->{$id};
 
 	my $body = eval { decode_json($self->req->body) };
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
 	my $err = $self->_validate_analysis($body);
@@ -3738,7 +3788,7 @@ sub analyses_patch ($self) {
 		unless exists $analyses->{$id};
 
 	my $body = eval { decode_json($self->req->body) };
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
 	# Only the keys actually supplied are validated here: the canvas PATCHes
@@ -3801,7 +3851,7 @@ sub analyses_add_visual ($self) {
 	my $a = $analyses->{$id};
 
 	my $body = eval { decode_json($self->req->body) };
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
 	my $kind = $body->{kind} // '';
@@ -3924,7 +3974,7 @@ sub analyses_update_visual ($self) {
 		unless $index < scalar @{ $a->{visuals} // [] };
 
 	my $body = eval { decode_json($self->req->body) };
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
 	my $has_encode = exists $body->{encode};
@@ -4015,7 +4065,7 @@ sub analyses_import ($self) {
 	my $body_json = $upload ? $upload->slurp : $self->req->body;
 
 	my $body = eval { decode_json($body_json) };
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_json}, $@) }, status => 400)
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
 	# Strip any id/timestamps from imported document; assign fresh ones below
@@ -5458,8 +5508,9 @@ sub _run_export_pipeline :Protected ($self) {
 	my $sort = $self->param('sort');
 	my $dir  = ($self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
 	if (defined $sort && grep { $_ eq $sort } @columns) {
-		@$records = sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records;
-		@$records = reverse @$records if $dir eq 'desc';
+		# A new array: the backend's own can be read-only, as a SQLite one is.
+		$records = [ sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records ];
+		$records = [ reverse @$records ] if $dir eq 'desc';
 	} elsif (defined $sort) {
 		carp $self->_i18n('error_sort_column', $sort);
 	}
@@ -5541,7 +5592,11 @@ sub _render_csv :Protected ($self, $records, $columns, $name) {
 # Side Effects: Creates and unlinks a temporary file; writes HTTP response.
 sub _render_sqlite :Protected ($self, $records, $columns, $name) {
 	$self->stash(buffer => 0);
-	my $data = $self->_write_sqlite_db($records, $columns);
+	my $data = eval { $self->_write_sqlite_db($records, $columns) };
+	unless (defined $data) {
+		$self->app->log->error('SQLite export failed: ' . _tidy_error($@));
+		return $self->render(text => $self->_i18n('error_export_sqlite'), status => 500);
+	}
 	$self->res->headers->content_type('application/vnd.sqlite3');
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.db"});
 	$self->render(data => $data);
@@ -5757,8 +5812,12 @@ sub view ($self) {
 		# No file by that name: a 404 that names the table, with the trail
 		# and the navigation, rather than the home page and the backend's
 		# message (which gives away the data directory).
+		# A directory that may not be read has no file by that name to offer either.
+		my $error   = $@;
 		my $stem_of = sub { lc($_[0]->basename =~ s/\.[^.]+\z//r) };
-		unless (grep { $stem_of->($_) eq lc $table } _data_dir_for($self->app)->list->each) {
+		my $listing = eval { _data_dir_for($self->app)->list };
+		$@ = $error;
+		unless ($listing && grep { $stem_of->($_) eq lc $table } $listing->each) {
 			return $self->render(
 				template  => "$platform/$language/not_found",
 				handler   => 'tt',
@@ -6343,11 +6402,13 @@ sub import_url ($self) {
 	return $err_home->('error_url_ssrf', $url)
 		unless _is_safe_url($url);
 
-	my $source = eval { $self->open_table('', url => $url, html_table_index => $idx) };
-	return $err_home->('error_url_fetch', $url, $@ // 'unknown error') if $@ || !$source;
-
-	my $records = eval { $source->fetch_all };
-	return $err_home->('error_url_fetch', $url, $@ // 'empty result') if $@;
+	my ($source, $records);
+	my $ok = eval {
+		$source  = $self->open_table('', url => $url, html_table_index => $idx);
+		$records = $source->fetch_all;
+		1;
+	};
+	return $err_home->('error_url_fetch', $url, _tidy_error($@)) unless $ok;
 
 	my $label   = $source->table_name;
 	my $lspec   = "url:$url";
@@ -6819,8 +6880,9 @@ sub combine_tables ($self) {
 	my $dir  = ($self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
 	if (defined $sort && grep { $_ eq $sort } @columns) {
 		carp $self->_i18n('warn_combine_sort');
-		@$records = sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records;
-		@$records = reverse @$records if $dir eq 'desc';
+		# A new array: the backend's own can be read-only, as a SQLite one is.
+		$records = [ sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records ];
+		$records = [ reverse @$records ] if $dir eq 'desc';
 	} elsif (defined $sort) {
 		carp $self->_i18n('error_sort_column', $sort);
 	}
@@ -6909,10 +6971,12 @@ Any value not in the valid set (e.g. C<SQLITE>, C<Json>).
   200 application/vnd.sqlite3   Content-Disposition: attachment; filename=<name>.db
   200 application/json          Content-Disposition: attachment; filename=<name>.json
   404 application/json          { "error": "Table not found" }
+  500 text/plain                The SQLite file could not be built (no driver, no
+                                temporary space); the reason goes to the log.
 
 =head3 MESSAGES
 
-None beyond the 404 response.
+  error_export_sqlite -- the SQLite file could not be built.
 
 =head3 FORMAL SPECIFICATION
 
@@ -7070,7 +7134,7 @@ sub export_write ($self) {
 		}
 	};
 	return $self->render(
-		json   => { error => $self->_i18n('error_write_failed', $@) },
+		json   => { error => $self->_i18n('error_write_failed', _tidy_error($@)) },
 		status => 500,
 	) if $@;
 
@@ -7329,8 +7393,17 @@ sub upload_file ($self) {
 	# the table name from the file stem, so "sales.csv" must stay "sales.csv".
 	# The random subdirectory prevents collisions from concurrent same-name uploads.
 	my $uploads_base = $self->app->_uploads_dir;
-	$uploads_base->make_path unless -d $uploads_base;
-	my $sub_dir = tempdir(DIR => $uploads_base->to_string, CLEANUP => 0);
+	my $sub_dir = eval {
+		$uploads_base->make_path unless -d $uploads_base;
+		tempdir(DIR => $uploads_base->to_string, CLEANUP => 0);
+	};
+	unless (defined $sub_dir) {
+		$self->app->log->error("Cannot stage an upload in $uploads_base: " . _tidy_error($@));
+		return $self->render(
+			json   => { error => $self->_i18n('error_upload_save') },
+			status => 500,
+		);
+	}
 	my $dest    = Mojo::File->new($sub_dir)->child($filename)->to_string;
 
 	# move_to returns the destination Mojo::File on success; croaks on I/O
@@ -7364,22 +7437,29 @@ sub clear_uploads ($self) {
 
 	# Each upload lands in <uploads_dir>/<random_subdir>/<filename>.
 	# Iterate the subdirs, tally file sizes, then remove each subdir tree.
-	$uploads_dir->list({ dir => 1 })->each(sub {
-		my ($entry) = @_;
-		if (-d $entry) {
-			$entry->list->each(sub {
-				my ($file) = @_;
-				return unless -f $file;
-				$freed += (-s $file) // 0;
+	my $ok = eval {
+		$uploads_dir->list({ dir => 1 })->each(sub {
+			my ($entry) = @_;
+			if (-d $entry) {
+				$entry->list->each(sub {
+					my ($file) = @_;
+					return unless -f $file;
+					$freed += (-s $file) // 0;
+					$count++;
+				});
+				$entry->remove_tree;
+			} elsif (-f $entry) {
+				$freed += (-s $entry) // 0;
 				$count++;
-			});
-			$entry->remove_tree;
-		} elsif (-f $entry) {
-			$freed += (-s $entry) // 0;
-			$count++;
-			unlink $entry->to_string;
-		}
-	});
+				unlink $entry->to_string;
+			}
+		});
+		1;
+	};
+	unless ($ok) {
+		$self->app->log->error("Cannot clear $uploads_dir: " . _tidy_error($@));
+		return $self->render(json => { error => $self->_i18n('error_uploads_clear') }, status => 500);
+	}
 
 	$self->render(json => { freed => $freed, count => $count });
 }
@@ -10507,73 +10587,86 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 				(defined($options->{max_zoom})  ? (max_zoom => $options->{max_zoom}) : ()),
 				%leaflet_assets,
 			);
-			my $map = HTML::OSM->new(%osm_args);
-			my $color_col     = $options->{color_col} // '';
-			my $color_rules   = $options->{color_rules}   // [];
-			my $color_default = $options->{color_default} // $DEFAULT_MARKER_COLOR;
-			my $size_col      = $options->{size} // '';
+			# The renderer is a third-party module: whatever it does, the page
+			# reports it and survives, as it does when the module is absent.
+			my $drawn = eval {
+				my $map = HTML::OSM->new(%osm_args);
+				my $color_col     = $options->{color_col} // '';
+				my $color_rules   = $options->{color_rules}   // [];
+				my $color_default = $options->{color_default} // $DEFAULT_MARKER_COLOR;
+				my $size_col      = $options->{size} // '';
 
-			# Bubble maps: one radius per marker, scaled across the plotted
-			# values.  Circle markers keep their pixel size as the reader
-			# zooms, which is what makes them comparable.
-			my ($size_min, $size_max) = _map_size_range($records, \@markers, $size_col);
+				# Bubble maps: one radius per marker, scaled across the plotted
+				# values.  Circle markers keep their pixel size as the reader
+				# zooms, which is what makes them comparable.
+				my ($size_min, $size_max) = _map_size_range($records, \@markers, $size_col);
 
-			for my $marker (@markers) {
-				my $row = $records->[ $marker->{first_row} ];
-				my $color;
-				if (length $color_col) {
-					my $cval = (defined($row) ? $row->{$color_col} : undef) // '';
-					$color = _apply_color_rule($cval, $color_rules, $color_default);
-				}
-				if (length $size_col) {
-					my $sv = defined($row)
-						? _numeric_cell($row->{$size_col} // '') : undef;
-					$map->add_circle_marker(
-						[ $marker->{lat}, $marker->{lon} ],
-						html   => $marker->{label},
-						radius => _map_radius($sv, $size_min, $size_max),
-						(defined($color) ? (colour => _color_hex($color)) : ()),
-					);
-				} else {
-					$map->add_marker(
-						[ $marker->{lat}, $marker->{lon} ],
-						html => $marker->{label},
-						(defined($color) ? (icon => _marker_icon($color)) : ()),
-					);
-				}
-			}
-
-			# Heat map overlay: when heat=1 is requested, plot a density
-			# heatmap in addition to the regular markers.  The weight column
-			# (weight=<col>) drives the intensity of each point; absent the
-			# column every point has equal weight 1.0.  Normalisation to [0,1]
-			# ensures the heatmap library gets values in the expected range.
-			if ($options->{heat}) {
-				my $weight_col  = $options->{weight} // '';
-				my @heat_pts;
 				for my $marker (@markers) {
 					my $row = $records->[ $marker->{first_row} ];
-					my $w;
-					if (length $weight_col && defined $row) {
-						$w = _numeric_cell($row->{$weight_col} // '');
+					my $color;
+					if (length $color_col) {
+						my $cval = (defined($row) ? $row->{$color_col} : undef) // '';
+						$color = _apply_color_rule($cval, $color_rules, $color_default);
 					}
-					push @heat_pts, [ $marker->{lat}, $marker->{lon},
-						(defined($w) ? $w : 1) ];
-				}
-				# Normalise weights to [0,1] when a weight column was used.
-				if (length $weight_col && @heat_pts) {
-					my $max_w = 0;
-					$max_w = $_->[2] > $max_w ? $_->[2] : $max_w for @heat_pts;
-					if ($max_w > 0) {
-						$_->[2] = $_->[2] / $max_w for @heat_pts;
+					if (length $size_col) {
+						my $sv = defined($row)
+							? _numeric_cell($row->{$size_col} // '') : undef;
+						$map->add_circle_marker(
+							[ $marker->{lat}, $marker->{lon} ],
+							html   => $marker->{label},
+							radius => _map_radius($sv, $size_min, $size_max),
+							(defined($color) ? (colour => _color_hex($color)) : ()),
+						);
+					} else {
+						$map->add_marker(
+							[ $marker->{lat}, $marker->{lon} ],
+							html => $marker->{label},
+							(defined($color) ? (icon => _marker_icon($color)) : ()),
+						);
 					}
 				}
-				eval { $map->add_heatmap(\@heat_pts) };
-			}
 
-			($map_head, $map_body) = $map->onload_render();
-			($map_head, $map_body) = _canvas_map_html($map_head, $map_body, $id_suffix)
-				if defined($id_suffix) && length($id_suffix);
+				# Heat map overlay: when heat=1 is requested, plot a density
+				# heatmap in addition to the regular markers.  The weight column
+				# (weight=<col>) drives the intensity of each point; absent the
+				# column every point has equal weight 1.0.  Normalisation to [0,1]
+				# ensures the heatmap library gets values in the expected range.
+				if ($options->{heat}) {
+					my $weight_col  = $options->{weight} // '';
+					my @heat_pts;
+					for my $marker (@markers) {
+						my $row = $records->[ $marker->{first_row} ];
+						my $w;
+						if (length $weight_col && defined $row) {
+							$w = _numeric_cell($row->{$weight_col} // '');
+						}
+						push @heat_pts, [ $marker->{lat}, $marker->{lon},
+							(defined($w) ? $w : 1) ];
+					}
+					# Normalise weights to [0,1] when a weight column was used.
+					if (length $weight_col && @heat_pts) {
+						my $max_w = 0;
+						$max_w = $_->[2] > $max_w ? $_->[2] : $max_w for @heat_pts;
+						if ($max_w > 0) {
+							$_->[2] = $_->[2] / $max_w for @heat_pts;
+						}
+					}
+					eval { $map->add_heatmap(\@heat_pts) };
+				}
+
+				($map_head, $map_body) = $map->onload_render();
+				($map_head, $map_body) = _canvas_map_html($map_head, $map_body, $id_suffix)
+					if defined($id_suffix) && length($id_suffix);
+				1;
+			};
+			unless ($drawn) {
+				$self->app->log->error('The map could not be drawn: ' . _tidy_error($@));
+				($map_head, $map_body) = ();
+				push @messages, {
+					key  => 'error_map_renderer_failed',
+					text => $self->_i18n('error_map_renderer_failed'),
+				};
+			}
 		} elsif (defined $osm_version) {
 			push @messages, {
 				key  => 'error_map_renderer_old',
@@ -11893,8 +11986,10 @@ key is not set.
 =head4 OUTPUT
 
   200 application/json   { "freed": <bytes>, "count": <n> }
+  500 application/json   { "error": "Could not clear the uploaded files" }
 
-C<freed> is the total number of bytes removed.  C<count> is the number of
+The 500 is for a staging directory the application may not read or change; the
+reason goes to the log.  C<freed> is the total number of bytes removed.  C<count> is the number of
 files deleted.  Both are 0 when the directory is absent or already empty.
 
 =cut
