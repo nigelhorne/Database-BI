@@ -20,76 +20,82 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Model/DataSource.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">87.7%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">89.4%</td></tr>
 </table>
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
-<tr><td class="h"><a id="L288">288</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $name =~ /\A[A-Za-z_]/</td></tr>
-<tr><td class="h"><a id="L302">302</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@parts ? :</td></tr>
-<tr><td class="h"><a id="L307">307</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (length $last and $last =~ /\A[A-Za-z_]/)</td></tr>
-<tr><td class="h"><a id="L310">310</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $host ? :</td></tr>
-<tr><td class="h"><a id="L460">460</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if exists $raw-&gt;{&#39;url&#39;}</td></tr>
-<tr><td class="h"><a id="L461">461</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if exists $raw-&gt;{&#39;redis&#39;}</td></tr>
-<tr><td class="h"><a id="L462">462</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $raw-&gt;{&#39;table&#39;}</td></tr>
-<tr><td class="h"><a id="L481">481</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $args-&gt;{&#39;host&#39;} or -d $args-&gt;{&#39;directory&#39;}</td></tr>
-<tr><td class="h"><a id="L488">488</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not length $args-&gt;{&#39;table&#39;} or $args-&gt;{&#39;table&#39;} =~ m[[/\\\x00]]</td></tr>
-<tr><td class="h"><a id="L498">498</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $safe_table =~ /\A[0-9]/</td></tr>
-<tr><td class="h"><a id="L500">500</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $safe_table =~ /$TABLE_NAME_RE/</td></tr>
-<tr><td class="h"><a id="L1009">1009</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless &amp;Database::BI::Model::DataSource::open(my $fh, &quot;&lt;:raw&quot;, $path)</td></tr>
-<tr><td class="h"><a id="L1013">1013</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $header =~ /\ASQLite format/</td></tr>
-<tr><td class="h"><a id="L1014">1014</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $header =~ /\A\s*&lt;\?xml/i</td></tr>
-<tr><td class="h"><a id="L1015">1015</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $header =~ /\A\s*&lt;/</td></tr>
-<tr><td class="h"><a id="L1016">1016</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless &amp;Database::BI::Model::DataSource::open(my $lh, &quot;&lt;&quot;, $path)</td></tr>
-<tr><td class="h"><a id="L1019">1019</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $line</td></tr>
-<tr><td class="h"><a id="L1020">1020</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $line =~ /\t/</td></tr>
-<tr><td class="h"><a id="L1021">1021</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $line =~ /\|/</td></tr>
-<tr><td class="h"><a id="L1035">1035</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ /\A\d{4}-\d{2}-\d{2}\z/</td></tr>
-<tr><td class="h"><a id="L1036">1036</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ m[\A\d{1,2}/\d{1,2}/\d{4}\z]</td></tr>
-<tr><td class="h"><a id="L1037">1037</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ /\A[+\-]\d+(?:\.\d+)?\z/</td></tr>
-<tr><td class="h"><a id="L1038">1038</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ /\A\(\d+(?:\.\d+)?\)\z/</td></tr>
-<tr><td class="h"><a id="L1055">1055</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ or $v =~ m[\A\d{1,2}/\d{1,2}/\d{4}\z]) { }</td></tr>
-<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($v =~ /\A[+\-]?\d+(?:\.\d+)?\z/ or $v =~ /\A\(\d+(?:\.\d+)?\)\z/) { }</td></tr>
-<tr><td class="h"><a id="L1063">1063</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$type_count{$type} == 1 ? :</td></tr>
-<tr><td class="h"><a id="L1520">1520</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_columns&#39;}</td></tr>
-<tr><td class="h"><a id="L1524">1524</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_url&#39;}</td></tr>
-<tr><td class="h"><a id="L1531">1531</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (defined $self-&gt;{&#39;_redis_url&#39;} and $self-&gt;{&#39;_db&#39;})</td></tr>
-<tr><td class="h"><a id="L1538">1538</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;{&#39;_db&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1588">1588</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L1589">1589</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
-<tr><td class="h"><a id="L1590">1590</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}</td></tr>
-<tr><td class="h"><a id="L1591">1591</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;dbi_source&quot;)</td></tr>
-<tr><td class="h"><a id="L1593">1593</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L1634">1634</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L1635">1635</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
-<tr><td class="h"><a id="L1636">1636</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}</td></tr>
-<tr><td class="h"><a id="L1637">1637</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;aggregate&quot;)</td></tr>
-<tr><td class="h"><a id="L1741">1741</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_file_path&#39;} and -f $self-&gt;{&#39;_file_path&#39;}</td></tr>
-<tr><td class="h"><a id="L1742">1742</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;updated&quot;)</td></tr>
-<tr><td class="h"><a id="L1781">1781</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;schema&quot;)</td></tr>
-<tr><td class="h"><a id="L1784">1784</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@ or ref $schema ne &quot;HASH&quot;</td></tr>
-<tr><td class="h"><a id="L1912">1912</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L1913">1913</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
-<tr><td class="h"><a id="L1919">1919</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args)</td></tr>
-<tr><td class="h"><a id="L1921">1921</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1923">1923</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
-<tr><td class="h"><a id="L1929">1929</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args and defined $data)</td></tr>
-<tr><td class="h"><a id="L1931">1931</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1934">1934</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1947">1947</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L1950">1950</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
-<tr><td class="h"><a id="L1955">1955</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
-<tr><td class="h"><a id="L1957">1957</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1959">1959</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
-<tr><td class="h"><a id="L1964">1964</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L1968">1968</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $data</td></tr>
-<tr><td class="h"><a id="L1974">1974</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (ref $data eq &quot;HASH&quot;)</td></tr>
-<tr><td class="h"><a id="L1979">1979</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@{$data;})</td></tr>
-<tr><td class="h"><a id="L1986">1986</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
-<tr><td class="h"><a id="L1988">1988</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
-<tr><td class="h"><a id="L1991">1991</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L2034">2034</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
-<tr><td class="h"><a id="L2035">2035</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_data&#39;}</td></tr>
+<tr><td class="h"><a id="L292">292</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $name =~ /\A[A-Za-z_]/</td></tr>
+<tr><td class="h"><a id="L306">306</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@parts ? :</td></tr>
+<tr><td class="h"><a id="L311">311</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (length $last and $last =~ /\A[A-Za-z_]/)</td></tr>
+<tr><td class="h"><a id="L314">314</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $host ? :</td></tr>
+<tr><td class="h"><a id="L464">464</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if exists $raw-&gt;{&#39;url&#39;}</td></tr>
+<tr><td class="h"><a id="L465">465</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if exists $raw-&gt;{&#39;redis&#39;}</td></tr>
+<tr><td class="h"><a id="L466">466</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $raw-&gt;{&#39;table&#39;}</td></tr>
+<tr><td class="h"><a id="L485">485</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $args-&gt;{&#39;host&#39;} or -d $args-&gt;{&#39;directory&#39;}</td></tr>
+<tr><td class="h"><a id="L492">492</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not length $args-&gt;{&#39;table&#39;} or $args-&gt;{&#39;table&#39;} =~ m[[/\\\x00]]</td></tr>
+<tr><td class="h"><a id="L502">502</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $safe_table =~ /\A[0-9]/</td></tr>
+<tr><td class="h"><a id="L504">504</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $safe_table =~ /$TABLE_NAME_RE/</td></tr>
+<tr><td class="h"><a id="L992">992</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless &amp;Database::BI::Model::DataSource::open(my $fh, &quot;&lt;:raw&quot;, $path)</td></tr>
+<tr><td class="h"><a id="L996">996</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $header =~ /\ASQLite format/</td></tr>
+<tr><td class="h"><a id="L997">997</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $header =~ /\A\s*&lt;\?xml/i</td></tr>
+<tr><td class="h"><a id="L998">998</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $header =~ /\A\s*&lt;/</td></tr>
+<tr><td class="h"><a id="L999">999</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless &amp;Database::BI::Model::DataSource::open(my $lh, &quot;&lt;&quot;, $path)</td></tr>
+<tr><td class="h"><a id="L1002">1002</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $line</td></tr>
+<tr><td class="h"><a id="L1003">1003</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $line =~ /\t/</td></tr>
+<tr><td class="h"><a id="L1004">1004</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $line =~ /\|/</td></tr>
+<tr><td class="h"><a id="L1018">1018</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ /\A\d{4}-\d{2}-\d{2}\z/</td></tr>
+<tr><td class="h"><a id="L1019">1019</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ m[\A\d{1,2}/\d{1,2}/\d{4}\z]</td></tr>
+<tr><td class="h"><a id="L1020">1020</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ /\A[+\-]\d[\d,]*(?:\.\d+)?\z/</td></tr>
+<tr><td class="h"><a id="L1021">1021</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $v =~ /\A\(\d[\d,]*(?:\.\d+)?\)\z/</td></tr>
+<tr><td class="h"><a id="L1036">1036</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@args &amp;&amp; @args % 2 == 0 ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">@args == 1 &amp;&amp; ref $args[0] eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1039">1039</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $opts and defined $opts-&gt;{&#39;sort_by&#39;}</td></tr>
+<tr><td class="h"><a id="L1041">1041</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $opts-&gt;{&#39;sort_by&#39;} eq &#39;ARRAY&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1042">1042</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $col and not $col =~ /$DA_SORTABLE_RE/</td></tr>
+<tr><td class="h"><a id="L1058">1058</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (@page and exists $page[0]{$col})</td></tr>
+<tr><td class="h"><a id="L1061">1061</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$dir eq &#39;DESC&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1063">1063</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $offset and $offset =~ /\A\d+\z/</td></tr>
+<tr><td class="h"><a id="L1064">1064</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if defined $limit and $limit =~ /\A\d+\z/ and $limit &lt; @page</td></tr>
+<tr><td class="h"><a id="L1078">1078</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $csv and $csv-&gt;parse($line)</td></tr>
+<tr><td class="h"><a id="L1094">1094</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ or $v =~ m[\A\d{1,2}/\d{1,2}/\d{4}\z]) { }</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($v =~ /\A[+\-]?\d[\d,]*(?:\.\d+)?\z/ or $v =~ /\A\(\d[\d,]*(?:\.\d+)?\)\z/) { }</td></tr>
+<tr><td class="h"><a id="L1102">1102</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$type_count{$type} == 1 ? :</td></tr>
+<tr><td class="h"><a id="L1611">1611</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_columns&#39;}</td></tr>
+<tr><td class="h"><a id="L1615">1615</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_url&#39;}</td></tr>
+<tr><td class="h"><a id="L1622">1622</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if (defined $self-&gt;{&#39;_redis_url&#39;} and $self-&gt;{&#39;_db&#39;})</td></tr>
+<tr><td class="h"><a id="L1629">1629</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$self-&gt;{&#39;_db&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1679">1679</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
+<tr><td class="h"><a id="L1680">1680</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}</td></tr>
+<tr><td class="h"><a id="L1681">1681</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;dbi_source&quot;)</td></tr>
+<tr><td class="h"><a id="L1683">1683</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L1724">1724</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
+<tr><td class="h"><a id="L1725">1725</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}</td></tr>
+<tr><td class="h"><a id="L1726">1726</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;aggregate&quot;)</td></tr>
+<tr><td class="h"><a id="L1830">1830</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_file_path&#39;} and -f $self-&gt;{&#39;_file_path&#39;}</td></tr>
+<tr><td class="h"><a id="L1831">1831</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;updated&quot;)</td></tr>
+<tr><td class="h"><a id="L1870">1870</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;schema&quot;)</td></tr>
+<tr><td class="h"><a id="L1873">1873</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@ or ref $schema ne &quot;HASH&quot;</td></tr>
+<tr><td class="h"><a id="L1998">1998</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
+<tr><td class="h"><a id="L2001">2001</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (my($rest, @page) = _unsafe_sort(@args))</td></tr>
+<tr><td class="h"><a id="L2009">2009</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args)</td></tr>
+<tr><td class="h"><a id="L2011">2011</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L2013">2013</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
+<tr><td class="h"><a id="L2019">2019</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache and not @args and defined $data)</td></tr>
+<tr><td class="h"><a id="L2021">2021</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L2024">2024</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L2037">2037</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
+<tr><td class="h"><a id="L2042">2042</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
+<tr><td class="h"><a id="L2044">2044</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L2046">2046</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hit</td></tr>
+<tr><td class="h"><a id="L2051">2051</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L2055">2055</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $data</td></tr>
+<tr><td class="h"><a id="L2061">2061</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (ref $data eq &quot;HASH&quot;)</td></tr>
+<tr><td class="h"><a id="L2066">2066</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@{$data;})</td></tr>
+<tr><td class="h"><a id="L2073">2073</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($cache)</td></tr>
+<tr><td class="h"><a id="L2075">2075</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if (defined $key)</td></tr>
+<tr><td class="h"><a id="L2078">2078</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_url&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L2119">2119</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
 </table>
 </body>
 </html>
