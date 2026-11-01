@@ -31,7 +31,7 @@ WriteMakefile(
 		'Net::SFTP::Foreign' => 0,
 		'File::Path'	=> '2.07',	# For remove_tree in Dashboard.pm at runtime
 		'File::Spec'	=> '3.40',
-		'File::Temp'	=> '0.22',
+		'File::Temp'	=> '0.2308',	# Before this, on a BSD, a new temporary file was held under an exclusive lock, so Database::Join's SQLite spill hung and failed with "database is locked"
 		'List::Util'	=> '1.40',
 		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
 		'Mojo::Base' => 0,

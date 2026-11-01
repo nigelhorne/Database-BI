@@ -32,6 +32,10 @@ Revision history for Database-BI
 	  storage and applies at once to every open page.  Charts and tables follow
 	  it.  Saved charts, printed pages and embedded canvases stay light.
 	[ Bug Fixes ]
+	- Merge hung, then failed with "database is locked", on a BSD with File::Temp
+	  older than 0.2308, as Perl 5.28 ships.  Such a File::Temp holds a new file
+	  under an exclusive lock, which stopped SQLite writing to it.  0.2308 is now
+	  required.
 	- Filters lt, le, gt and ge counted a blank or a word in a cell as zero, so a
 	  blank cell matched "less than 9", and each one logged a warning.  They now
 	  match numbers only, and read $1,234.56 and (1,234.56) as numbers.
