@@ -2715,6 +2715,31 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok('/api/analyses/a-b/visuals' => json => { kind => 'bar' })->status_is(400);
 		delete $ledger{'api.analyses.add_visual'};
 
+		# A text card, whose settings are all that can go wrong with it.
+		my $text_error = sub {
+			$tm->post_ok("/api/analyses/$id/visuals" => json => { kind => 'text', options => { @_ } })->status_is(400);
+			return $tm->tx->res->json->{error};
+		};
+		message_ok(Dashboard => 'error_text_card_empty', $text_error->(text => ' '));
+		message_ok(Dashboard => 'error_text_card_long', $text_error->(text => 'x' x 20_001), [20_000]);
+		message_ok(Dashboard => 'error_text_card_font', $text_error->(text => 'x', font => 'nosuch'));
+		message_ok(Dashboard => 'error_text_card_size', $text_error->(text => 'x', size => 1), [8, 96]);
+		message_ok(Dashboard => 'error_text_card_colour', $text_error->(text => 'x', colour => 'red'));
+		message_ok(Dashboard => 'error_text_card_align', $text_error->(text => 'x', align => 'up'));
+
+		$tm->delete_ok("/api/analyses/$id/visuals/0")->status_is(400);
+		message_ok(Dashboard => 'error_visual_not_text', $tm->tx->res->json->{error});
+
+		$tm->post_ok("/api/analyses/$id/visuals" => json => { kind => 'text', options => { text => 'x' } })->status_is(201);
+		my $text_at = $tm->tx->res->json->{visual};
+		$tm->patch_ok("/api/analyses/$id/visuals/$text_at" => json => {})->status_is(400);
+		message_ok(Dashboard => 'error_text_card_options', $tm->tx->res->json->{error});
+		$tm->patch_ok("/api/analyses/$id/visuals/$text_at" => json => { encode => {} })->status_is(400);
+		message_ok(Dashboard => 'error_text_card_columns', $tm->tx->res->json->{error});
+		$tm->get_ok("/a/$id/visual/$text_at/csv")->status_is(404);
+		message_ok(Dashboard => 'error_text_card_no_data', $tm->tx->res->body);
+		$tm->delete_ok("/api/analyses/$id/visuals/$text_at")->status_is(200);
+
 		$tm->patch_ok("/api/analyses/$id/visuals/0" => json => { encode => { cat => 'product', value => 'amount' } })->status_is(200);
 		$tm->patch_ok("/api/analyses/$id/visuals/9" => json => { encode => {} })->status_is(404)->json_is('/error', 'No visual at index 9');
 		$tm->patch_ok("/api/analyses/$id/visuals/x" => json => { encode => {} })->status_is(400)->json_is('/error', 'Visual index must be a number');

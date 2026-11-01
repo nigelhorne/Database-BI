@@ -39,6 +39,25 @@ Readonly my $MAX_WHOLE_NUMBER_DIGITS => 15;
 Readonly my %ANALYSIS_KEYS => map { $_ => 1 } qw(id version created updated name datasets joins combines fields measures params visuals layout bookmarks hierarchies);
 Readonly my $MAX_HISTOGRAM_BINS      => 200;
 
+# What a text card on a canvas may be styled with.  The fonts are ones browsers
+# already have, so a card needs no CDN, and a stored card names a font by its
+# key: only the CSS written here ever reaches a style attribute.
+Readonly my @TEXT_FONTS => (
+	{ value => '',          label => 'Same as the page', css => '' },
+	{ value => 'arial',     label => 'Arial',            css => 'Arial, Helvetica, sans-serif' },
+	{ value => 'georgia',   label => 'Georgia',          css => 'Georgia, "Times New Roman", serif' },
+	{ value => 'times',     label => 'Times New Roman',  css => '"Times New Roman", Times, serif' },
+	{ value => 'verdana',   label => 'Verdana',          css => 'Verdana, Geneva, sans-serif' },
+	{ value => 'trebuchet', label => 'Trebuchet MS',     css => '"Trebuchet MS", Helvetica, sans-serif' },
+	{ value => 'courier',   label => 'Courier New',      css => '"Courier New", Courier, monospace' },
+);
+Readonly my %TEXT_FONT_CSS  => map { $_->{value} => $_->{css} } grep { length $_->{value} } @TEXT_FONTS;
+Readonly my %TEXT_ALIGNS    => map { $_ => 1 } qw(left center right);
+Readonly my $MIN_TEXT_POINTS => 8;
+Readonly my $MAX_TEXT_POINTS => 96;
+Readonly my $MAX_TEXT_CHARS  => 20_000;
+Readonly my $TEXT_TITLE_CHARS => 60;
+
 # What HTML::D3 calls its heatmap colour scales.
 Readonly my %SEQUENTIAL_SCHEMES => map { $_ => 1 } qw(YlOrRd Blues Greens Purples RdPu YlGnBu);
 Readonly my $DEFAULT_SEQUENTIAL_SCHEME  => 'YlOrRd';
@@ -141,6 +160,16 @@ Readonly my %MESSAGES => (
 	error_analysis_storage      => 'Analysis storage is not writable; use import/export instead',
 	error_analysis_json         => 'Invalid JSON body: %s',
 	error_analysis_id_invalid   => 'Invalid analysis id',
+	error_text_card_empty       => 'A text card needs some text',
+	error_text_card_long        => 'A text card can hold at most %d characters',
+	error_text_card_font        => 'That font is not one of the choices',
+	error_text_card_size        => 'The size must be a whole number of points from %d to %d',
+	error_text_card_colour      => 'A colour must be written #rrggbb',
+	error_text_card_align       => 'The alignment must be left, center or right',
+	error_text_card_options     => 'options must be given as an object',
+	error_text_card_columns     => 'A text card has no columns to change',
+	error_text_card_no_data     => 'A text card has no data to download',
+	error_visual_not_text       => 'Only a text card can be removed',
 	error_param_range           => "Parameter '%s' is out of range (min %s, max %s)",
 	error_param_type            => "Parameter '%s' must be a number",
 	error_map_source            => 'A map needs loc=<column> to geocode, or both lat= and lon= coordinate columns',
@@ -3857,13 +3886,31 @@ sub analyses_add_visual ($self) {
 
 	my $kind = $body->{kind} // '';
 	my %supported = map { $_ => 1 }
-		qw( table bar pie line graph scatter heatmap stacked combo treemap histogram map wordcloud );
+		qw( table bar pie line graph scatter heatmap stacked combo treemap histogram map wordcloud text );
 	return $self->render(json => { error => 'Unsupported visual kind' }, status => 400)
 		unless $supported{$kind};
 
 	for my $key (qw( encode options cross_row )) {
 		return $self->render(json => { error => "$key must be an object" }, status => 400)
 			if defined $body->{$key} && ref $body->{$key} ne 'HASH';
+	}
+
+	# A text card reads no data, so it can be added whatever state the canvas's
+	# source is in.
+	if ($kind eq 'text') {
+		my ($options, $errors) = _text_card_options($body->{options});
+		return $self->render(json => { error => $errors->[0] }, status => 400) if @$errors;
+
+		my $vis = { kind => 'text', encode => {}, options => $options };
+		$vis->{title} = $body->{title}
+			if defined $body->{title} && !ref $body->{title} && length $body->{title};
+
+		my $index = scalar @{ $a->{visuals} // [] };
+		push @{ $a->{visuals} //= [] }, $vis;
+		$a->{updated} = time();
+		$self->_save_analyses_or_503($analyses) or return;
+
+		return $self->render(json => _text_card_reply($id, $index, $vis), status => 201);
 	}
 
 	my $vis = {
@@ -3978,6 +4025,24 @@ sub analyses_update_visual ($self) {
 	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
 
+	# A text card's only settings are its options, and it reads no data.
+	if (($a->{visuals}[$index]{kind} // '') eq 'text') {
+		return $self->render(json => { error => $MESSAGES{error_text_card_columns} }, status => 400)
+			if exists $body->{encode} || exists $body->{cross_row};
+		return $self->render(json => { error => $MESSAGES{error_text_card_options} }, status => 400)
+			unless ref $body->{options} eq 'HASH';
+
+		my ($options, $errors) = _text_card_options($body->{options});
+		return $self->render(json => { error => $errors->[0] }, status => 400) if @$errors;
+
+		my $vis = { %{ $a->{visuals}[$index] }, options => $options };
+		$a->{visuals}[$index] = $vis;
+		$a->{updated} = time();
+		$self->_save_analyses_or_503($analyses) or return;
+
+		return $self->render(json => _text_card_reply($id, $index, $vis));
+	}
+
 	my $has_encode = exists $body->{encode};
 	my $has_plan   = exists $body->{cross_row};
 	return $self->render(json => { error => 'encode or cross_row must be given' }, status => 400)
@@ -4043,6 +4108,190 @@ sub analyses_update_visual ($self) {
 			cf_col => (_vis_cf_col($vis) // ''),
 		},
 	);
+}
+
+# DELETE /api/analyses/:id/visuals/:visual  (remove a text card)
+#
+# A visual's index is its identity in the layout and in a cross-filter's cv=, so
+# everything that names a later card moves down by one with it.  The page reloads
+# afterwards, because the cards on screen carry the old numbers.
+sub analyses_delete_visual ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+
+	my $analyses = $self->_read_analyses;
+	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+		unless exists $analyses->{$id};
+	my $a = $analyses->{$id};
+
+	my $index = $self->stash('visual') // '';
+	return $self->render(json => { error => 'Visual index must be a number' }, status => 400)
+		unless $index =~ /\A\d+\z/;
+	$index += 0;
+	return $self->render(json => { error => "No visual at index $index" }, status => 404)
+		unless $index < scalar @{ $a->{visuals} // [] };
+	return $self->render(json => { error => $MESSAGES{error_visual_not_text} }, status => 400)
+		unless ($a->{visuals}[$index]{kind} // '') eq 'text';
+
+	$a->{visuals} = [ @{ $a->{visuals} }[ grep { $_ != $index } 0 .. $#{ $a->{visuals} } ] ];
+
+	my @layout;
+	for my $entry (@{ $a->{layout} // [] }) {
+		my $n = $entry->{visual} // '';
+		if ($n =~ /\A\d+\z/) {
+			next if $n == $index;
+			$entry = { %$entry, visual => $n - 1 } if $n > $index;
+		}
+		push @layout, $entry;
+	}
+	$a->{layout} = \@layout if $a->{layout};
+
+	for my $bm (grep { ref $_ eq 'HASH' && defined $_->{state} && !ref $_->{state} } @{ $a->{bookmarks} // [] }) {
+		$bm->{state} = _shift_card_param($bm->{state}, $index);
+	}
+
+	$a->{updated} = time();
+	$self->_save_analyses_or_503($analyses) or return;
+
+	return $self->render(json => { deleted => 1 });
+}
+
+# _shift_card_param($search, $removed) -> $search
+#
+# A saved query string with its cv= moved down if the card it names came after
+# the one removed.  A text card is never a cross-filter's source, so cv= cannot
+# name the removed card itself.
+sub _shift_card_param {
+	my ($search, $removed) = @_;
+	$search =~ s{(?<![^?&])cv=(\d+)}{ 'cv=' . ($1 > $removed ? $1 - 1 : $1) }ge;
+	return $search;
+}
+
+# _text_card_options($raw) -> (\%options, \@errors)
+#
+# Purpose: The one reader of a text card's settings.
+# Entry:   Whatever is stored or was sent; it may be any shape.
+# Exit:    The settings that are allowed, each in its one spelling, and a message
+#          for each that was not.  Settings not asked for are absent.
+# Notes:   A write refuses a card with errors.  A render ignores them and draws
+#          what is left, because PUT, PATCH and import can store a card that
+#          never came through here, and nothing else stands between a stored
+#          value and a style attribute.
+sub _text_card_options {
+	my ($raw) = @_;
+	$raw = {} unless ref $raw eq 'HASH';
+
+	my (%clean, @errors);
+
+	my $text = (defined $raw->{text} && !ref $raw->{text}) ? $raw->{text} : '';
+	$text =~ s/\r\n?/\n/g;
+	if ($text !~ /\S/) {
+		push @errors, $MESSAGES{error_text_card_empty};
+	}
+	elsif (length($text) > $MAX_TEXT_CHARS) {
+		push @errors, sprintf($MESSAGES{error_text_card_long}, $MAX_TEXT_CHARS);
+	}
+	$clean{text} = $text;
+
+	if (length(my $font = $raw->{font} // '')) {
+		if (!ref $font && exists $TEXT_FONT_CSS{$font}) { $clean{font} = $font }
+		else { push @errors, $MESSAGES{error_text_card_font} }
+	}
+
+	if (length(my $size = $raw->{size} // '')) {
+		if (!ref $size && $size =~ /\A\d{1,3}\z/ && $size >= $MIN_TEXT_POINTS && $size <= $MAX_TEXT_POINTS) {
+			$clean{size} = $size + 0;
+		}
+		else {
+			push @errors, sprintf($MESSAGES{error_text_card_size}, $MIN_TEXT_POINTS, $MAX_TEXT_POINTS);
+		}
+	}
+
+	for my $key (qw(colour background)) {
+		my $value = $raw->{$key} // '';
+		next unless length $value;
+		if (!ref $value && $value =~ /\A#[0-9a-fA-F]{6}\z/) { $clean{$key} = lc $value }
+		else { push @errors, $MESSAGES{error_text_card_colour} }
+	}
+
+	if (length(my $align = $raw->{align} // '')) {
+		if (!ref $align && $TEXT_ALIGNS{$align}) { $clean{align} = $align }
+		else { push @errors, $MESSAGES{error_text_card_align} }
+	}
+
+	for my $key (qw(bold italic plain)) {
+		$clean{$key} = 1 if $raw->{$key};
+	}
+
+	return (\%clean, \@errors);
+}
+
+# _text_card_markup(\%visual) -> $html
+#
+# The body of a text card.  The text is escaped and the style holds only values
+# _text_card_options has checked.  Spaces and line ends are written as entities
+# and <br>, not left to CSS, because the response minifier collapses whitespace
+# and the embed page has none of this page's styles.
+sub _text_card_markup {
+	my ($vis) = @_;
+	my ($o) = _text_card_options($vis->{options});
+
+	my @style;
+	push @style, "font-family:$TEXT_FONT_CSS{$o->{font}}" if $o->{font};
+	push @style, "font-size:$o->{size}pt"                 if $o->{size};
+	push @style, "color:$o->{colour}"                     if $o->{colour};
+	push @style, "background-color:$o->{background}"      if $o->{background};
+	push @style, 'font-weight:bold'                       if $o->{bold};
+	push @style, 'font-style:italic'                      if $o->{italic};
+	push @style, "text-align:$o->{align}"                 if $o->{align};
+	my $style = @style ? ' style="' . xml_escape(join ';', @style) . '"' : '';
+
+	my $text = xml_escape($o->{text});
+	$text =~ s/\t/    /g;
+	$text =~ s/^ /&#160;/mg;
+	$text =~ s/ (?= )/&#160;/g;
+	$text =~ s/\n/<br>/g;
+
+	return qq{<div class="text-card-text"$style>$text</div>};
+}
+
+# _text_card_title(\%visual) -> $title
+#
+# What names a text card to the controls on it and to a screen reader: the start
+# of its first line that has anything on it.
+sub _text_card_title {
+	my ($vis) = @_;
+	my ($o) = _text_card_options($vis->{options});
+	my ($line) = $o->{text} =~ /^[ \t]*(\S[^\n]*)/m;
+	return 'Text' unless defined $line;
+	$line =~ s/\s+\z//;
+	return length($line) > $TEXT_TITLE_CHARS ? substr($line, 0, $TEXT_TITLE_CHARS) . '...' : $line;
+}
+
+# _text_card_plain(\%visual) -> $bool
+#
+# Whether the card hides its frame and header until it is pointed at.
+sub _text_card_plain {
+	my ($vis) = @_;
+	return 0 unless ($vis->{kind} // '') eq 'text';
+	my ($o) = _text_card_options($vis->{options});
+	return $o->{plain} ? 1 : 0;
+}
+
+# _text_card_reply($id, $index, \%visual) -> \%json
+sub _text_card_reply {
+	my ($id, $index, $vis) = @_;
+	return {
+		id     => $id,
+		visual => $index,
+		kind   => 'text',
+		title  => ($vis->{title} // _text_card_title($vis)),
+		html   => _text_card_markup($vis),
+		head   => '',
+		cf_col => '',
+		plain  => _text_card_plain($vis),
+	};
 }
 
 # GET /api/analyses/:id/export
@@ -4332,6 +4581,9 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 # that saved a plan of its own uses that one instead.
 sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
 	my $kind    = $vis->{kind}    // '';
+	return { html => _text_card_markup($vis), title => _text_card_title($vis) }
+		if $kind eq 'text';
+
 	my $encode  = $vis->{encode}  // {};
 	my $options = $vis->{options} // {};
 	my $filters = $vis->{filters} // [];
@@ -5371,6 +5623,7 @@ sub canvas_render ($self) {
 				html      => $result->{html}  // '',
 				error     => $result->{error} // '',
 				kind      => $vis->{kind}     // '',
+				plain     => _text_card_plain($vis),
 				style     => $layout_pos{$i}  // '',
 				# The saved spans, or nothing: a card with no saved position is
 				# placed by the browser, and only the script can measure that.
@@ -5418,6 +5671,10 @@ sub canvas_render ($self) {
 			# The same menu the table page's cross-row panel renders, so a card
 			# can offer the functions the pass actually knows.
 			cross_row_menu => \@CROSS_ROW_MENU,
+			text_font_menu => \@TEXT_FONTS,
+			text_min_points => $MIN_TEXT_POINTS,
+			text_max_points => $MAX_TEXT_POINTS,
+			text_max_chars  => $MAX_TEXT_CHARS,
 			visuals      => \@rendered,
 			canvas_params    => \@canvas_params,
 			canvas_bookmarks => \@canvas_bookmarks,
@@ -11525,6 +11782,8 @@ sub embed_view ($self) {
 			title => ($vis->{title} // $card->{title} // ''),
 			html  => $card->{html},
 			error => $card->{error},
+			kind  => ($vis->{kind} // ''),
+			plain => _text_card_plain($vis),
 		};
 	}
 
@@ -11564,6 +11823,8 @@ sub visual_download ($self) {
 	my @visuals = @{ $a->{visuals} // [] };
 	return $self->render(text => "Visual $n not found", status => 404)
 		unless $n < scalar @visuals;
+	return $self->render(text => $MESSAGES{error_text_card_no_data}, status => 404)
+		if ($visuals[$n]{kind} // '') eq 'text';
 
 	if ($format eq 'csv') {
 		$self->stash(buffer => 0);
@@ -12508,7 +12769,7 @@ over the rows that card draws.
   404 text/plain   Unknown analysis.
   422 text/plain   Stored document fails validation.
 
-=head2 analyses_list / analyses_create / analyses_get / analyses_update / analyses_patch / analyses_delete / analyses_import / analyses_export / analyses_add_visual / analyses_update_visual
+=head2 analyses_list / analyses_create / analyses_get / analyses_update / analyses_patch / analyses_delete / analyses_import / analyses_export / analyses_add_visual / analyses_update_visual / analyses_delete_visual
 
 C</api/analyses> -- CRUD and import/export for saved analyses.  Documents are
 validated on write: unknown top-level keys are dropped and a document that is
@@ -12532,6 +12793,13 @@ absent, so it is still served.
   POST   /api/analyses/:id/visuals     <- JSON visual { kind, encode, options, title, cross_row, query };
                                        201 { visual, html, head, title, ... }, 400, 404, 422
   PATCH  /api/analyses/:id/visuals/:visual  <- { encode, cross_row, query }; 200, 400, 404, 422
+                                       a text card takes { options } instead
+  DELETE /api/analyses/:id/visuals/:visual  -> 200 { deleted: 1 }; 400 unless a text card, 404
+
+A C<text> card reads no data.  Its C<options> are C<text> (required), C<font>,
+C<size> (points), C<colour> and C<background> (C<#rrggbb>; absent follows the
+theme), C<align>, C<bold>, C<italic> and C<plain> (hide the frame and header
+until the card is pointed at).  Only a text card can be removed.
 
 PATCH checks only the keys it is given.  Every write answers 503 with
 C<error_analysis_storage> when the model store is not writable, and then nothing

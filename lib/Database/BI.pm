@@ -176,7 +176,11 @@ that menu, so a width the corner grip left it at reads without the menu being
 opened.  Each move is announced -- the column and row the
 card landed in, and any card the move pushed down -- and saved as you go.  The whole position and size is
 saved with the canvas, so a card put in row 4 stays in row 4 rather than
-being packed up the page.  B<Add current view> in the toolbar appends another
+being packed up the page.  B<Add text> in the toolbar adds a card of plain
+text, for a title or an explanation, with a font, a size in points, colours and
+an alignment of its own; it can hide its frame and header until it is pointed
+at, and a row holding only one-row text cards is as tall as its text.  Double-click the text, or use B<Edit text>, to change it or
+to remove the card.  B<Add current view> in the toolbar appends another
 table, chart or map without leaving the canvas, and a status region announces
 the card and the new visual count; when the card's script has drawn it, the
 region says the chart or map has finished drawing, and if D3 or Leaflet could
@@ -708,7 +712,12 @@ alone.
 Appends one visual to a saved canvas.  Body: C<{ kind, encode, options,
 title, query }>, with C<kind> one of C<table>, C<bar>, C<pie>, C<line>,
 C<graph>, C<scatter>, C<heatmap>, C<stacked>, C<combo>, C<treemap>,
-C<histogram>, C<wordcloud> or C<map>.  A map's C<encode> names either C<loc> (a place column
+C<histogram>, C<wordcloud>, C<map> or C<text>.  A C<text> card reads no data, and
+its C<options> are C<text> (required, up to 20,000 characters), C<font>
+(C<arial>, C<georgia>, C<times>, C<verdana>, C<trebuchet> or C<courier>), C<size>
+(8 to 96 points), C<colour> and C<background> (C<#rrggbb>; leaving out C<colour>
+follows the theme), C<align> (C<left>, C<center> or C<right>), C<bold>, C<italic>
+and C<plain>.  The text is shown as plain text, never as markup.  A map's C<encode> names either C<loc> (a place column
 to geocode) or C<lat> and C<lon>.  A C<wordcloud> card's C<encode> names the
 text column to read in C<col>, and its C<options> take the same C<topn>,
 C<minlen> and C<stop> the C<GET /wordcloud> page takes, so the two count and
@@ -752,6 +761,11 @@ card opts out of the page's.  A card that sends no C<cross_row> inherits the
 page's plan.  The plan is checked against the canvas's columns on every render,
 not only here, so a saved spec that no longer names a column is that card's
 error while a bad page-level C<cs> is the page's C<400>.
+
+=item C<DELETE /api/analyses/:id/visuals/:visual>
+
+Removes a text card; any other kind answers C<400>.  Later cards move down one
+index, and the layout and any C<cv=> saved in a bookmark move with them.
 
 =item C<PATCH /api/analyses/:id/visuals/:visual>
 
@@ -1803,6 +1817,7 @@ sub startup ($self) {
 	$r->patch('/api/analyses/:id')      ->to('Dashboard#analyses_patch');	$r->delete('/api/analyses/:id')      ->to('Dashboard#analyses_delete');
 	$r->post('/api/analyses/:id/visuals')->to('Dashboard#analyses_add_visual');
 	$r->patch('/api/analyses/:id/visuals/:visual')->to('Dashboard#analyses_update_visual');
+	$r->delete('/api/analyses/:id/visuals/:visual')->to('Dashboard#analyses_delete_visual');
 	$r->get('/api/analyses/:id/export') ->to('Dashboard#analyses_export');
 
 	# extracts, catalog, sharing, embedding, per-visual downloads

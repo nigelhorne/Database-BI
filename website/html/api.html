@@ -132,7 +132,14 @@ Content-Type: application/json
 	<code>pie</code>, <code>line</code>, <code>graph</code>,
 	<code>scatter</code>, <code>heatmap</code>, <code>stacked</code>,
 	<code>combo</code>, <code>treemap</code>, <code>histogram</code>,
-	<code>wordcloud</code> or <code>map</code>. The optional <code>query</code> is
+	<code>wordcloud</code>, <code>map</code> or <code>text</code>. A
+	<code>text</code> card reads no data: its <code>options</code> hold
+	<code>text</code>, <code>font</code>, <code>size</code> (points),
+	<code>colour</code>, <code>background</code>, <code>align</code>,
+	<code>bold</code>, <code>italic</code> and <code>plain</code>. PATCH it with
+	<code>{ "options": ... }</code>, and remove it with
+	<code>DELETE /api/analyses/:id/visuals/:visual</code>, which only text cards
+	accept. The optional <code>query</code> is
 	the canvas page's own query string: <code>cf</code> (cross-filter),
 	<code>c</code> (calculated columns), <code>p.&lt;name&gt;</code> (bound
 	parameters) and <code>range</code>/<code>rcol</code> are read from it, so a

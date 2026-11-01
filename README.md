@@ -100,7 +100,11 @@ that menu, so a width the corner grip left it at reads without the menu being
 opened.  Each move is announced -- the column and row the
 card landed in, and any card the move pushed down -- and saved as you go.  The whole position and size is
 saved with the canvas, so a card put in row 4 stays in row 4 rather than
-being packed up the page.  **Add current view** in the toolbar appends another
+being packed up the page.  **Add text** in the toolbar adds a card of plain
+text, for a title or an explanation, with a font, a size in points, colours and
+an alignment of its own; it can hide its frame and header until it is pointed
+at, and a row holding only one-row text cards is as tall as its text.  Double-click the text, or use **Edit text**, to change it or
+to remove the card.  **Add current view** in the toolbar appends another
 table, chart or map without leaving the canvas, and a status region announces
 the card and the new visual count; when the card's script has drawn it, the
 region says the chart or map has finished drawing, and if D3 or Leaflet could
@@ -664,7 +668,12 @@ perl Makefile.PL
     Appends one visual to a saved canvas.  Body: `{ kind, encode, options,
     title, query }`, with `kind` one of `table`, `bar`, `pie`, `line`,
     `graph`, `scatter`, `heatmap`, `stacked`, `combo`, `treemap`,
-    `histogram`, `wordcloud` or `map`.  A map's `encode` names either `loc` (a place column
+    `histogram`, `wordcloud`, `map` or `text`.  A `text` card reads no data, and
+    its `options` are `text` (required, up to 20,000 characters), `font`
+    (`arial`, `georgia`, `times`, `verdana`, `trebuchet` or `courier`), `size`
+    (8 to 96 points), `colour` and `background` (`#rrggbb`; leaving out `colour`
+    follows the theme), `align` (`left`, `center` or `right`), `bold`, `italic`
+    and `plain`.  The text is shown as plain text, never as markup.  A map's `encode` names either `loc` (a place column
     to geocode) or `lat` and `lon`.  A `wordcloud` card's `encode` names the
     text column to read in `col`, and its `options` take the same `topn`,
     `minlen` and `stop` the `GET /wordcloud` page takes, so the two count and
@@ -708,6 +717,11 @@ perl Makefile.PL
     page's plan.  The plan is checked against the canvas's columns on every render,
     not only here, so a saved spec that no longer names a column is that card's
     error while a bad page-level `cs` is the page's `400`.
+
+- `DELETE /api/analyses/:id/visuals/:visual`
+
+    Removes a text card; any other kind answers `400`.  Later cards move down one
+    index, and the layout and any `cv=` saved in a bookmark move with them.
 
 - `PATCH /api/analyses/:id/visuals/:visual`
 

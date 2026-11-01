@@ -745,6 +745,8 @@ my @CHAPTERS = (
 			'Click Add visual... to add another view from a data file.',
 			'In that panel, choose the Aggregate a chart works out: Sum, Average, Median, Std dev, or a percentile.',
 			'Drag a card by its header to move it. Use the Size menu to change its width and height.',
+			'Click Add text to add a title or an explanation. Choose its font, size, colours and alignment, then click Add to canvas.',
+			'Double-click the text to change it or remove the card. A card with a hidden frame shows its header when you point at it.',
 			'To show only a recent window on every card, choose a Time range and its column above the cards. Then click Apply range.',
 			'Click Edit cross-row in a card header to see that card\'s cross-row columns, and to change or remove one.',
 		],
