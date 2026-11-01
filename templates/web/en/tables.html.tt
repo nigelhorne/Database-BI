@@ -15,8 +15,13 @@
       <li>[% col | html %]</li>
       [%- END %]
     </ul>
+    [%- IF t.on_server %]
+    <p class="table-card-why">Cannot be opened: its name contains characters other than letters, digits and underscores. A view with a plain name can be opened instead:
+      <code>CREATE VIEW [% t.safe_name | html %] AS SELECT * FROM `[% t.name | html %]`;</code></p>
+    [%- ELSE %]
     <p class="table-card-why">Cannot be opened: its name contains characters other than letters, digits and underscores. To open it, rename it in a copy of the file, for example with sqlite3:
       <code>ALTER TABLE "[% t.name | html %]" RENAME TO [% t.safe_name | html %];</code></p>
+    [%- END %]
   </div>
   [%- NEXT %]
   [%- END %]

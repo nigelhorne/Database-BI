@@ -134,6 +134,11 @@ used by [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstracti
 the application works fully without it; Redis support activates automatically
 when the module is available.
 
+    **MariaDB and MySQL data source** (optional) -- a table on a server named in the
+    `mariadb_servers` configuration opens as `mariadb:server/table`, read-only, with
+    the columns in the table's own order and a page read with `LIMIT`.  See
+    ["MariaDB and MySQL servers"](#mariadb-and-mysql-servers).
+
 ### UTF-8 and Encoding
 
 All file data is returned as Perl character strings.  CSV/PSV/TSV files are
@@ -176,8 +181,8 @@ The home address then shows that database, and its Home link leads to the usual
 list.  Only one can be named: more than one is an error (exit status 2), because
 a join cannot be given on the command line, so open one and use Merge or Combine
 in the browser.  A file that is missing, cannot be read or is of an unsupported
-type is the same error, before the server starts.  A remote path or Redis spec
-is accepted as it would be by `/open`, and is checked when it is first shown.
+type is the same error, before the server starts.  A remote path, Redis spec or
+MariaDB spec is accepted as it would be by `/open`, and is checked when it is first shown.
 Use `MOJO_LISTEN` to choose the port.  A plain server does the same with
 `BI_OPEN=/full/path/store.db script/database-bi daemon`; a file named after
 `daemon` is ignored.
@@ -287,6 +292,8 @@ perl Makefile.PL
     path:/abs/path/to/file.csv         absolute local path
     /../hostname/dir/file.csv          remote file via SFTP
     redis:tablename|redis://host:port  Redis hash store (requires Redis module)
+    mariadb:server/table               a table on a server in mariadb_servers
+    mariadb:server                     lists that server's tables
     ```
 
 - `GET /api/columns`
@@ -643,7 +650,8 @@ perl Makefile.PL
 
     Creates a new analysis from a JSON request body.  Required fields: `name`
     and `datasets` (array; each entry must have a `spec` starting with
-    `table:`, `path:`, `url:`, or `redis:`).  Returns `201 { id, created: 1 }`.
+    `table:`, `path:`, `url:` or `redis:`, or being `mariadb:server/table`).
+    Returns `201 { id, created: 1 }`.
 
 - `GET /api/analyses/:id`
 
@@ -1004,6 +1012,40 @@ application directory is read-only can stage uploads somewhere writable:
 { uploads_dir => '/var/tmp/database-bi-uploads' }
 ```
 
+### MariaDB and MySQL Servers
+
+A server is opened by name.  Each entry of `mariadb_servers` is one database:
+
+```perl
+{
+    mariadb_servers => {
+        shop => {
+            host     => 'db.example.com',  # default: localhost
+            port     => 3306,              # optional
+            database => 'shop',            # required
+            username => 'bi_reader',
+            password => 'secret',
+        },
+    },
+}
+```
+
+The home page then has a card for each name, leading to the list of its tables.
+`mariadb:shop/orders` opens one anywhere a source is taken: the path field, `l=`,
+`j=`, `c=` and a canvas's `datasets`.  `mariadb:shop` lists them.
+
+The spec holds a name and no more, because a spec travels in URLs, bookmarks,
+shared links, saved canvases and server logs.  So the password stays in the
+configuration file, which should be readable only by the account that runs the
+application, and no request can point the application at another server.
+
+[DBD::MariaDB](https://metacpan.org/pod/DBD%3A%3AMariaDB) is recommended; [DBD::mysql](https://metacpan.org/pod/DBD%3A%3Amysql) serves if it is the one installed.
+Without either, opening a server says so and the rest of the application is
+unaffected.  Rows are read from the server each time, and never cached.  The tests
+are `t/mariadb.t`, which mocks the server, and `t/mariadb_live.t`, which runs when
+`MARIADB_SERVER` is set, for example to `mariadb://user:pass@host/test`, and which
+creates its own tables and drops them.
+
 ### Compression and the Page Cache
 
 Every response goes through [Mojolicious::Plugin::Buffer](https://metacpan.org/pod/Mojolicious%3A%3APlugin%3A%3ABuffer): it is compressed
@@ -1350,20 +1392,15 @@ the same and shows that database, with a command word it runs that command, and 
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.
-- A MariaDB or MySQL server cannot be opened.  There is no `mariadb:` spec: the
-path field, `l=` and a canvas's `datasets` all refuse one, and nothing connects.
-To work with such a table, export it to a file, which is then a normal `.tsv`:
-
-    ```
-    mariadb --batch --execute 'SELECT * FROM orders' shop > orders.tsv
-    ```
-
-    `--batch` writes a NULL as the word `NULL`, so a blank cell reads as that word.
-    `t/mariadb.t` (mocked) and `t/mariadb_live.t` hold how a MariaDB backend behaves
-    inside the application, for when it can be opened; the second runs only when
-    `MARIADB_SERVER` is set, for example to `mariadb://user:pass@host/test`.  It
-    creates two tables and drops them.  Both need [DBD::MariaDB](https://metacpan.org/pod/DBD%3A%3AMariaDB) or [DBD::mysql](https://metacpan.org/pod/DBD%3A%3Amysql).
-
+- A MariaDB table is read, never written, but the application does not enforce
+that on the server: give it an account with only `SELECT`.  Anyone who can reach
+the application can open any table that account can read.
+- Only a page of an unfiltered table is read with `LIMIT`.  A filter, Merge, Combine
+or an export reads the whole MariaDB table into memory, so a very large table is
+better opened through a view that narrows it.
+- A MariaDB table or view whose name holds anything but letters, digits and
+underscores cannot be opened.  `/tables` shows it with a `CREATE VIEW` statement
+that gives it a usable name.
 - A relative time range is resolved against the server's clock and compares the
 column as a string, like every other filter.  A column holding a time zone
 offset or a non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so

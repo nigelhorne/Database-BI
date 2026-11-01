@@ -151,8 +151,10 @@
           <code>redis:tablename|redis://host:port</code><br>
           Or enter a bare URL to browse available keys:<br>
           <code>redis://host:port</code><br><br>
+          For a table on a configured MariaDB server:<br>
+          <code>mariadb:server/table</code><br><br>
           Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
-          .sqlite3), Berkeley DB (.db), XML, Redis.
+          .sqlite3), Berkeley DB (.db), XML, Redis, MariaDB.
         </div>
       </div>
       <div class="action-url-row">
@@ -161,6 +163,19 @@
       </div>
     </form>
   </div>
+
+  [%- IF mariadb_server_names.size %]
+  <div class="action-card">
+    <span class="action-card-icon" aria-hidden="true">&#128451;</span>
+    <h2 class="action-card-title">Database servers</h2>
+    <p class="action-card-desc">Browse the tables on a MariaDB server set up for this site.</p>
+    <div class="action-url-row">
+      [%- FOREACH server IN mariadb_server_names %]
+      <a href="/tables?l=mariadb:[% server | uri %]" class="btn-action">[% server | html %]</a>
+      [%- END %]
+    </div>
+  </div>
+  [%- END %]
 
   <div class="action-card">
     <span class="action-card-icon" aria-hidden="true">&#128218;</span>

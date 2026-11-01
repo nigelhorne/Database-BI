@@ -441,8 +441,10 @@
             <code>redis:tablename|redis://host:port</code><br>
             Or enter a bare URL to browse available keys:<br>
             <code>redis://host:port</code><br><br>
+            For a table on a configured MariaDB server:<br>
+            <code>mariadb:server/table</code><br><br>
             Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
-            .sqlite3), Berkeley DB (.db), XML, Redis.
+            .sqlite3), Berkeley DB (.db), XML, Redis, MariaDB.
           </div>
         </div>
       </div>
@@ -537,8 +539,10 @@
             <code>redis:tablename|redis://host:port</code><br>
             Or enter a bare URL to browse available keys:<br>
             <code>redis://host:port</code><br><br>
+            For a table on a configured MariaDB server:<br>
+            <code>mariadb:server/table</code><br><br>
             Accepted: CSV, TSV, PSV, XLSX, SQLite (.sql / .sqlite /
-            .sqlite3), Berkeley DB (.db), XML, Redis.
+            .sqlite3), Berkeley DB (.db), XML, Redis, MariaDB.
           </div>
         </div>
       </div>
@@ -2468,7 +2472,7 @@ function biDetectColType(colName) {
       url = '/api/columns?table=' + encodeURIComponent(spec.slice(6));
     } else if (spec.indexOf('path:') === 0) {
       url = '/api/columns?path=' + encodeURIComponent(spec.slice(5));
-    } else if (spec.indexOf('redis:') === 0) {
+    } else if (spec.indexOf('redis:') === 0 || spec.indexOf('mariadb:') === 0) {
       url = '/api/columns?spec=' + encodeURIComponent(spec);
     } else { return; }
 
@@ -2510,8 +2514,9 @@ function biDetectColType(colName) {
     if (!val) { rightSpec = ''; rightLabel = ''; updateJoinDesc(); return; }
     pathTimer = setTimeout(function () {
       var isRedis = val.indexOf('redis:') === 0;
-      var spec  = isRedis ? val : 'path:' + val;
-      var fname = isRedis
+      var isMariadb = val.indexOf('mariadb:') === 0;
+      var spec  = (isRedis || isMariadb) ? val : 'path:' + val;
+      var fname = isMariadb ? val.replace(/^.*\//, '') : isRedis
         ? val.replace(/\|.*/, '').replace(/^redis:/, '')
         : (val.replace(/.*[/\\]/, '').replace(/\.[^.]+$/, '') || val);
       loadRightColumns(spec, fname);
@@ -2994,7 +2999,7 @@ function biDetectColType(colName) {
     clearTimeout(pathTimer);
     if (!val) { combineSpec = ''; checkApply(); return; }
     pathTimer = setTimeout(function () {
-      combineSpec = 'path:' + val;
+      combineSpec = val.indexOf('mariadb:') === 0 ? val : 'path:' + val;
       checkApply();
     }, 300);
   });

@@ -47,7 +47,8 @@ sub _refuse {
 
 # Hands the one database named to the server through the environment, because
 # morbo restarts the application with its own arguments.  GET / reads BI_OPEN.
-# A remote path or Redis spec cannot be checked from here, so /open reports it.
+# A remote path, Redis spec or MariaDB spec cannot be checked from here, so /open
+# reports it.
 sub _open_on_start {
 	my ($database, @others) = @_;
 
@@ -55,7 +56,7 @@ sub _open_on_start {
 		. 'several together, open one and use Merge or Combine in the browser.')
 		if @others;
 
-	if ($database !~ m{\A(?:/\.\./|redis:)}i) {
+	if ($database !~ m{\A(?:/\.\./|redis:|mariadb:)}i) {
 		require Database::BI::Controller::Dashboard;
 		_refuse("cannot open $database: no such file") unless -e $database;
 		_refuse("cannot open $database: not a file") unless -f _;

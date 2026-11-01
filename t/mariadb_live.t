@@ -23,10 +23,9 @@ use warnings;
 #   CREATE DATABASE test;
 #   GRANT ALL ON test.* TO 'dbtest'@'client';
 #
-# The application has no mariadb: spec yet.  As in t/mariadb.t, the routes reach
-# the server by replacing the open_table helper, so this holds what a MariaDB
-# backend does in the application, and what the mock in t/mariadb.t cannot show:
-# real SQL, column types, NULLs and character sets.
+# This opens the server as a reader does, through a mariadb_servers entry and
+# mariadb:server/table, and holds what the mock in t/mariadb.t cannot show: real
+# SQL, column types, NULLs and character sets.
 
 use Test::Most;
 use Test::Returns;
@@ -132,54 +131,41 @@ $setup_dbh->do("INSERT INTO `$TIERS` VALUES (?, ?)", undef, @{$_})
 	for [ 'row1', 'gold' ], [ 'row2', 'silver' ], [ 'row3', 'bronze' ];
 
 # ---------------------------------------------------------------------------
-# The application, with table:orders and table:tiers opening the server
+# The application, with this server configured
 # ---------------------------------------------------------------------------
 my $data_dir = tempdir(CLEANUP => 1);
 
-# _open_spec looks for a file before it calls open_table.  These are never read,
-# except csvtiers.csv, which is what a Merge with a real file reads.
-Mojo::File->new($data_dir)->child('orders.csv')->spew("entry,region\nfile,NotMariaDB\n");
-Mojo::File->new($data_dir)->child('tiers.csv')->spew("entry,tier\nfile,NotMariaDB\n");
+# What a Merge with a real file reads.
 Mojo::File->new($data_dir)->child('csvtiers.csv')->spew("entry,csvtier\nrow1,csvgold\nrow2,csvsilver\n");
 
+# The settings a mariadb_servers entry holds, from what _parse_server found.
+my ($SERVER_DB)   = $DSN =~ /database=([^;]+)/;
+my ($SERVER_HOST) = $DSN =~ /host=([^;]+)/;
+my ($SERVER_PORT) = $DSN =~ /port=([^;]+)/;
+my %SERVER = (
+	database => $SERVER_DB,
+	host     => $SERVER_HOST,
+	port     => $SERVER_PORT,
+	username => $DB_USER,
+	password => $DB_PASS,
+);
+Readonly my $O => "mariadb:live/$ORDERS";
+Readonly my $T => "mariadb:live/$TIERS";
+
 my $t = Test::Mojo->new('Database::BI', {
-	data_dir  => $data_dir,
-	model_dir => tempdir(CLEANUP => 1),
+	data_dir        => $data_dir,
+	model_dir       => tempdir(CLEANUP => 1),
+	mariadb_servers => { live => { %SERVER } },
 });
 require Database::BI::Model::DataSource;
 require Database::BI::Controller::Dashboard;
 
-# A DataSource over a MariaDB-backed Database::Abstraction.  DataSource has no
-# constructor for one, so this holds what _new_from_redis would have set.
 sub _maria_source {
 	my ($table, %opts) = @_;
-	(my $pkg = "Database::BI::_DB::Mariadb_$table") =~ s/\W+\z//;
-	{
-		no strict 'refs';
-		@{"${pkg}::ISA"} = ('Database::Abstraction');
-	}
-	my $db = $pkg->new(
-		dsn      => $DSN,
-		username => $opts{username} // $DB_USER,
-		password => $opts{password} // $DB_PASS,
-		table    => $table,
-		no_entry => 1,
+	return Database::BI::Model::DataSource->new(
+		table => $table, server => 'live', mariadb => { %SERVER, %opts },
 	);
-	return bless {
-		_table     => $table,
-		_raw_table => $table,
-		_id_col    => 'entry',
-		_columns   => undef,
-		_db        => $db,
-	}, 'Database::BI::Model::DataSource';
 }
-
-my %SERVER_TABLE = (orders => $ORDERS, tiers => $TIERS);
-my $real_open_table = $t->app->renderer->get_helper('open_table');
-$t->app->helper(open_table => sub {
-	my ($c, $table, %opts) = @_;
-	return $SERVER_TABLE{$table} ? _maria_source($SERVER_TABLE{$table}) : $c->$real_open_table($table, %opts);
-});
 
 sub _orders { return _maria_source($ORDERS) }
 
@@ -239,7 +225,7 @@ sub _join {
 	);
 }
 
-plan tests => 22;
+plan tests => 25;
 
 # ---------------------------------------------------------------------------
 # The DataSource methods
@@ -349,7 +335,7 @@ subtest 'L11: two sources are independent' => sub {
 # ---------------------------------------------------------------------------
 subtest 'L12: /join and /view draw the table' => sub {
 	plan tests => 11;
-	for my $url ('/join?l=table:orders', '/view/orders') {
+	for my $url ("/join?l=$O", "/open?path=$O") {
 		$t->get_ok($url)->status_is(200);
 		my $body = $t->tx->res->body;
 		unlike($body, qr/\Qdbi:\E(?:MariaDB|mysql)/, "$url does not show the DSN");
@@ -361,7 +347,7 @@ subtest 'L12: /join and /view draw the table' => sub {
 
 subtest 'L13: /export gives every row, NULLs included' => sub {
 	plan tests => 5;
-	my $rows = _export_rows('l=table:orders');
+	my $rows = _export_rows("l=$O");
 	is_deeply(_entries($rows), [qw(row1 row2 row3 row4)], 'each row once');
 	my %by = map { $_->{entry} => $_ } @{$rows};
 	is($by{row4}{amount}, undef, 'a NULL stays empty');
@@ -370,15 +356,15 @@ subtest 'L13: /export gives every row, NULLs included' => sub {
 
 subtest 'L14: filters run over what the server returned' => sub {
 	plan tests => 12;
-	is_deeply(_entries(_export_rows('l=table:orders&f=region:eq:north')), [qw(row1 row3)], 'eq is case-insensitive');
-	is_deeply(_entries(_export_rows('l=table:orders&f=amount:gt:9')), [qw(row1 row2)], 'gt compares a DECIMAL as a number');
-	is_deeply(_entries(_export_rows('l=table:orders&f=region:empty')), [qw(row4)], 'a NULL is empty');
-	is_deeply(_entries(_export_rows('l=table:orders&f=amount:lt:9')), [qw(row3)], 'and is not less than a number');
+	is_deeply(_entries(_export_rows("l=$O&f=region:eq:north")), [qw(row1 row3)], 'eq is case-insensitive');
+	is_deeply(_entries(_export_rows("l=$O&f=amount:gt:9")), [qw(row1 row2)], 'gt compares a DECIMAL as a number');
+	is_deeply(_entries(_export_rows("l=$O&f=region:empty")), [qw(row4)], 'a NULL is empty');
+	is_deeply(_entries(_export_rows("l=$O&f=amount:lt:9")), [qw(row3)], 'and is not less than a number');
 };
 
 subtest 'L15: /bar totals by category, on the server and in Perl alike' => sub {
 	plan tests => 9;
-	my $url = '/bar?l=table:orders&cat=region&val=amount';
+	my $url = "/bar?l=$O&cat=region&val=amount";
 	$t->get_ok($url)->status_is(200);
 	my $pushed = $t->tx->res->body;
 	like($pushed, qr/\b15\.5\b/, 'North is 10.50 + 5');
@@ -394,15 +380,15 @@ subtest 'L15: /bar totals by category, on the server and in Perl alike' => sub {
 
 subtest 'L16: /pivot and /stats read the server' => sub {
 	plan tests => 6;
-	$t->get_ok('/pivot?l=table:orders&rows=region&m=' . url_escape('amount:sum:total'))->status_is(200);
+	$t->get_ok("/pivot?l=$O&rows=region&m=" . url_escape('amount:sum:total'))->status_is(200);
 	like($t->tx->res->body, qr/\b15\.5\b/, 'the pivot totals North');
-	$t->get_ok('/stats?l=table:orders')->status_is(200);
+	$t->get_ok("/stats?l=$O")->status_is(200);
 	like($t->tx->res->body, qr/\b4 rows\b/, 'the statistics count the rows');
 };
 
 subtest 'L17: a calculated column can be added to rows the backend has locked' => sub {
 	plan tests => 4;
-	my $rows = _export_rows('l=table:orders&c=' . url_escape('double:amount*2'));
+	my $rows = _export_rows("l=$O&c=" . url_escape('double:amount*2'));
 	my ($row1) = grep { $_->{entry} eq 'row1' } @{$rows};
 	cmp_ok($row1->{double}, '==', 21, 'the new column');
 	is($row1->{amount}, '10.50', 'beside the old one');
@@ -410,13 +396,13 @@ subtest 'L17: a calculated column can be added to rows the backend has locked' =
 
 subtest 'L18: a Merge runs the whole pipeline, with a file and with another table' => sub {
 	plan tests => 9;
-	my $rows = _export_rows('l=table:orders&j=table:csvtiers|entry|entry');
+	my $rows = _export_rows("l=$O&j=table:csvtiers|entry|entry");
 	my %by = map { $_->{entry} => $_ } @{$rows};
 	is(scalar @{$rows}, 4, 'left, with a CSV file: every row');
 	is($by{row1}{csvtier}, 'csvgold', 'a value from the file');
 	is($by{row1}{region}, 'North', 'beside a value from the server');
 
-	$rows = _export_rows('l=table:orders&j=table:tiers|entry|entry&jtype=inner');
+	$rows = _export_rows("l=$O&j=$T|entry|entry&jtype=inner");
 	is_deeply(_entries($rows), [qw(row1 row2 row3)], 'inner, with another table: the rows on both sides');
 	my ($row2) = grep { $_->{entry} eq 'row2' } @{$rows};
 	is($row2->{tier}, 'silver', 'with its value');
@@ -424,8 +410,8 @@ subtest 'L18: a Merge runs the whole pipeline, with a file and with another tabl
 
 subtest 'L22: every way of paging leaves the read-only array alone' => sub {
 	plan tests => 12;
-	for my $query ('/view/orders?per_page=2', '/view/orders?per_page=2&page=2', '/view/orders?d=1', '/view/orders?page=9',
-		'/join?l=table:orders&per_page=2', '/combine?l=table:orders&c=table:tiers') {
+	for my $query ("/open?path=$O&per_page=2", "/open?path=$O&per_page=2&page=2", "/open?path=$O&d=1", "/open?path=$O&page=9",
+		"/join?l=$O&per_page=2", "/combine?l=$O&c=$T") {
 		$t->get_ok($query);
 		unlike($t->tx->res->body, qr/Modification of a read-only/, "$query is not refused");
 	}
@@ -437,10 +423,10 @@ subtest 'L22: every way of paging leaves the read-only array alone' => sub {
 subtest 'L19: SQL in a parameter stays data' => sub {
 	plan tests => 7;
 	my $attack = url_escape(q{x' OR '1'='1});
-	is_deeply(_export_rows("l=table:orders&f=region:eq:$attack"), [], 'a filter value matches nothing');
+	is_deeply(_export_rows("l=$O&f=region:eq:$attack"), [], 'a filter value matches nothing');
 
 	my $drop = url_escape("entry; DROP TABLE `$ORDERS`");
-	$t->get_ok("/export?l=table:orders&format=json&sort=$drop");
+	$t->get_ok("/export?l=$O&format=json&sort=$drop");
 	cmp_ok($t->tx->res->code, '<', 500, 'a sort column is not a 500');
 
 	my ($still) = $setup_dbh->selectrow_array("SELECT COUNT(*) FROM `$ORDERS`");
@@ -450,23 +436,77 @@ subtest 'L19: SQL in a parameter stays data' => sub {
 };
 
 subtest 'L20: a table that is not there is an error naming it' => sub {
-	plan tests => 2;
-	my $src = _maria_source("${ORDERS}_missing");
-	throws_ok { $src->fetch_all } qr/\Q${ORDERS}_missing\E/, 'fetch_all names the table';
-	throws_ok { $src->selectall_arrayref } qr/./, 'selectall_arrayref does not swallow it';
+	plan tests => 3;
+	throws_ok { _maria_source("${ORDERS}_missing") } qr/\Q${ORDERS}_missing\E/, 'opening it names the table';
+	$t->get_ok("/open?path=$O" . '_missing')->content_like(qr/\Q${ORDERS}_missing\E/, 'and so does the page');
 };
 
 subtest 'L21: a refused login is a page that keeps the credentials to itself' => sub {
-	plan tests => 5;
+	plan tests => 10;
 	my $wrong = 'not-the-password-' . $$;
-	my $real  = $t->app->renderer->get_helper('open_table');
-	$t->app->helper(open_table => sub { return _maria_source($ORDERS, password => $wrong) });
-	$t->get_ok('/join?l=table:orders');
-	my ($code, $body) = ($t->tx->res->code, $t->tx->res->body);
-	$t->app->helper(open_table => $real);
+	local $t->app->config->{mariadb_servers}{live}{password} = $wrong;
+	for my $url ("/open?path=$O", '/tables?l=mariadb:live') {
+		$t->get_ok($url)->status_is(200);
+		my $body = $t->tx->res->body;
+		unlike($body, qr/\Q$wrong\E/, "$url: the password is not on the page");
+		unlike($body, qr/\Qdbi:\E(?:MariaDB|mysql)/, 'nor is the DSN');
+		unlike($body, qr/\.pm line \d+/, 'nor a source location');
+	}
+};
 
-	cmp_ok($code, '<', 500, 'no 500');
-	unlike($body, qr/\Q$wrong\E/, 'the password is not on the page');
-	unlike($body, qr/\Qdbi:\E(?:MariaDB|mysql)/, 'nor is the DSN');
-	unlike($body, qr/\.pm line \d+/, 'nor a source location');
+subtest 'L23: the server lists its tables, and a card opens one' => sub {
+	plan tests => 8;
+	$t->get_ok('/open?path=mariadb:live')->status_is(302)
+	  ->header_is(Location => '/tables?l=mariadb%3Alive');
+	$t->get_ok('/tables?l=mariadb:live')->status_is(200);
+	my ($href) = $t->tx->res->body =~ /<a class="table-card" href="([^"]*\Q$ORDERS\E[^"]*)"/;
+	ok($href, 'there is a card for the table');
+	$href =~ s/&amp;/&/g;
+	$t->get_ok($href)->content_like(qr{<td[^>]*>row1</td>}, 'and it shows the rows');
+};
+
+subtest 'L24: a table of any shape, read a page at a time' => sub {
+	plan tests => 14;
+	my $shape = "bilive_${$}_shape";
+	$setup_dbh->do("CREATE TABLE `$shape` (zid INT PRIMARY KEY, `Amount Due` DECIMAL(8,2), alpha VARCHAR(9))");
+	$setup_dbh->do("INSERT INTO `$shape` VALUES (?, ?, ?)", undef, $_, $_ * 2, "n$_") for reverse 1 .. 25;
+	my $view = "bilive_${$}_view";
+	$setup_dbh->do("CREATE VIEW `$view` AS SELECT alpha FROM `$shape`");
+
+	my $src = _maria_source($shape);
+	is_deeply($src->columns, ['zid', 'Amount Due', 'alpha'], 'the columns are in the order of the table');
+	is($src->id_column, 'zid', 'the primary key is the id, with no entry column');
+	ok($src->pages_on_server, 'it pages on the server');
+
+	# Reading the page must not read the table: count what the server is asked.
+	my @asked;
+	my $prepare = \&DBI::db::prepare;
+	my $prepare_cached = \&DBI::db::prepare_cached;
+	{
+		no warnings 'redefine';
+		local *DBI::db::prepare = sub { push @asked, $_[1]; goto &$prepare };
+		local *DBI::db::prepare_cached = sub { push @asked, $_[1]; goto &$prepare_cached };
+		$t->get_ok("/open?path=mariadb:live/$shape&per_page=10&page=2")->status_is(200);
+	}
+	my @cells = $t->tx->res->body =~ m{<td[^>]*>n(\d+)</td>}g;
+	is_deeply(\@cells, [11 .. 20], 'page 2 is the second ten, in key order');
+	ok((grep { /LIMIT/i } @asked), 'the server was asked for a LIMIT');
+
+	# On a column whose name is not an identifier.
+	is(scalar @{ _export_rows("l=mariadb:live/$shape&f=" . url_escape('Amount Due:gt:40')) }, 5, 'a filter reads the rest');
+
+	is_deeply(_maria_source($view)->columns, ['alpha'], 'a view opens, having no key');
+	$t->get_ok("/open?path=mariadb:live/$view&per_page=3")->status_is(200)
+	  ->content_like(qr{<td[^>]*>n\d+</td>}, 'and shows its rows');
+
+	$setup_dbh->do("DROP VIEW `$view`");
+	$setup_dbh->do("DROP TABLE `$shape`");
+};
+
+subtest 'L25: a canvas keeps the spec, and the spec holds no credentials' => sub {
+	plan tests => 5;
+	$t->post_ok('/api/analyses' => json => { name => 'Maria', datasets => [ { spec => $O } ] })->status_is(201);
+	my $id = $t->tx->res->json('/id');
+	$t->get_ok("/api/analyses/$id")->status_is(200);
+	unlike($t->tx->res->body, qr/\Q$SERVER_HOST\E/, 'the host is not saved');
 };

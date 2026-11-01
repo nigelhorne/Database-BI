@@ -2478,6 +2478,9 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		delete @ledger{ map { "api.DataSource.$_" } qw(sqlite_tables dbi_source aggregate updated schema count) };
 	};
 
+	sub UnitFakeMariaDbh::prepare { Carp::croak('no such table') }
+	sub UnitFakeMariaDbh::disconnect { return 1 }
+
 	subtest 'DataSource -- every message' => sub {
 		my $DS  = 'Database::BI::Model::DataSource';
 		my $err = sub { my %a = @_; my $ok = eval { $DS->new(%a); 1 }; return $ok ? '' : without_location("$@") };
@@ -2487,6 +2490,27 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(DataSource => 'error_table_name_invalid', $err->(directory => $DATA_DIR, table => 'a/b'), ['a/b']);
 		message_ok(DataSource => 'error_url_invalid', $err->(url => 'ftp://x/y'), ['ftp://x/y']);
 		message_ok(DataSource => 'error_redis_invalid', $err->(redis => 'http://x', table => 't'), ['http://x']);
+
+		my $maria = sub { $err->(table => 't', server => 's', mariadb => $_[0]) };
+		message_ok(DataSource => 'error_mariadb_unknown_server', $maria->(undef), ['s']);
+		message_ok(DataSource => 'error_mariadb_settings', $maria->({ database => 'a;host=evil' }), ['s', 'database']);
+		{
+			# With neither driver to be found, whatever this machine has installed.
+			local @INC = ();
+			local %INC = %INC;
+			delete @INC{qw(DBD/MariaDB.pm DBD/mysql.pm)};
+			message_ok(DataSource => 'error_mariadb_no_driver', $maria->({ database => 'd' }), ['s']);
+		}
+		{
+			# A driver that seems to be there, and a server that refuses or has no table.
+			local $INC{'DBD/MariaDB.pm'} = __FILE__;
+			require DBI;
+			no warnings qw(redefine once);
+			local *DBI::connect = sub { return };
+			message_ok(DataSource => 'error_mariadb_connect', $maria->({ database => 'd' }), ['s', undef]);
+			local *DBI::connect = sub { return bless {}, 'UnitFakeMariaDbh' };
+			message_ok(DataSource => 'error_mariadb_table', $maria->({ database => 'd' }), ['t', 's', undef]);
+		}
 
 		my $dir_of = sub { my ($d) = $_[0] =~ m{\A(.*)[/\\]}; $d };
 		my $no_id = unit_csv('noid.csv', "a b,c d\nhello,world\n");

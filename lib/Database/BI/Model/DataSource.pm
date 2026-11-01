@@ -267,6 +267,11 @@ Readonly our %MESSAGES => (
 	error_no_usable_tables		=> 'No table in "%s" can be opened, because their names contain characters other than letters, digits and underscores: %s. To open one, rename it in a copy of the file, for example with sqlite3: ALTER TABLE "%s" RENAME TO %s;',
 	error_unsupported_db		=> 'DataSource: "%s" is a Berkeley DB file but the installed DB_File library cannot open it (file may use a newer Berkeley DB format)',
 	error_redis_invalid		=> 'DataSource: Redis URL "%s" must begin with redis://',
+	error_mariadb_unknown_server	=> 'DataSource: no MariaDB server is called "%s"; add it to mariadb_servers in the configuration',
+	error_mariadb_settings		=> 'DataSource: MariaDB server "%s" needs a valid %s in mariadb_servers in the configuration',
+	error_mariadb_no_driver		=> 'DataSource: DBD::MariaDB or DBD::mysql must be installed to open MariaDB server "%s"',
+	error_mariadb_connect		=> 'DataSource: cannot connect to MariaDB server "%s": %s',
+	error_mariadb_table		=> 'DataSource: cannot read table "%s" on MariaDB server "%s": %s',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -274,6 +279,13 @@ Readonly our %MESSAGES => (
 # A table name is a bare SQL-safe identifier: starts with a letter or
 # underscore, followed by zero or more alphanumeric/underscore characters.
 Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
+
+# What may go into a MariaDB DSN.  A ';' would start another DSN attribute.
+Readonly my $MARIADB_HOST_RE     => qr/\A[A-Za-z0-9._-]+\z/;
+Readonly my $MARIADB_DATABASE_RE => qr/\A[A-Za-z0-9_\$-]+\z/;
+Readonly my $MARIADB_PORT_RE     => qr/\A[0-9]+\z/;
+# A page should not hang on a server that has gone away.
+Readonly my $MARIADB_CONNECT_TIMEOUT => 5;
 # Text::CSV's error_diag code for the plain end of a file.
 Readonly my $CSV_EOF => 2012;
 # The sort columns D::A accepts; it ignores any other, with a warning.
@@ -366,6 +378,8 @@ Creates and returns a new C<Database::BI::Model::DataSource> instance.
 	    internal_table => 'string',   # optional; name of a specific internal SQLite table to open
 	    cache          => 'object',   # optional; CHI cache object for result caching
 	    cache_ttl_url  => 'string',   # optional; CHI TTL string for URL-backed tables (default "15 min")
+	    mariadb        => \%settings, # optional; a mariadb_servers entry; needs server and table
+	    server         => 'string',   # the name of that entry
 	    i18n           => 'object',   # optional; must implement maketext($key, @args) for i18n
 	}
 
@@ -465,6 +479,7 @@ sub new {
 	my $raw   = Params::Get::get_params(undef, \@_) // {};
 	return $class->_new_from_url($raw)   if exists $raw->{url};
 	return $class->_new_from_redis($raw) if exists $raw->{redis};
+	return $class->_new_from_mariadb($raw) if exists $raw->{mariadb};
 	croak _fmt('error_table_required') unless defined $raw->{table};
 
 	my $args = validate_strict(
@@ -674,6 +689,105 @@ sub _init_redis_backend :Protected {
 
 	$self->{_db} = $db;
 	return;
+}
+
+# _mariadb_connect( $server, \%settings ) -> ($dbh, $dsn, $username, $password)
+#
+# Purpose: Connect to one entry of the mariadb_servers configuration.  An error
+#          names the server; it never holds the password.
+# Entry:   $server is the entry's name, for messages.  \%settings holds database
+#          and optionally host, port, username and password.
+# Exit:    A connected handle and what connected it.  Croaks on anything else.
+sub _mariadb_connect {
+	my ($server, $settings) = @_;
+
+	croak _fmt('error_mariadb_unknown_server', $server) unless ref $settings eq 'HASH';
+
+	my $database = $settings->{database} // '';
+	my $host     = $settings->{host} // 'localhost';
+	my $port     = $settings->{port};
+	croak _fmt('error_mariadb_settings', $server, 'database') unless $database =~ $MARIADB_DATABASE_RE;
+	croak _fmt('error_mariadb_settings', $server, 'host') unless $host =~ $MARIADB_HOST_RE;
+	croak _fmt('error_mariadb_settings', $server, 'port') if defined $port && $port !~ $MARIADB_PORT_RE;
+
+	# The driver is optional, so it is looked for only now.
+	my ($driver) = grep { my $module = "DBD/$_.pm"; eval { require $module; 1 } } qw(MariaDB mysql);
+	croak _fmt('error_mariadb_no_driver', $server) unless defined $driver;
+
+	require DBI;
+	my $dsn = "dbi:${driver}:database=$database;host=$host"
+		. (defined $port ? ";port=$port" : '')
+		. ';' . lc($driver) . "_connect_timeout=$MARIADB_CONNECT_TIMEOUT";
+	my ($username, $password) = @{$settings}{qw(username password)};
+	my $dbh = eval {
+		DBI->connect($dsn, $username, $password, { RaiseError => 1, PrintError => 0, AutoCommit => 1 });
+	};
+	croak _fmt('error_mariadb_connect', $server, $DBI::errstr // $@ // '') unless $dbh;
+
+	return ($dbh, $dsn, $username, $password);
+}
+
+# _new_from_mariadb( $class, \%raw_params ) -> $self
+#
+# Alternate constructor path for a table on a MariaDB or MySQL server.
+# Entry:   $raw->{mariadb} is the server's entry from mariadb_servers.
+#          $raw->{server} is that entry's name; $raw->{table} is the table.
+# Exit:    Returns $self.  Croaks when the server or the table cannot be reached,
+#          so a caller finds out here and not from the first read.
+# Note:    Rows are not cached: a table's contents can change with nothing to say
+#          so, which is what a file's mtime says for a file.
+sub _new_from_mariadb :Protected {
+	my ($class, $raw) = @_;
+
+	my $table = $raw->{table} // croak _fmt('error_table_required');
+	croak _fmt('error_table_name_invalid', $table) unless $table =~ $TABLE_NAME_RE;
+	my $server = $raw->{server} // '';
+	croak _fmt('error_mariadb_unknown_server', $server) unless $server =~ $TABLE_NAME_RE;
+
+	my ($dbh, $dsn, $username, $password) = _mariadb_connect($server, $raw->{mariadb});
+
+	# D::A's columns() is alphabetical; the statement's are in the table's order.
+	my $columns = eval {
+		my $sth = $dbh->prepare("SELECT * FROM `$table` WHERE 1=0");
+		$sth->execute;
+		[ @{ $sth->{NAME} } ];
+	};
+	my $why = $DBI::errstr // $@;
+	unless ($columns) {
+		$dbh->disconnect;
+		croak _fmt('error_mariadb_table', $table, $server, $why);
+	}
+	my @primary = eval { $dbh->primary_key(undef, undef, $table) };
+	$dbh->disconnect;
+
+	# Two servers may each have an "orders".
+	my $pkg = 'Database::BI::_DB::Mariadb_' . $server . '_' . $table;
+	{
+		no strict 'refs';
+		push @{"${pkg}::ISA"}, 'Database::Abstraction'
+			unless $pkg->isa('Database::Abstraction');
+	}
+	require Database::Abstraction;
+	my $db = eval { $pkg->new(
+		dsn      => $dsn,
+		username => $username,
+		password => $password,
+		table    => $table,
+		no_entry => 1,
+	) };
+	croak _fmt('error_backend_init', $table, $@) unless $db;
+
+	return bless {
+		_table      => $table,
+		_raw_table  => $table,
+		_mariadb    => $server,
+		# Pages taken with LIMIT need an order that does not change between them.
+		_order_col  => (@primary == 1 && $primary[0] =~ $TABLE_NAME_RE) ? $primary[0] : undef,
+		_id_col     => $primary[0] // $columns->[0],
+		_columns    => $columns,
+		_i18n       => $raw->{i18n},
+		_db         => $db,
+	}, $class;
 }
 
 # ---------------------------------------------------------------------------
@@ -1730,6 +1844,85 @@ sub aggregate {
 	return $self->{_db}->aggregate(@args);
 }
 
+=head2 pages_on_server
+
+Returns true when C<selectall_arrayref> with C<limit> and C<offset> runs on a
+database server without reading the whole table, as it does for MariaDB.
+
+C<dbi_source> cannot say this: it answers only for SQLite, because
+C<Database::Join> takes it to mean that a file can be attached.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+    SCALAR boolean
+
+=head3 MESSAGES
+
+None.
+
+=cut
+
+sub pages_on_server {
+	my $self = shift;
+	return defined $self->{_mariadb} ? 1 : 0;
+}
+
+=head2 mariadb_tables
+
+Class method.  Lists the tables and views of one MariaDB or MySQL database, with
+their columns in the table's own order.
+
+    my $tables = Database::BI::Model::DataSource->mariadb_tables('shop', {
+        host => 'db.example.com', database => 'shop',
+        username => 'bi', password => 'secret',
+    });
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $server    SCALAR string     the name of the server, for messages
+    $settings  HASHREF           { database, host?, port?, username?, password? }
+
+=head4 OUTPUT
+
+    ARRAYREF of { name => string, columns => [ string, ... ] }, sorted by name
+
+=head3 MESSAGES
+
+Croaks with C<error_mariadb_unknown_server>, C<error_mariadb_settings>,
+C<error_mariadb_no_driver> or C<error_mariadb_connect>.
+
+=cut
+
+sub mariadb_tables {
+	my ($class, $server, $settings) = @_;
+	local ($@, $!);
+
+	my ($dbh) = _mariadb_connect($server, $settings);
+	my $rows = eval {
+		$dbh->selectall_arrayref(q{SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS }
+			. q{WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION});
+	};
+	my $why = $@;
+	$dbh->disconnect;
+	croak _fmt('error_mariadb_connect', $server, $why) unless $rows;
+
+	my (@tables, %seen);
+	for my $row (@{$rows}) {
+		my ($name, $column) = @{$row};
+		push @tables, ($seen{$name} = { name => $name, columns => [] }) unless $seen{$name};
+		push @{ $seen{$name}{columns} }, $column;
+	}
+	return \@tables;
+}
+
 =head2 id_column
 
 Returns the name of the column used as the primary key and as
@@ -1999,6 +2192,13 @@ sub selectall_arrayref {
 	my ($self, @args) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return [] if $self->{_file_is_empty};
+
+	# A server gives LIMIT rows in no promised order, so pages could overlap.
+	if (defined $self->{_order_col} && @args && !ref $args[0]) {
+		my %asked = @args;
+		push @args, sort_by => [ $self->{_order_col}, 'asc' ]
+			if exists $asked{limit} && !$asked{sort_by};
+	}
 
 	# D::A ignores a sort column whose name is not a safe identifier.
 	if (my ($rest, @page) = _unsafe_sort(@args)) {

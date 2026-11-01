@@ -5,13 +5,8 @@ use warnings;
 # MariaDB backend tests for Database::BI, with no server: DBI->connect is mocked
 # through Test::Mockingbird's mock_scoped.  See t/mariadb_live.t for a real one.
 #
-# The application has no mariadb: spec, so a reader cannot open one yet (M15 holds
-# that).  What is tested is what a MariaDB-backed Database::Abstraction meets once
-# it is inside a DataSource: the methods Database::Join needs, and the routes,
-# reached by replacing the open_table helper so that table:orders opens it.
-#
-# Database::Abstraction's dbi_source() answers only for SQLite, so the application
-# reads this backend as it reads a CSV file: it filters, folds and pages in Perl.
+# The server is reached as a reader reaches it, through a mariadb_servers entry
+# and mariadb:server/table.  t/mariadb_live.t runs the same against a real one.
 
 # Pre-load DBI before any mock, so its lazy connect is intercepted cleanly.
 use DBI;
@@ -39,6 +34,7 @@ use Readonly;
 
 Readonly my $MARIADB_DSN => 'dbi:MariaDB:database=test;host=localhost';
 Readonly my $TABLE       => 'orders';
+Readonly my $SPEC        => "mariadb:mock/$TABLE";
 
 my $data_dir = tempdir(CLEANUP => 1);
 Mojo::File->new($data_dir)->child('tiers.csv')->spew(join("\n",
@@ -48,12 +44,10 @@ Mojo::File->new($data_dir)->child('tiers.csv')->spew(join("\n",
 	'row3,bronze',
 ) . "\n");
 
-# _open_spec looks for a file before it calls open_table.  This one is never read:
-# the helper below opens the backend instead.  If a row of it shows, the test fails.
-Mojo::File->new($data_dir)->child("$TABLE.csv")->spew("entry,region,amount\nfile,NotMariaDB,1\n");
 
 my $t = Test::Mojo->new('Database::BI', {
 	data_dir  => $data_dir,
+	mariadb_servers => { mock => { database => 'test', password => 'the-mock-password' } },
 	model_dir => tempdir(CLEANUP => 1),
 });
 require Database::BI::Model::DataSource;
@@ -220,6 +214,16 @@ my @INLINE_ROWS = (
 		return [ sort('entry', keys %{$first}) ];
 	}
 
+	sub primary_key { return 'entry' }
+
+	# What DataSource->mariadb_tables asks of information_schema.
+	sub selectall_arrayref {
+		my $self = shift;
+		return [ map { [ 'orders', $_ ] } @{ $self->_col_names() } ];
+	}
+
+	sub prepare { my $self = shift; return $self->prepare_cached(@_) }
+
 	sub prepare_cached {
 		my ($self, $sql) = @_;
 		return MockMariaDBSth->new(
@@ -278,29 +282,10 @@ sub _inline_da {
 	return InlineDA->new(cols => [qw(entry tier)], rows => [@INLINE_ROWS]);
 }
 
-# ---------------------------------------------------------------------------
-# A DataSource over a MariaDB-backed Database::Abstraction.  DataSource has no
-# constructor for one, so this holds what _new_from_redis would have set.
-# ---------------------------------------------------------------------------
-{ package Database::BI::_DB::Mariadb_orders; use parent -norequire, 'Database::Abstraction' }
-
+# A DataSource over the mocked server, as _open_spec builds it.
 sub _maria_source {
-	my $db = Database::BI::_DB::Mariadb_orders->new(dsn => $MARIADB_DSN, table => $TABLE, no_entry => 1);
-	return bless {
-		_table     => $TABLE,
-		_raw_table => $TABLE,
-		_id_col    => 'entry',
-		_columns   => undef,
-		_db        => $db,
-	}, 'Database::BI::Model::DataSource';
+	return Database::BI::Model::DataSource->new(table => $TABLE, server => 'mock', mariadb => { database => 'test' });
 }
-
-# The real helper for everything else, so a CSV can still be merged with it.
-my $real_open_table = $t->app->renderer->get_helper('open_table');
-$t->app->helper(open_table => sub {
-	my ($c, $table, %opts) = @_;
-	return $table eq $TABLE ? _maria_source() : $c->$real_open_table($table, %opts);
-});
 
 # The rows behind a page, without reading them back out of its markup.
 sub _export_rows {
@@ -309,7 +294,7 @@ sub _export_rows {
 	return decode_json($t->tx->res->body);
 }
 
-plan tests => 19;
+plan tests => 22;
 
 # ---------------------------------------------------------------------------
 # The DataSource methods
@@ -403,7 +388,7 @@ subtest 'M8: a merged row holds both sides, and a gap on the right is undef' => 
 subtest 'M9: /join and /view draw the table' => sub {
 	plan tests => 9;
 	my ($dbh, $guard) = _mock_dbh();
-	for my $url ("/join?l=table:$TABLE", "/view/$TABLE") {
+	for my $url ("/join?l=$SPEC", "/open?path=$SPEC") {
 		$t->get_ok($url)->status_is(200);
 		my $body = $t->tx->res->body;
 		unlike($body, qr/\Qdbi:MariaDB\E/, "$url does not show the DSN");
@@ -415,7 +400,7 @@ subtest 'M9: /join and /view draw the table' => sub {
 subtest 'M10: /export gives every row' => sub {
 	plan tests => 4;
 	my ($dbh, $guard) = _mock_dbh();
-	my $rows = _export_rows("l=table:$TABLE");
+	my $rows = _export_rows("l=$SPEC");
 	is(scalar @{$rows}, 4, 'all of them');
 	is_deeply([ sort map { $_->{entry} } @{$rows} ], [qw(row1 row2 row3 row4)], 'each one once');
 };
@@ -423,15 +408,15 @@ subtest 'M10: /export gives every row' => sub {
 subtest 'M11: a filter is applied, case-insensitively' => sub {
 	plan tests => 3;
 	my ($dbh, $guard) = _mock_dbh();
-	my $rows = _export_rows("l=table:$TABLE&f=region:eq:north");
+	my $rows = _export_rows("l=$SPEC&f=region:eq:north");
 	is_deeply([ sort map { $_->{entry} } @{$rows} ], [qw(row1 row3)], 'only the North rows');
 };
 
 subtest 'M19: every way of paging leaves the read-only array alone' => sub {
 	plan tests => 12;
 	my ($dbh, $guard) = _mock_dbh();
-	for my $query ("/view/$TABLE?per_page=2", "/view/$TABLE?per_page=2&page=2", "/view/$TABLE?d=1", "/view/$TABLE?page=9",
-		"/join?l=table:$TABLE&per_page=2", "/combine?l=table:$TABLE&c=table:tiers") {
+	for my $query ("/open?path=$SPEC&per_page=2", "/open?path=$SPEC&per_page=2&page=2", "/open?path=$SPEC&d=1", "/open?path=$SPEC&page=9",
+		"/join?l=$SPEC&per_page=2", "/combine?l=$SPEC&c=table:tiers") {
 		$t->get_ok($query);
 		unlike($t->tx->res->body, qr/Modification of a read-only/, "$query is not refused");
 	}
@@ -440,7 +425,7 @@ subtest 'M19: every way of paging leaves the read-only array alone' => sub {
 subtest 'M12: /bar totals by category, in Perl and with the fold forced' => sub {
 	plan tests => 7;
 	my ($dbh, $guard) = _mock_dbh();
-	my $url = "/bar?l=table:$TABLE&cat=region&val=amount";
+	my $url = "/bar?l=$SPEC&cat=region&val=amount";
 	$t->get_ok($url)->status_is(200);
 	my $default = $t->tx->res->body;
 	like($default, qr/North/, 'the category is drawn');
@@ -455,53 +440,83 @@ subtest 'M12: /bar totals by category, in Perl and with the fold forced' => sub 
 subtest 'M13: /pivot draws the backend' => sub {
 	plan tests => 3;
 	my ($dbh, $guard) = _mock_dbh();
-	$t->get_ok("/pivot?l=table:$TABLE&rows=region&m=" . Mojo::Util::url_escape('amount:sum:total'))->status_is(200);
+	$t->get_ok("/pivot?l=$SPEC&rows=region&m=" . Mojo::Util::url_escape('amount:sum:total'))->status_is(200);
 	like($t->tx->res->body, qr/North/, 'a row of the pivot');
 };
 
 subtest 'M14: a Merge with a CSV file runs the whole pipeline' => sub {
 	plan tests => 9;
 	my ($dbh, $guard) = _mock_dbh();
-	my $rows = _export_rows("l=table:$TABLE&j=table:tiers|entry|entry");
+	my $rows = _export_rows("l=$SPEC&j=table:tiers|entry|entry");
 	is(scalar @{$rows}, 4, 'left: every MariaDB row');
 	my %by = map { $_->{entry} => $_ } @{$rows};
 	is($by{row1}{tier}, 'gold', 'a value from the file');
 	is($by{row1}{region}, 'North', 'beside a value from the backend');
 	ok(!defined $by{row4}{tier} || !length $by{row4}{tier}, 'and a gap where the file has no row');
 
-	$rows = _export_rows("l=table:$TABLE&j=table:tiers|entry|entry&jtype=inner");
+	$rows = _export_rows("l=$SPEC&j=table:tiers|entry|entry&jtype=inner");
 	is(scalar @{$rows}, 3, 'inner: only the rows on both sides');
 };
 
 # ---------------------------------------------------------------------------
 # What a reader cannot do
 # ---------------------------------------------------------------------------
-subtest 'M15: there is no mariadb: spec, so a URL cannot name a server' => sub {
-	plan tests => 8;
+subtest 'M15: a spec names a configured server, and never an address' => sub {
+	plan tests => 11;
 	my $ctrl = $t->app->build_controller;
 	my $open = \&Database::BI::Controller::Dashboard::_open_spec;
-	for my $spec ('mariadb:orders|mariadb://root:secret@db/test', "dbi:MariaDB:database=test;host=db") {
+	my $connected = 0;
+	my $guard = mock_scoped('DBI', connect => sub { $connected++; return });
+	for my $spec ('mariadb:orders|mariadb://root:secret@db/test', 'mariadb://root:secret@db/test',
+		'mariadb:shop/a;b', 'mariadb:../orders', 'dbi:MariaDB:database=test;host=db') {
 		my @got = $open->($ctrl, $spec);
 		is(scalar @got, 0, "_open_spec opens nothing for $spec");
 	}
-
-	my $connected = 0;
-	my $guard = mock_scoped('DBI', connect => sub { $connected++; return });
-	$t->get_ok('/join?l=mariadb:orders|mariadb://root:secret@db/test');
-	cmp_ok($t->tx->res->code, '<', 500, 'the page refuses it');
-	unlike($t->tx->res->body, qr/\bsecret\b/, 'without repeating the password');
 	is($connected, 0, 'and nothing connected');
 
 	$t->post_ok('/api/analyses' => json => {
 		name     => 'Maria',
-		datasets => [ { spec => 'mariadb:orders|mariadb://db/test' } ],
+		datasets => [ { spec => 'mariadb:orders|mariadb://root:secret@db/test' } ],
 	})->status_is(400);
+	like($t->tx->res->body, qr/not a valid spec/, 'a canvas cannot save an address either');
+
+	$t->post_ok('/api/analyses' => json => { name => 'Maria', datasets => [ { spec => $SPEC } ] })->status_is(201);
+};
+
+subtest 'M20: a server that is not configured says so' => sub {
+	plan tests => 6;
+	my $connected = 0;
+	my $guard = mock_scoped('DBI', connect => sub { $connected++; return });
+	$t->get_ok('/open?path=mariadb:nosuch/orders')->status_is(200)
+	  ->content_like(qr/no MariaDB server is called/, 'the page says what is wrong');
+	$t->get_ok('/tables?l=mariadb:nosuch')
+	  ->content_like(qr/no MariaDB server is called/, 'the list says so too');
+	is($connected, 0, 'and nothing connected');
+};
+
+subtest 'M21: the home page names servers, and keeps their settings to itself' => sub {
+	plan tests => 7;
+	$t->get_ok('/')->status_is(200)
+	  ->content_like(qr{href="/tables\?l=mariadb:mock"}, 'a link to the server')
+	  ->content_unlike(qr/the-mock-password/, 'but not its password');
+	my ($dbh, $guard) = _mock_dbh();
+	$t->get_ok('/tables?l=mariadb:mock')->content_like(qr/table-card-name/, 'the list has a card');
+	$t->tx->res->body =~ /the-mock-password/ ? fail('the password is on the list') : pass('with no password');
+};
+
+subtest 'M22: the columns API and every source field know the spec' => sub {
+	plan tests => 6;
+	my ($dbh, $guard) = _mock_dbh();
+	$t->get_ok("/api/columns?spec=$SPEC")->status_is(200)
+	  ->json_is('/columns/0' => 'amount', 'the Merge panel can read its columns');
+	my $rows = _export_rows("l=$SPEC&c=$SPEC");
+	ok(scalar @{$rows}, 'and c= stacks it, rather than taking it for a calculated field');
 };
 
 subtest 'M16: a server that cannot be reached is a page, not an exception' => sub {
 	plan tests => 3;
 	my $guard = mock_scoped('DBI', connect => sub { return });
-	$t->get_ok("/join?l=table:$TABLE");
+	$t->get_ok("/open?path=$SPEC");
 	cmp_ok($t->tx->res->code, '<', 500, 'no 500');
 	unlike($t->tx->res->body, qr/\.pm line \d+/, 'and no source location in the message');
 };
@@ -509,8 +524,8 @@ subtest 'M16: a server that cannot be reached is a page, not an exception' => su
 subtest 'M17: a query that fails reports the table, not a stack' => sub {
 	plan tests => 2;
 	my ($dbh, $guard) = _mock_dbh();
-	my $bad = mock_scoped('MockMariaDBSth', execute => sub { die "Table 'test.orders' doesn't exist\n" });
 	my $src = _maria_source();
+	my $bad = mock_scoped('MockMariaDBSth', execute => sub { die "Table 'test.orders' doesn't exist\n" });
 	throws_ok { $src->fetch_all } qr/\Q$TABLE\E/, 'fetch_all names the table';
 	throws_ok { $src->selectall_arrayref } qr/./, 'selectall_arrayref does not swallow it';
 };
@@ -520,7 +535,7 @@ subtest 'M18: rows that come back from the backend can be extended' => sub {
 	my ($dbh, $guard) = _mock_dbh();
 	# A calculated column writes to each row: on a locked hash that must go
 	# through _extend_row, or the page is a 500.
-	my $rows = _export_rows("l=table:$TABLE&c=" . Mojo::Util::url_escape('double:amount*2'));
+	my $rows = _export_rows("l=$SPEC&c=" . Mojo::Util::url_escape('double:amount*2'));
 	my ($row1) = grep { $_->{entry} eq 'row1' } @{$rows};
 	is($row1->{double}, 20, 'the new column is there');
 	is($row1->{amount}, 10, 'beside the old one');

@@ -99,10 +99,10 @@
 	<code>redis:</code> data source when installed.
 </p>
 <p>
-	<strong>DBD::MariaDB</strong> (or <strong>DBD::mysql</strong>) is used only by the
-	tests. The application <a href="data.html#mariadb">cannot open a MariaDB server</a>.
-	<code>t/mariadb.t</code> runs without one; <code>t/mariadb_live.t</code> runs when
-	<code>MARIADB_SERVER</code> is set, and creates two tables and drops them.
+	<strong>DBD::MariaDB</strong> (or <strong>DBD::mysql</strong>) is optional too, and is
+	what <a href="data.html#mariadb">a <code>mariadb:</code> source</a> connects with.
+	<code>t/mariadb.t</code> runs without a server; <code>t/mariadb_live.t</code> runs when
+	<code>MARIADB_SERVER</code> is set, and creates its own tables and drops them.
 </p>
 <pre><code>MARIADB_SERVER=mariadb://user:pass@host/test prove -lv t/mariadb_live.t</code></pre>
 
@@ -144,7 +144,8 @@ hypnotoad -s script/database-bi</code></pre>
 <p>
 	Given the name of a database, the launcher starts the same development server,
 	and the home address shows that database. The Home link in its breadcrumb leads
-	to the usual list. It takes a data file, a remote path or a Redis spec, as
+	to the usual list. It takes a data file, a remote path, a Redis spec or a MariaDB
+	spec, as
 	<code>/open</code> does.
 </p>
 <p>

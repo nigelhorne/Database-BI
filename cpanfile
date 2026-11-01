@@ -42,6 +42,7 @@ requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected', '0.03';
 requires 'Text::CSV';   # Files with no header row; script/bi-alert's fallback reader when Database::Abstraction cannot open the file
 requires 'version', '0.77';
+recommends 'DBD::MariaDB';   # the mariadb: data source; DBD::mysql serves in its place
 recommends 'Geo::Coder::Free', '0.48';
 recommends 'HTML::OSM', '0.12';
 

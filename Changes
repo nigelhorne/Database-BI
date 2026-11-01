@@ -2,6 +2,12 @@ Revision history for Database-BI
 
 0.019.0
 	[ Enhancements ]
+	- MariaDB and MySQL: name a server in mariadb_servers in the configuration, and
+	  mariadb:server/table opens a table anywhere a source is taken, in Merge,
+	  Combine and canvases too.  The home page has a card for each server, which
+	  lists its tables.  A page of a table is read with LIMIT, in key order.  The
+	  password stays in the configuration: a spec holds only the name, and cannot
+	  name an address.
 	- Every chart page with Export SVG and Export PNG now has Export PDF too: a
 	  one-page PDF the size of the chart, with the pie legend and the source
 	  line drawn in as they are in the PNG.  It is made in the browser and

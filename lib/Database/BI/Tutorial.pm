@@ -993,7 +993,7 @@ my @FAQ = (
 	},
 	{
 		question => 'Can I open a MariaDB or MySQL database?',
-		answer   => 'Not directly. The program opens files, and it cannot connect to a database server. Export the table to a TSV file, then open that file. The mariadb command does this with its --batch option. A NULL in the table then appears as the word NULL.',
+		answer   => 'Yes, once the server has been added to mariadb_servers in the configuration file. The home page then has a card for it, which lists its tables. Choose a table to open it. You can also type mariadb:shop/orders in the path box, or in Merge and Combine. Only a page of the table is read at a time, until you filter it.',
 	},
 	{
 		question => 'A number filter leaves out my blank cells.',

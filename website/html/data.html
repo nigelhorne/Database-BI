@@ -79,6 +79,10 @@
 			<td><code>redis:tablename|redis://host:port</code>, when the Redis module is installed. Keys follow the <code>tablename:entry</code> convention.</td>
 		</tr>
 		<tr>
+			<td>A table on a MariaDB or MySQL server</td>
+			<td><code>mariadb:server/table</code>, where <code>server</code> is a name <a href="#mariadb">set up in the configuration</a>. <code>mariadb:server</code> lists its tables.</td>
+		</tr>
+		<tr>
 			<td>A file you drag onto the page</td>
 			<td>Uploaded to the staging directory and opened immediately. Uploads older than 24 hours are evicted at startup.</td>
 		</tr>
@@ -93,12 +97,28 @@
 	than silently losing its first row.
 </p>
 <p id="mariadb">
-	A <strong>MariaDB or MySQL server</strong> cannot be opened: there is no
-	<code>mariadb:</code> spec, and nothing connects to one. Export the table to a
-	file, which then opens like any other. <code>--batch</code> writes a NULL as the
-	word <code>NULL</code>.
+	A <strong>MariaDB or MySQL server</strong> is opened by name. Add it to
+	<code>database_bi.conf</code>; the home page then has a card that lists its
+	tables, and <code>mariadb:shop/orders</code> opens one anywhere a source is taken.
 </p>
-<pre><code>mariadb --batch --execute 'SELECT * FROM orders' shop &gt; orders.tsv</code></pre>
+<pre><code>{
+    mariadb_servers =&gt; {
+        shop =&gt; {
+            host     =&gt; 'db.example.com',  # default: localhost
+            port     =&gt; 3306,              # optional
+            database =&gt; 'shop',            # required
+            username =&gt; 'bi_reader',
+            password =&gt; 'secret',
+        },
+    },
+}</code></pre>
+<p>
+	The spec holds only the name, because a spec travels in URLs, shared links and
+	saved canvases. The password stays in the configuration file, so keep that
+	readable only by the account that runs the application. Give the server an account
+	with only <code>SELECT</code>: anyone who can reach the application can open any
+	table that account can read.
+</p>
 
 <h2 id="pipeline">The pipeline</h2>
 <p class="section-intro">
@@ -289,8 +309,14 @@ POST /export  l=...&amp;dir=/tmp&amp;filename=out.csv</code></pre>
 <ul class="plain">
 	<li>Read-only: cell editing and write-back are not implemented.</li>
 	<li>
-		Files and Redis, not database servers: a MariaDB or MySQL table has to be
-		<a href="#mariadb">exported to a file</a> first.
+		Only a page of an unfiltered MariaDB table is read with <code>LIMIT</code>. A
+		filter, Merge, Combine or an export reads the whole table into memory, so open
+		a very large one through a view that narrows it.
+	</li>
+	<li>
+		A MariaDB table or view named with anything but letters, digits and underscores
+		cannot be opened. Its card shows a <code>CREATE VIEW</code> that gives it a
+		usable name.
 	</li>
 	<li>
 		Joins happen in memory, with a spill to a temporary SQLite file when the

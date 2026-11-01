@@ -100,6 +100,9 @@ WriteMakefile(
 					# $MIN_GEOCODER_VERSION and in the messages that quote it;
 					# t/recommended-versions.t holds all three to this entry.
 					'Geo::Coder::Free' => '0.48',
+					# The mariadb: data source, looked for when a server is opened.
+					# DBD::mysql serves in its place.
+					'DBD::MariaDB' => 0,
 					# Rendering the map itself (Phase 6.1).  Also runtime-required: the
 					# rest of the application installs, starts and tests without it.
 					'HTML::OSM' => '0.12'

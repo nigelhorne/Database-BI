@@ -222,6 +222,11 @@ used by L<Database::Abstraction>.  Because C<Redis> is an optional dependency,
 the application works fully without it; Redis support activates automatically
 when the module is available.
 
+B<MariaDB and MySQL data source> (optional) -- a table on a server named in the
+C<mariadb_servers> configuration opens as C<mariadb:server/table>, read-only, with
+the columns in the table's own order and a page read with C<LIMIT>.  See
+L</MariaDB and MySQL servers>.
+
 =back
 
 =head2 UTF-8 and Encoding
@@ -262,8 +267,8 @@ The home address then shows that database, and its Home link leads to the usual
 list.  Only one can be named: more than one is an error (exit status 2), because
 a join cannot be given on the command line, so open one and use Merge or Combine
 in the browser.  A file that is missing, cannot be read or is of an unsupported
-type is the same error, before the server starts.  A remote path or Redis spec
-is accepted as it would be by C</open>, and is checked when it is first shown.
+type is the same error, before the server starts.  A remote path, Redis spec or
+MariaDB spec is accepted as it would be by C</open>, and is checked when it is first shown.
 Use C<MOJO_LISTEN> to choose the port.  A plain server does the same with
 C<BI_OPEN=/full/path/store.db script/database-bi daemon>; a file named after
 C<daemon> is ignored.
@@ -362,6 +367,8 @@ Spec formats:
   path:/abs/path/to/file.csv         absolute local path
   /../hostname/dir/file.csv          remote file via SFTP
   redis:tablename|redis://host:port  Redis hash store (requires Redis module)
+  mariadb:server/table               a table on a server in mariadb_servers
+  mariadb:server                     lists that server's tables
 
 =item C<GET /api/columns>
 
@@ -687,7 +694,8 @@ Returns C<{ analyses: [{id, name, datasets, updated}] }>.
 
 Creates a new analysis from a JSON request body.  Required fields: C<name>
 and C<datasets> (array; each entry must have a C<spec> starting with
-C<table:>, C<path:>, C<url:>, or C<redis:>).  Returns C<201 { id, created: 1 }>.
+C<table:>, C<path:>, C<url:> or C<redis:>, or being C<mariadb:server/table>).
+Returns C<201 { id, created: 1 }>.
 
 =item C<GET /api/analyses/:id>
 
@@ -1038,6 +1046,38 @@ application directory is read-only can stage uploads somewhere writable:
 
     { uploads_dir => '/var/tmp/database-bi-uploads' }
 
+=head2 MariaDB and MySQL servers
+
+A server is opened by name.  Each entry of C<mariadb_servers> is one database:
+
+    {
+        mariadb_servers => {
+            shop => {
+                host     => 'db.example.com',  # default: localhost
+                port     => 3306,              # optional
+                database => 'shop',            # required
+                username => 'bi_reader',
+                password => 'secret',
+            },
+        },
+    }
+
+The home page then has a card for each name, leading to the list of its tables.
+C<mariadb:shop/orders> opens one anywhere a source is taken: the path field, C<l=>,
+C<j=>, C<c=> and a canvas's C<datasets>.  C<mariadb:shop> lists them.
+
+The spec holds a name and no more, because a spec travels in URLs, bookmarks,
+shared links, saved canvases and server logs.  So the password stays in the
+configuration file, which should be readable only by the account that runs the
+application, and no request can point the application at another server.
+
+L<DBD::MariaDB> is recommended; L<DBD::mysql> serves if it is the one installed.
+Without either, opening a server says so and the rest of the application is
+unaffected.  Rows are read from the server each time, and never cached.  The tests
+are C<t/mariadb.t>, which mocks the server, and C<t/mariadb_live.t>, which runs when
+C<MARIADB_SERVER> is set, for example to C<mariadb://user:pass@host/test>, and which
+creates its own tables and drops them.
+
 =head2 Compression and the page cache
 
 Every response goes through L<Mojolicious::Plugin::Buffer>: it is compressed
@@ -1379,17 +1419,21 @@ implemented.
 
 =item *
 
-A MariaDB or MySQL server cannot be opened.  There is no C<mariadb:> spec: the
-path field, C<l=> and a canvas's C<datasets> all refuse one, and nothing connects.
-To work with such a table, export it to a file, which is then a normal C<.tsv>:
+A MariaDB table is read, never written, but the application does not enforce
+that on the server: give it an account with only C<SELECT>.  Anyone who can reach
+the application can open any table that account can read.
 
-    mariadb --batch --execute 'SELECT * FROM orders' shop > orders.tsv
+=item *
 
-C<--batch> writes a NULL as the word C<NULL>, so a blank cell reads as that word.
-C<t/mariadb.t> (mocked) and C<t/mariadb_live.t> hold how a MariaDB backend behaves
-inside the application, for when it can be opened; the second runs only when
-C<MARIADB_SERVER> is set, for example to C<mariadb://user:pass@host/test>.  It
-creates two tables and drops them.  Both need L<DBD::MariaDB> or L<DBD::mysql>.
+Only a page of an unfiltered table is read with C<LIMIT>.  A filter, Merge, Combine
+or an export reads the whole MariaDB table into memory, so a very large table is
+better opened through a view that narrows it.
+
+=item *
+
+A MariaDB table or view whose name holds anything but letters, digits and
+underscores cannot be opened.  C</tables> shows it with a C<CREATE VIEW> statement
+that gives it a usable name.
 
 =item *
 
@@ -1636,8 +1680,10 @@ sub startup ($self) {
 		$c->stash(
 			view_join_type => ($jtype =~ /\A(?:left|inner|outer)\z/ ? $jtype : ''),
 			view_filters   => [ grep { length } @{ $c->every_param('f') } ],
-			view_combines  => [ grep { /\A(?:path|table|url|redis):/i } @{ $c->every_param('c') } ],
+			view_combines  => [ grep { /\A(?:path|table|url|redis|mariadb):/i } @{ $c->every_param('c') } ],
 			view_dedup     => ($c->param('d') ? 1 : 0),
+			# Names only: the rest of an entry is credentials.
+			mariadb_server_names => [ sort keys %{ $c->app->config('mariadb_servers') // {} } ],
 		);
 	});
 
@@ -1757,6 +1803,14 @@ sub startup ($self) {
 				redis         => $opts{redis},
 				cache         => $chi,
 				cache_ttl_url => $cache_ttl_url,
+			);
+		}
+		# MariaDB mode: connect to an entry of the mariadb_servers configuration.
+		if (exists $opts{mariadb}) {
+			return Database::BI::Model::DataSource->new(
+				table   => $table,
+				server  => $opts{mariadb},
+				mariadb => ($c->app->config('mariadb_servers') // {})->{ $opts{mariadb} },
 			);
 		}
 		my $dir = exists $opts{directory} ? $opts{directory} : $data_dir;

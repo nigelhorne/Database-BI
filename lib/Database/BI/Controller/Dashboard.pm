@@ -90,6 +90,15 @@ Readonly my $REDIS_SPEC_RE => qr{\Aredis:([^|]+)\|(redis://.+)\z}si;
 # Excludes '|' so it cannot match the redis:table|redis://... full spec.
 Readonly my $REDIS_URL_RE  => qr{\Aredis://[^\s|]+\z}si;
 
+# MariaDB spec: mariadb:server/table, where server names an entry in the
+# mariadb_servers configuration.  A spec travels in URLs, links and saved
+# canvases, so it holds no address or password.  It has no '|', which also lets
+# it be the right side of a j= join.
+Readonly my $MARIADB_SPEC_RE   => qr{\Amariadb:([A-Za-z_][A-Za-z0-9_]*)/([A-Za-z_][A-Za-z0-9_]*)\z};
+
+# A server with no table: lists its tables.
+Readonly my $MARIADB_SERVER_RE => qr{\Amariadb:([A-Za-z_][A-Za-z0-9_]*)\z};
+
 # Hostname pattern accepted in /../hostname/... remote paths.
 # Mirrors Database::Abstraction's own host validation regex.
 # Accepts 'hostname', 'user@hostname', and IPv4 addresses (IPv6 is excluded
@@ -646,7 +655,7 @@ sub _crumb_label :Protected ($self, $url) {
 	}
 	# Either route takes both joins and combined files.
 	if ($path eq '/join' || $path eq '/combine') {
-		my @names = map { _crumb_spec_name($_) } grep { /\A(?:table|path|url|redis):/i }
+		my @names = map { _crumb_spec_name($_) } grep { /\A(?:table|path|url|redis|mariadb):/i }
 			($q->param('l') // ''),
 			(map { (split /\|/, $_, 2)[0] // '' } @{ $q->every_param('j') }),
 			@{ $q->every_param('c') };
@@ -694,6 +703,8 @@ sub _crumb_spec_name {
 		return $host // $1;
 	}
 	return 'Redis' if $spec =~ /\Aredis:/i;
+	return "$1: $2" if $spec =~ $MARIADB_SPEC_RE;
+	return $1       if $spec =~ $MARIADB_SERVER_RE;
 	return $spec;
 }
 
@@ -1036,6 +1047,12 @@ sub _open_spec :Protected ($self, $spec) {
 		my ($table, $redis_url) = ($1, $2);
 		my $src = eval { $self->open_table($table, redis => $redis_url) };
 		return ($src, $table) if $src && !$@;
+	} elsif($spec =~ $MARIADB_SPEC_RE) {
+		my ($server, $table) = ($1, $2);
+		my $src = eval { $self->open_table($table, mariadb => $server) };
+		return ($src, $table) if $src;
+		# A server has more ways to fail than a file has; /open says which.
+		$self->stash(open_spec_error => _tidy_error($@));
 	}
 	return ();
 }
@@ -1118,6 +1135,7 @@ sub _spec_to_url :Protected ($self, $spec) {
 	return '/open?path=' . url_escape($1) if $spec =~ /\Apath:(.+)\z/;
 	return '/import?url=' . url_escape($1) if $spec =~ $URL_SPEC_RE;
 	return '/' if $spec =~ $REDIS_SPEC_RE;
+	return '/open?path=' . url_escape($spec) if $spec =~ $MARIADB_SPEC_RE;
 	return '/';
 }
 
@@ -2680,7 +2698,8 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# approach.  Avoid the noise by only using the N+1 fast path for SQL-backed
 	# sources.  For non-SQL sources (CSV, XLSX, in-memory) the reduction path
 	# below materialises the full set and paginates in Perl.
-	my $is_sql = $source->can('dbi_source') && $source->dbi_source;
+	my $is_sql = ($source->can('dbi_source') && $source->dbi_source)
+		|| ($source->can('pages_on_server') && $source->pages_on_server);
 
 	# A cross-row column is a column of the whole filtered set, so a request that
 	# names one cannot take the N+1 fast path: it would see one page of rows and
@@ -3085,7 +3104,7 @@ sub _span_calc_spec :Protected ($self, $columns, @dimension_params) {
 		my $stored = length($sk) ? (($self->_read_models)->{fields}{$sk} // {}) : {};
 		$found = 1 if $stored->{$name};
 		for my $spec (@{ $self->every_param('c') // [] }) {
-			next if $spec =~ /\A(?:path:|table:|url:|redis:)/i;
+			next if $spec =~ /\A(?:path:|table:|url:|redis:|mariadb:)/i;
 			my ($n) = $spec =~ /\A([A-Za-z_][A-Za-z0-9_]*):/;
 			$found = 1 if defined $n && $n eq $name;
 		}
@@ -3157,7 +3176,7 @@ sub _extend_row {
 
 # _apply_calc_fields($self, $records, \@columns, \%extra) -> ($records, \@columns)
 #
-# Reads ?c=<name>:<expression> params (those NOT matching a path:/table:/url:/redis:
+# Reads ?c=<name>:<expression> params (those NOT matching a path:/table:/url:/redis:/mariadb:
 # source spec) and compiles each via Database::BI::Calc.  Evaluates per row,
 # appending the virtual column to each row hashref.  Croaks on compile error
 # (caller renders 400); runtime undef values are logged at warn level.
@@ -3200,7 +3219,7 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	}
 	for my $spec (@{ $self->every_param('c') // [] }, @$extra_calc) {
 		# Skip source specs handled by _run_pipeline_source.
-		next if $spec =~ /\A(?:path:|table:|url:|redis:)/i;
+		next if $spec =~ /\A(?:path:|table:|url:|redis:|mariadb:)/i;
 		my ($name, $expr) = ($spec =~ /\A([A-Za-z_][A-Za-z0-9_]*):(.+)\z/s);
 		next unless defined $name && defined $expr;
 		if (exists $seen_calc{$name}) {
@@ -3666,8 +3685,8 @@ sub _validate_analysis_parts :Protected ($self, $doc) {
 		for my $ds (@{ $doc->{datasets} }) {
 			return 'Each dataset entry must have a spec field'
 				unless ref $ds eq 'HASH' && defined $ds->{spec} && !ref $ds->{spec} && length $ds->{spec};
-			return qq{"$ds->{spec}" is not a valid spec (must start with table:, path:, url:, or redis:)}
-				unless $ds->{spec} =~ m{\A(?:table:|path:|url:|redis:)};
+			return qq{"$ds->{spec}" is not a valid spec (must start with table:, path:, url:, or redis:, or be mariadb:server/table)}
+				unless $ds->{spec} =~ m{\A(?:table:|path:|url:|redis:)} || $ds->{spec} =~ $MARIADB_SPEC_RE;
 		}
 	}
 	if (defined $doc->{version}) {
@@ -6456,11 +6475,31 @@ sub open_file ($self) {
 		return $self->redirect_to('/tables?l=' . url_escape($file_path));
 	}
 
+	# A MariaDB server with no table named: list its tables.
+	if ($file_path =~ $MARIADB_SERVER_RE) {
+		return $self->redirect_to('/tables?l=' . url_escape($file_path));
+	}
+
 	# Redis spec: redis:tablename|redis://host:port -- delegate to _open_spec.
-	if ($file_path =~ $REDIS_SPEC_RE) {
+	# MariaDB spec: mariadb:server/table -- likewise.
+	if ($file_path =~ $REDIS_SPEC_RE || $file_path =~ $MARIADB_SPEC_RE) {
 		my $lspec = $file_path;
 		my ($source, $label) = $self->_open_spec($lspec);
-		return $self->reply->not_found unless $source;
+		unless ($source) {
+			my $why = $self->stash('open_spec_error');
+			return $self->reply->not_found unless defined $why;
+			return $self->render(
+				template   => "$platform/$language/home",
+				handler    => 'tt',
+				format     => 'html',
+				tables     => [],
+				title      => 'Error',
+				error      => $self->_i18n('error_file_open', $lspec, $why),
+				back_url   => '/',
+				back_label => 'Home',
+				language   => $language,
+			);
+		}
 		my $table = $label;
 		my $dedup = $self->param('d') ? 1 : 0;
 		my ($records, $has_next);
@@ -6873,7 +6912,10 @@ sub columns_api ($self) {
 	}
 
 	my $source;
-	if (defined $table_name && $table_name =~ m{\A([A-Za-z_][A-Za-z0-9_]*)(?:/([A-Za-z_][A-Za-z0-9_]*))?\z}) {
+	if (($self->param('spec') // '') =~ $MARIADB_SPEC_RE) {
+		($source) = $self->_open_spec($self->param('spec'));
+	}
+	elsif (defined $table_name && $table_name =~ m{\A([A-Za-z_][A-Za-z0-9_]*)(?:/([A-Za-z_][A-Za-z0-9_]*))?\z}) {
 		my ($table, $internal) = ($1, $2);
 		my $data_dir = _data_dir_for($self->app);
 		return $self->render(json => { error => 'not found' }, status => 404)
@@ -8957,6 +8999,42 @@ sub tables_view ($self) {
 			}
 		};
 		return $self->reply->not_found if $@;
+	} elsif ($spec =~ $MARIADB_SERVER_RE) {
+		my $server = $1;
+		$db_label   = $server;
+		$back_url   = '/';
+		$back_label = 'Home';
+		my $found = eval {
+			Database::BI::Model::DataSource->mariadb_tables($server,
+				($self->app->config('mariadb_servers') // {})->{$server});
+		};
+		unless ($found) {
+			return $self->render(
+				template   => "$platform/$language/home",
+				handler    => 'tt',
+				format     => 'html',
+				tables     => [],
+				title      => 'Error',
+				error      => $self->_i18n('error_file_open', $spec, _tidy_error($@)),
+				back_url   => '/',
+				back_label => 'Home',
+				language   => $language,
+			);
+		}
+		for my $found_table (@{$found}) {
+			my ($name, $cols) = @{$found_table}{qw(name columns)};
+			# Database::Abstraction refuses this name, so the card says so.
+			if ($name !~ $TABLE_NAME_RE) {
+				(my $safe = $name) =~ s/[^A-Za-z0-9_]/_/g;
+				$safe = "_$safe" unless $safe =~ /\A[A-Za-z_]/;
+				push @tables, { name => $name, columns => $cols, unusable => 1, safe_name => $safe, on_server => 1 };
+				next;
+			}
+			my $open_url = '/open?path=' . url_escape("mariadb:$server/$name")
+				. '&back=' . url_escape('/tables?l=' . $spec)
+				. '&back_label=' . url_escape(ucfirst($db_label) . ' schema');
+			push @tables, { name => $name, columns => $cols, href => $open_url };
+		}
 	} else {
 		return $self->reply->not_found;
 	}
@@ -11965,7 +12043,7 @@ sub summary_api ($self) {
 	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my $row_count = scalar @$records;
-	(my $label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
+	(my $label = $left_spec) =~ s/\A(?:table:|path:|url:|mariadb:|redis:[^|]+\|)//;
 
 	require Database::BI::Insights;
 	my $insights = Database::BI::Insights::compute(
@@ -12028,7 +12106,7 @@ sub insights_view ($self) {
 	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my $row_count = scalar @$records;
-	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:|redis:[^|]+\|)//;
+	(my $left_label = $left_spec) =~ s/\A(?:table:|path:|url:|mariadb:|redis:[^|]+\|)//;
 
 	require Database::BI::Insights;
 	my $insights = Database::BI::Insights::compute(
