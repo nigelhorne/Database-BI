@@ -5631,11 +5631,13 @@ C<GET /> -- Scan C<data_dir> and present a card grid of available tables.
 
 =head4 INPUT
 
-None (reads C<data_dir> from application config).
+None (reads C<data_dir> from application config, and C<BI_OPEN> and the
+C<Referer> header).
 
 =head4 OUTPUT
 
-Renders C<home.html.tt> with:
+When C<BI_OPEN> is set and the request has no C<Referer> from this server,
+redirects to C</open> for that path.  Otherwise renders C<home.html.tt> with:
 
   tables     ARRAYREF of { name => $stem, file => $basename }
   title      'Choose a Database'
@@ -5656,9 +5658,23 @@ None produced by this action; any file-scan errors are silently ignored
 
   GET / -> 200 text/html containing a card for each file in data/
 
+  With BI_OPEN=/data/store.db and no Referer from this server:
+  GET / -> 302 /open?path=%2Fdata%2Fstore.db
+
 =cut
 
 sub index ($self) {
+	# A database named when the server was started is what a reader arriving
+	# from outside sees first.  A Home link within the application carries this
+	# server as its Referer and gets the list, so that stays reachable.  The
+	# check needs no state, so it survives morbo restarting the application.
+	if (defined $ENV{BI_OPEN} && length $ENV{BI_OPEN}) {
+		my $from = $self->req->headers->referrer;
+		my $here = $self->req->url->to_abs->host_port;
+		return $self->redirect_to('/open?path=' . url_escape($ENV{BI_OPEN}))
+			unless defined $from && (Mojo::URL->new($from)->host_port // '') eq $here;
+	}
+
 	my ($platform, $language) = $self->_resolve_template;
 
 	# The layout writes the resolved language into <html lang>, so every action
@@ -5673,6 +5689,40 @@ sub index ($self) {
 		title    => 'Choose a Database',
 		language => $language,
 	);
+}
+
+=head2 is_supported_file
+
+Say whether a file's name has an extension C</open> will read.  C<script/database-bi>
+asks this to refuse a file before the server starts, rather than show a 404.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  $path  string, a file name or path; undef is allowed
+
+=head4 OUTPUT
+
+  1 when the name ends in a supported extension (any case), otherwise 0
+
+=head3 MESSAGES
+
+None.
+
+=head3 FORMAL SPECIFICATION
+
+  is_supported_file == lambda path . path =~ EXT_RE
+
+=head3 EXAMPLE
+
+  is_supported_file('data/store.db')   # 1
+  is_supported_file('LICENSE')         # 0
+
+=cut
+
+sub is_supported_file ($path) {
+	return (defined $path && $path =~ $EXT_RE) ? 1 : 0;
 }
 
 =head2 preferences

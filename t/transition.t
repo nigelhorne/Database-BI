@@ -404,6 +404,10 @@ _transition($FETCHING, 'backend answered', $DATA_RETURNED, sub {
 	my ($warnings, $none) = _quietly(sub { return $header_only->fetch_all });
 	is_deeply($none, [], 'a table with no rows: fetch_all answers []');
 	is(scalar($header_only->selectall_arrayref), undef, 'and selectall_arrayref answers undef');
+
+	my ($full) = _counted_source();
+	is(scalar($full->selectall_arrayref({ name => 'no such name' })), undef, 'as it does for a query that matches none');
+	restore_all();
 });
 
 _transition($FETCHING, 'backend failed', $FETCH_ERROR, sub {
@@ -910,8 +914,10 @@ _transition($CONSTRUCTED, 'first call, its new() answers nothing', $UNAVAILABLE,
 	local *Geo::Coder::Free::new = sub { return };
 
 	my $geocode = $GEOCODE->new;
-	my ($available) = $geocode->geocoder_available;
+	my ($available, $reason) = $geocode->geocoder_available;
 	is($available, 0, 'it cannot be had');
+	like($reason, qr/it could not be started/, 'and the reason says why');
+	unlike($reason, qr/not installed/, 'and does not claim the module is missing');
 	ok(exists $geocode->{_geocoder}, 'and the attempt is remembered');
 });
 

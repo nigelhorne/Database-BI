@@ -504,8 +504,8 @@ sub _check_interface {
 # _load_geocoder() -> geocoder object, or undef when there is not one to be had
 #
 # The real geocoder, loaded on demand so the application installs, starts and
-# tests without it.  Returns nothing when the module is absent or older than the
-# floor, and records which of the two it was for the message.
+# tests without it.  Returns nothing when the module is absent, older than the
+# floor, will not load, or builds nothing, and records which it was for the message.
 sub _load_geocoder {
 	my $self = shift;
 
@@ -526,9 +526,14 @@ sub _load_geocoder {
 		return;
 	}
 
-	return Geo::Coder::Free->new(
+	my $geocoder = Geo::Coder::Free->new(
 		$self->{'openaddr'} ? (openaddr => $self->{'openaddr'}) : ()
 	);
+
+	# It is installed, so the message must not fall back on saying that it is not.
+	$self->{'_unavailable'} = 'it could not be started' unless $geocoder;
+
+	return $geocoder;
 }
 
 # _geocoder() -> geocoder object or undef

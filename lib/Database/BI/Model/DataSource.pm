@@ -2506,8 +2506,9 @@ Each state is stable until the trigger event listed to its right fires.
   +---------------------------------------------------------------+
 
     DATA RETURNED delivers an arrayref of hashrefs to the caller, with one
-    exception: selectall_arrayref on a table with no rows answers undef, where
-    fetch_all answers [].
+    exception: selectall_arrayref with no rows to answer with (a table with none,
+    or a narrowed query that matches none) usually answers undef, where fetch_all
+    answers [].
 
     A "call for the whole table" is fetch_all, or selectall_arrayref with no
     arguments, or with only a sort_by on a column that is not a safe identifier and

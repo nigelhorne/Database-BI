@@ -160,6 +160,18 @@ script/database-bi
 other Mojolicious command word (`routes`, `get`, ...) is passed to the
 application.
 
+**Start it showing one database:**
+
+```
+script/database-bi data/store.db
+```
+
+The home address then shows that database, and its Home link leads to the usual
+list.  Only one can be named: more than one is an error (exit status 2), because
+a join cannot be given on the command line.  Use `MOJO_LISTEN` to choose the
+port.  A plain server does the same with
+`BI_OPEN=/full/path/store.db script/database-bi daemon`.
+
 **Start the production server:**
 
 ```
@@ -1185,8 +1197,8 @@ not recorded, so the next run announces them again rather than the alert being
 lost for the rest of the period.
 
 `script/database-bi` is the web application launcher: run with no arguments it
-starts the reloading development server, with a command word it runs that
-command, and `hypnotoad script/database-bi` starts a preforking server (see
+starts the reloading development server, with the name of one database it does
+the same and shows that database, with a command word it runs that command, and `hypnotoad script/database-bi` starts a preforking server (see
 ["SYNOPSIS"](#synopsis)).
 
 ## Common Pitfalls

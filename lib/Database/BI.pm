@@ -248,6 +248,16 @@ C<script/database-bi daemon> starts a plain server with no file watcher; any
 other Mojolicious command word (C<routes>, C<get>, ...) is passed to the
 application.
 
+B<Start it showing one database:>
+
+    script/database-bi data/store.db
+
+The home address then shows that database, and its Home link leads to the usual
+list.  Only one can be named: more than one is an error (exit status 2), because
+a join cannot be given on the command line.  Use C<MOJO_LISTEN> to choose the
+port.  A plain server does the same with
+C<BI_OPEN=/full/path/store.db script/database-bi daemon>.
+
 B<Start the production server:>
 
     hypnotoad script/database-bi
@@ -1215,8 +1225,8 @@ not recorded, so the next run announces them again rather than the alert being
 lost for the rest of the period.
 
 C<script/database-bi> is the web application launcher: run with no arguments it
-starts the reloading development server, with a command word it runs that
-command, and C<hypnotoad script/database-bi> starts a preforking server (see
+starts the reloading development server, with the name of one database it does
+the same and shows that database, with a command word it runs that command, and C<hypnotoad script/database-bi> starts a preforking server (see
 L</SYNOPSIS>).
 
 =head1 COMMON PITFALLS
