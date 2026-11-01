@@ -994,6 +994,7 @@ my @FAQ = (
 	{
 		question => 'Can I open a MariaDB or MySQL database?',
 		answer   => 'Yes, once the server has been added to mariadb_servers in the configuration file. The home page then has a card for it, which lists its tables. Choose a table to open it. You can also type mariadb:shop/orders in the path box, or in Merge and Combine. Only a page of the table is read at a time, until you filter it.',
+		link     => { text => 'the configuration file', href => 'https://github.com/nigelhorne/Database-BI#configuration' },
 	},
 	{
 		question => 'A number filter leaves out my blank cells.',
@@ -1255,7 +1256,9 @@ In the order the page shows them.
 
 =head4 OUTPUT
 
-	[ { question => 'string', answer => 'string' }, ... ]
+	[ { question => 'string', answer => 'string', link => { text, href }? }, ... ]
+
+C<link> makes the words C<text>, which occur once in C<answer>, a link to C<href>.
 
 =head2 glossary
 

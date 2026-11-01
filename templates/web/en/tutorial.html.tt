@@ -324,7 +324,12 @@
     <dl class="tutorial-faq">
       [%- FOREACH item IN faq %]
       <dt>[% item.question | html %]</dt>
+      [%- IF item.link %]
+      [%- SET parts = item.answer.split(item.link.text, 2) %]
+      <dd>[% parts.0 | html %]<a href="[% item.link.href | html %]" target="_blank" rel="noopener">[% item.link.text | html %]</a>[% parts.1 | html %]</dd>
+      [%- ELSE %]
       <dd>[% item.answer | html %]</dd>
+      [%- END %]
       [%- END %]
     </dl>
   </section>
