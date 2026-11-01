@@ -5,15 +5,26 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data &mdash; Database::BI</title>
 <meta name="description" content="How Database::BI reads data files, and the pipeline every table, chart and canvas shares: joins, combine, filters, ranges, calculated fields, groups, cross-row columns.">
-<link rel="stylesheet" href="../css/style.css">
+<meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161b" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="data.html">
+<meta property="og:type" content="article">
+<meta property="og:site_name" content="Database::BI">
+<meta property="og:title" content="Data &mdash; Database::BI">
+<meta property="og:description" content="How Database::BI reads data files, and the pipeline every table, chart and canvas shares: joins, combine, filters, ranges, calculated fields, groups, cross-row columns.">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="../css/site.css">
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="site-header">
-	<div class="inner">
-		<a class="brand" href="index.html">Database<span>::</span>BI</a>
-		<nav aria-label="Site">
+	<div class="wrap header-inner">
+		<a class="brand" href="index.html">
+			<span class="brand-name">Database::BI</span>
+			<span class="brand-tag">business intelligence for data files</span>
+		</a>
+		<nav class="site-nav" aria-label="Main">
 			<a href="index.html">Overview</a>
 			<a href="charts.html">Charts</a>
 			<a href="canvas.html">Canvases</a>
@@ -24,7 +35,7 @@
 	</div>
 </header>
 
-<main id="main">
+<main id="main" class="wrap">
 
 <div class="hero">
 	<p class="eyebrow">Files in, answers out</p>
@@ -37,6 +48,7 @@
 </div>
 
 <h2 id="sources">Where data can come from</h2>
+<div class="table-wrap">
 <table>
 	<thead>
 		<tr><th>Source</th><th>Opened with</th></tr>
@@ -72,6 +84,7 @@
 		</tr>
 	</tbody>
 </table>
+</div>
 <p>
 	Recognised extensions are <code>csv</code>, <code>psv</code>, <code>tsv</code>,
 	<code>sql</code>, <code>sqlite</code>, <code>sqlite3</code>, <code>db</code>,
@@ -201,6 +214,7 @@ this_year, last_year</code></pre>
 <pre><code>cs=&lt;column&gt;:&lt;function&gt;:&lt;alias&gt;[:&lt;count&gt;]   repeatable
 by=&lt;column&gt;[,&lt;column&gt;...]                  partition (optional)
 order=&lt;column&gt;[:asc|desc]                  the order rows are read in</code></pre>
+<div class="table-wrap">
 <table>
 	<thead>
 		<tr><th>Function</th><th>Needs <code>order=</code></th><th>Gives</th></tr>
@@ -212,6 +226,7 @@ order=&lt;column&gt;[:asc|desc]                  the order rows are read in</cod
 		<tr><td><code>lag</code>, <code>delta</code>, <code>pct_change</code></td><td>yes</td><td>The previous row's value, the change, and the change as a percentage.</td></tr>
 	</tbody>
 </table>
+</div>
 <p>
 	An unknown function or column, or a parameter where none is taken, is a 400.
 </p>
@@ -287,7 +302,7 @@ POST /export  l=...&amp;dir=/tmp&amp;filename=out.csv</code></pre>
 </main>
 
 <footer class="site-footer">
-	<div class="inner">
+	<div class="wrap">
 		<p>Database::BI by Nigel Horne. Released under the GPL2.</p>
 		<p>
 			<a href="https://metacpan.org/dist/Database-BI">MetaCPAN</a> &middot;

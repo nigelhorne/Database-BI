@@ -5,15 +5,46 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Database::BI &mdash; business intelligence for data files</title>
 <meta name="description" content="Database::BI is a self-contained Mojolicious web application that reads CSV, SQLite, XLSX, JSON and XML files and turns them into tables, charts, maps and shareable canvases.">
-<link rel="stylesheet" href="../css/style.css">
+<meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#12161b" media="(prefers-color-scheme: dark)">
+<link rel="canonical" href="index.html">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Database::BI">
+<meta property="og:title" content="Database::BI &mdash; business intelligence for data files">
+<meta property="og:description" content="Database::BI is a self-contained Mojolicious web application that reads CSV, SQLite, XLSX, JSON and XML files and turns them into tables, charts, maps and shareable canvases.">
+<meta name="twitter:card" content="summary">
+<link rel="stylesheet" href="../css/site.css">
+<script type="application/ld+json">
+{
+	"@context": "https://schema.org",
+	"@type": "SoftwareApplication",
+	"name": "Database::BI",
+	"description": "Database::BI is a self-contained Mojolicious web application that reads CSV, SQLite, XLSX, JSON and XML files and turns them into tables, charts, maps and shareable canvases.",
+	"applicationCategory": "DeveloperApplication",
+	"operatingSystem": "Linux, macOS, Windows",
+	"programmingLanguage": "Perl",
+	"softwareVersion": "0.018.0",
+	"license": "https://www.gnu.org/licenses/old-licenses/gpl-2.0.html",
+	"url": "https://metacpan.org/dist/Database-BI",
+	"sameAs": [
+		"https://github.com/nigelhorne/Database-BI",
+		"https://nigelhorne.github.io/Database-BI/coverage/"
+	],
+	"author": { "@type": "Person", "name": "Nigel Horne" },
+	"offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" }
+}
+</script>
 </head>
 <body>
 <a class="skip" href="#main">Skip to content</a>
 
 <header class="site-header">
-	<div class="inner">
-		<a class="brand" href="index.html">Database<span>::</span>BI</a>
-		<nav aria-label="Site">
+	<div class="wrap header-inner">
+		<a class="brand" href="index.html">
+			<span class="brand-name">Database::BI</span>
+			<span class="brand-tag">business intelligence for data files</span>
+		</a>
+		<nav class="site-nav" aria-label="Main">
 			<a href="index.html" aria-current="page">Overview</a>
 			<a href="charts.html">Charts</a>
 			<a href="canvas.html">Canvases</a>
@@ -24,7 +55,7 @@
 	</div>
 </header>
 
-<main id="main">
+<main id="main" class="wrap">
 
 <div class="hero">
 	<p class="eyebrow">Perl &middot; Mojolicious &middot; no database required</p>
@@ -208,7 +239,7 @@ hypnotoad script/database-bi   # preforking server for real use</code></pre>
 </main>
 
 <footer class="site-footer">
-	<div class="inner">
+	<div class="wrap">
 		<p>Database::BI by Nigel Horne. Released under the GPL2.</p>
 		<p>
 			<a href="https://metacpan.org/dist/Database-BI">MetaCPAN</a> &middot;
