@@ -204,6 +204,13 @@ perl Makefile.PL
     Renders the tutorial that is part of the application.  The chapters are data
     in [Database::BI::Tutorial](https://metacpan.org/pod/Database%3A%3ABI%3A%3ATutorial), not in this POD.
 
+- `GET /preferences`
+
+    Sets the reader's preferences: the theme, one of light, dark or the same as the
+    device (the default).  They are kept in the browser's `localStorage`, not on
+    the server, and apply to every page.  Saved charts, printed pages and embedded
+    canvases stay light.
+
 - `GET /view/:table`
 
     Opens the named table from `data_dir`.  Accepts `?f=col:op:val`

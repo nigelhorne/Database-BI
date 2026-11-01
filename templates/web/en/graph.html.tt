@@ -15,7 +15,7 @@
     gap: 0.75rem;
     margin-left: 0.5rem;
     padding-left: 0.75rem;
-    border-left: 1px solid #ccc;
+    border-left: 1px solid var(--border, #ccc);
   }
   .refline-label {
     display: inline-flex;
@@ -30,20 +30,20 @@
   /* Style the HTML::D3-generated Reset zoom button to match .btn-graph-export */
   #reset-btn {
     padding: 0.28rem 0.75rem;
-    border: 1px solid #888;
+    border: 1px solid var(--border-strong, #888);
     border-radius: 6px;
     background: transparent;
-    color: #444;
+    color: var(--text-secondary, #444);
     font-size: 0.82rem;
     cursor: pointer;
     transition: background 0.12s;
     margin-bottom: 0;
   }
-  #reset-btn:hover { background: #f0f0f0; }
+  #reset-btn:hover { background: var(--hover-bg, #f0f0f0); }
   .chart-source {
     margin: 0.25rem 0 0;
     font-size: 0.82rem;
-    color: #666;
+    color: var(--muted, #666);
     word-break: break-all;
   }
   .chart-source a { color: inherit; }

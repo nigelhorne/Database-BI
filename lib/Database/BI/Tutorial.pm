@@ -809,6 +809,20 @@ my @CHAPTERS = (
 		tip   => 'The page says each change out loud for screen readers.',
 		routes => [],
 	},
+	{
+		id    => 'preferences',
+		part  => 'Help',
+		title => 'Choose light or dark',
+		lead  => 'The program can use dark colours, or follow the setting on your device.',
+		steps => [
+			'Click Preferences at the top of any page.',
+			'Choose Same as this device, Light or Dark.',
+			'The page changes straight away, and every other page follows.',
+		],
+		tip   => 'The choice is saved in this browser. Saved charts and printed pages always use the light colours.',
+		try   => { href => '/preferences', label => 'Open your preferences' },
+		routes => [ '/preferences' ],
+	},
 
 	# ---------------------------------------------------------------
 	# For maintainers
@@ -983,6 +997,7 @@ my %ACTION_CHAPTERS = (
 	map_view       => 'map-chart',
 	canvas_render  => 'canvas',
 	catalog_view   => 'catalog',
+	preferences    => 'preferences',
 );
 
 my %EXEMPT_ROUTES = (

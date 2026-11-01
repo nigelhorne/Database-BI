@@ -39,7 +39,7 @@
   .tables-heading {
     font-size: 1.25rem;
     font-weight: 600;
-    color: #2c3e7a;
+    color: var(--accent-text, #2c3e7a);
     margin-bottom: 1.25rem;
   }
   .table-card-grid {
@@ -50,26 +50,26 @@
   .table-card {
     display: flex;
     flex-direction: column;
-    background: #fff;
-    border: 1px solid #dce3f0;
+    background: var(--card-bg, #fff);
+    border: 1px solid var(--border, #dce3f0);
     border-radius: 8px;
     padding: 1rem;
     text-decoration: none;
     color: inherit;
     transition: box-shadow 0.15s, border-color 0.15s;
   }
-  .table-card-unusable { background: #f8f9fa; border-style: dashed; }
-  .table-card-unusable:hover { box-shadow: none; border-color: #dce3f0; }
-  .table-card-why { margin: 0.5rem 0 0; font-size: 0.8rem; color: #555; }
+  .table-card-unusable { background: var(--row-alt, #f8f9fa); border-style: dashed; }
+  .table-card-unusable:hover { box-shadow: none; border-color: var(--border, #dce3f0); }
+  .table-card-why { margin: 0.5rem 0 0; font-size: 0.8rem; color: var(--text-secondary, #555); }
   .table-card-why code { display: block; margin-top: 0.25rem; overflow-wrap: anywhere; }
   .table-card:hover {
     box-shadow: 0 4px 12px rgba(44,62,122,.15);
-    border-color: #2c3e7a;
+    border-color: var(--accent-border, #2c3e7a);
   }
   .table-card-name {
     font-size: 1.05rem;
     font-weight: 700;
-    color: #2c3e7a;
+    color: var(--accent-text, #2c3e7a);
     margin-bottom: 0.6rem;
   }
   .table-card-cols {
@@ -78,16 +78,16 @@
     margin: 0 0 0.75rem 0;
     padding: 0;
     font-size: 0.82rem;
-    color: #555;
+    color: var(--text-secondary, #555);
   }
   .table-card-cols li {
     padding: 0.18rem 0;
-    border-bottom: 1px solid #f0f0f0;
+    border-bottom: 1px solid var(--border, #f0f0f0);
   }
   .table-card-cols li:last-child { border-bottom: none; }
   .table-card-open {
     font-size: 0.8rem;
-    color: #2c3e7a;
+    color: var(--accent-text, #2c3e7a);
     font-weight: 600;
     text-align: right;
     margin-top: auto;

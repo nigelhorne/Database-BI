@@ -284,6 +284,13 @@ Scans C<data_dir>, renders a card grid of available tables.
 Renders the tutorial that is part of the application.  The chapters are data
 in L<Database::BI::Tutorial>, not in this POD.
 
+=item C<GET /preferences>
+
+Sets the reader's preferences: the theme, one of light, dark or the same as the
+device (the default).  They are kept in the browser's C<localStorage>, not on
+the server, and apply to every page.  Saved charts, printed pages and embedded
+canvases stay light.
+
 =item C<GET /view/:table>
 
 Opens the named table from C<data_dir>.  Accepts C<?f=col:op:val>
@@ -1703,6 +1710,7 @@ sub startup ($self) {
 	my $r = $self->routes();
 	$r->get('/')->to('Dashboard#index');
 	$r->get('/tutorial')->to('Dashboard#tutorial');
+	$r->get('/preferences')->to('Dashboard#preferences');
 	$r->get('/view/:table')->to('Dashboard#view');
 	$r->get('/browse')->to('Dashboard#browse');
 	$r->get('/open')->to('Dashboard#open_file');

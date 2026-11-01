@@ -641,6 +641,7 @@ sub _crumb_label :Protected ($self, $url) {
 	}
 	return 'Catalog'  if $path eq '/catalog';
 	return 'Tutorial' if $path eq '/tutorial';
+	return 'Preferences' if $path eq '/preferences';
 	if ($path =~ m{\A/a/([A-Za-z0-9_-]+)}) {
 		my $a = $self->_read_analyses->{$1};
 		return (ref $a eq 'HASH' && length($a->{name} // '')) ? $a->{name} : 'Canvas';
@@ -5670,6 +5671,46 @@ sub index ($self) {
 		format   => 'html',
 		tables   => $self->_scan_data_dir,
 		title    => 'Choose a Database',
+		language => $language,
+	);
+}
+
+=head2 preferences
+
+C<GET /preferences> -- Render the page where a reader sets their preferences:
+for now, the light or dark theme.
+
+Preferences belong to the browser, in C<localStorage>, not to the server, so
+this action only renders the form.  The script that stores and applies them is
+in C<layouts/theme.html.tt>, which every page loads.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+  200 text/html   The preferences page.
+
+=head3 FORMAL SPECIFICATION
+
+  preferences
+    response! : HTTP
+    ──────────
+    response!.status = 200
+
+=cut
+
+sub preferences ($self) {
+	my ($platform, $language) = $self->_resolve_template;
+
+	$self->render(
+		template => "$platform/$language/preferences",
+		handler  => 'tt',
+		format   => 'html',
+		title    => 'Preferences',
 		language => $language,
 	);
 }

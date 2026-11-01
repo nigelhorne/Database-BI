@@ -13,7 +13,13 @@ Revision history for Database-BI
 	  "Database::BI" at the bottom right.  In the PDF it links to
 	  https://metacpan.org/dist/Database-BI.
 	- Added website
+	- Dark mode, and a new Preferences page to choose it: the same as the device
+	  (the default), light or dark.  The choice is kept in the browser's local
+	  storage and applies at once to every open page.  Charts and tables follow
+	  it.  Saved charts, printed pages and embedded canvases stay light.
 	[ Bug Fixes ]
+	- On a device set to dark, a few parts of some pages went dark on an otherwise
+	  light page.  The whole page now follows the setting.
 	- /export with sort= gave a 500 on a SQLite source the first time it was read,
 	  because the rows were sorted in place in the backend's read-only array.
 	- A data directory that could not be read gave a 500 on the home page and on

@@ -56,7 +56,7 @@
 	white-space: nowrap;
 	cursor: pointer;
 }
-.visual-edit-btn:hover, .visual-cs-btn:hover { background: #f0f0f0; }
+.visual-edit-btn:hover, .visual-cs-btn:hover { background: var(--hover-bg, #f0f0f0); }
 /* The small controls in a card header share one height, so they line up with
  * each other; the header centres them on the title. */
 .visual-edit-btn,
@@ -100,10 +100,10 @@
 .visual-card-body .map-notes {
 	margin: 0.4rem 0 0;
 	padding: 0.4rem 0.6rem;
-	border-left: 3px solid #c9a227;
-	background: #fdf8e6;
+	border-left: 3px solid var(--warning-border, #c9a227);
+	background: var(--warning-bg, #fdf8e6);
 	font-size: 0.8rem;
-	color: #5c4a11;
+	color: var(--warning-fg, #5c4a11);
 }
 .visual-card-body .map-notes ul { margin: 0; padding-left: 1rem; }
 /* A cross-filter mark is a control: it filters the canvas by its value from
@@ -115,7 +115,7 @@
 	outline: none;
 }
 .visual-error {
-	color: #dc3545;
+	color: var(--danger-fg, #dc3545);
 	padding: 0.5rem;
 	font-size: 0.85rem;
 }
@@ -129,7 +129,7 @@
 .wordcloud-word {
 	display: inline-block;
 	margin: 0 0.25rem;
-	color: #2c3e7a;
+	color: var(--accent-text, #2c3e7a);
 	white-space: nowrap;
 	text-decoration: none;
 }
@@ -174,7 +174,7 @@
 }
 .visual-count {
 	font-size: 0.8rem;
-	color: #666;
+	color: var(--muted, #666);
 	white-space: nowrap;
 	flex: 0 0 auto;
 }
@@ -183,28 +183,28 @@
 	display: inline-flex;
 	align-items: center;
 	gap: 0.4rem;
-	background: #fff3cd;
-	border: 1px solid #ffc107;
+	background: var(--warning-bg, #fff3cd);
+	border: 1px solid var(--warning-border, #ffc107);
 	border-radius: 4px;
 	padding: 0.2rem 0.6rem;
 	font-size: 0.82rem;
-	color: #664d03;
+	color: var(--warning-fg, #664d03);
 }
 .cf-chip a {
-	color: #664d03;
+	color: var(--warning-fg, #664d03);
 	text-decoration: none;
 	font-weight: 700;
 }
 .cf-chip a:hover { text-decoration: underline; }
 /* Source visual: highlighted border, not filtered */
 .visual-card.cf-source {
-	border-color: #0d6efd;
+	border-color: var(--accent-border, #0d6efd);
 	box-shadow: 0 0 0 2px rgba(13,110,253,0.25);
 }
 .visual-card.cf-source .visual-card-header::after {
 	content: 'filter source';
 	font-size: 0.7rem;
-	color: #0d6efd;
+	color: var(--link, #0d6efd);
 	margin-left: auto;
 	padding-left: 0.5rem;
 	white-space: nowrap;
@@ -257,16 +257,16 @@
 }
 .param-bar .btn-add-visual {
 	padding: 0.28rem 0.75rem;
-	border: 1px solid #888;
+	border: 1px solid var(--border-strong, #888);
 	border-radius: 6px;
 	background: transparent;
-	color: #444;
+	color: var(--text-secondary, #444);
 	font-size: 0.82rem;
 	white-space: nowrap;
 	cursor: pointer;
 	transition: background 0.12s;
 }
-.param-bar .btn-add-visual:hover { background: #f0f0f0; }
+.param-bar .btn-add-visual:hover { background: var(--hover-bg, #f0f0f0); }
 .param-bar input,
 .param-bar select,
 .param-bar button,
@@ -411,15 +411,15 @@
 	color: var(--link, #0d6efd);
 	cursor: pointer;
 }
-.ac-cs-add:hover, .ac-cs-add:focus-visible { background: #eef2fb; }
+.ac-cs-add:hover, .ac-cs-add:focus-visible { background: var(--hover-bg, #eef2fb); }
 .ac-cs-list-title { margin: 0 0 0.2rem; font-size: 0.78rem; font-weight: 600; }
 .ac-cs-list { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; }
 .ac-cs-chip {
 	display: inline-flex;
 	align-items: center;
 	gap: 0.3rem;
-	background: #eef2fb;
-	border: 1px solid #ccd6ec;
+	background: var(--hover-bg, #eef2fb);
+	border: 1px solid var(--border, #ccd6ec);
 	border-radius: 999px;
 	padding: 0.1rem 0.15rem 0.1rem 0.55rem;
 	font-size: 0.78rem;
@@ -427,14 +427,14 @@
 .ac-cs-remove {
 	border: 0;
 	background: none;
-	color: #2c3e7a;
+	color: var(--accent-text, #2c3e7a);
 	cursor: pointer;
 	font-size: 0.95rem;
 	line-height: 1;
 	padding: 0 0.3rem;
 	border-radius: 999px;
 }
-.ac-cs-remove:hover, .ac-cs-remove:focus-visible { background: #dbe4f7; }
+.ac-cs-remove:hover, .ac-cs-remove:focus-visible { background: var(--hover-bg, #dbe4f7); }
 /* A chip's label is a button where the chip can be reopened: it is the column
    as the reader will see it, so it reads as text and only shows that it can be
    pressed on hover or focus. */
@@ -448,7 +448,7 @@ button.ac-cs-chip-text {
 	text-align: left;
 }
 button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decoration: underline; }
-.ac-cs-chip.is-editing { background: #dbe4f7; border-color: #8fa8d8; }
+.ac-cs-chip.is-editing { background: var(--hover-bg, #dbe4f7); border-color: var(--accent-border, #8fa8d8); }
 .ac-cs-stop {
 	font-size: 0.78rem;
 	padding: 0.22rem 0.6rem;
@@ -458,7 +458,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	color: inherit;
 	cursor: pointer;
 }
-.ac-cs-stop:hover, .ac-cs-stop:focus-visible { background: #f0f0f0; }
+.ac-cs-stop:hover, .ac-cs-stop:focus-visible { background: var(--hover-bg, #f0f0f0); }
 .ac-cs-stop[hidden] { display: none; }
 .ac-cs-empty { margin: 0.1rem 0 0; font-size: 0.72rem; color: var(--muted, #6c757d); }
 .ac-cs-empty[hidden] { display: none; }
@@ -483,8 +483,8 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	margin: 0.35rem 0 0;
 	font-size: 0.78rem;
 	color: var(--warning-fg, #8a6d3b);
-	background: #fff8e1;
-	border: 1px solid #f0d58c;
+	background: var(--warning-bg, #fff8e1);
+	border: 1px solid var(--warning-border, #f0d58c);
 	border-radius: 4px;
 	padding: 0.25rem 0.45rem;
 }
@@ -495,10 +495,10 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 .canvas-toolbar .btn-add-visual {
 	flex-shrink: 0;
 	padding: 0.28rem 0.75rem;
-	border: 1px solid #888;
+	border: 1px solid var(--border-strong, #888);
 	border-radius: 6px;
 	background: transparent;
-	color: #444;
+	color: var(--text-secondary, #444);
 	font-size: 0.82rem;
 	white-space: nowrap;
 	cursor: pointer;
@@ -510,7 +510,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 .canvas-toolbar > button:hover,
 .canvas-toolbar > .bm-wrap > button:hover,
 .canvas-toolbar .btn-add-visual:hover {
-	background: #f0f0f0;
+	background: var(--hover-bg, #f0f0f0);
 	text-decoration: none;
 }
 .canvas-toolbar > button:disabled {
@@ -583,7 +583,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	cursor: pointer;
 	white-space: nowrap;
 }
-.canvas-hint-close:hover { background: #e2e6ea; }
+.canvas-hint-close:hover { background: var(--hover-bg, #e2e6ea); }
 /* The card the tip is talking about, marked while the tip is up and unmarked
  * when it goes: a ring rather than a colour of its own around the header it can
  * be dragged by, and a tint over the grip it can be resized from. */
@@ -629,7 +629,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
  * not to compete with the data the rest of the time. */
 .visual-card:hover .visual-resize-handle::after,
 .visual-resize-handle:hover::after { opacity: 1; }
-.visual-resize-handle:hover::after { background-color: #e2e6ea; }
+.visual-resize-handle:hover::after { background-color: var(--hover-bg, #e2e6ea); }
 /* Keyboard focus.  The handle is the only way to resize without a pointer, so
  * once it has focus it has to be findable, and the card it belongs to has to be
  * obvious: the arrow keys resize the focused card.  :focus-visible rather than
@@ -708,7 +708,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	flex-shrink: 0;
 	margin-left: 0.3rem;
 }
-.visual-dl-btn:hover { background: #e2e6ea; }
+.visual-dl-btn:hover { background: var(--hover-bg, #e2e6ea); }
 /* Print styles (3.7) */
 @media print {
 	@page { size: landscape; margin: 1.5cm; }
@@ -733,7 +733,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	.visual-card {
 		break-inside: avoid;
 		box-shadow: none;
-		border: 1px solid #aaa;
+		border: 1px solid var(--border-strong, #aaa);
 		border-radius: 3px;
 	}
 	.visual-card-header { cursor: default; }
@@ -753,7 +753,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 
 <nav class="back-link" aria-label="Breadcrumb">[% PROCESS "web/en/layouts/breadcrumb.html.tt" %]</nav>
 [%- IF freshness_stale -%]
-<div class="freshness-banner" role="alert" style="background:#fff3cd;border:1px solid #ffc107;border-radius:4px;padding:0.4rem 0.75rem;margin-bottom:0.5rem;font-size:0.85rem;color:#664d03;">
+<div class="freshness-banner" role="alert" style="background:var(--warning-bg, #fff3cd);border:1px solid var(--warning-border, #ffc107);border-radius:4px;padding:0.4rem 0.75rem;margin-bottom:0.5rem;font-size:0.85rem;color:var(--warning-fg, #664d03);">
 	&#9888; [% freshness_msg | html %]
 	[% IF freshness_source_mtime.length %](source last modified: [% freshness_source_mtime | html %])[% END %]
 </div>

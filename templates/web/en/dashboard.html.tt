@@ -28,55 +28,43 @@
   }
   .dash-f-range-sep {
     font-size: 0.82rem;
-    color: #666;
+    color: var(--muted, #666);
   }
   .btn-dash-filter-apply {
     padding: 0.28rem 0.75rem;
-    border: 1px solid #888;
+    border: 1px solid var(--border-strong, #888);
     border-radius: 6px;
     background: transparent;
-    color: #444;
+    color: var(--text-secondary, #444);
     font-size: 0.82rem;
     cursor: pointer;
     transition: background 0.12s;
   }
-  .btn-dash-filter-apply:hover { background: #f0f0f0; }
+  .btn-dash-filter-apply:hover { background: var(--hover-bg, #f0f0f0); }
   /* x-button inside active filter chips */
   .chip-remove {
     background: none;
     border: none;
     cursor: pointer;
-    color: #7a5800;
+    color: var(--warning-fg, #7a5800);
     font-size: 0.75rem;
     padding: 0 0 0 0.3em;
     line-height: 1;
     vertical-align: middle;
   }
-  .chip-remove:hover { color: #c00; }
+  .chip-remove:hover { color: var(--danger-fg, #c00); }
   /* Schema-type-mismatch warnings from Database::Join */
   .schema-warnings {
     list-style: none;
     margin: 0.4rem 0 0.6rem;
     padding: 0.5rem 0.8rem;
-    background: #fffbe6;
-    border-left: 3px solid #f0a000;
+    background: var(--warning-bg, #fffbe6);
+    border-left: 3px solid var(--warning-border, #f0a000);
     border-radius: 4px;
     font-size: 0.85rem;
-    color: #5a4000;
+    color: var(--body-color, #5a4000);
   }
   .schema-warnings li + li { margin-top: 0.25rem; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .schema-warnings {
-      background: #3a2e00;
-      border-left-color: #f0c040;
-      color: #f0d890;
-    }
-  }
-  :root[data-theme="dark"] .schema-warnings {
-    background: #3a2e00;
-    border-left-color: #f0c040;
-    color: #f0d890;
-  }
   /* Pagination bar */
   .pagination {
     display: flex;
@@ -88,38 +76,24 @@
   .page-btn {
     display: inline-block;
     padding: 0.3rem 0.65rem;
-    border: 1px solid #bbb;
+    border: 1px solid var(--border-strong, #bbb);
     border-radius: 4px;
     font-size: 0.85rem;
-    color: #333;
-    background: #fff;
+    color: var(--body-color, #333);
+    background: var(--card-bg, #fff);
     text-decoration: none;
     cursor: pointer;
   }
-  a.page-btn:hover { background: #f0f0f0; border-color: #888; }
+  a.page-btn:hover { background: var(--hover-bg, #f0f0f0); border-color: var(--border-strong, #888); }
   .page-btn-cur {
     background: #0066cc;
     color: #fff;
-    border-color: #0055aa;
+    border-color: var(--info-border, #0055aa);
     font-weight: 600;
     cursor: default;
   }
-  .page-btn-dis { color: #aaa; background: #f8f8f8; cursor: default; }
-  .page-info { font-size: 0.82rem; color: #555; margin-left: 0.5rem; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .page-btn {
-      background: #1e1e1e; color: #ccc; border-color: #555;
-    }
-    :root:not([data-theme="light"]) a.page-btn:hover { background: #2a2a2a; }
-    :root:not([data-theme="light"]) .page-btn-cur { background: #1a6bbf; color: #fff; }
-    :root:not([data-theme="light"]) .page-btn-dis { background: #1a1a1a; color: #666; }
-    :root:not([data-theme="light"]) .page-info { color: #999; }
-  }
-  :root[data-theme="dark"] .page-btn { background: #1e1e1e; color: #ccc; border-color: #555; }
-  :root[data-theme="dark"] a.page-btn:hover { background: #2a2a2a; }
-  :root[data-theme="dark"] .page-btn-cur { background: #1a6bbf; color: #fff; }
-  :root[data-theme="dark"] .page-btn-dis { background: #1a1a1a; color: #666; }
-  :root[data-theme="dark"] .page-info { color: #999; }
+  .page-btn-dis { color: var(--text-faint, #aaa); background: var(--row-alt, #f8f8f8); cursor: default; }
+  .page-info { font-size: 0.82rem; color: var(--text-secondary, #555); margin-left: 0.5rem; }
   /* Pivot table panel */
   .pivot-config {
     display: flex;
@@ -138,13 +112,13 @@
   .pivot-section-head {
     font-size: 0.8rem;
     font-weight: 600;
-    color: #555;
+    color: var(--text-secondary, #555);
     text-transform: uppercase;
     letter-spacing: 0.06em;
     margin-bottom: 0.1rem;
   }
-  .pivot-req { color: #c00; font-weight: 700; text-transform: none; letter-spacing: 0; }
-  .pivot-opt { color: #888; font-weight: 400; text-transform: none; letter-spacing: 0; }
+  .pivot-req { color: var(--danger-fg, #c00); font-weight: 700; text-transform: none; letter-spacing: 0; }
+  .pivot-opt { color: var(--muted, #888); font-weight: 400; text-transform: none; letter-spacing: 0; }
   .pivot-dim-row, .pivot-measure-row {
     display: flex;
     align-items: center;
@@ -176,24 +150,16 @@
   }
   .btn-remove-pivot {
     background: none;
-    border: 1px solid #bbb;
+    border: 1px solid var(--border-strong, #bbb);
     border-radius: 4px;
     cursor: pointer;
     font-size: 0.75rem;
     padding: 0.2rem 0.45rem;
-    color: #666;
+    color: var(--muted, #666);
     line-height: 1;
   }
-  .btn-remove-pivot:hover { border-color: #c00; color: #c00; }
-  .pivot-alias-label { font-size: 0.75rem; color: #888; white-space: nowrap; }
-  @media (prefers-color-scheme: dark) {
-    :root:not([data-theme="light"]) .pivot-section-head { color: #999; }
-    :root:not([data-theme="light"]) .btn-remove-pivot { border-color: #555; color: #aaa; }
-    :root:not([data-theme="light"]) .pivot-alias-label { color: #888; }
-  }
-  :root[data-theme="dark"] .pivot-section-head { color: #999; }
-  :root[data-theme="dark"] .btn-remove-pivot { border-color: #555; color: #aaa; }
-  :root[data-theme="dark"] .pivot-alias-label { color: #888; }
+  .btn-remove-pivot:hover { border-color: var(--danger-border, #c00); color: var(--danger-fg, #c00); }
+  .pivot-alias-label { font-size: 0.75rem; color: var(--muted, #888); white-space: nowrap; }
 </style>
 
 <nav class="back-link" aria-label="Breadcrumb">[% PROCESS "web/en/layouts/breadcrumb.html.tt" %][%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</nav>
@@ -462,7 +428,7 @@
       <div class="join-or">or</div>
 
       <div class="join-field">
-        <label for="right-path-inp">File path <span style="font-weight:400;color:#999;font-size:.78rem;">(browser or drag &amp; drop)</span></label>
+        <label for="right-path-inp">File path <span style="font-weight:400;color:var(--text-faint, #999);font-size:.78rem;">(browser or drag &amp; drop)</span></label>
         <div class="with-tooltip">
           <input type="text" id="right-path-inp" placeholder="/path/to/file.csv"
                  autocomplete="off" spellcheck="false">
@@ -558,7 +524,7 @@
       <div class="join-or">or</div>
 
       <div class="join-field">
-        <label for="combine-path-inp">File path <span style="font-weight:400;color:#999;font-size:.78rem;">(browse or drag &amp; drop)</span></label>
+        <label for="combine-path-inp">File path <span style="font-weight:400;color:var(--text-faint, #999);font-size:.78rem;">(browse or drag &amp; drop)</span></label>
         <div class="with-tooltip">
           <input type="text" id="combine-path-inp" placeholder="/path/to/file.csv"
                  autocomplete="off" spellcheck="false">
@@ -1399,7 +1365,7 @@
       </div>
     </div>
     <div id="map-color-rules" hidden>
-      <div class="filter-section-head" style="margin:0.4rem 0 0.2rem;font-size:0.85rem;font-weight:600;color:#555">Colour rules &mdash; first match wins</div>
+      <div class="filter-section-head" style="margin:0.4rem 0 0.2rem;font-size:0.85rem;font-weight:600;color:var(--text-secondary, #555)">Colour rules &mdash; first match wins</div>
       <div id="map-rule-rows"></div>
       <button type="button" id="btn-add-map-rule" class="btn-add-filter">&#x2b; Add rule</button>
     </div>
@@ -1448,14 +1414,14 @@
   </div>
   <div id="ask-result" hidden style="margin-top:0.85rem">
     <div id="ask-result-title" style="font-weight:600;font-size:0.95rem;margin-bottom:0.25rem"></div>
-    <div id="ask-result-kind" style="font-size:0.82rem;color:#666;margin-bottom:0.65rem"></div>
+    <div id="ask-result-kind" style="font-size:0.82rem;color:var(--muted, #666);margin-bottom:0.65rem"></div>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap;align-items:center">
       <a id="ask-run-link" href="#" class="btn-primary">&#x25B6; Run it</a>
       <button id="btn-ask-save" class="btn-secondary">&#x1F4BE; Save to canvas</button>
     </div>
     <div id="ask-save-msg" style="margin-top:0.5rem;font-size:0.82rem"></div>
   </div>
-  <div id="ask-error" hidden style="margin-top:0.7rem;color:#b00;font-size:0.88rem"></div>
+  <div id="ask-error" hidden style="margin-top:0.7rem;color:var(--danger-fg, #b00);font-size:0.88rem"></div>
 </div>
 [%- END -%]
 
@@ -1622,7 +1588,7 @@
       <button type="button" id="btn-save-date" class="btn-primary" disabled>Save &amp; apply</button>
     </div>
   </div>
-  <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid #d0d8f0">
+  <div style="margin-top:0.75rem;padding-top:0.75rem;border-top:1px solid var(--border, #d0d8f0)">
     <div class="filter-section-label" style="margin-bottom:0.45rem">Quick date filters (uses selected column)</div>
     <div style="display:flex;gap:0.5rem;flex-wrap:wrap">
       <button type="button" id="btn-dates-ytd"  class="btn-secondary" disabled>This year</button>
@@ -2428,7 +2394,7 @@ function biDetectColType(colName) {
     var sepSpan = document.createElement('span');
     sepSpan.textContent = '\u2014';
     sepSpan.className = 'filter-range-sep';
-    sepSpan.style.cssText = 'display:none;font-size:0.82rem;color:#666';
+    sepSpan.style.cssText = 'display:none;font-size:0.82rem;color:var(--muted, #666)';
 
     var toInp = document.createElement('input');
     toInp.type = 'date';
