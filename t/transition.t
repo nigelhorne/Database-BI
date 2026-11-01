@@ -6,17 +6,10 @@
 #
 # Neither object has a state field, so a state is what can be seen from outside:
 # whether the backend was read, whether the cache was asked, what is held on the
-# object.  Each path through a diagram gets a subtest named after it, through
-# _transition(), which records the path as covered.  The compliance subtests at
-# the end read the diagrams out of the POD and compare, in both directions, so
-# that a path added to a diagram fails here until it has a test, and a tested
-# path removed from one fails too.
-#
-# Where the code and the diagram disagree the behaviour is pinned as it is, since
-# in each case it is what the code means to do, and _discrepancy() asks the POD to
-# describe it.  That is a TAP TODO, so it fails quietly until the diagram is put
-# right and then reports an unexpected pass, which is the cue to delete it.  Each
-# carries a "TODO: FSM Discrepancy" comment.
+# object.  Each path through a diagram gets a subtest named after it, which records
+# the path as covered.  The compliance subtests at the end read the paths out of
+# the POD and compare, in both directions, so that a path added to a diagram fails
+# here until it has a test, and a tested path removed from one fails too.
 
 use strict;
 use warnings;
@@ -51,6 +44,7 @@ Readonly my $GCF_FILE => 'Geo/Coder/Free.pm';
 Readonly my $START         => '[START]';
 Readonly my $INITIALISING  => 'INITIALISING';
 Readonly my $ERROR         => 'ERROR';
+Readonly my $FETCH_ERROR   => 'FETCH ERROR';
 Readonly my $READY         => 'READY';
 Readonly my $FETCHING      => 'FETCHING';
 Readonly my $DATA_RETURNED => 'DATA RETURNED';
@@ -58,7 +52,6 @@ Readonly my $CACHE_CHECK   => 'CACHE CHECK';
 Readonly my $DESTROY       => 'DESTROY';
 
 # The states of Geocode.
-Readonly my $NEW               => 'new()';
 Readonly my $CONSTRUCTED       => 'CONSTRUCTED';
 Readonly my $UNAVAILABLE       => 'UNAVAILABLE';
 Readonly my $RECEIVED          => 'RECEIVED';
@@ -67,6 +60,7 @@ Readonly my $SKIPPED           => 'SKIPPED';
 Readonly my $CACHED_RESOLVED   => 'CACHED_RESOLVED';
 Readonly my $CACHED_UNRESOLVED => 'CACHED_UNRESOLVED';
 Readonly my $NOT_ATTEMPTED     => 'NOT_ATTEMPTED';
+Readonly my $EXCEPTION         => 'EXCEPTION';
 Readonly my $RESOLVED_NEW      => 'RESOLVED_NEW';
 Readonly my $UNRESOLVED_NEW    => 'UNRESOLVED_NEW';
 
@@ -76,6 +70,7 @@ Readonly my $CSV_TEXT    => "name,value\nA,1\n";
 Readonly my $ROWS        => [ { name => 'A', value => 1 } ];
 Readonly my $URL         => 'http://example.com/page/table.html';
 Readonly my $URL_TTL     => '15 min';
+Readonly my $UNUSED_PORT => 'redis://127.0.0.1:1';
 Readonly my $REMOTE_DIR  => '/remote';
 Readonly my $REMOTE_HOST => 'h.example';
 Readonly my $BDB_MAGIC   => 0x00061561;
@@ -132,6 +127,7 @@ Readonly my $CAP          => 2;
 	sub new { my ($class, %args) = @_; return bless { asked => [], valid => [], %args }, $class }
 	sub valid_location {
 		my ($self, $value) = @_;
+		die "rule failure\n" if $self->{rule_dies};
 		push @{ $self->{valid} }, $value;
 		return $value ne ($self->{refuse} // '');
 	}
@@ -154,13 +150,23 @@ Readonly my $CAP          => 2;
 # Helpers
 # ---------------------------------------------------------------------------
 
+# The paths tested so far, by module, then the value-level paths of Geocode.
 my %covered;
+my %value_covered;
+my $machine = $DS;
 
 # A documented path: the subtest is named after it, and it counts as covered.
 sub _transition {
 	my ($from, $trigger, $to, $code) = @_;
-	$covered{"$from -> $to"}++;
-	$covered{"$from -> [$trigger] -> $to"}++;
+	$covered{$machine}{"$from -> $to"}++;
+	return subtest "State: $from -> Trigger: $trigger -> State: $to" => $code;
+}
+
+# A documented path for one value in one Geocode call.  The trigger is the text in
+# the diagram's brackets.
+sub _value_transition {
+	my ($from, $trigger, $to, $code) = @_;
+	$value_covered{"$from -> [$trigger] -> $to"}++;
 	return subtest "State: $from -> Trigger: $trigger -> State: $to" => $code;
 }
 
@@ -168,14 +174,6 @@ sub _transition {
 sub _illegal {
 	my ($from, $trigger, $to, $code) = @_;
 	return subtest "Illegal: $from -> Trigger: $trigger -> State: $to" => $code;
-}
-
-# The code does something its diagram does not show.  The behaviour has been
-# pinned by the caller; this asks the POD to say so.
-sub _discrepancy {
-	my ($details, $pod, $wanted) = @_;
-	local $TODO = "FSM Discrepancy - $details";
-	return ok($pod =~ $wanted, "the diagram shows: $details");
 }
 
 # The =head1 STATE DIAGRAM section of a module.
@@ -187,6 +185,20 @@ sub _diagram_of {
 	close $fh or die "$INC{$file}: $!";
 	my ($section) = $text =~ /^=head1 STATE DIAGRAM\n(.*?)^=head1 /ms;
 	return $section // '';
+}
+
+# The paths in the "Valid state transitions summary" of a diagram.
+sub _summary_paths {
+	my ($module) = @_;
+	my ($summary) = _diagram_of($module) =~ /Valid state transitions summary:\n\n(.*?)\n\n/s;
+	my %paths;
+	for my $line (split /\n/, $summary // '') {
+		next unless $line =~ /\A\s*(\[?[A-Z][A-Z \/]*\]?)\s+->\s+([A-Z][A-Z ]*?)\s+\(/;
+		my ($from, $to) = ($1, $2);
+		$from =~ s/\s+\z//;
+		$paths{"$_ -> $to"} = 1 for split m{\s*/\s*}, $from;
+	}
+	return \%paths;
 }
 
 # The exact text an error starts with.
@@ -246,7 +258,15 @@ sub _counted_source {
 	return ($src, $reads);
 }
 
-# Run some code and answer what it warned, then what it answered.
+# Take a source to FETCH ERROR.
+sub _fail_a_fetch {
+	my ($src) = @_;
+	my $guard = mock_scoped($BACKEND, selectall_hashref => sub { die "backend failure\n" });
+	throws_ok { $src->fetch_all } qr/backend failure/, 'the fetch failed';
+	return;
+}
+
+# Run some code and answer what it warned, then what it answered., then what it answered.
 sub _quietly {
 	my ($code) = @_;
 	my @warnings;
@@ -312,6 +332,9 @@ _transition($INITIALISING, 'croak on bad args', $ERROR, sub {
 		_error_re('error_table_name_invalid', '../up'), 'a table name that climbs out';
 	throws_ok { $DS->new(url => 'ftp://example.com/x') }
 		_error_re('error_url_invalid', 'ftp://example.com/x'), 'a URL that is not http';
+	throws_ok { $DS->new(redis => 'http://example.com') }
+		_error_re('error_redis_invalid', 'http://example.com'), 'a Redis address that is not one';
+	throws_ok { $DS->new(redis => $UNUSED_PORT) } _error_re('error_table_required'), 'Redis with no table';
 });
 
 _transition($INITIALISING, 'no safe id', $ERROR, sub {
@@ -327,6 +350,11 @@ _transition($INITIALISING, 'no SQLite tables', $ERROR, sub {
 	$dbh->disconnect;
 	throws_ok { $DS->new(directory => $dir, table => 'hollow') } _error_re('error_no_tables', 'hollow'),
 		'a database with nothing in it';
+
+	# A file of no bytes is this case, not the empty-file one.
+	my $zero = _dir_with('nothing.sqlite', '');
+	throws_ok { $DS->new(directory => $zero, table => 'nothing') } _error_re('error_no_tables', 'nothing'),
+		'a SQLite file of no bytes';
 });
 
 _transition($INITIALISING, 'unopenable database', $ERROR, sub {
@@ -353,10 +381,68 @@ _transition($READY, 'fetch_all, no cache', $FETCHING, sub {
 	restore_all();
 });
 
-_transition($FETCHING, 'query completed', $DATA_RETURNED, sub {
+_transition($READY, 'a narrowed query, with a cache', $FETCHING, sub {
+	# Not the whole table, so it is neither looked up nor stored.
+	my $cache = Local::Cache->new;
+	my ($src) = _counted_source(cache => $cache);
+
+	my $rows = $src->selectall_arrayref({ name => 'A' });
+	is($rows->[0]{name}, 'A', 'the query is answered');
+	is($cache->{gets}, 0, 'without asking the cache');
+	is_deeply($cache->{sets}, [], 'or storing in it');
+	restore_all();
+});
+
+_transition($FETCHING, 'backend answered', $DATA_RETURNED, sub {
 	my ($src) = _counted_source();
 	is_deeply($src->fetch_all, $ROWS, 'fetch_all answers an array of rows');
 	is_deeply($src->selectall_arrayref, $ROWS, 'and so does selectall_arrayref');
+	restore_all();
+
+	# The one exception the diagram names: a table with no rows.
+	my $header_only = $DS->new(directory => _dir_with("$TABLE.csv", $HEADER), table => $TABLE);
+	my ($warnings, $none) = _quietly(sub { return $header_only->fetch_all });
+	is_deeply($none, [], 'a table with no rows: fetch_all answers []');
+	is(scalar($header_only->selectall_arrayref), undef, 'and selectall_arrayref answers undef');
+});
+
+_transition($FETCHING, 'backend failed', $FETCH_ERROR, sub {
+	# Each cause the diagram lists, and in each there is still an object.
+	my $cache = Local::Cache->new;
+	my ($src) = _counted_source(cache => $cache);
+	{
+		my $guard = mock_scoped($BACKEND, selectall_hashref => sub { die "backend failure\n" });
+		throws_ok { $src->fetch_all } _error_re('error_fetch_failed', $TABLE, "backend failure\n"), 'the backend failing';
+	}
+	is_deeply($cache->{sets}, [], 'nothing was stored, so the failure cannot be served later');
+	restore_all();
+
+	my $no_file = $DS->new(directory => tempdir(CLEANUP => 1), table => $TABLE);
+	isa_ok($no_file, $DS, 'a table with no file gets past new()');
+	throws_ok { $no_file->fetch_all } qr/\A\QDataSource: fetch_all failed\E/, 'and fails here';
+
+	no warnings qw(redefine once);
+	{
+		local *LWP::UserAgent::get = sub { return HTTP::Response->new(500, 'Broken') };
+		my $unreachable = $DS->new(url => $URL);
+		throws_ok { $unreachable->fetch_all } qr/\A\QDataSource: fetch_all failed\E/, 'a URL that cannot be fetched';
+	}
+	{
+		local *LWP::UserAgent::get = sub {
+			return HTTP::Response->new(200, 'OK', [ 'Content-Type' => 'application/json' ], '[1,2,3]');
+		};
+		my $not_rows = $DS->new(url => "$URL.json");
+		throws_ok { $not_rows->fetch_all } qr/\A\QDataSource: fetch_all failed\E/, 'a URL that does not answer with rows';
+	}
+	my $redis = $DS->new(redis => $UNUSED_PORT, table => $TABLE);
+	throws_ok { $redis->fetch_all } qr/\A\QDataSource: fetch_all failed\E/, 'a Redis server that cannot be reached';
+});
+
+_transition($FETCH_ERROR, 'next call, no cache', $FETCHING, sub {
+	my ($src, $reads) = _counted_source();
+	_fail_a_fetch($src);
+	is_deeply($src->fetch_all, $ROWS, 'the object is not spoilt: the next fetch works');
+	is(${$reads}, 1, 'by reading the backend');
 	restore_all();
 });
 
@@ -372,13 +458,25 @@ _transition($DATA_RETURNED, 'next call, no cache', $FETCHING, sub {
 # DataSource: fetching with a cache
 # ===========================================================================
 
-_transition($READY, 'fetch_all, cache configured', $CACHE_CHECK, sub {
+_transition($READY, 'a call for the whole table, cache configured', $CACHE_CHECK, sub {
 	my $cache = Local::Cache->new;
 	my ($src) = _counted_source(cache => $cache);
 	is($cache->{gets}, 0, 'a new source has not asked the cache');
 	$src->fetch_all;
-	is($cache->{gets}, 1, 'the first call asks it, before anything else');
+	is($cache->{gets}, 1, 'fetch_all asks it');
+	$src->selectall_arrayref;
+	is($cache->{gets}, 2, 'and so does selectall_arrayref with no arguments');
 	restore_all();
+
+	# Arguments, but still the whole table, since DataSource does this sort itself.
+	my $people = Local::Cache->new;
+	my $dir    = _dir_with('people.csv', "First Name,value\nA,1\n");
+	my $src2   = $DS->new(directory => $dir, table => 'people', cache => $people);
+	$src2->selectall_arrayref(sort_by => 'First Name');
+	is($people->{gets}, 1, 'and so does a sort on a column that is not a safe identifier');
+	is(scalar @{ $people->{sets} }, 1, 'which stores the table too');
+	$src2->selectall_arrayref(sort_by => 'First Name', limit => 1, offset => 0);
+	is($people->{gets}, 2, 'and with a page of it, which is cut from the table');
 });
 
 _transition($CACHE_CHECK, 'cache miss', $FETCHING, sub {
@@ -400,6 +498,18 @@ _transition($CACHE_CHECK, 'cache miss', $FETCHING, sub {
 	$src->fetch_all;
 	is(${$reads}, 2, 'a changed file misses');
 	is(scalar @{ $cache->{sets} }, 2, 'and is stored under its new key');
+	restore_all();
+});
+
+_transition($CACHE_CHECK, 'no key to look under', $FETCHING, sub {
+	my $cache = Local::Cache->new;
+	my ($src, $reads) = _counted_source(cache => $cache);
+	unlink $src->{_file_path} or die "$src->{_file_path}: $!";
+
+	eval { $src->fetch_all };	# whether the backend can still answer is its affair
+	is(${$reads}, 1, 'the file having gone, the read goes on to the backend');
+	is($cache->{gets}, 0, 'with no lookup');
+	is_deeply($cache->{sets}, [], 'and nothing stored');
 	restore_all();
 });
 
@@ -427,53 +537,99 @@ _transition($DATA_RETURNED, 'next call, cache configured', $CACHE_CHECK, sub {
 	restore_all();
 });
 
-subtest 'Side effect of FETCHING: a URL entry has a time limit' => sub {
-	# The URL is fetched while INITIALISING, as the diagram says, and the rows it
-	# gives are stored with the TTL, since a URL has no time of its own to key on.
+_transition($FETCH_ERROR, 'next call, cache configured', $CACHE_CHECK, sub {
+	my $cache = Local::Cache->new;
+	my ($src, $reads) = _counted_source(cache => $cache);
+	_fail_a_fetch($src);
+	is($cache->{gets}, 1, 'the failed read asked the cache');
+	is_deeply($src->fetch_all, $ROWS, 'and the next one works');
+	is($cache->{gets}, 2, 'having asked it again');
+	is(scalar @{ $cache->{sets} }, 1, 'and it stores the rows this time');
+	restore_all();
+});
+
+subtest 'URL and Redis sources are not touched by INITIALISING' => sub {
+	# new() reaches READY with no request made and no file looked at.  The URL is
+	# fetched by the first read, which stores the rows with the TTL, since a URL has
+	# no time of its own to key on.  The second read is a hit.
+	my $requests = 0;
+	my $detects  = _count_calls($DS, '_detect_file_info');
 	no warnings qw(redefine once);
 	local *LWP::UserAgent::get = sub {
+		$requests++;
 		return HTTP::Response->new(200, 'OK', [ 'Content-Type' => 'text/html' ],
 			'<html><body><table><tr><th>name</th></tr><tr><td>A</td></tr></table></body></html>');
 	};
 	my $cache = Local::Cache->new;
 	my $src   = $DS->new(url => $URL, cache => $cache);
-	is_deeply($src->fetch_all, [ { name => 'A' } ], 'the page gives its rows');
+	is($requests, 0, 'new() makes no request');
+	is_deeply($src->fetch_all, [ { name => 'A' } ], 'the first read gets the page and its rows');
+	is($requests, 1, 'with one request');
 	is_deeply($cache->{sets}, [ [ "bi:url:$URL:0", [ { name => 'A' } ], $URL_TTL ] ], 'stored with a time limit');
+	$src->fetch_all;
+	is($requests, 1, 'and the next read is a hit');
+
+	isa_ok($DS->new(redis => $UNUSED_PORT, table => $TABLE), $DS, 'a Redis source needs no server to be READY');
+	is(${$detects}, 0, 'and neither looked at a file');
+	restore_all();
 };
 
 # ===========================================================================
 # DataSource: the special cases branching from INITIALISING
 # ===========================================================================
 
-_transition($READY, 'fetch_all on an empty file', $DATA_RETURNED, sub {
-	# Case 1.  The fast path: an answer of [] with no backend, no warning and no
-	# cache.  A blank first line is the same as no bytes at all.
-	for my $text ('', "\n") {
-		my $cache = Local::Cache->new;
-		my $dir   = _dir_with("$TABLE.csv", $text);
-		my $src   = $DS->new(directory => $dir, table => $TABLE, cache => $cache);
+_transition($READY, 'an empty file', $DATA_RETURNED, sub {
+	# Special case 1.  The fast path: an answer of [] with no backend, no warning and
+	# no cache.  A blank first line is the same as no bytes at all.
+	for my $ext (qw(csv tsv psv)) {
+		for my $text ('', "\n") {
+			my $cache = Local::Cache->new;
+			my $dir   = _dir_with("$TABLE.$ext", $text);
+			my $src   = $DS->new(directory => $dir, table => $TABLE, cache => $cache);
 
-		ok($src->{_file_is_empty}, 'the flag is set');
-		is($src->{_db}, undef, 'and there is no backend to read');
-		my ($warnings, $rows) = _quietly(sub { $src->fetch_all });
-		is_deeply($rows, [], 'fetch_all answers no rows');
-		is_deeply($warnings, [], 'without a warning');
-		is($cache->{gets}, 0, 'and without asking the cache');
-		is($src->count, 0, 'and there are 0 of them');
+			ok($src->{_file_is_empty}, "$ext: the flag is set");
+			is($src->{_db}, undef, 'and there is no backend to read');
+			my ($warnings, $rows) = _quietly(sub { return $src->fetch_all });
+			is_deeply($rows, [], 'fetch_all answers no rows');
+			is_deeply($warnings, [], 'without a warning');
+			is_deeply($src->selectall_arrayref, [], 'and so does selectall_arrayref');
+			is($cache->{gets}, 0, 'and without asking the cache');
+			is($src->count, 0, 'and there are 0 of them');
+		}
+	}
+
+	SKIP: {
+		eval { require Excel::Writer::XLSX; 1 } or skip 'Excel::Writer::XLSX is not installed', 1;
+		my $dir = tempdir(CLEANUP => 1);
+		my $wb  = Excel::Writer::XLSX->new(File::Spec->catfile($dir, "$TABLE.xlsx"));
+		$wb->add_worksheet;
+		$wb->close;
+		ok($DS->new(directory => $dir, table => $TABLE)->{_file_is_empty}, 'a blank worksheet is the same');
 	}
 });
 
-subtest 'Special case 2: a header-less file becomes a copy with a header' => sub {
-	my $dir = _dir_with('bank.csv', "2026-01-02,12.50,Two words\n");
-	my $src = $DS->new(directory => $dir, table => 'bank');
+_transition($DATA_RETURNED, 'next call, an empty file', $DATA_RETURNED, sub {
+	my $src = $DS->new(directory => _dir_with("$TABLE.csv", ''), table => $TABLE);
+	for my $call (1, 2) {
+		is_deeply($src->fetch_all, [], "call $call answers no rows");
+	}
+	is($src->{_db}, undef, 'and still has no backend');
+});
 
-	ok(-d "$src->{_headerless_tmpdir}", 'the copy is in a temporary directory');
-	is_deeply($src->columns, [qw(Date Amount Description)], 'its columns are made up');
-	my ($row) = @{ $src->fetch_all };
-	is($row->{Description}, 'Two words', 'and its rows are read from the copy');
+subtest 'Special case 2: a header-less file becomes a copy with a header' => sub {
+	my %separator = (csv => ',', tsv => "\t", psv => '|');
+	for my $ext (sort keys %separator) {
+		my $dir = _dir_with("bank.$ext", join($separator{$ext}, '2026-01-02', '12.50', 'Two words') . "\n");
+		my $src = $DS->new(directory => $dir, table => 'bank');
+
+		ok(-d "$src->{_headerless_tmpdir}", "$ext: the copy is in a temporary directory");
+		is_deeply($src->columns, [qw(Date Amount Description)], 'its columns are made up');
+		my ($row) = @{ $src->fetch_all };
+		is($row->{Description}, 'Two words', 'and its rows are read from the copy');
+	}
 };
 
-subtest 'Special case 3: several SQLite tables, none named' => sub {
+subtest 'Special case 3: a SQLite file, no table named' => sub {
 	# READY with the list held, and no fetch needed to see it: a caller can look at
 	# the list and go elsewhere.  A fetch opens the table chosen automatically.
 	my $dir = tempdir(CLEANUP => 1);
@@ -485,9 +641,13 @@ subtest 'Special case 3: several SQLite tables, none named' => sub {
 	is(${$reads}, 0, 'with nothing read');
 	is_deeply($src->fetch_all, [ { label => 'in customers' } ], 'a fetch opens the first by name');
 	restore_all();
+
+	_sqlite($dir, 'named', qw(first named))->disconnect;
+	is_deeply($DS->new(directory => $dir, table => 'named')->fetch_all, [ { label => 'in named' } ],
+		'or the one named after the file');
 };
 
-subtest 'Special case 4: several SQLite tables, one named' => sub {
+subtest 'Special case 4: a SQLite file, one table named' => sub {
 	my $dir = tempdir(CLEANUP => 1);
 	_sqlite($dir, 'shop', qw(orders customers))->disconnect;
 
@@ -497,6 +657,18 @@ subtest 'Special case 4: several SQLite tables, one named' => sub {
 
 	throws_ok { $DS->new(directory => $dir, table => 'shop', internal_table => 'absent') }
 		_error_re('error_table_not_found', 'shop', 'absent'), 'a table it does not have goes to ERROR';
+
+	my $odd = tempdir(CLEANUP => 1);
+	_sqlite($odd, 'mixed', 'fine', 'odd name')->disconnect;
+	throws_ok { $DS->new(directory => $odd, table => 'mixed', internal_table => 'odd name') }
+		qr/odd name/, 'and so does one with an unsafe name';
+
+	# The name of the file: nothing to link.
+	_sqlite($dir, 'same', qw(same other))->disconnect;
+	my $same = $DS->new(directory => $dir, table => 'same', internal_table => 'same');
+	is($same->{_tmpdir}, undef, 'a table named after the file needs no symlink');
+	is_deeply([ sort @{ $same->sqlite_tables } ], [qw(other same)], 'and its tables are listed');
+	is_deeply($same->fetch_all, [ { label => 'in same' } ], 'and it is opened');
 };
 
 subtest 'Special case 5: an SFTP file' => sub {
@@ -537,6 +709,15 @@ _transition($DATA_RETURNED, 'out of scope', $DESTROY, sub {
 	undef $src;
 	ok(!-d $tmp, 'the temporary directory is removed');
 	is_deeply($rows, $ROWS, 'and the rows already answered are still good');
+});
+
+_transition($FETCH_ERROR, 'out of scope', $DESTROY, sub {
+	my $src = $DS->new(directory => _dir_with('my data.csv', $CSV_TEXT), table => 'my data');
+	my $tmp = "$src->{_tmpdir}";
+	_fail_a_fetch($src);
+
+	undef $src;
+	ok(!-d $tmp, 'the temporary directory is removed');
 });
 
 # ===========================================================================
@@ -606,75 +787,33 @@ END_PROGRAM
 	is_deeply(\@output, [ "REFUSED\n", "1 rows\n" ], 'it is refused, and the object is unharmed');
 });
 
-subtest 'Undocumented: a fetch that fails' => sub {
-	# TODO: FSM Discrepancy - FETCHING -> ERROR exists in the code (a backend that
-	# fails, a table with no file, a URL that does not answer with rows) and not in
-	# the diagram, where the only way to ERROR is from INITIALISING.
-	my $cache = Local::Cache->new;
-	my ($src, $reads) = _counted_source(cache => $cache);
-
-	{
-		my $guard = mock_scoped($BACKEND, selectall_hashref => sub { die "backend failure\n" });
-		throws_ok { $src->fetch_all } _error_re('error_fetch_failed', $TABLE, "backend failure\n"), 'it is reported';
-	}
-	is_deeply($cache->{sets}, [], 'nothing was stored, so the failure cannot be served later');
-	is_deeply($src->fetch_all, $ROWS, 'and the object is not spoilt: the next fetch works');
-	restore_all();
-
-	my $no_file = $DS->new(directory => tempdir(CLEANUP => 1), table => $TABLE);
-	throws_ok { $no_file->fetch_all } qr/\A\QDataSource: fetch_all failed\E/, 'a table with no file reaches READY, and fails here';
-
-	_discrepancy('FETCHING -> ERROR when a fetch fails', _diagram_of($DS), qr/FETCHING\s+->\s+ERROR/);
-};
-
-subtest 'Undocumented: selectall_arrayref on an empty file' => sub {
-	# TODO: FSM Discrepancy - READY -> DATA RETURNED is documented for fetch_all only,
-	# and selectall_arrayref takes the same fast path.
-	my $src = $DS->new(directory => _dir_with("$TABLE.csv", ''), table => $TABLE);
-	is_deeply($src->selectall_arrayref, [], 'it answers no rows');
-
-	_discrepancy('the empty-file fast path for selectall_arrayref too', _diagram_of($DS),
-		qr/READY\s+->\s+DATA RETURNED\s+\(fetch_all \/ selectall_arrayref/);
-};
-
-subtest 'Undocumented: a narrowed query with a cache configured' => sub {
-	# TODO: FSM Discrepancy - READY -> CACHE CHECK is documented for every call with
-	# a cache configured, but selectall_arrayref with arguments goes straight to
-	# FETCHING and stores nothing.  That is right: a narrowed result is not the table.
-	my $cache = Local::Cache->new;
-	my ($src) = _counted_source(cache => $cache);
-
-	my $rows = $src->selectall_arrayref({ name => 'A' });
-	is($rows->[0]{name}, 'A', 'the query is answered');
-	is($cache->{gets}, 0, 'without asking the cache');
-	is_deeply($cache->{sets}, [], 'or storing in it');
-	restore_all();
-
-	_discrepancy('READY -> FETCHING with a cache, for a query with arguments', _diagram_of($DS),
-		qr/READY\s+->\s+FETCHING\s+\([^)]*arguments/);
-};
-
-subtest 'Undocumented: Redis' => sub {
-	# TODO: FSM Discrepancy - new(redis => ...) is a way from [START] to READY that
-	# the diagram does not list among what INITIALISING does.  URL and Redis sources
-	# also do not run _detect_file_info, which the diagram says runs for all.
-	my $detects = _count_calls($DS, '_detect_file_info');
-	my $redis   = mock_scoped($DS, _init_redis_backend => sub { return });
-	my $url     = mock_scoped($DS, _init_url_backend => sub { return });
-
-	isa_ok($DS->new(redis => 'redis://localhost:6379', table => $TABLE), $DS, 'a Redis source');
-	isa_ok($DS->new(url => $URL), $DS, 'a URL source');
-	is(${$detects}, 0, 'neither looks at a file');
-	restore_all();
-
-	_discrepancy('a Redis source being set up', _diagram_of($DS), qr/Redis/i);
-};
-
 # ===========================================================================
 # Geocode: the load state
 # ===========================================================================
 
-_transition($NEW, 'new() with no geocoder', $CONSTRUCTED, sub {
+$machine = $GEOCODE;
+
+_transition($START, 'new() given a geocoder', $READY, sub {
+	my $loads    = _count_calls($GEOCODE, '_load_geocoder');
+	my $geocoder = Local::Geocoder->new;
+	my $geocode  = $GEOCODE->new(geocoder => $geocoder);
+	is($geocode->{_geocoder}, $geocoder, 'it holds the geocoder');
+	my ($available) = $geocode->geocoder_available;
+	is($available, 1, 'and is available');
+	is(${$loads}, 0, 'with nothing loaded');
+	restore_all();
+});
+
+_transition($START, 'new() refuses its arguments', $ERROR, sub {
+	for my $bad (Local::NotAGeocoder->new, 'not an object') {
+		my $geocode = eval { $GEOCODE->new(geocoder => $bad) };
+		ok($@, 'a geocoder that cannot answer is refused');
+		is($geocode, undef, 'and no object comes out of it');
+	}
+	throws_ok { $GEOCODE->new(geocoder => Local::NotAGeocoder->new) } qr/valid_location/, 'it says what is missing';
+});
+
+_transition($START, 'new() with no geocoder', $CONSTRUCTED, sub {
 	# Nothing is loaded until it is needed, so the application starts without it.
 	my $loads = _count_calls($GEOCODE, '_load_geocoder');
 	my $geocode = $GEOCODE->new;
@@ -707,6 +846,27 @@ _transition($CONSTRUCTED, 'first call, module OK', $READY, sub {
 	restore_all();
 });
 
+_transition($CONSTRUCTED, 'the module loads and its new() dies', $CONSTRUCTED, sub {
+	# It is told to the caller, and nothing is remembered, so the next call tries
+	# again and can succeed.
+	my $built = 0;
+	local $INC{$GCF_FILE} = __FILE__;
+	no warnings qw(once redefine);
+	local $Geo::Coder::Free::VERSION = $HIGH_VERSION;
+	local *Geo::Coder::Free::new = sub {
+		$built++;
+		die "no data files\n" if $built == 1;
+		return Local::Geocoder->new;
+	};
+
+	my $geocode = $GEOCODE->new;
+	throws_ok { $geocode->geocoder_available } qr/no data files/, 'the failure comes out';
+	ok(!exists $geocode->{_geocoder}, 'and nothing is remembered');
+	my ($available) = $geocode->geocoder_available;
+	is($available, 1, 'so the next call tries again, and can succeed');
+	is($built, 2, 'having built it twice');
+});
+
 _transition($CONSTRUCTED, 'first call, module absent', $UNAVAILABLE, sub {
 	delete local $INC{$GCF_FILE};
 	local @INC = ($ABSENT_HOOK, @INC);
@@ -732,6 +892,27 @@ _transition($CONSTRUCTED, 'first call, module too old', $UNAVAILABLE, sub {
 	is($available, 0, 'it cannot be had');
 	like($reason, qr/\Q$LOW_VERSION\E is installed/, 'and the reason names the version it found');
 	is($made, 0, 'and an old one is not built');
+});
+
+_transition($CONSTRUCTED, 'first call, module will not load', $UNAVAILABLE, sub {
+	delete local $INC{$GCF_FILE};
+	local @INC = (sub { die "syntax error\n" if $_[1] eq $GCF_FILE; return }, @INC);
+
+	my ($available, $reason) = $GEOCODE->new->geocoder_available;
+	is($available, 0, 'it cannot be had');
+	like($reason, qr/could not be loaded/, 'and the reason says why');
+});
+
+_transition($CONSTRUCTED, 'first call, its new() answers nothing', $UNAVAILABLE, sub {
+	local $INC{$GCF_FILE} = __FILE__;
+	no warnings qw(once redefine);
+	local $Geo::Coder::Free::VERSION = $HIGH_VERSION;
+	local *Geo::Coder::Free::new = sub { return };
+
+	my $geocode = $GEOCODE->new;
+	my ($available) = $geocode->geocoder_available;
+	is($available, 0, 'it cannot be had');
+	ok(exists $geocode->{_geocoder}, 'and the attempt is remembered');
 });
 
 _transition($READY, 'resolve_*() geocodes + cache', $READY, sub {
@@ -817,7 +998,7 @@ _illegal($READY, 'the module disappears', $UNAVAILABLE, sub {
 	is($geocode->{_geocoder}, $geocoder, 'with the same geocoder');
 });
 
-_illegal($CONSTRUCTED, 'a call that is refused', $READY, sub {
+_transition($CONSTRUCTED, 'arguments refused', $CONSTRUCTED, sub {
 	# A refused call is a caller's mistake, and uses up nothing: the attempt to load
 	# is still to come.
 	my $loads   = _count_calls($GEOCODE, '_load_geocoder');
@@ -833,7 +1014,7 @@ _illegal($CONSTRUCTED, 'a call that is refused', $READY, sub {
 	restore_all();
 });
 
-_illegal($READY, 'a call that is refused', $ATTEMPT, sub {
+_transition($READY, 'arguments refused', $READY, sub {
 	# The same with a geocoder in hand: none of these may reach it.
 	my $geocoder = Local::Geocoder->new;
 	my $geocode  = $GEOCODE->new(geocoder => $geocoder);
@@ -846,61 +1027,25 @@ _illegal($READY, 'a call that is refused', $ATTEMPT, sub {
 
 	is_deeply($geocoder->{asked}, [], 'the geocoder was asked nothing');
 	is_deeply($geocoder->{valid}, [], 'not even whether a value is valid');
+	is($geocode->{_geocoder}, $geocoder, 'and it is still READY');
 });
 
-subtest 'Undocumented: a geocoder given to new' => sub {
-	# TODO: FSM Discrepancy - new(geocoder => $g) goes straight to READY, where the
-	# diagram has every new() going to CONSTRUCTED.
-	my $loads   = _count_calls($GEOCODE, '_load_geocoder');
-	my $geocode = $GEOCODE->new(geocoder => Local::Geocoder->new);
-	my ($available) = $geocode->geocoder_available;
-	is($available, 1, 'it is available');
-	is(${$loads}, 0, 'with nothing loaded');
-	restore_all();
-
-	_discrepancy('new(geocoder => ...) -> READY', _diagram_of($GEOCODE), qr/geocoder\s*=>/);
-};
-
-subtest 'Undocumented: new can refuse' => sub {
-	# TODO: FSM Discrepancy - new() croaks on a geocoder without the methods it needs
-	# and on bad arguments.  The diagram has no state for that.
-	throws_ok { $GEOCODE->new(geocoder => Local::NotAGeocoder->new) } qr/valid_location/,
-		'a geocoder that cannot answer is refused';
-	throws_ok { $GEOCODE->new(geocoder => 'not an object') } qr/./, 'and so is something else';
-
-	_discrepancy('new() refusing its arguments', _diagram_of($GEOCODE), qr/\bERROR\b/);
-};
-
-subtest 'Undocumented: building the geocoder fails' => sub {
-	# TODO: FSM Discrepancy - a module that loads and then dies in its new() leaves
-	# the object in CONSTRUCTED, and the next call tries again.  The diagram says
-	# the state does not change after the first load attempt, and has this reach
-	# neither READY nor UNAVAILABLE.
-	my $built = 0;
-	local $INC{$GCF_FILE} = __FILE__;
-	no warnings qw(once redefine);
-	local $Geo::Coder::Free::VERSION = $HIGH_VERSION;
-	local *Geo::Coder::Free::new = sub {
-		$built++;
-		die "no data files\n" if $built == 1;
-		return Local::Geocoder->new;
-	};
-
+_transition($UNAVAILABLE, 'arguments refused', $UNAVAILABLE, sub {
+	delete local $INC{$GCF_FILE};
+	local @INC = ($ABSENT_HOOK, @INC);
 	my $geocode = $GEOCODE->new;
-	throws_ok { $geocode->geocoder_available } qr/no data files/, 'the failure comes out';
-	ok(!exists $geocode->{_geocoder}, 'and nothing is remembered');
-	my ($available) = $geocode->geocoder_available;
-	is($available, 1, 'so the next call tries again, and can succeed');
-	is($built, 2, 'having built it twice');
+	$geocode->geocoder_available;
 
-	_discrepancy('a failure to build the geocoder', _diagram_of($GEOCODE), qr/fails|dies|croaks/);
-};
+	throws_ok { $geocode->resolve_values('not a list') } qr/./, 'values that are not a list';
+	my ($available) = $geocode->geocoder_available;
+	is($available, 0, 'and it is still UNAVAILABLE');
+});
 
 # ===========================================================================
 # Geocode: what happens to one value in one call
 # ===========================================================================
 
-_transition($RECEIVED, 'undef / ref / empty', $SKIPPED, sub {
+_value_transition($RECEIVED, 'undef / ref / empty', $SKIPPED, sub {
 	# The first test of all: it is refused whether or not there is a geocoder.
 	my $geocoder = Local::Geocoder->new;
 	my $result   = $GEOCODE->new(geocoder => $geocoder)->resolve_values([ undef, [], {} ]);
@@ -911,7 +1056,7 @@ _transition($RECEIVED, 'undef / ref / empty', $SKIPPED, sub {
 	is_deeply($empty->{skipped}, [''], 'an empty string is the same');
 });
 
-_transition($RECEIVED, 'in cache, has position', $CACHED_RESOLVED, sub {
+_value_transition($RECEIVED, 'in cache, has position', $CACHED_RESOLVED, sub {
 	# -> POINTS.  The cache comes before the rule: a place remembered is plotted even
 	# if the rule would now refuse it, and the geocoder is not asked.
 	my $geocoder = Local::Geocoder->new(refuse => $PLACE);
@@ -925,7 +1070,7 @@ _transition($RECEIVED, 'in cache, has position', $CACHED_RESOLVED, sub {
 	is_deeply($geocoder->{asked}, [], 'nor the geocoder');
 });
 
-_transition($RECEIVED, 'in cache, no position (= 0)', $CACHED_UNRESOLVED, sub {
+_value_transition($RECEIVED, 'in cache, no position (= 0)', $CACHED_UNRESOLVED, sub {
 	# -> UNRESOLVED.  A remembered failure stays one, and is not asked about again.
 	my $geocoder = Local::Geocoder->new(known => { $PLACE => { lat => $LAT, lon => $LON } });
 	my $result   = $GEOCODE->new(geocoder => $geocoder)->resolve_values([$PLACE], cache => { $PLACE => 0 });
@@ -936,7 +1081,7 @@ _transition($RECEIVED, 'in cache, no position (= 0)', $CACHED_UNRESOLVED, sub {
 	is_deeply($geocoder->{asked}, [], 'and the geocoder, which now knows it, is not asked');
 });
 
-_transition($RECEIVED, 'geocoder unavailable', $NOT_ATTEMPTED, sub {
+_value_transition($RECEIVED, 'geocoder unavailable', $NOT_ATTEMPTED, sub {
 	delete local $INC{$GCF_FILE};
 	local @INC = ($ABSENT_HOOK, @INC);
 
@@ -946,7 +1091,7 @@ _transition($RECEIVED, 'geocoder unavailable', $NOT_ATTEMPTED, sub {
 	is_deeply($result->{cache}, {}, 'and not remembered');
 });
 
-_transition($RECEIVED, 'valid_location() = false', $SKIPPED, sub {
+_value_transition($RECEIVED, 'valid_location() = false', $SKIPPED, sub {
 	my $geocoder = Local::Geocoder->new(refuse => $REFUSED);
 	my $result   = $GEOCODE->new(geocoder => $geocoder)->resolve_values([$REFUSED]);
 
@@ -956,7 +1101,7 @@ _transition($RECEIVED, 'valid_location() = false', $SKIPPED, sub {
 	is_deeply($result->{cache}, {}, 'and is not remembered');
 });
 
-_transition($RECEIVED, 'within cap', $ATTEMPT, sub {
+_value_transition($RECEIVED, 'within cap', $ATTEMPT, sub {
 	my $geocoder = Local::Geocoder->new;
 	my $result   = $GEOCODE->new(geocoder => $geocoder)
 		->resolve_values([ $PLACE, $OTHER_PLACE ], max => $CAP, region => 'gb');
@@ -967,7 +1112,7 @@ _transition($RECEIVED, 'within cap', $ATTEMPT, sub {
 	is($result->{capped}, 0, 'and the cap did not bite');
 });
 
-_transition($RECEIVED, 'beyond cap', $NOT_ATTEMPTED, sub {
+_value_transition($RECEIVED, 'beyond cap', $NOT_ATTEMPTED, sub {
 	my $geocoder = Local::Geocoder->new;
 	my $result   = $GEOCODE->new(geocoder => $geocoder)
 		->resolve_values([ $PLACE, $OTHER_PLACE, $THIRD_PLACE ], max => $CAP);
@@ -979,7 +1124,7 @@ _transition($RECEIVED, 'beyond cap', $NOT_ATTEMPTED, sub {
 	is_deeply([ map { $_->{key} } @{ $result->{messages} } ], ['warn_map_geocode_capped'], 'with a message');
 });
 
-_transition($ATTEMPT, 'geocoder returns position', $RESOLVED_NEW, sub {
+_value_transition($ATTEMPT, 'geocoder returns position', $RESOLVED_NEW, sub {
 	# -> POINTS, CACHE==[lat,lon].  In the answer's cache, not the caller's.
 	my $geocoder = Local::Geocoder->new(known => { $PLACE => { lat => $LAT, lon => $LON, database => 'osm' } });
 	my %mine;
@@ -991,7 +1136,7 @@ _transition($ATTEMPT, 'geocoder returns position', $RESOLVED_NEW, sub {
 	is_deeply(\%mine, {}, 'the cache that was passed in is not touched');
 });
 
-_transition($ATTEMPT, 'geocoder returns undef', $UNRESOLVED_NEW, sub {
+_value_transition($ATTEMPT, 'geocoder returns no position', $UNRESOLVED_NEW, sub {
 	# CACHE==0: looked up and not found, so the next request does not ask again.
 	my $geocoder = Local::Geocoder->new;
 	my $geocode  = $GEOCODE->new(geocoder => $geocoder);
@@ -1006,12 +1151,16 @@ _transition($ATTEMPT, 'geocoder returns undef', $UNRESOLVED_NEW, sub {
 	my $next = $geocode->resolve_values([$LOST], cache => $result->{cache});
 	is(scalar @{ $geocoder->{asked} }, 1, 'the next request does not ask again');
 	is_deeply($next->{unresolved}, [$LOST], 'and it is still unresolved');
+
+	# An answer with no position in it is no better than no answer.
+	my $vague = $GEOCODE->new(geocoder => Local::Geocoder->new(known => { $LOST => { name => 'somewhere' } }))
+		->resolve_values([$LOST]);
+	is_deeply($vague->{unresolved}, [$LOST], 'a result without a position is unresolved too');
+	is($vague->{cache}{$LOST}, 0, 'and remembered as such');
 });
 
-subtest 'Undocumented: a geocoder that throws' => sub {
-	# TODO: FSM Discrepancy - ATTEMPT has two ways out in the diagram, and a geocoder
-	# that dies is a third.  It breaks the request on purpose (see the POD and
-	# t/geocode.t), so that a caller's cache cannot be half-written.
+_value_transition($ATTEMPT, 'geocoder throws', $EXCEPTION, sub {
+	# The whole request fails, on purpose, so that a cache cannot be half-written.
 	my %mine = ($PLACE => [ $LAT, $LON ]);
 	my $geocoder = Local::Geocoder->new(dies => 1);
 	my $geocode  = $GEOCODE->new(geocoder => $geocoder);
@@ -1019,63 +1168,41 @@ subtest 'Undocumented: a geocoder that throws' => sub {
 	throws_ok { $geocode->resolve_values([ $PLACE, $OTHER_PLACE ], cache => \%mine) } qr/geocoder failure/, 'it comes out';
 	is_deeply(\%mine, { $PLACE => [ $LAT, $LON ] }, 'with the cache as it was');
 	is($geocode->{_geocoder}, $geocoder, 'and the load state is not changed: READY');
+});
 
-	_discrepancy('ATTEMPT -> an exception from the geocoder', _diagram_of($GEOCODE), qr/\+--\[geocoder (?:dies|throws)/);
-};
+_value_transition($RECEIVED, 'valid_location() throws', $EXCEPTION, sub {
+	my %mine;
+	my $geocoder = Local::Geocoder->new(rule_dies => 1);
+	my $geocode  = $GEOCODE->new(geocoder => $geocoder);
+
+	throws_ok { $geocode->resolve_values([$PLACE], cache => \%mine) } qr/rule failure/, 'it comes out';
+	is_deeply(\%mine, {}, 'with the cache as it was');
+	is_deeply($geocoder->{asked}, [], 'and no lookup was made');
+});
 
 # ===========================================================================
 # Compliance: the tests against the diagrams, read from the POD
 # ===========================================================================
 
-subtest 'Compliance: every path in the DataSource summary is tested, and no other' => sub {
-	my ($summary) = _diagram_of($DS) =~ /Valid state transitions summary:\n(.*)/s;
-	ok(defined $summary, 'the summary was found') or return;
-
-	my %documented;
-	for my $line (split /\n/, $summary) {
-		next unless $line =~ /\A\s*(\[?[A-Z][A-Z \/]*\]?)\s+->\s+([A-Z][A-Z ]*?)\s+\(/;
-		my ($from, $to) = ($1, $2);
-		$from =~ s/\s+\z//;
-		$documented{"$_ -> $to"} = 1 for split m{\s*/\s*}, $from;
-	}
-	cmp_ok(scalar keys %documented, '>', 1, 'the paths were read');
-
-	# %covered holds Geocode's paths too.  READY is a state of both machines, and
-	# READY -> READY and READY -> nothing else are Geocode's.
-	my %states = map { $_ => 1 } $START, $INITIALISING, $ERROR, $READY, $FETCHING, $DATA_RETURNED, $CACHE_CHECK;
-	my @ours = grep {
-		my ($from) = /\A(.+?) -> /;
-		$states{$from} && !/ -> \[/ && $_ ne "$READY -> $READY";
-	} keys %covered;
-
-	is_deeply([ sort @ours ], [ sort keys %documented ], 'the tests above and the summary agree');
-};
+for my $module ($DS, $GEOCODE) {
+	subtest "Compliance: every path in the $module summary is tested, and no other" => sub {
+		my $documented = _summary_paths($module);
+		cmp_ok(scalar keys %{$documented}, '>', 1, 'the paths were read');
+		is_deeply([ sort keys %{ $covered{$module} } ], [ sort keys %{$documented} ], 'the tests above and the summary agree');
+	};
+}
 
 subtest 'Compliance: every value path in the Geocode diagram is tested, and no other' => sub {
 	my %documented;
-	for my $line (split /\n/, _diagram_of($GEOCODE)) {
+	my ($values) = _diagram_of($GEOCODE) =~ /(Value-level state transitions.*)/s;
+	for my $line (split /\n/, $values // '') {
 		next unless $line =~ /\+--\[(.+?)\]-*>\s*(\w+)/;
 		my ($trigger, $to) = ($1, $2);
 		my $from = $line =~ /\|\s+\+--/ ? $ATTEMPT : $RECEIVED;
 		$documented{"$from -> [$trigger] -> $to"} = 1;
 	}
 	cmp_ok(scalar keys %documented, '>', 1, 'the paths were read');
-
-	my %ours = map { $_ => 1 } grep { /\A(?:\Q$RECEIVED\E|\Q$ATTEMPT\E) -> \[/ } keys %covered;
-	is_deeply([ sort keys %ours ], [ sort keys %documented ], 'the tests above and the diagram agree');
-};
-
-subtest 'Compliance: the Geocode load states are the ones in the diagram' => sub {
-	# This part of the diagram is a drawing, so its boxes and labels are checked, not
-	# read as paths.  A renamed state or trigger fails here.
-	my $diagram = _diagram_of($GEOCODE);
-	for my $word ($CONSTRUCTED, $READY, $UNAVAILABLE, 'module OK', 'module absent or too old', 'geocodes +', 'cache only') {
-		like($diagram, qr/\Q$word\E/, "the diagram has: $word");
-		ok(scalar(grep { /\Q$word\E/ } keys %covered), "and a test covers: $word")
-			unless $word eq 'module absent or too old';
-	}
-	ok($covered{"$CONSTRUCTED -> [first call, module absent] -> $UNAVAILABLE"}, 'absent is covered');
-	ok($covered{"$CONSTRUCTED -> [first call, module too old] -> $UNAVAILABLE"}, 'and too old');
+	is_deeply([ sort keys %value_covered ], [ sort keys %documented ], 'the tests above and the diagram agree');
 };
 
 restore_all();

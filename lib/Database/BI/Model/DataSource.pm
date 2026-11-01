@@ -448,7 +448,8 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
   error_fetch_failed          -- fetch_all raised an exception (wraps the underlying DBI/D::A error)
   error_url_invalid           -- URL passed to the url=> constructor path does not begin
                                  with http:// or https://
-  error_url_fetch             -- fetching or parsing the HTML table at a URL failed
+  error_url_fetch             -- the backend for a URL could not be set up; a page
+                                 that cannot be fetched is error_fetch_failed, from the read
 
 =cut
 
@@ -532,7 +533,7 @@ sub new {
 #          $raw->{html_table_index} (optional, default 0): zero-based table index.
 #          $raw->{i18n} (optional): Locale::Maketext-compatible object.
 # Exit:    Returns $self.  Croaks on invalid URL scheme or backend init failure.
-# Side Effects: Issues an HTTP GET to the URL via LWP::UserAgent.
+# Side Effects: None: the URL is fetched by the first read.
 sub _new_from_url :Protected {
 	my ($class, $raw) = @_;
 
@@ -560,14 +561,15 @@ sub _new_from_url :Protected {
 # _init_url_backend( $self, $table_index ) -> void
 #
 # Purpose: Construct the Database::Abstraction backend for URL/HTML-table mode.
-#          D::A fetches the page via LWP::UserAgent, parses it with
+#          No request is made here.  On the first read D::A fetches the page via
+#          LWP::UserAgent, parses it with
 #          HTML::TableExtract, and stores all rows (including headers from row 0)
 #          as an in-memory arrayref.  Column order is not recoverable after
 #          construction (hash keys lose order), so _columns stays undef and
 #          _get_columns in the controller falls back to alphabetical sorting.
 # Entry:   $self->{_url} is a valid http(s) URL; $table_index is a non-negative int.
-# Exit:    Sets $self->{_db}.  Croaks on LWP or HTML::TableExtract failure.
-# Side Effects: Network I/O; may take up to LWP's default timeout.
+# Exit:    Sets $self->{_db}.  Croaks if the backend object cannot be built; a
+#          failure to fetch or parse the page comes from the first read instead.
 sub _init_url_backend :Protected {
 	my ($self, $table_index) = @_;
 	my $url = $self->{_url};
@@ -2454,56 +2456,99 @@ Each state is stable until the trigger event listed to its right fires.
     +------------------+
              |
              v
-    +------------------+  _detect_file_info + _init_backend run
+    +------------------+  File source: _detect_file_info + _init_backend run
     |   INITIALISING   |  (SFTP download, BerkeleyDB probe, SQLite
-    |                  |   sqlite_master probe, CSV header parse,
-    |                  |   XLSX parse, or URL fetch)
+    |                  |   sqlite_master probe, CSV header parse, XLSX parse).
+    |                  |  URL or Redis source: the backend object is built, and
+    |                  |  nothing is fetched or connected to until the first read.
     +------------------+
           /     \
          /       \
         v         v
-  +----------+  +-----------+
-  |  ERROR   |  |   READY   |
-  | (croaks) |  |           |
-  +----------+  +-----------+
-                 |         |
-                 |         |
-    fetch_all()  |         |  selectall_arrayref()
-    called       |         |  called
-                 v         v
-         +---------------+
-         |   FETCHING    |  DBI query or pre-loaded data returned;
-         |               |  result stored in CHI cache (if configured)
-         +---------------+
-                 |
-                 v
-         +---------------+
-         | DATA RETURNED |  arrayref of hashrefs delivered to caller
-         +---------------+
-                 |
-                 | (next call to fetch_all or selectall_arrayref)
-                 v
-         +---------------+
-         | CACHE CHECK   |  CHI cache hit? -> DATA RETURNED immediately
-         |               |  CHI cache miss? -> FETCHING
-         +---------------+
+  +-----------+  +-----------+
+  |  ERROR    |  |   READY   |
+  | (croaks;  |  |           |
+  | no object)|  |           |
+  +-----------+  +-----------+
+                       |
+                       |  fetch_all() or selectall_arrayref(), from READY,
+                       |  DATA RETURNED or FETCH ERROR
+                       |
+       +---------------+-------------------+------------------+
+       | cache configured, | no cache, or  | _file_is_empty   |
+       | a call for the    | a narrowed    |                  |
+       | whole table       | query         |                  |
+       v                   |               |                  |
+  +---------------+        |               |                  |
+  | CACHE CHECK   |        |               |                  |
+  +---------------+        |               |                  |
+     |         |           |               |                  |
+     | hit     | miss, or  |               |                  |
+     |         | no key    |               |                  |
+     |         v           v               |                  |
+     |    +---------------------+          |                  |
+     |    |     FETCHING        |  backend read; the result   |
+     |    |                     |  is stored in the cache if  |
+     |    |                     |  it was looked up there     |
+     |    +---------------------+          |                  |
+     |         |            |              |                  |
+     |         | answered   | failed       |                  |
+     |         |            v              |                  |
+     |         |      +-------------+      |                  |
+     |         |      | FETCH ERROR |      |                  |
+     |         |      | (croaks;    |      |                  |
+     |         |      | object and  |      |                  |
+     |         |      | cache sound)|      |                  |
+     |         |      +-------------+      |                  |
+     v         v                           v                  v
+  +---------------------------------------------------------------+
+  |                        DATA RETURNED                          |
+  +---------------------------------------------------------------+
+
+    DATA RETURNED delivers an arrayref of hashrefs to the caller, with one
+    exception: selectall_arrayref on a table with no rows answers undef, where
+    fetch_all answers [].
+
+    A "call for the whole table" is fetch_all, or selectall_arrayref with no
+    arguments, or with only a sort_by on a column that is not a safe identifier and
+    perhaps a limit and offset (DataSource sorts and pages those itself, over the
+    whole table).  Any other arguments
+    make a narrowed query, which is neither looked up in the cache nor stored in
+    it, because its result is not the table.
+
+    The cache has no key to look under when the file has gone since new(): no
+    lookup is made and nothing is stored, and the read goes on to FETCHING.
+
+    FETCH ERROR comes from the backend failing, a table with no file (which new()
+    does not notice), a URL that cannot be fetched or does not answer with rows,
+    or a Redis server that cannot be reached.  Unlike ERROR there is an object, and
+    the next read starts again.
+
+    Other reads (columns, count, aggregate, schema, updated and the like) go to the
+    backend directly, without the cache, and do not change the state.
 
     Special cases branching from INITIALISING:
 
-    1. File is 0 bytes or blank first line
-       -> _file_is_empty flag set -> READY (fetch_all returns [] instantly)
+    1. A 0-byte CSV, TSV or PSV, one with a blank first line, or an XLSX with a
+       blank first worksheet
+       -> _file_is_empty flag set, no backend -> READY (fetch_all and
+          selectall_arrayref return [] instantly, and count returns 0)
+       A 0-byte SQLite file is not this case: it has no tables -> ERROR
 
-    2. Header-less CSV / PSV
+    2. Header-less CSV, TSV or PSV
        -> copy with a header written to a temporary directory -> READY
           (Database::Abstraction reads the copy)
 
-    3. Multi-table SQLite without internal_table
+    3. SQLite without internal_table
        -> _sqlite_tables set -> READY
        -> caller inspects sqlite_tables() and may redirect to /tables
-          before calling fetch_all (which would open the auto-selected table)
+          before calling fetch_all (which would open the auto-selected table:
+          the one named after the file, else the first by name that can be opened)
 
-    4. Multi-table SQLite WITH internal_table
-       -> symlink created for named table -> READY -> fetch_all opens that table
+    4. SQLite WITH internal_table
+       -> a table it does not have, or one with an unsafe name -> ERROR
+       -> otherwise _sqlite_tables set, plus a symlink if the table's name is not
+          the file's -> READY -> fetch_all opens that table
 
     5. SFTP remote file
        -> Net::SFTP::Foreign::get() -> local tmpdir -> normal init -> READY
@@ -2513,24 +2558,27 @@ Each state is stable until the trigger event listed to its right fires.
 
     +---------------+
     |   DESTROY     |  File::Temp tmpdirs auto-cleaned (symlinks removed,
-    |               |  SFTP tmpdir removed)
+    |               |  copies removed, SFTP tmpdir removed)
     +---------------+
 
     Valid state transitions summary:
 
     [START]          -> INITIALISING     (new() invoked)
-    INITIALISING     -> ERROR            (croak on bad args, SFTP failure,
-                                          no safe id, no SQLite tables, etc.)
+    INITIALISING     -> ERROR            (croak on bad args, SFTP failure, no safe id, no SQLite tables, a file that will not open, etc.)
     INITIALISING     -> READY            (all checks passed)
-    READY            -> FETCHING         (fetch_all / selectall_arrayref, cache miss)
-    READY            -> DATA RETURNED    (fetch_all, _file_is_empty fast-path)
-    READY            -> CACHE CHECK      (fetch_all / selectall_arrayref, cache configured)
+    READY            -> FETCHING         (no cache configured, or a narrowed query)
+    READY            -> DATA RETURNED    (fetch_all / selectall_arrayref, _file_is_empty fast-path)
+    READY            -> CACHE CHECK      (a call for the whole table, cache configured)
     CACHE CHECK      -> DATA RETURNED    (cache hit)
-    CACHE CHECK      -> FETCHING         (cache miss)
-    FETCHING         -> DATA RETURNED    (DBI query completed)
-    DATA RETURNED    -> CACHE CHECK      (next call, cache configured)
-    DATA RETURNED    -> FETCHING         (next call, no cache)
-    READY / DATA RETURNED -> DESTROY     ($self goes out of scope)
+    CACHE CHECK      -> FETCHING         (cache miss, or no key to look under)
+    FETCHING         -> DATA RETURNED    (backend answered)
+    FETCHING         -> FETCH ERROR      (backend failed; croaks)
+    DATA RETURNED    -> DATA RETURNED    (next call, _file_is_empty fast-path)
+    DATA RETURNED    -> CACHE CHECK      (next call for the whole table, cache configured)
+    DATA RETURNED    -> FETCHING         (next call, no cache, or a narrowed query)
+    FETCH ERROR      -> CACHE CHECK      (next call for the whole table, cache configured)
+    FETCH ERROR      -> FETCHING         (next call, no cache, or a narrowed query)
+    READY / DATA RETURNED / FETCH ERROR -> DESTROY     ($self goes out of scope)
 
 =head1 LICENCE AND COPYRIGHT
 

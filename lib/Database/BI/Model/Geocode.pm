@@ -1576,10 +1576,16 @@ returned.
 
 =head1 STATE DIAGRAM
 
-The object transitions through three states based on whether the geocoder
-has been loaded yet.
+The object is in one of three states, according to whether it has a geocoder yet.
+A geocoder given to C<new> is one straight away; otherwise one is looked for on
+the first call that needs it.
 
     new()
+      |
+      +--[bad arguments, or a geocoder lacking
+      |   valid_location or geocode_many]-----> croaks; no object
+      |
+      +--[geocoder => $g]---------------------> READY
       |
       v
   +-------------------+
@@ -1589,8 +1595,8 @@ has been loaded yet.
   +-------------------+
        |          |
   first call,     first call,
-  module OK       module absent or too old
-       |          |
+  module OK       module absent, too old or will not
+       |          load, or its new() answers nothing
        v          v
   +---------+  +------------+
   |  READY  |  | UNAVAILABLE|
@@ -1612,11 +1618,31 @@ has been loaded yet.
   | change) |  | change)    |
   +---------+  +------------+
 
-Resolution itself is stateless: the object's geocoder-load state does not
-change after the first load attempt.  All state is in the result hashref and
-the cache the caller manages.
+Once the object is READY or UNAVAILABLE that does not change: neither a module
+that appears nor one that goes away moves it, and the module is looked for once.
 
-Value-level state transitions within a single resolve_* call:
+There are two ways for a call to croak and leave the state as it was.  Arguments a
+resolve_*() call refuses are refused before any load is attempted.  A module that
+loads and whose new() dies sends that exception to the caller and remembers
+nothing, so the object stays CONSTRUCTED and the next call tries again.
+
+Resolution itself is stateless: all state is in the result hashref and the cache
+the caller manages.
+
+    Valid state transitions summary:
+
+    [START]          -> CONSTRUCTED      (new() with no geocoder)
+    [START]          -> READY            (new() given a geocoder)
+    [START]          -> ERROR            (new() refuses its arguments; croaks, no object)
+    CONSTRUCTED      -> READY            (first call, module OK)
+    CONSTRUCTED      -> UNAVAILABLE      (first call, no module that can be used)
+    CONSTRUCTED      -> CONSTRUCTED      (arguments refused, or the module's new() dies; croaks)
+    READY            -> READY            (resolve_*(), or arguments refused)
+    UNAVAILABLE      -> UNAVAILABLE      (resolve_*(), or arguments refused)
+
+Value-level state transitions within a single resolve_* call.  Each distinct value
+takes the first of these that applies, from the top.  CACHE is the C<cache> in the
+result, a copy: the cache the caller passed in is never modified.
 
     RECEIVED
        |
@@ -1628,15 +1654,22 @@ Value-level state transitions within a single resolve_* call:
        |
        +--[geocoder unavailable]-----------> NOT_ATTEMPTED
        |
+       +--[valid_location() throws]--------> EXCEPTION
+       |
        +--[valid_location() = false]-------> SKIPPED
        |
        +--[within cap]--------------------> ATTEMPT
        |                                        |
        |                                        +--[geocoder returns position]--> RESOLVED_NEW --> POINTS, CACHE==[lat,lon]
        |                                        |
-       |                                        +--[geocoder returns undef]-----> UNRESOLVED_NEW, CACHE==0
+       |                                        +--[geocoder returns no position]--> UNRESOLVED_NEW, CACHE==0
+       |                                        |
+       |                                        +--[geocoder throws]--> EXCEPTION
        |
        +--[beyond cap]-------------------> NOT_ATTEMPTED
+
+EXCEPTION is the whole request failing, on purpose: it goes to the caller, who has
+no result and a cache exactly as it was, so nothing can be half-written.
 
 =head1 AUTHOR
 
