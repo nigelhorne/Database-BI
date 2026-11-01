@@ -54,14 +54,8 @@
 	scatter, heatmap, stacked, combo, treemap or histogram, a map, or a word
 	cloud. A card added to a filtered or parameterised canvas is drawn through
 	that same state, so it lands on screen already narrowed like its neighbours.
-</p>
-<p>
-	A card can also be plain text. <strong>Add text</strong> in the toolbar makes a
-	title or an explanation with its own font, size, colours and alignment, and it
-	moves and resizes like any other card. It can hide its frame until it is pointed
-	at, and a row of one-row text cards is only as tall as its text. Double-click
-	the text to change it or remove the card. A colour left unset follows the light
-	or dark theme; a chosen colour stays the same in both, so give it a background.
+	A card can also be <a href="#text">your own words</a>: a title, an explanation
+	or a label.
 </p>
 
 <div class="grid">
@@ -110,6 +104,69 @@
 			silently.
 		</p>
 	</article>
+</div>
+
+<h2 id="text">Titles and explanations</h2>
+<p class="section-intro">
+	<strong>Add text</strong> in the toolbar puts a card of plain text on the
+	canvas. It reads no data, so a filter or a time range leaves its words alone,
+	and it moves and resizes like any other card.
+</p>
+
+<div class="grid">
+	<article class="card">
+		<span class="tag">Text</span>
+		<h3>How it looks</h3>
+		<p>
+			Each card has its own font (the page's, Arial, Georgia, Times New Roman,
+			Verdana, Trebuchet MS or Courier New), a size from 8 to 96 points, an
+			alignment, bold and italic, a text colour and a background. The fonts are
+			ones browsers already have, so a canvas loads nothing extra for them.
+		</p>
+	</article>
+
+	<article class="card">
+		<span class="tag">Text</span>
+		<h3>A heading, not a box</h3>
+		<p>
+			A card can hide its frame and header until it is pointed at or has
+			keyboard focus, so a title reads as a heading. On a printed or
+			<a href="#sharing">shared</a> canvas the header stays hidden.
+		</p>
+	</article>
+
+	<article class="card">
+		<span class="tag">Text</span>
+		<h3>Rows that fit</h3>
+		<p>
+			A new card starts full width. A row holding only one-row text cards is as
+			tall as its text, rather than the usual 15rem. Beside a chart, the card is
+			as tall as the chart, and a text card two rows high or more keeps full
+			rows, so the Size menu is how to ask for a taller one.
+		</p>
+	</article>
+
+	<article class="card">
+		<span class="tag">Text</span>
+		<h3>Editing and removing</h3>
+		<p>
+			Double-click the text, or use <strong>Edit text</strong> in its header. The
+			card shows each change as it is made, and Cancel or Escape puts it back.
+			<strong>Remove card</strong> is in the same panel. Undo and redo cover the
+			canvas's filters, not its cards, so removing one cannot be undone.
+		</p>
+	</article>
+</div>
+
+<div class="note">
+	<p>
+		Text is plain text: HTML tags and Markdown show as the characters typed. A
+		colour left unset follows the light or dark
+		<a href="index.html#preferences">theme</a>. A chosen colour stays the same in
+		both, so give it a background it can be read against. Text cards have no
+		chart or data to save, so they carry no download buttons; they appear in the
+		printed canvas. They are also the only cards that can be removed.
+	</p>
 </div>
 
 <h2 id="aggregation">A card picks its own measure</h2>
@@ -178,7 +235,7 @@
 	is relative, the link still means the same thing when it is opened next month.
 </p>
 
-<h2>Sharing and embedding</h2>
+<h2 id="sharing">Sharing and embedding</h2>
 <dl class="spec">
 	<dt><code>/a/:id</code></dt>
 	<dd>The canvas itself, with cross-filter, drill, parameter and range parameters.</dd>

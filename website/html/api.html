@@ -132,14 +132,8 @@ Content-Type: application/json
 	<code>pie</code>, <code>line</code>, <code>graph</code>,
 	<code>scatter</code>, <code>heatmap</code>, <code>stacked</code>,
 	<code>combo</code>, <code>treemap</code>, <code>histogram</code>,
-	<code>wordcloud</code>, <code>map</code> or <code>text</code>. A
-	<code>text</code> card reads no data: its <code>options</code> hold
-	<code>text</code>, <code>font</code>, <code>size</code> (points),
-	<code>colour</code>, <code>background</code>, <code>align</code>,
-	<code>bold</code>, <code>italic</code> and <code>plain</code>. PATCH it with
-	<code>{ "options": ... }</code>, and remove it with
-	<code>DELETE /api/analyses/:id/visuals/:visual</code>, which only text cards
-	accept. The optional <code>query</code> is
+	<code>wordcloud</code>, <code>map</code> or <a href="#text-cards"><code>text</code></a>.
+	The optional <code>query</code> is
 	the canvas page's own query string: <code>cf</code> (cross-filter),
 	<code>c</code> (calculated columns), <code>p.&lt;name&gt;</code> (bound
 	parameters) and <code>range</code>/<code>rcol</code> are read from it, so a
@@ -203,6 +197,50 @@ Content-Type: application/json
 	A card's data can be downloaded as
 	<code>GET /a/:id/visual/:n/:fmt</code>, which uses the canvas's own rows and
 	does not accept an <code>l=</code> pointing anywhere else.
+</p>
+
+<h2 id="text-cards">Text cards</h2>
+<pre><code>POST /api/analyses/:id/visuals
+Content-Type: application/json
+
+{
+  "kind":    "text",
+  "options": {
+    "text":   "Quarterly sales",
+    "font":   "georgia",
+    "size":   24,
+    "align":  "center",
+    "bold":   1,
+    "plain":  1
+  }
+}</code></pre>
+<p>
+	A text card reads no data, so it has no <code>encode</code>, <code>query</code>
+	or <code>cross_row</code>, and <code>/a/:id/visual/:n/csv</code> answers 404 for
+	it. A setting outside these is dropped; one with a bad value is a 400 and nothing
+	is stored.
+</p>
+<dl class="spec">
+	<dt><code>text</code></dt>
+	<dd>Required, up to 20,000 characters. It is shown as plain text, never as markup.</dd>
+	<dt><code>font</code></dt>
+	<dd><code>arial</code>, <code>georgia</code>, <code>times</code>, <code>verdana</code>, <code>trebuchet</code> or <code>courier</code>. Left out, the card uses the page's font.</dd>
+	<dt><code>size</code></dt>
+	<dd>A whole number of points from 8 to 96.</dd>
+	<dt><code>colour</code>, <code>background</code></dt>
+	<dd>Written <code>#rrggbb</code>. Left out, the text follows the theme and the card has no fill of its own.</dd>
+	<dt><code>align</code></dt>
+	<dd><code>left</code>, <code>center</code> or <code>right</code>.</dd>
+	<dt><code>bold</code>, <code>italic</code>, <code>plain</code></dt>
+	<dd>True to turn on. <code>plain</code> hides the frame and header until the card is pointed at.</dd>
+</dl>
+<pre><code>PATCH  /api/analyses/:id/visuals/:visual     { "options": { ... } }
+DELETE /api/analyses/:id/visuals/:visual</code></pre>
+<p>
+	PATCH replaces all the options, keeping the card's place and size. DELETE answers
+	<code>{ "deleted": 1 }</code>; it accepts only text cards, and any other kind is a
+	400. Later cards move down one index, and the layout and any <code>cv</code> in a
+	bookmark move with them.
 </p>
 
 <h2 id="data">Data and filesystem</h2>
