@@ -6487,7 +6487,10 @@ sub columns_api ($self) {
 
 =head2 range_api
 
-C<GET /api/range> -- Return the min and max ISO date values for one column.
+C<GET /api/range> -- Return the min and max ISO date values for one column of
+a view.  The view is the left source with any joins and combines applied, so
+the column may come from a joined table, and an inner join's dropped rows do not
+count.  Filters are not applied.
 
 =head3 API SPECIFICATION
 
@@ -6495,6 +6498,9 @@ C<GET /api/range> -- Return the min and max ISO date values for one column.
 
   ?l=    string   Required. Data source spec ("table:name", "path:/abs/path", etc.).
   ?col=  string   Required. Column name to compute the range for.
+  ?j=    string   Optional, repeatable. Join spec "<spec>|<lkey>|<rkey>".
+  ?jtype= string  Optional. left (default), inner or outer.
+  ?c=    string   Optional, repeatable. Source spec to stack under the view.
 
 =head4 OUTPUT
 
@@ -6505,9 +6511,9 @@ C<GET /api/range> -- Return the min and max ISO date values for one column.
 =head3 FORMAL SPECIFICATION
 
   range_api == lambda self .
-    let src = _open_spec(param('l')) in
-    pre  src /= undef /\ col /= ''
-    post render_json({ min: min_date(src, col), max: max_date(src, col) })
+    let recs = _run_pipeline_source().records in
+    pre  param('l') /= '' /\ col /= ''
+    post render_json({ min: min_date(recs, col), max: max_date(recs, col) })
 
 =cut
 
@@ -6517,10 +6523,11 @@ sub range_api ($self) {
 	return $self->render(json => { error => 'l required'   }, status => 400) unless length $spec_str;
 	return $self->render(json => { error => 'col required' }, status => 400) unless length $col;
 
-	my ($source) = $self->_open_spec($spec_str);
-	return $self->render(json => { min => undef, max => undef }) unless $source;
-
-	my $records = eval { $source->fetch_all } // [];
+	# The pipeline, so that the range is of the rows the page shows.  A join
+	# that cannot be built croaks; this route answers "no range" instead.
+	my (undef, $records, $columns) = eval { $self->_run_pipeline_source };
+	return $self->render(json => { min => undef, max => undef })
+		unless $records && grep { $_ eq $col } @$columns;
 
 	my $iso_re = qr/\A\d{4}-\d{2}-\d{2}\z/;
 	my $mdy_re = qr|\A(\d{1,2})/(\d{1,2})/(\d{4})\z|;

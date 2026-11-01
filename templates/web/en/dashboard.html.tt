@@ -332,7 +332,7 @@
 </div>
 
 [%- IF left_spec -%]
-<div class="dash-add-filter" id="dash-add-filter" data-spec="[% left_spec | html %]">
+<div class="dash-add-filter" id="dash-add-filter" data-spec="[% left_spec | html %]" data-range-qs="[% FOREACH jspec IN current_joins %]&amp;j=[% jspec | uri | html %][% END %][% IF current_joins.size && view_join_type.length %]&amp;jtype=[% view_join_type | uri | html %][% END %][% FOREACH cspec IN combine_specs %]&amp;c=[% cspec | uri | html %][% END %]">
   <select id="dash-f-col" aria-label="Column to filter">
     <option value="">&#x2014; filter column &#x2014;</option>
     [%- FOREACH col IN columns -%]
@@ -1787,12 +1787,13 @@ function biSetDateRange(colName, inputs) {
   var domRange = biDateRangeDOM(colName);
   var spec = (document.getElementById('dash-add-filter') || {}).dataset;
   var lSpec = spec ? (spec.spec || '') : '';
+  var viewQs = spec ? (spec.rangeQs || '') : '';
   if (!lSpec || !colName) {
     biApplyRange(inputs, domRange);
     return;
   }
   inputs.forEach(function (inp) { inp.disabled = true; inp.title = 'Loading date range\u2026'; });
-  fetch('/api/range?l=' + encodeURIComponent(lSpec) + '&col=' + encodeURIComponent(colName))
+  fetch('/api/range?l=' + encodeURIComponent(lSpec) + '&col=' + encodeURIComponent(colName) + viewQs)
     .then(function (r) { return r.ok ? r.json() : null; })
     .then(function (d) {
       biApplyRange(inputs, (d && d.min && d.max) ? d : domRange);
@@ -2877,6 +2878,7 @@ function biDetectColType(colName) {
 
   var addPanel = document.getElementById('dash-add-filter');
   var spec     = addPanel ? addPanel.getAttribute('data-spec') : '';
+  var viewQs   = addPanel ? (addPanel.getAttribute('data-range-qs') || '') : '';
 
   function go(name, col) {
     var u = new URL(location.href);
@@ -2908,7 +2910,7 @@ function biDetectColType(colName) {
     var col = colSel.value;
     if (!col || !spec) return;
 
-    fetch('/api/range?l=' + encodeURIComponent(spec) + '&col=' + encodeURIComponent(col))
+    fetch('/api/range?l=' + encodeURIComponent(spec) + '&col=' + encodeURIComponent(col) + viewQs)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.min || !d.max) return;

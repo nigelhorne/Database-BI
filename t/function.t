@@ -8513,6 +8513,31 @@ sub croak_rethrow {
 		$tm->get_ok("/api/range?l=$SALES")->status_is(400)->json_is('/error', 'col required');
 		$tm->get_ok("/api/range?l=$SALES&col=sale_date")->status_is(200);
 
+		# The range is of the view: joins and the join type count.
+		my $jdir = tempdir(CLEANUP => 1);
+		Mojo::File->new($jdir, 'rangeleft.csv')->spew("id,opened\n1,2020-01-01\n2,2021-06-15\n");
+		Mojo::File->new($jdir, 'rangeright.csv')->spew("id,shipped\n1,2022-03-04\n1,2022-03-04\n");
+		Mojo::File->new($jdir, 'rangemore.csv')->spew("id,opened\n9,2024-02-02\n");
+		my $left  = Mojo::Util::url_escape("path:$jdir/rangeleft.csv");
+		my $right = Mojo::Util::url_escape("path:$jdir/rangeright.csv|id|id");
+		my $more  = Mojo::Util::url_escape("path:$jdir/rangemore.csv");
+		$tm->get_ok("/api/range?l=$left&col=shipped")->status_is(200)
+			->json_is('/min', undef, 'without j= the right-hand column is unknown');
+		$tm->get_ok("/api/range?l=$left&j=$right&col=shipped")->status_is(200)
+			->json_is('/min', '2022-03-04', 'a column from the joined table')
+			->json_is('/max', '2022-03-04');
+		$tm->get_ok("/api/range?l=$left&j=$right&col=opened")->status_is(200)
+			->json_is('/max', '2021-06-15', 'a left join keeps the unmatched row');
+		$tm->get_ok("/api/range?l=$left&j=$right&jtype=inner&col=opened")->status_is(200)
+			->json_is('/max', '2020-01-01', 'an inner join drops it');
+		$tm->get_ok("/api/range?l=$left&c=$more&col=opened")->status_is(200)
+			->json_is('/max', '2024-02-02', 'stacked rows count');
+		$tm->get_ok("/api/range?l=$left&col=nosuch")->status_is(200)->json_is('/min', undef);
+		$tm->get_ok("/join?l=$left&j=$right&jtype=inner")->status_is(200)
+			->content_like(qr/data-range-qs="&amp;j=[^"]*rangeright[^"]*&amp;jtype=inner"/,
+				'the dashboard hands the view to its range requests');
+		$tm->get_ok("/api/range?l=nosuch:x&col=opened")->status_is(200)->json_is('/min', undef);
+
 		my $dir = tempdir(CLEANUP => 1);
 		Mojo::File->new($dir, 'sub')->make_path;
 		$tm->get_ok('/api/dirs?path=' . Mojo::Util::url_escape($dir))->status_is(200)->content_like(qr/sub/);

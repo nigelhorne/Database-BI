@@ -14,6 +14,10 @@ Revision history for Database-BI
 	  https://metacpan.org/dist/Database-BI.
 	- Added website
 	[ Bug Fixes ]
+	- /api/range ignored j=, jtype= and c=, so on a joined view a date column from
+	  the right-hand table had no range, and a left-hand one counted rows an
+	  inner join had dropped.  It now answers for the view, and the dashboard's
+	  date filter and time-range menu send it the view's joins and combines.
 	- DataSource->updated() gave undef for a file not read yet, and after a read
 	  went on giving the time of that read.  It now gives the file's mtime, so a
 	  canvas can tell its data has changed.
