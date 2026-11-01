@@ -21,6 +21,8 @@ Revision history for Database-BI
 	  storage and applies at once to every open page.  Charts and tables follow
 	  it.  Saved charts, printed pages and embedded canvases stay light.
 	[ Bug Fixes ]
+	- hypnotoad script/database-bi never served the application: it hung in the
+	  development server.  It now starts the preforking server, as documented.
 	- On a device set to dark, a few parts of some pages went dark on an otherwise
 	  light page.  The whole page now follows the setting.
 	- /export with sort= gave a 500 on a SQLite source the first time it was read,

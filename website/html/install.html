@@ -109,21 +109,50 @@ perl Makefile.PL
 make
 make test</code></pre>
 
-<h2>Run it</h2>
+<h2 id="run">Run it</h2>
 <pre><code># development: restarts when a source file is edited
 script/database-bi
 
 # the same thing, spelled out
 morbo script/database-bi
 
-# production: a preforking server
-hypnotoad script/database-bi</code></pre>
+# the same, showing one database at the home address
+script/database-bi data/store.db
+
+# production: a preforking server; start, or restart with no downtime
+hypnotoad script/database-bi
+
+# stop it
+hypnotoad -s script/database-bi</code></pre>
 <p>
 	With no arguments the launcher starts the development server itself; any other
 	Mojolicious command word (<code>routes</code>, <code>get</code>, &hellip;) is
 	passed through to the application. The preforking server is the one to put
-	behind a reverse proxy for long-running use.
+	behind a reverse proxy for long-running use. It listens on port 8080 and ignores
+	<code>MOJO_LISTEN</code>; set the port in <code>database_bi.conf</code>, as
+	<code>hypnotoad =&gt; { listen =&gt; ['http://*:3000'] }</code>. It keeps its
+	process id in <code>script/hypnotoad.pid</code> unless <code>pid_file</code> says
+	otherwise.
 </p>
+<p>
+	Given the name of a database, the launcher starts the same development server,
+	and the home address shows that database. The Home link in its breadcrumb leads
+	to the usual list. It takes a data file, a remote path or a Redis spec, as
+	<code>/open</code> does.
+</p>
+<p>
+	Only one can be named, because a join cannot be given on the command line: open
+	one and use Merge or Combine in the browser. Naming more than one, or a file
+	that is missing, cannot be read or is of an unsupported type, prints the reason
+	and exits with status 2 before any server starts.
+</p>
+<p>
+	<code>MOJO_LISTEN</code> chooses the port. <code>script/database-bi daemon</code>
+	ignores a file named after it, and so does <code>hypnotoad</code>; to show a
+	database from either, set <code>BI_OPEN</code>:
+</p>
+<pre><code>BI_OPEN=/full/path/store.db script/database-bi daemon
+BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 
 <div class="note">
 	<p>
@@ -133,6 +162,11 @@ hypnotoad script/database-bi</code></pre>
 		shebang names another interpreter to that interpreter &mdash; so a
 		<code>morbo</code> shebang starts a morbo inside a morbo, one process per
 		second, until <code>exec</code> runs out of argument space.
+	</p>
+	<p>
+		The launcher's last statement must be its call to <code>start_app</code>.
+		hypnotoad loads the file instead of running it, and takes the value of that
+		statement as the application.
 	</p>
 </div>
 

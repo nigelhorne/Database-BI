@@ -168,15 +168,26 @@ script/database-bi data/store.db
 
 The home address then shows that database, and its Home link leads to the usual
 list.  Only one can be named: more than one is an error (exit status 2), because
-a join cannot be given on the command line.  Use `MOJO_LISTEN` to choose the
-port.  A plain server does the same with
-`BI_OPEN=/full/path/store.db script/database-bi daemon`.
+a join cannot be given on the command line, so open one and use Merge or Combine
+in the browser.  A file that is missing, cannot be read or is of an unsupported
+type is the same error, before the server starts.  A remote path or Redis spec
+is accepted as it would be by `/open`, and is checked when it is first shown.
+Use `MOJO_LISTEN` to choose the port.  A plain server does the same with
+`BI_OPEN=/full/path/store.db script/database-bi daemon`; a file named after
+`daemon` is ignored.
 
 **Start the production server:**
 
 ```
-hypnotoad script/database-bi
+hypnotoad script/database-bi      # start, or restart with no downtime
+hypnotoad -s script/database-bi   # stop
 ```
+
+It listens on port 8080 and ignores `MOJO_LISTEN`; set the port and anything
+else in `database_bi.conf`, under `hypnotoad => { listen => ['http://*:3000'] }`.
+It keeps its process id in `script/hypnotoad.pid` unless `pid_file` says
+otherwise.  It takes no database on its command line: use
+`BI_OPEN=/full/path/store.db hypnotoad script/database-bi`.
 
 **Use a different data directory:**
 
@@ -210,6 +221,11 @@ perl Makefile.PL
 - `GET /`
 
     Scans `data_dir`, renders a card grid of available tables.
+
+    When the server was started with the name of a database (see ["SYNOPSIS"](#synopsis)), a
+    request from outside the application is redirected to `/open` for that
+    database.  A request whose `Referer` is this server, such as the Home link, gets
+    the card grid, so a browser that withholds `Referer` always sees the database.
 
 - `GET /tutorial`
 
@@ -1212,6 +1228,14 @@ the same and shows that database, with a command word it runs that command, and 
     stopped when the environment copied to each child was too large for `exec`
     (`Argument list too long`).  The shebang is perl and the script starts the
     server itself when it is given no arguments.
+
+- **The launcher's last statement must be its call to start\_app**
+
+    `hypnotoad` loads the launcher instead of running it, with no arguments, and
+    takes the value of its last statement as the application.  So the launcher must
+    start the development server only when `MOJO_APP_LOADER` is not set, and must
+    not end in `1;`.  Otherwise `hypnotoad script/database-bi` hangs in a
+    development server or refuses to start.
 
 - **The configuration file is optional but must be valid Perl if present**
 

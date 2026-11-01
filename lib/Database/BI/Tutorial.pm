@@ -86,6 +86,9 @@ my @CHAPTERS = (
 			'To use a full path, type it in the box that shows /path/to/file.csv and click Open.',
 			'To open a file from your computer, drop it on the page. The program keeps a copy in a temporary folder.',
 			'A database file can hold more than one table. The program shows the table list first. Click one table.',
+			'To see a file as soon as the program starts, name it when you start the program: script/database-bi data/store.db.',
+			'The home address then shows that file. Click Home in the breadcrumb to see the usual list.',
+			'You can name only one file this way. To bring files together, open one and use Merge or Combine.',
 		],
 		tip   => 'A dropped file is a copy. Changes in the view do not change your original file.',
 		routes => [ '/browse', '/open', '/tables' ],
@@ -908,6 +911,14 @@ my @FAQ = (
 	{
 		question => 'The file is not in the list. What can I do?',
 		answer   => 'Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.',
+	},
+	{
+		question => 'The home address shows one file, not the list.',
+		answer   => 'The program was started with the name of that file. Click Home in the breadcrumb to see the list. To stop this, start the program without a file name.',
+	},
+	{
+		question => 'The program says that only one database can be opened.',
+		answer   => 'You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others.',
 	},
 	{
 		question => 'The program will not open my file.',

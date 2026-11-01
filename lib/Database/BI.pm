@@ -254,13 +254,24 @@ B<Start it showing one database:>
 
 The home address then shows that database, and its Home link leads to the usual
 list.  Only one can be named: more than one is an error (exit status 2), because
-a join cannot be given on the command line.  Use C<MOJO_LISTEN> to choose the
-port.  A plain server does the same with
-C<BI_OPEN=/full/path/store.db script/database-bi daemon>.
+a join cannot be given on the command line, so open one and use Merge or Combine
+in the browser.  A file that is missing, cannot be read or is of an unsupported
+type is the same error, before the server starts.  A remote path or Redis spec
+is accepted as it would be by C</open>, and is checked when it is first shown.
+Use C<MOJO_LISTEN> to choose the port.  A plain server does the same with
+C<BI_OPEN=/full/path/store.db script/database-bi daemon>; a file named after
+C<daemon> is ignored.
 
 B<Start the production server:>
 
-    hypnotoad script/database-bi
+    hypnotoad script/database-bi      # start, or restart with no downtime
+    hypnotoad -s script/database-bi   # stop
+
+It listens on port 8080 and ignores C<MOJO_LISTEN>; set the port and anything
+else in C<database_bi.conf>, under C<< hypnotoad => { listen => ['http://*:3000'] } >>.
+It keeps its process id in F<script/hypnotoad.pid> unless C<pid_file> says
+otherwise.  It takes no database on its command line: use
+C<BI_OPEN=/full/path/store.db hypnotoad script/database-bi>.
 
 B<Use a different data directory:>
 
@@ -288,6 +299,11 @@ B<Generate the Makefile for the first time or after editing Makefile.PL:>
 =item C<GET />
 
 Scans C<data_dir>, renders a card grid of available tables.
+
+When the server was started with the name of a database (see L</SYNOPSIS>), a
+request from outside the application is redirected to C</open> for that
+database.  A request whose C<Referer> is this server, such as the Home link, gets
+the card grid, so a browser that withholds C<Referer> always sees the database.
 
 =item C<GET /tutorial>
 
@@ -1242,6 +1258,14 @@ morbo: the chain grew a process a second, kept the listening port, and only
 stopped when the environment copied to each child was too large for C<exec>
 (F<Argument list too long>).  The shebang is perl and the script starts the
 server itself when it is given no arguments.
+
+=item B<The launcher's last statement must be its call to start_app>
+
+C<hypnotoad> loads the launcher instead of running it, with no arguments, and
+takes the value of its last statement as the application.  So the launcher must
+start the development server only when C<MOJO_APP_LOADER> is not set, and must
+not end in C<1;>.  Otherwise C<hypnotoad script/database-bi> hangs in a
+development server or refuses to start.
 
 =item B<The configuration file is optional but must be valid Perl if present>
 

@@ -52,7 +52,7 @@ sub _open_on_start {
 	my ($database, @others) = @_;
 
 	_refuse('only one database can be opened from the command line.  To bring '
-		. 'several together, open one and use Join or Combine in the browser.')
+		. 'several together, open one and use Merge or Combine in the browser.')
 		if @others;
 
 	if ($database !~ m{\A(?:/\.\./|redis:)}i) {
@@ -78,12 +78,16 @@ if (@ARGV && _names_a_database($ARGV[0])) {
 # changes - what "morbo script/database-bi" does.  A command word (daemon,
 # routes, get, ...) goes to the application's command line interface, so the
 # script can still start a plain server or be used from a test.
-if (@ARGV) {
-	Mojolicious::Commands->start_app('Database::BI');
-} else {
+#
+# A server that loads this file instead of running it (hypnotoad) also leaves
+# @ARGV empty, and sets MOJO_APP_LOADER.  It must not get the development server,
+# which never returns.  Morbo's run exits, so start_app is reached only otherwise.
+if (!@ARGV && !defined $ENV{MOJO_APP_LOADER}) {
 	require Mojo::Server::Morbo;
 	Mojo::Server::Morbo->new(silent => 1)
 		->run(File::Spec->catfile($FindBin::RealBin, $FindBin::Script));
 }
 
-1;
+# This must stay the last statement: a loading server takes the file's value as
+# the application, and refuses anything else.
+Mojolicious::Commands->start_app('Database::BI');

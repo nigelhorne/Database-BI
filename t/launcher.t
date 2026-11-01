@@ -26,6 +26,7 @@ use warnings;
 use Test::Most;
 
 use Config;
+use File::Basename ();
 use File::Spec;
 use File::Temp qw(tempdir);
 use IPC::Open3 qw(open3);
@@ -183,19 +184,17 @@ for my $case (
 SKIP: {
 	skip 'morbo does not support fork emulation', 1 if $Config{d_pseudofork};
 
-	# Starts the launcher, hands the base URL to the code, and always stops it.
+	# Starts a server on the port, hands the base URL to the code, and always stops it.
 	my $with_server = sub {
-		my ($database, $code) = @_;
+		my ($port, $command, $code) = @_;
 
-		my $port = Mojo::IOLoop::Server->generate_port;
-		local $ENV{MOJO_LISTEN} = "http://127.0.0.1:$port";
 		local $ENV{MOJO_LOG_LEVEL} = 'fatal';
 
 		my $pid = fork // BAIL_OUT("cannot fork: $!");
 		if (!$pid) {
 			open STDOUT, '>', File::Spec->devnull or POSIX::_exit(1);
 			open STDERR, '>', File::Spec->devnull or POSIX::_exit(1);
-			exec($^X, $launcher, $database) or POSIX::_exit(1);
+			exec(@{$command}) or POSIX::_exit(1);
 		}
 
 		my $ua = Mojo::UserAgent->new(max_redirects => 3, connect_timeout => 1, inactivity_timeout => 60);
@@ -219,7 +218,15 @@ SKIP: {
 		return;
 	};
 
-	$with_server->('data/sales.csv', sub {
+	# Each call has a port of its own; the launcher's server takes it from MOJO_LISTEN.
+	my $with_launcher = sub {
+		my ($database, $code) = @_;
+		my $port = Mojo::IOLoop::Server->generate_port;
+		local $ENV{MOJO_LISTEN} = "http://127.0.0.1:$port";
+		return $with_server->($port, [ $^X, $launcher, $database ], $code);
+	};
+
+	$with_launcher->('data/sales.csv', sub {
 		my ($ua, $base, $up) = @_;
 		ok $up, 'the server started with a file named';
 		my $tx = $ua->get("$base/");
@@ -228,7 +235,7 @@ SKIP: {
 		like $tx->req->url->path, qr{\A/open\z}, 'by way of /open';
 	});
 
-	$with_server->('data/store.db', sub {
+	$with_launcher->('data/store.db', sub {
 		my ($ua, $base, $up) = @_;
 		ok $up, 'the server started with a database named';
 		my $tx = $ua->get("$base/");
@@ -237,6 +244,63 @@ SKIP: {
 			'rather than the list or a 404';
 		like $tx->res->body, qr/store/, 'and it is the database named';
 	});
+
+	# hypnotoad loads the launcher rather than running it.  With no arguments the
+	# launcher starts the development server, which never returns, so this hung;
+	# and the file's last value must be the application, or hypnotoad refuses it.
+	my ($hypnotoad) = grep { -x $_ } map { File::Spec->catfile($_, 'hypnotoad') }
+		grep { defined && length } $Config{installsitescript}, $Config{installscript},
+		File::Basename::dirname($^X), File::Spec->path;
+
+	SKIP: {
+		skip 'no hypnotoad to run', 1 unless $hypnotoad;
+
+		my $port   = Mojo::IOLoop::Server->generate_port;
+		my $config = File::Spec->catfile($tmp, 'hypnotoad.conf');
+		my $pid    = File::Spec->catfile($tmp, 'hypnotoad.pid');
+		open my $cfh, '>', $config or BAIL_OUT("cannot write $config: $!");
+		print {$cfh} "{ hypnotoad => { listen => ['http://127.0.0.1:$port'], workers => 1, pid_file => '$pid' } }\n";
+		close $cfh;
+
+		local $ENV{MOJO_CONFIG} = $config;
+		delete local @ENV{qw(MOJO_LISTEN MOJO_MODE HYPNOTOAD_REV HYPNOTOAD_APP HYPNOTOAD_EXE BI_OPEN)};
+
+		$with_server->($port, [ $^X, $hypnotoad, '-f', $launcher ], sub {
+			my ($ua, $base, $up) = @_;
+			ok $up, 'hypnotoad starts the application from the launcher';
+			like $ua->get("$base/")->res->dom->at('title')->text, qr/Choose a Database/,
+				'and serves the home page';
+			ok -s $pid, 'and it is hypnotoad: it wrote its pid file';
+		});
+
+		$port = Mojo::IOLoop::Server->generate_port;
+		open $cfh, '>', $config or BAIL_OUT("cannot write $config: $!");
+		print {$cfh} "{ hypnotoad => { listen => ['http://127.0.0.1:$port'], workers => 1, pid_file => '$pid' } }\n";
+		close $cfh;
+
+		local $ENV{BI_OPEN} = File::Spec->rel2abs('data/sales.csv');
+		$with_server->($port, [ $^X, $hypnotoad, '-f', $launcher ], sub {
+			my ($ua, $base) = @_;
+			like $ua->get("$base/")->res->dom->at('title')->text, qr/sales\.csv/,
+				'BI_OPEN shows a database under hypnotoad too';
+		});
+	}
+}
+
+# ---------------------------------------------------------------------------
+# A server that loads the launcher gets the application, not a server of its own
+# ---------------------------------------------------------------------------
+
+{
+	# In a child with an alarm: a launcher that starts morbo here never returns.
+	my $out = gensym;
+	my $pid = open3(my $in, $out, undef, $^X, '-MMojo::Server', '-e',
+		'alarm 30; print ref(Mojo::Server->new->load_app(shift)), qq{\n}', $launcher);
+	close $in;
+	my $output = do { local $/; <$out> } // '';
+	waitpid $pid, 0;
+	is $?, 0, 'loading the launcher returns';
+	like $output, qr/\bDatabase::BI\b/, 'and gives the application';
 }
 
 done_testing();
