@@ -179,6 +179,16 @@
 			or a one-page PDF.
 		</p>
 	</article>
+
+	<article class="card">
+		<span class="tag">Preferences</span>
+		<h3>Light or dark</h3>
+		<p>
+			Every page, table and chart comes in a light and a dark theme. Each reader
+			chooses on the Preferences page, or follows the device.
+			<a href="#preferences">How preferences work</a>.
+		</p>
+	</article>
 </div>
 
 <h2>How it fits together</h2>
@@ -224,6 +234,37 @@ hypnotoad script/database-bi   # preforking server for real use</code></pre>
 		features are off unless a key is configured, and even then prompts carry
 		column names and types or aggregate text &mdash; never row data or file paths.
 		Map pages never send what you type anywhere: there is no place-search box.
+	</p>
+</div>
+
+<h2 id="preferences">Preferences</h2>
+<p>
+	The Preferences link at the top of every page opens <code>/preferences</code>,
+	where a reader chooses how the application looks to them. It has one setting
+	so far, the theme:
+</p>
+<dl class="spec">
+	<dt>Same as this device</dt>
+	<dd>The default. Light or dark, following the setting on the computer or phone, even if that changes while a page is open.</dd>
+	<dt>Light</dt>
+	<dd>Dark text on a pale background.</dd>
+	<dt>Dark</dt>
+	<dd>Pale text on a dark background, for the tables and the charts as well as the pages around them. Map tiles keep their usual colours.</dd>
+</dl>
+<p>
+	A choice takes effect at once, with no Save button, and pages open in other
+	tabs follow it. Saved charts and printed pages always use the light colours,
+	so they look the same to whoever receives them, and so does a canvas embedded
+	in another site, whose colours it cannot know.
+</p>
+
+<div class="note">
+	<p>
+		<strong>Preferences belong to the browser.</strong> They are kept in its
+		<code>localStorage</code> and never reach the server, so there is nothing to
+		configure and no account to sign in to, and another browser or computer keeps
+		its own. If the browser refuses to store a choice, the page says so and the
+		choice lasts only until the next page.
 	</p>
 </div>
 

@@ -63,7 +63,7 @@ my @CHAPTERS = (
 		title => 'Find your way around',
 		lead  => 'Every page shows where you are and how you got there.',
 		steps => [
-			'The links at the top of every page are Home, Canvases, Catalog, Open file... and Tutorial.',
+			'The links at the top of every page are Home, Canvases, Catalog, Open file..., Preferences and Tutorial.',
 			'The Help link beside Tutorial opens the chapter for the page that you are on. F1 does the same.',
 			'Below the title, the breadcrumb lists each page between Home and this one. Click a step to go back to it.',
 			'Each step is named after what it shows, for example Bar chart: amount by region.',
@@ -812,14 +812,17 @@ my @CHAPTERS = (
 	{
 		id    => 'preferences',
 		part  => 'Help',
-		title => 'Choose light or dark',
-		lead  => 'The program can use dark colours, or follow the setting on your device.',
+		title => 'Set your preferences',
+		lead  => 'The Preferences page chooses how the program looks to you. It has one setting: the theme.',
 		steps => [
 			'Click Preferences at the top of any page.',
-			'Choose Same as this device, Light or Dark.',
-			'The page changes straight away, and every other page follows.',
+			'Under Theme, choose Same as this device, Light or Dark.',
+			'Same as this device is the choice until you change it. The program follows the light or dark setting on your computer or phone, even while a page is open.',
+			'The page changes as soon as you choose. There is no Save button.',
+			'Every other page follows, including pages that are open in other tabs.',
+			'Tables and charts change with the page. A map keeps its usual colours.',
 		],
-		tip   => 'The choice is saved in this browser. Saved charts and printed pages always use the light colours.',
+		tip   => 'The choice is saved in this browser, so another browser or computer keeps its own. Saved charts and printed pages always use the light colours.',
 		try   => { href => '/preferences', label => 'Open your preferences' },
 		routes => [ '/preferences' ],
 	},
@@ -909,6 +912,14 @@ my @FAQ = (
 	{
 		question => 'The program will not open my file.',
 		answer   => 'Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.',
+	},
+	{
+		question => 'The page is dark, but my saved chart is white.',
+		answer   => 'This is on purpose. Saved charts and printed pages always use the light colours, so that they look the same to whoever receives them.',
+	},
+	{
+		question => 'The program does not remember my theme.',
+		answer   => 'The choice is saved in this browser. A private window forgets it when you close the window. If the browser will not save it, the Preferences page says so.',
 	},
 	{
 		question => 'My chart is empty.',

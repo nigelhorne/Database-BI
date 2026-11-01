@@ -177,7 +177,7 @@
 	<dt><code>/share/:id</code></dt>
 	<dd>A share link, signed with an HMAC-SHA256 token, for handing a canvas to someone who should not need an account.</dd>
 	<dt><code>/embed/:id</code></dt>
-	<dd>A page with no navigation, for putting the canvas inside another site. Each card is drawn through its own failure: one card that cannot be drawn says so and leaves the others.</dd>
+	<dd>A page with no navigation, for putting the canvas inside another site. Each card is drawn through its own failure: one card that cannot be drawn says so and leaves the others. It stays in the light colours, because it sits on a page whose colours it cannot know.</dd>
 	<dt><code>/catalog</code></dt>
 	<dd>Every saved canvas in one place, as cards that open.</dd>
 </dl>
@@ -189,7 +189,9 @@
 	HTML legend is drawn into the saved copy, and a map or table card keeps the
 	image buttons hidden because there is no chart to save. A card's data can
 	also be downloaded as CSV, from the canvas's own rows rather than from any
-	other source. The whole canvas prints to paper or PDF.
+	other source. The whole canvas prints to paper or PDF. Saved cards and printed
+	canvases use the light colours, whichever <a href="index.html#preferences">theme</a>
+	the reader has chosen.
 </p>
 
 <div class="note">
