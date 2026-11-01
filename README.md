@@ -1248,7 +1248,8 @@ command, and `hypnotoad script/database-bi` starts a preforking server (see
     `.xml`, `.psv`, `.tsv`, and `.xlsx` files.  All three SQLite extensions
     (`.sql`, `.sqlite`, `.sqlite3`) are treated identically -- `inventory.sqlite`
     and `inventory.sqlite3` are both opened as SQLite databases without renaming.
-    Excel `.xlsx` files are read directly via `Spreadsheet::ParseXLSX`.
+    Excel `.xlsx` files are read by [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction), using
+    `Spreadsheet::ParseXLSX`.
 
     URLs will work.
     For example enter

@@ -14,6 +14,16 @@ Revision history for Database-BI
 	  https://metacpan.org/dist/Database-BI.
 	- Added website
 	[ Bug Fixes ]
+	- A file with no header row split a quoted field on the separator inside it,
+	  so "1,234.56" became two columns and every later value moved along one.  It
+	  also dropped an empty field, which did the same.  Such a file is now read
+	  by Database::Abstraction, from a temporary copy with a header added.
+	- Sorting did nothing on a file with no header row, XLSX or Berkeley DB.  XLSX
+	  and Berkeley DB are now read by Database::Abstraction too, so they sort, page
+	  and filter as other files do.  A Berkeley DB file's rows are no longer in key
+	  order unless sorted, and an empty XLSX cell is undef rather than ''.
+	- Sorting did nothing on a column whose name is not a safe identifier, such as
+	  "First Name", on any source: Database::Abstraction ignores those.
 	- /api/range ignored j=, jtype= and c=, so on a joined view a date column from
 	  the right-hand table had no range, and a left-hand one counted rows an
 	  inner join had dropped.  It now answers for the view, and the dashboard's

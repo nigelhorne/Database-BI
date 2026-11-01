@@ -1274,7 +1274,8 @@ The application recognises C<.csv>, C<.db>, C<.sql>, C<.sqlite>, C<.sqlite3>,
 C<.xml>, C<.psv>, C<.tsv>, and C<.xlsx> files.  All three SQLite extensions
 (C<.sql>, C<.sqlite>, C<.sqlite3>) are treated identically -- C<inventory.sqlite>
 and C<inventory.sqlite3> are both opened as SQLite databases without renaming.
-Excel C<.xlsx> files are read directly via C<Spreadsheet::ParseXLSX>.
+Excel C<.xlsx> files are read by L<Database::Abstraction>, using
+C<Spreadsheet::ParseXLSX>.
 
 URLs will work.
 For example enter

@@ -273,6 +273,10 @@ Readonly our %MESSAGES => (
 # A table name is a bare SQL-safe identifier: starts with a letter or
 # underscore, followed by zero or more alphanumeric/underscore characters.
 Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
+# Text::CSV's error_diag code for the plain end of a file.
+Readonly my $CSV_EOF => 2012;
+# The sort columns D::A accepts; it ignores any other, with a warning.
+Readonly my $DA_SORTABLE_RE => qr/\A[a-zA-Z_][a-zA-Z0-9_.]*\z/;
 
 # ---------------------------------------------------------------------------
 # Protected helpers
@@ -690,10 +694,9 @@ sub _init_redis_backend :Protected {
 sub _detect_file_info :Protected {
 	my ($dir, $table) = @_;
 
-	# XLSX: DBD::Excel 0.07 only handles .xls (its source skips files whose
-	# name does not match /\.xls$/i, so .xlsx is silently ignored).  Parse
-	# directly with Spreadsheet::ParseXLSX and return pre-loaded row data so
-	# _init_backend can skip D::A entirely, exactly like the headerless-CSV path.
+	# XLSX: D::A reads the rows.  This parse is for what D::A cannot say: an
+	# empty workbook makes it croak, and its columns() is alphabetical, not the
+	# order of the sheet.
 	{
 		my $path = File::Spec->catfile($dir, "$table.xlsx");
 		if (-r $path) {
@@ -701,7 +704,11 @@ sub _detect_file_info :Protected {
 			if ($ok) {
 				my $parser = Spreadsheet::ParseXLSX->new;
 				my $wb     = $parser->parse($path);
-				my $ws     = $wb ? $wb->worksheet(0) : undef;
+				# The sheet D::A will read: the one named after the table, or
+				# failing that the first.
+				my $sheet_name = _safe_table_name($table);
+				my ($ws) = $wb ? grep { $_->get_name eq $sheet_name } $wb->worksheets : ();
+				$ws //= $wb ? $wb->worksheet(0) : undef;
 
 				unless ($ws) {
 					# Empty workbook or parse failure: sentinel so _init_backend
@@ -716,14 +723,14 @@ sub _detect_file_info :Protected {
 				return { _file_is_empty => 1, file_size => -s $path }
 					if $rmax < $rmin;
 
-				# Row 0 = column headers.
+				# Row 0 = column headers, spelt as D::A will key the rows.  A
+				# column with no name stays out of the list, so it is not shown.
 				my @cols;
 				for my $c ($cmin .. $cmax) {
 					my $cell = $ws->get_cell($rmin, $c);
-					push @cols, defined $cell ? ($cell->value // '') : '';
+					my $name = defined $cell ? ($cell->value // '') : '';
+					push @cols, $name if $name =~ /[^\s"]/;
 				}
-				for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }
-				@cols = grep { length } @cols;
 
 				# No parseable column names.
 				return { _file_is_empty => 1, file_size => -s $path }
@@ -731,22 +738,12 @@ sub _detect_file_info :Protected {
 
 				my ($safe_id) = grep { $_ =~ $TABLE_NAME_RE } @cols;
 
-				# Data rows.
-				my @rows;
-				for my $r ($rmin + 1 .. $rmax) {
-					my %row;
-					for my $i (0 .. $#cols) {
-						my $cell = $ws->get_cell($r, $cmin + $i);
-						$row{ $cols[$i] } = defined $cell ? ($cell->value // '') : '';
-					}
-					push @rows, \%row;
-				}
-
+				# With no_entry D::A does not use the id for a workbook, so
+				# headers that are all unsafe ("First Name") need no id of their own.
 				return {
-					columns          => \@cols,
-					id               => $safe_id,
-					_headerless_data => \@rows,
-					file_size        => -s $path,
+					columns   => \@cols,
+					id        => $safe_id // 'entry',
+					file_size => -s $path,
 				};
 			}
 		}
@@ -787,11 +784,12 @@ sub _detect_file_info :Protected {
 			$sep = (@probe == 1 && $line =~ /!/) ? '!' : ',';
 		}
 
-		my @cols = split /\Q$sep\E/, $line;
+		my @fields = _split_csv_line($line, $sep);
 		# Two separate substitutions: the /g on an anchored alternation wastes
 		# O(N) engine cycles retrying \A (which can only match at position 0).
-		for (@cols) { s/\A[\s"]+//; s/[\s"]+\z// }	# strip whitespace and quotes
-		@cols = grep { length } @cols;
+		for (@fields) { s/\A[\s"]+//; s/[\s"]+\z// }	# strip whitespace and quotes
+		pop @fields while @fields && !length $fields[-1];	# a trailing separator
+		my @cols = grep { length } @fields;
 
 		# A blank first line (e.g. a file containing only "\n") produces an
 		# empty column list.  Treat that the same as a 0-byte file: return the
@@ -843,32 +841,18 @@ sub _detect_file_info :Protected {
 		# from a bank or accounting system often has no header row at all -- the
 		# first line is already a transaction record.  When that is the case,
 		# synthesize safe column names by inferring the type of each value
-		# (date, amount, description) and pre-read the entire file so
-		# _init_backend can return the rows directly without touching D::A.
+		# (date, amount, description); _init_backend then gives D::A a copy of
+		# the file with those names as its header.
 		unless (defined $safe_id) {
 			if (_values_are_data_like(\@cols)) {
-				my @synth = _synthesize_col_names(\@cols);
-				seek $fh, 0, 0;	# rewind: first line is a data row, not a header
-				my @rows;
-				while (defined(my $dline = <$fh>)) {
-					chomp $dline;
-					$dline =~ s/\r\z//;
-					next unless length $dline;
-					my @vals = split /\Q$sep\E/, $dline, scalar @synth;
-					for (@vals) { s/\A[\s"]+//; s/[\s"]+\z// }
-					my %row;
-					for my $i (0 .. $#synth) {
-						$row{ $synth[$i] } = $vals[$i] // '';
-					}
-					push @rows, \%row;
-				}
+				my @synth = _synthesize_col_names(\@fields);
 				close $fh;
 				return {
-					sep_char         => $sep,
-					id               => $synth[0],
-					columns          => \@synth,
-					_headerless_data => \@rows,
-					file_size        => -s $path,
+					sep_char    => $sep,
+					id          => $synth[0],
+					columns     => \@synth,
+					_headerless => { path => $path, ext => $ext },
+					file_size   => -s $path,
 				};
 			}
 		}
@@ -948,7 +932,8 @@ sub _detect_file_info :Protected {
 		}
 		if ($magic_ok) {
 			my $fsize = -s $non_sqlite_db;
-			# BerkeleyDB magic confirmed.  Attempt to read via DB_File,
+			# BerkeleyDB magic confirmed.  Check that DB_File can open it,
+			# so that D::A never reads a file it cannot as CSV text,
 			# but only for reasonably-sized files (<= 100 MB).  Opening a
 			# multi-GB BerkeleyDB file with an incompatible library version
 			# causes multi-minute disk I/O that cannot be interrupted with
@@ -958,7 +943,7 @@ sub _detect_file_info :Protected {
 			if (defined $fsize && $fsize > $BDB_MAX_BYTES) {
 				return { _unknown_binary_db => 1, file_size => $fsize };
 			}
-			my $data = eval {
+			my $opens = eval {
 				require DB_File;
 				my %bdb;
 				# Capture the tie object so we can undef it before untie --
@@ -966,18 +951,16 @@ sub _detect_file_info :Protected {
 				# reference count is > 0 when untie fires.
 				my $db_obj = tie %bdb, 'DB_File', $non_sqlite_db,
 					Fcntl::O_RDONLY(), 0644, $DB_File::DB_HASH;
-				return undef unless $db_obj;
-				my @rows = map { { entry => $_, value => $bdb{$_} } } sort keys %bdb;
+				return 0 unless $db_obj;
 				undef $db_obj;
 				untie %bdb;
-				\@rows;
+				1;
 			};
-			if (defined $data) {
+			if ($opens) {
 				return {
-					_headerless_data => $data,
-					columns          => ['entry', 'value'],
-					id               => 'entry',
-					file_size        => $fsize,
+					columns   => ['entry', 'value'],
+					id        => 'entry',
+					file_size => $fsize,
 				};
 			}
 			# tie failed: return a sentinel so _init_backend can show a proper
@@ -1034,10 +1017,66 @@ sub _values_are_data_like {
 	for my $v (@{$vals}) {
 		return 1 if $v =~ /\A\d{4}-\d{2}-\d{2}\z/;		# YYYY-MM-DD
 		return 1 if $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/;	# M/D/YYYY or D/M/YYYY
-		return 1 if $v =~ /\A[+\-]\d+(?:\.\d+)?\z/;		# signed numeric (e.g. -75.13)
-		return 1 if $v =~ /\A\(\d+(?:\.\d+)?\)\z/;		# accounting negative (e.g. (75.13))
+		return 1 if $v =~ /\A[+\-]\d[\d,]*(?:\.\d+)?\z/;	# signed numeric (e.g. -1,075.13)
+		return 1 if $v =~ /\A\(\d[\d,]*(?:\.\d+)?\)\z/;		# accounting negative (e.g. (75.13))
 	}
 	return 0;
+}
+
+# _unsafe_sort( @args ) -> (\%rest, $col, $dir, $limit, $offset) | ()
+#
+# Purpose: Recognise a selectall_arrayref call that sorts on a column D::A will
+#          not sort on, such as "First Name".
+# Entry:   The call's arguments: a flat list or one hashref (Database::Join's
+#          spill path), or anything else, which is not ours to take apart.
+# Exit:    The remaining criteria, the column, ASC or DESC, and the page.  Empty
+#          for every other call.
+sub _unsafe_sort {
+	my @args = @_;
+	my $opts = (@args == 1 && ref $args[0] eq 'HASH') ? { %{ $args[0] } }
+		: (@args && @args % 2 == 0)               ? { @args }
+		:                                           undef;
+	return unless $opts && defined $opts->{sort_by};
+	my ($col, $dir) = ref $opts->{sort_by} eq 'ARRAY'
+		? @{ $opts->{sort_by} }[0, 1] : ($opts->{sort_by}, undef);
+	return unless defined $col && $col !~ $DA_SORTABLE_RE;
+	my ($limit, $offset) = delete @{$opts}{qw(limit offset)};
+	delete $opts->{sort_by};
+	return ($opts, $col, uc($dir // 'ASC'), $limit, $offset);
+}
+
+# _sorted_page( \@rows, $col, $dir, $limit, $offset ) -> \@rows
+#
+# Purpose: Do what D::A would have done for an _unsafe_sort call: sort as
+#          strings, then take the page.
+# Notes:   exists, because SQL-backed rows are locked hashes and a read of a
+#          column they do not have would croak.  An unknown column does not sort.
+#          A new array, because the rows may be D::A's own cached list.
+sub _sorted_page {
+	my ($rows, $col, $dir, $limit, $offset) = @_;
+	my @page = @{ $rows // [] };
+	if (@page && exists $page[0]{$col}) {
+		@page = $dir eq 'DESC'
+			? sort { ($b->{$col} // '') cmp ($a->{$col} // '') } @page
+			: sort { ($a->{$col} // '') cmp ($b->{$col} // '') } @page;
+	}
+	splice @page, 0, $offset if $offset && $offset =~ /\A\d+\z/;
+	splice @page, $limit if defined $limit && $limit =~ /\A\d+\z/ && $limit < @page;
+	return \@page;
+}
+
+# _split_csv_line( $line, $sep ) -> @fields
+#
+# One line of a delimited file as its fields, so that a separator inside quotes
+# does not end a field.  A line that does not parse (a quoted field carrying on
+# over the next line) is split on the separator instead: this is only used to
+# look at the shape of a file.
+sub _split_csv_line {
+	my ($line, $sep) = @_;
+	require Text::CSV;
+	my $csv = Text::CSV->new({ binary => 1, sep_char => $sep, allow_loose_quotes => 1 });
+	return $csv->fields if $csv && $csv->parse($line);
+	return split /\Q$sep\E/, $line, -1;
 }
 
 # _synthesize_col_names( \@vals ) -> @names
@@ -1054,7 +1093,7 @@ sub _synthesize_col_names {
 		my $type;
 		if ($v =~ /\A\d{4}-\d{2}-\d{2}\z/ || $v =~ /\A\d{1,2}\/\d{1,2}\/\d{4}\z/) {
 			$type = 'Date';
-		} elsif ($v =~ /\A[+\-]?\d+(?:\.\d+)?\z/ || $v =~ /\A\(\d+(?:\.\d+)?\)\z/) {
+		} elsif ($v =~ /\A[+\-]?\d[\d,]*(?:\.\d+)?\z/ || $v =~ /\A\(\d[\d,]*(?:\.\d+)?\)\z/) {
 			$type = 'Amount';
 		} else {
 			$type = 'Description';
@@ -1063,6 +1102,60 @@ sub _synthesize_col_names {
 		push @names, $type_count{$type} == 1 ? $type : $type . $type_count{$type};
 	}
 	return @names;
+}
+
+# _copy_with_header( $self, \%headerless, \@names, $sep, $stem ) -> ($dir, $id, $size)
+#
+# Purpose: Give D::A a file it can read for one that has no header: a copy in a
+#          temporary directory, under the same name, starting with @names.
+# Entry:   \%headerless is _detect_file_info's { path, ext }.
+# Exit:    The temporary directory, the column to use as D::A's id and the
+#          copy's size.  Croaks error_backend_init if the file does not parse.
+# Notes:   Rows are parsed, not copied as text, so each has one value per name:
+#          a short row is padded, and a long one's extra fields go back into the
+#          last value, so an unquoted comma in a description is not lost.
+#          D::A drops a row whose id is empty or starts with '#', so the id is
+#          the column with the fewest such values, and normally has none.
+#          The reader takes RFC 4180 quoting; the writer escapes as D::A's
+#          reader expects, which is with a backslash.
+sub _copy_with_header :Protected {
+	my ($self, $headerless, $names, $sep, $stem) = @_;
+	require File::Temp;
+	require Text::CSV;
+
+	my $tmp  = File::Temp->newdir(CLEANUP => 1);
+	my $copy = File::Spec->catfile("$tmp", "$stem.$headerless->{ext}");
+	my $in   = Text::CSV->new({ binary => 1, sep_char => $sep, allow_loose_quotes => 1 });
+	my $out  = Text::CSV->new({ binary => 1, sep_char => $sep, eol => "\n", escape_char => '\\' });
+
+	open my $ifh, '<:raw', $headerless->{path};
+	open my $ofh, '>:raw', $copy;
+	$out->print($ofh, $names);
+
+	my @unusable = (0) x @{$names};
+	while (my $row = $in->getline($ifh)) {
+		next if @{$row} == 1 && $row->[0] !~ /\S/;	# a blank line
+		if (@{$row} > @{$names}) {
+			my @extra = splice @{$row}, @{$names} - 1;
+			push @{$row}, join($sep, @extra);
+		}
+		push @{$row}, ('') x (@{$names} - @{$row});
+		for (@{$row}) { s/\A\s+//; s/\s+\z// }
+		$out->print($ofh, $row);
+		for my $i (0 .. $#{$names}) {
+			$unusable[$i]++ if $row->[$i] !~ /\S/ || $row->[$i] =~ /\A#/;
+		}
+	}
+	# eof alone is no proof: it is also true after an unterminated quote.  Code
+	# 2012 is the plain end of the file.
+	my ($code, $why) = $in->error_diag;
+	close $ifh;
+	close $ofh;
+	croak $self->_msg('error_backend_init', $stem, "cannot parse $headerless->{path}: $why")
+		if $code && $code != $CSV_EOF;
+
+	my ($best) = sort { $unusable[$a] <=> $unusable[$b] || $a <=> $b } 0 .. $#{$names};
+	return ($tmp, $names->[$best], -s $copy);
 }
 
 # _cache_key( $self ) -> $key | undef
@@ -1212,25 +1305,23 @@ sub _init_backend :Protected {
 		return;
 	}
 
-	# Headerless CSV or XLSX: _detect_file_info already pre-loaded all rows.
-	# MUST check before error_no_safe_id: XLSX files with all-unsafe column
-	# headers (e.g. "First Name", "Account Number") have id => undef because
-	# none of the headers match the safe-identifier regex, but the data is
-	# pre-loaded and the id column is irrelevant for the direct-data fast path.
-	# Checking error_no_safe_id first would croak spuriously for valid XLSX files.
-	if ($info->{_headerless_data}) {
-		$self->{_id_col}  = $info->{id} // 'entry';
-		$self->{_columns} = $info->{columns};
-		$self->{_file_data} = $info->{_headerless_data};
-		return;
+	# Header-less CSV/PSV: D::A needs a header, so it reads a copy that has one.
+	# $self->{_file_path} stays the real file, whose mtime is what counts.
+	if (my $headerless = $info->{_headerless}) {
+		my ($tmp, $id, $size) = $self->_copy_with_header(
+			$headerless, $info->{columns}, $info->{sep_char}, $raw_table);
+		$self->{_headerless_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
+		$info->{id}        = $id;
+		$info->{file_size} = $size;
+		$dir = "$tmp";
 	}
 
 	# _detect_file_info returns undef for id when every column header contains
 	# characters that are not safe SQL identifiers (spaces, hyphens, etc.).
 	# Falling back to the D::A default ('entry') would silently return 0 rows
 	# since no 'entry' column exists.  Croak with a human-readable message.
-	# This guard applies only to CSV/TSV/PSV/SQLite/XML -- headerless and XLSX paths
-	# are handled by the _headerless_data check immediately above.
+	# This guard applies only to CSV/TSV/PSV/SQLite/XML: the header-less and XLSX
+	# paths always give an id.
 	croak $self->_msg('error_no_safe_id', $table)
 		if exists $info->{columns} && !defined $info->{id};
 	my $id_col = $info->{id} // 'entry';
@@ -1554,7 +1645,7 @@ Returns C<undef> for:
 
 =item *
 
-0-byte and header-less pre-parsed files (C<_file_is_empty>, C<_file_data> set).
+0-byte files (C<_file_is_empty> set).
 
 =item *
 
@@ -1586,7 +1677,6 @@ None.
 sub dbi_source {
 	my $self = shift;
 	return undef if $self->{_file_is_empty};
-	return undef if $self->{_file_data};
 	return undef unless $self->{_db};
 	return undef unless $self->{_db}->can('dbi_source');
 	my $result = eval { $self->{_db}->dbi_source() };
@@ -1632,7 +1722,6 @@ sub aggregate {
 	my ($self, @args) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return [] if $self->{_file_is_empty};
-	return [] if $self->{_file_data};
 	return [] unless $self->{_db};
 	return [] unless $self->{_db}->can('aggregate');
 	return $self->{_db}->aggregate(@args);
@@ -1818,11 +1907,6 @@ immediately, no DBI connection.
 
 =item 2.
 
-C<_file_data> is set (pre-parsed header-less CSV, XLSX, or BerkeleyDB data) --
-returns the in-memory arrayref directly.
-
-=item 3.
-
 A matching CHI cache entry exists -- returns the cached arrayref without
 calling C<Database::Abstraction>.
 
@@ -1873,8 +1957,10 @@ C<_file_is_empty> is set -- returns C<[]> immediately.
 
 =item 2.
 
-C<_file_data> is set (pre-parsed headerless CSV / XLSX / BerkeleyDB) -- returns
-the in-memory rows directly.
+The call sorts on a column whose name is not a safe identifier, such as
+C<First Name>.  L<Database::Abstraction> ignores such a column, so this method
+fetches the rows and sorts and pages them itself, comparing as strings as
+L<Database::Abstraction> does.
 
 =item 3.
 
@@ -1910,7 +1996,11 @@ sub selectall_arrayref {
 	my ($self, @args) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return [] if $self->{_file_is_empty};
-	return $self->{_file_data} if $self->{_file_data};
+
+	# D::A ignores a sort column whose name is not a safe identifier.
+	if (my ($rest, @page) = _unsafe_sort(@args)) {
+		return _sorted_page($self->selectall_arrayref(%{$rest}), @page);
+	}
 
 	# Cache only plain unfiltered calls -- Database::Join passes no args for the
 	# full table scan; a non-empty @args means a narrowed query whose result must
@@ -1945,9 +2035,6 @@ sub fetch_all {
 
 	# 0-byte file: no backend was created; nothing to fetch.
 	return [] if $self->{_file_is_empty};
-
-	# Headerless CSV/XLSX: data was pre-parsed with synthesized column names.
-	return $self->{_file_data} if $self->{_file_data};
 
 	# Cache check: URL tables benefit from avoiding repeated HTTP round-trips;
 	# file tables benefit from skipping disk I/O and CSV/TSV/PSV parsing.
@@ -1999,9 +2086,7 @@ sub fetch_all {
 
 Returns the total number of rows in the table.
 
-For pre-parsed sources (header-less CSV, XLSX, BerkeleyDB) the count comes
-from the already-loaded in-memory slice and is instant (no I/O).  For
-empty-file sentinels it returns C<0> immediately.  For all DBI-backed
+For empty-file sentinels it returns C<0> immediately.  For all DBI-backed
 sources (SQLite, large CSV via DBD::CSV) it delegates to
 C<Database::Abstraction::count()>, which issues a
 C<SELECT COUNT(*) FROM E<lt>tableE<gt>> query against the file.
@@ -2032,7 +2117,6 @@ sub count {
 	my ($self) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return 0 if $self->{_file_is_empty};
-	return scalar @{ $self->{_file_data} } if $self->{_file_data};
 	return $self->{_db}->count();
 }
 
@@ -2224,6 +2308,7 @@ Optional (loaded lazily):
 
 L<Net::SFTP::Foreign> -- required for remote file access (C<host =E<gt> ...>).
 L<Spreadsheet::ParseXLSX> -- required for opening C<.xlsx> files.
+L<Text::CSV> -- required for opening a file with no header row.
 
 =head1 INCOMPATIBILITIES
 
@@ -2257,7 +2342,7 @@ C<|S|> means the cardinality (size) of set or sequence S.
               /\ table /= ""
               /\ table =~ /[^\/\\\x00]/
          post result.class = DataSource
-              /\ (host = undef => result._db.class = Database::Abstraction | result._file_data /= undef | result._file_is_empty)
+              /\ (host = undef => result._db.class = Database::Abstraction | result._file_is_empty)
               /\ (host /= undef => result._remote_tmpdir /= undef)
               /\ (internal_table /= undef => internal_table in result._sqlite_tables)
 
@@ -2319,13 +2404,12 @@ C<|S|> means the cardinality (size) of set or sequence S.
 
   fetch_all == lambda self .
     if self._file_is_empty                     then []
-    else if defined self._file_data            then self._file_data
     else if cache_hit(self)                    then cache_get(self)
     else
       let rows = self._db.selectall_hashref() in
       normalise(rows)
 
-  pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
+  pre  self._file_is_empty \/ defined self._db
   post result : seq HASHREF
        /\ |result| >= 0
 
@@ -2333,21 +2417,21 @@ C<|S|> means the cardinality (size) of set or sequence S.
 
   selectall_arrayref == lambda self args .
     if self._file_is_empty                         then []
-    else if defined self._file_data /\ args = ()   then self._file_data
+    else if args.sort_by is not a safe identifier  then
+      page(sort(selectall_arrayref(args - {sort_by, limit, offset})))
     else if cache_hit(self) /\ args = ()           then cache_get(self)
     else self._db.selectall_arrayref(args)
 
-  pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
+  pre  self._file_is_empty \/ defined self._db
   post result : seq HASHREF /\ |result| >= 0
 
 =head2 count
 
   count == lambda self .
     if self._file_is_empty     then 0
-    else if defined self._file_data then |self._file_data|
     else self._db.count()
 
-  pre  self._file_is_empty \/ defined self._file_data \/ defined self._db
+  pre  self._file_is_empty \/ defined self._db
   post result : N /\ result >= 0
 
 =head1 STATE DIAGRAM
@@ -2399,8 +2483,9 @@ Each state is stable until the trigger event listed to its right fires.
     1. File is 0 bytes or blank first line
        -> _file_is_empty flag set -> READY (fetch_all returns [] instantly)
 
-    2. Header-less CSV / XLSX / BerkeleyDB
-       -> _file_data pre-loaded -> READY (fetch_all returns pre-loaded rows)
+    2. Header-less CSV / PSV
+       -> copy with a header written to a temporary directory -> READY
+          (Database::Abstraction reads the copy)
 
     3. Multi-table SQLite without internal_table
        -> _sqlite_tables set -> READY
@@ -2428,7 +2513,7 @@ Each state is stable until the trigger event listed to its right fires.
                                           no safe id, no SQLite tables, etc.)
     INITIALISING     -> READY            (all checks passed)
     READY            -> FETCHING         (fetch_all / selectall_arrayref, cache miss)
-    READY            -> DATA RETURNED    (fetch_all, _file_is_empty or _file_data fast-path)
+    READY            -> DATA RETURNED    (fetch_all, _file_is_empty fast-path)
     READY            -> CACHE CHECK      (fetch_all / selectall_arrayref, cache configured)
     CACHE CHECK      -> DATA RETURNED    (cache hit)
     CACHE CHECK      -> FETCHING         (cache miss)

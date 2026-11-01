@@ -363,7 +363,7 @@ subtest '_detect_file_info -- sniffs separator and column order' => sub {
 	};
 
 	# Full round-trip: DataSource built on a header-less CSV returns rows with
-	# synthesized keys, bypassing Database::Abstraction entirely.
+	# synthesized keys, read by Database::Abstraction from a copy with a header.
 	subtest '_detect_file_info -- headerless CSV full fetch round-trip' => sub {
 		# Descriptions contain spaces so no first-row value is a $SAFE_IDENTIFIER,
 		# forcing the headerless-detection path.
@@ -373,10 +373,11 @@ subtest '_detect_file_info -- sniffs separator and column order' => sub {
 			"2026-09-03,1200.00,SALARY CREDIT\n"
 		);
 		my $info = $fn->($dir, 'bank');
-		ok exists $info->{_headerless_data},          'headerless sentinel returned';
-		is scalar @{ $info->{_headerless_data} }, 3,  'all three rows parsed';
-		is $info->{_headerless_data}[2]{Amount}, '1200.00', 'positive Amount on row 3';
-		is $info->{_headerless_data}[0]{Description}, 'SUPER MARKET', 'Description on row 1';
+		ok exists $info->{_headerless},               'headerless marker returned';
+		my $rows = $DS->new(directory => $dir, table => 'bank')->fetch_all;
+		is scalar @{$rows}, 3,                        'all three rows parsed';
+		is $rows->[2]{Amount}, '1200.00',             'positive Amount on row 3';
+		is $rows->[0]{Description}, 'SUPER MARKET',   'Description on row 1';
 	};
 
 	# CRLF line endings (Windows exports) must not bleed \r into column names.
@@ -1178,10 +1179,9 @@ subtest 'DataSource::_cache_key -- file path that does not exist returns undef' 
 # ---------------------------------------------------------------------------
 # Subtest: selectall_arrayref -- fast-path and delegation
 #
-# Three fast-paths are exercised before the backend delegation:
+# Two fast-paths are exercised before the backend delegation:
 #   1. _file_is_empty -- always returns []
-#   2. _file_data     -- returns pre-loaded rows without touching _db
-#   3. Cache hit      -- returns cached rows without touching _db
+#   2. Cache hit      -- returns cached rows without touching _db
 # ---------------------------------------------------------------------------
 subtest 'DataSource::selectall_arrayref -- _file_is_empty fast-path returns []' => sub {
 	# Construct a real DataSource then force the empty-file sentinel to verify
@@ -1193,14 +1193,133 @@ subtest 'DataSource::selectall_arrayref -- _file_is_empty fast-path returns []' 
 	is_deeply $result, [], 'selectall_arrayref returns [] when _file_is_empty is set';
 };
 
-subtest 'DataSource::selectall_arrayref -- _file_data fast-path returns pre-loaded rows' => sub {
-	my $src = $DS->new(directory => $DATA_DIR, table => $SALES_CSV);
-	my $fake_rows = [{ col => 'val1' }, { col => 'val2' }];
-	$src->{_file_data} = $fake_rows;
+subtest 'DataSource: a file with no header row is read by Database::Abstraction' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/hl.csv")->spew(join "\n",
+		'2026-01-02,"1,234.56",Rent paid',
+		'2026-01-03,5.00,"Tea, ""best"" C:\\x"',
+		'',
+		'2026-01-01,,Short row',
+		'2026-01-04,7.00,No quotes, then a comma',
+		',8.00,No date here',
+		'',
+	);
+	my $src = $DS->new(directory => $dir, table => 'hl');
+	isa_ok $src->{_db}, 'Database::Abstraction', 'the backend';
+	is_deeply $src->columns, [qw(Date Amount Description)],
+		'a quoted separator does not make a column';
+	is $src->{_id_col}, 'Description', 'the id has no empty values, or D::A would drop the row';
 
-	my $result = $src->selectall_arrayref;
-	is $result, $fake_rows,
-		'selectall_arrayref returns _file_data reference unchanged (no copy)';
+	my $rows = $src->fetch_all;
+	is scalar @{$rows}, 5, 'every row, blank lines apart';
+	is $rows->[0]{Amount}, '1,234.56', 'a quoted separator stays in its value';
+	is $rows->[0]{Description}, 'Rent paid', 'and the next value stays in its column';
+	is $rows->[1]{Description}, 'Tea, "best" C:\\x', 'quotes and backslashes survive the copy';
+	ok !length($rows->[2]{Amount} // ''), 'an empty field stays in place';
+	is $rows->[2]{Description}, 'Short row', 'so the next one does not move';
+	is $rows->[3]{Description}, 'No quotes, then a comma', 'extra fields go back into the last';
+	is $rows->[4]{Amount}, '8.00', 'a row with no date is kept';
+	is $src->count, 5, 'count agrees';
+	is $src->updated, (stat "$dir/hl.csv")[9], 'updated is the real file, not the copy';
+
+	# A first line with a middle field empty keeps its columns in place too.
+	Mojo::File->new("$dir/gap.csv")->spew("2026-01-02,,Rent paid\n2026-01-03,5.00,Tea bought\n");
+	my $gap = $DS->new(directory => $dir, table => 'gap');
+	is_deeply $gap->columns, [qw(Date Description Description2)], 'an empty first-row field is a column';
+	is $gap->fetch_all->[1]{Description}, '5.00', 'and its values line up';
+
+	# A quoted separator does not make the file look as if it has a header.
+	Mojo::File->new("$dir/word.csv")->spew(qq{2026-01-02,-5.00,"Tea, bought"\n});
+	is_deeply $DS->new(directory => $dir, table => 'word')->columns, [qw(Date Amount Description)],
+		'"Tea, bought" is not a column called Tea';
+
+	# A name D::A refuses reaches it through a symlink to the copy.
+	Mojo::File->new("$dir/my bank-file.csv")->spew(qq{2026-01-02,"1,234.56",Rent paid\n});
+	my $spaced = $DS->new(directory => $dir, table => 'my bank-file');
+	is $spaced->fetch_all->[0]{Amount}, '1,234.56', 'a file name with spaces';
+	is $spaced->{_file_path}, File::Spec->rel2abs("$dir/my bank-file.csv"), 'the real file is still the one watched';
+
+	# Unterminated quoting is an error, not a table cut short.
+	Mojo::File->new("$dir/bad.csv")->spew(qq{2026-01-02,-5.00,Rent paid\n2026-01-03,"-1.00,oops\n});
+	throws_ok { $DS->new(directory => $dir, table => 'bad') } qr/cannot parse/, 'a file that does not parse';
+
+	# Sorting goes to D::A: this was the bug.
+	my $sorted = $src->selectall_arrayref(sort_by => ['Date', 'DESC']);
+	is $sorted->[0]{Date}, '2026-01-04', 'sort_by descending';
+	is $sorted->[-1]{Date} // '', '', 'an empty value sorts last going down';
+	is scalar @{ $src->selectall_arrayref(sort_by => ['Date', 'ASC'], limit => 2, offset => 1) }, 2, 'limit and offset';
+};
+
+subtest 'DataSource: /join sorts a file with no header row' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	Mojo::File->new("$dir/page.csv")->spew("2026-01-02,-1.00,Rent paid\n2026-01-03,-2.00,Tea bought\n");
+	my $tm = Test::Mojo->new('Database::BI');
+	$tm->app->config->{model_dir} = tempdir(CLEANUP => 1);
+	my $body = $tm->get_ok('/join?l=' . Mojo::Util::url_escape("path:$dir/page.csv") . '&sort=Date&dir=desc')
+		->status_is(200)->tx->res->body;
+	my @dates = $body =~ m{<td[^>]*>(2026-01-0\d)</td>}g;
+	is_deeply \@dates, ['2026-01-03', '2026-01-02'], 'in the order asked for';
+};
+
+subtest 'DataSource: XLSX and Berkeley DB are read by Database::Abstraction' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	SKIP: {
+		skip 'Excel::Writer::XLSX and Spreadsheet::ParseXLSX are needed', 11
+			unless eval { require Excel::Writer::XLSX; require Spreadsheet::ParseXLSX; 1 };
+		my $wb = Excel::Writer::XLSX->new("$dir/book.xlsx");
+		my $first = $wb->add_worksheet('Other');
+		$first->write_row(0, 0, ['Wrong']);
+		my $ws = $wb->add_worksheet('book');
+		$ws->write_col(0, 0, [['Zed', 'First Name', 'Age'], ['z', 'Bob', 3], ['y', 'Cy', 20], ['x', 'Al', 9]]);
+		$wb->close;
+
+		my $src = $DS->new(directory => $dir, table => 'book');
+		isa_ok $src->{_db}, 'Database::Abstraction', 'the XLSX backend';
+		is_deeply $src->columns, ['Zed', 'First Name', 'Age'],
+			'the columns are those of the sheet D::A reads, in the sheet\'s order';
+		is scalar @{ $src->fetch_all }, 3, 'all the rows';
+		is $src->count, 3, 'count agrees';
+		is $src->selectall_arrayref(sort_by => ['Zed', 'ASC'])->[0]{Zed}, 'x', 'sorts';
+		is $src->selectall_arrayref(sort_by => ['Zed', 'ASC'], limit => 1, offset => 1)->[0]{Zed}, 'y', 'pages';
+
+		# D::A ignores a sort column like this one, so DataSource does it.
+		my @warned;
+		local $SIG{__WARN__} = sub { push @warned, @_ };
+		my $by_name = $src->selectall_arrayref(sort_by => ['First Name', 'DESC']);
+		is_deeply [ map { $_->{'First Name'} } @{$by_name} ], [qw(Cy Bob Al)], 'an unsafe column sorts';
+		my $paged = $src->selectall_arrayref({ sort_by => ['First Name', 'ASC'], limit => 1, offset => 1 });
+		is_deeply [ map { $_->{'First Name'} } @{$paged} ], ['Bob'], 'and pages, given a hashref';
+		is_deeply [ map { $_->{'First Name'} } @{ $src->selectall_arrayref(sort_by => 'No Such') } ],
+			[qw(Bob Cy Al)], 'an unknown one leaves the order alone';
+		is scalar(@{ $src->fetch_all }), 3, 'and the sort did not disturb the cached list';
+		is_deeply \@warned, [], 'and D::A did not have to refuse any of them';
+	}
+	SKIP: {
+		skip 'DB_File is needed', 4 unless eval { require DB_File; require Fcntl; 1 };
+		my %bdb;
+		tie(%bdb, 'DB_File', "$dir/kv.db", Fcntl::O_CREAT() | Fcntl::O_RDWR(), 0644, $DB_File::DB_HASH)
+			or skip "cannot create a Berkeley DB file: $!", 4;
+		%bdb = (b => 2, a => 1, c => 3);
+		untie %bdb;
+		my $src = $DS->new(directory => $dir, table => 'kv');
+		isa_ok $src->{_db}, 'Database::Abstraction', 'the Berkeley DB backend';
+		is_deeply $src->columns, [qw(entry value)], 'columns';
+		is scalar @{ $src->fetch_all }, 3, 'all the rows';
+		is $src->selectall_arrayref(sort_by => ['entry', 'DESC'])->[0]{entry}, 'c', 'sorts';
+	}
+};
+
+subtest 'DataSource: a SQLite column with an unsafe name sorts and pages' => sub {
+	my $dir = tempdir(CLEANUP => 1);
+	require DBI;
+	my $dbh = DBI->connect("dbi:SQLite:dbname=$dir/uns.sql", '', '', { RaiseError => 1 });
+	$dbh->do('CREATE TABLE uns (id TEXT, "Full Name" TEXT)');
+	$dbh->do('INSERT INTO uns VALUES (?, ?)', undef, @{$_}) for ['1', 'Bob'], ['2', 'Al'], ['3', 'Cy'];
+	$dbh->disconnect;
+	my $src = $DS->new(directory => $dir, table => 'uns');
+	my $rows = $src->selectall_arrayref(sort_by => ['Full Name', 'ASC'], limit => 2);
+	is_deeply [ map { $_->{'Full Name'} } @{$rows} ], [qw(Al Bob)], 'sorted, then limited';
+	lives_ok { $src->selectall_arrayref(sort_by => 'No Such') } 'a locked row without the column does not croak';
 };
 
 subtest 'DataSource::selectall_arrayref -- cache hit skips backend, returns cached data' => sub {
