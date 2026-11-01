@@ -3115,9 +3115,12 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);
 		message_ok(Dashboard => 'error_map_renderer_old', $tm->tx->res->body, ['0.01'], 1);
 		restore_all();
-		SKIP: {
-			skip 'needs HTML::OSM 0.12 or later', 3 unless eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 };
-			mock('HTML::OSM::new' => $boom);
+		{
+			# With the renderer said to be there and failing, whether or not this
+			# machine has it: HTML::OSM is only recommended, and this key is in the ledger.
+			mock('Database::BI::Controller::Dashboard::_map_renderer_version' => sub { (1, '0.12') });
+			no warnings qw(redefine once);
+			local *HTML::OSM::new = $boom;
 			$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);
 			message_ok(Dashboard => 'error_map_renderer_failed', $tm->tx->res->body, [], 1);
 			restore_all();

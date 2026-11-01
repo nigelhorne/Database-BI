@@ -1120,7 +1120,9 @@ _value_transition($RECEIVED, 'within cap', $ATTEMPT, sub {
 
 _value_transition($RECEIVED, 'beyond cap', $NOT_ATTEMPTED, sub {
 	my $geocoder = Local::Geocoder->new;
-	my $result   = $GEOCODE->new(geocoder => $geocoder)
+	# Named here so the one message is the cap's, wherever this runs: without
+	# OPENADDR_HOME a lookup adds warn_map_geocoder_unavailable_data as well.
+	my $result   = $GEOCODE->new(geocoder => $geocoder, openaddr => '/no/such/openaddr')
 		->resolve_values([ $PLACE, $OTHER_PLACE, $THIRD_PLACE ], max => $CAP);
 
 	is_deeply($geocoder->{asked}, [ [ $PLACE, $OTHER_PLACE ] ], 'the first ones are asked about');
