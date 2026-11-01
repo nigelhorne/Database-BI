@@ -241,6 +241,19 @@ subtest 'order= sorts stably, and numbers sort as numbers' => sub {
 		'so each row carries the total reading 30, then 20, then 10');
 };
 
+subtest 'page links join their query correctly, with or without one' => sub {
+	my @warnings;
+	local $SIG{__WARN__} = sub { push @warnings, @_ };
+	$t->get_ok('/view/orders?per_page=2')->status_is(200)
+	  ->content_like(qr{href="/view/orders\?page=2&amp;per_page=2"}, 'a bare URL starts its query with ?');
+	$t->get_ok('/view/orders?order=day:asc&per_page=2')->status_is(200)
+	  ->content_like(qr{href="/view/orders\?order=[^"]*&amp;page=2&amp;per_page=2"}, 'a URL with a query goes on with &');
+	$t->get_ok('/view/orders?per_page=2&page=2')->status_is(200)
+	  ->content_like(qr{href="/view/orders\?page=3&amp;per_page=2"}, 'and the next link can be followed');
+	$t->get_ok('/view/orders?page=3&per_page=2')->status_is(200);
+	is_deeply(\@warnings, [], 'no warning about a non-numeric argument');
+};
+
 subtest 'the functions reach /view, page after page' => sub {
 	$t->get_ok('/view/orders?cs=amount:running_total:ytd&order=day:asc&per_page=2')
 		->status_is(200);

@@ -193,7 +193,7 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
 
 [%- SET pnum = page ? page : 0 -%]
 [%- IF pnum > 1 OR has_next -%]
-[%- SET sep = (page_base_url.search('\?') >= 0) ? '&amp;' : '?' -%]
+[%- SET sep = page_base_url.search('\?') ? '&amp;' : '?' -%]
 <nav class="piv-pagination" aria-label="Pivot page navigation">
   [%- IF pnum > 1 -%]
   <a class="piv-page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>

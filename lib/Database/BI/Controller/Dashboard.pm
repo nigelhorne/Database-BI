@@ -1460,8 +1460,14 @@ sub _apply_filter_spec {
 	# bound and "2026-10-27T09:15:00" sorts after "2026-10-27".
 	my $prec = ($is_date && $val =~ /\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/) ? 19 : 10;
 	my $nval = $is_date ? (_date_key($val, $prec) // $val) : $val;
+	# An order is a statement about numbers.  A blank or a word has no place in
+	# one, so it matches none of the four, rather than counting as zero.
+	my $by_number = !$is_date && $op =~ /\A(?:lt|le|gt|ge)\z/;
+	my $num_val   = $by_number ? _numeric_cell($val) : undef;
 	return [grep {
 		my $cell  = $_->{$col} // '';
+		my $num   = $by_number ? _numeric_cell($cell) : undef;
+		my $both  = defined $num && defined $num_val;
 		# Normalise M/D/YYYY cells to ISO for date comparisons so that the
 		# ISO values produced by <input type="date"> match against either format.
 		my $ncell = $is_date
@@ -1471,10 +1477,10 @@ sub _apply_filter_spec {
 		$op eq 'ne'       ? ($is_date ? $ncell ne $nval  : lc($cell) ne $lval) :
 		$op eq 'contains' ? index(lc($cell), $lval) != -1                      :
 		$op eq 'starts'   ? index(lc($cell), $lval) == 0                       :
-		$op eq 'lt'       ? ($is_date ? $ncell lt $nval  : $cell <  $val)      :
-		$op eq 'le'       ? ($is_date ? $ncell le $nval  : $cell <= $val)      :
-		$op eq 'gt'       ? ($is_date ? $ncell gt $nval  : $cell >  $val)      :
-		$op eq 'ge'       ? ($is_date ? $ncell ge $nval  : $cell >= $val)      :
+		$op eq 'lt'       ? ($is_date ? $ncell lt $nval  : $both && $num <  $num_val) :
+		$op eq 'le'       ? ($is_date ? $ncell le $nval  : $both && $num <= $num_val) :
+		$op eq 'gt'       ? ($is_date ? $ncell gt $nval  : $both && $num >  $num_val) :
+		$op eq 'ge'       ? ($is_date ? $ncell ge $nval  : $both && $num >= $num_val) :
 		$op eq 'empty'    ? $cell eq ''                                         :
 		$op eq 'notempty' ? $cell ne ''                                         :
 		$op eq 'between'  ? do {
@@ -2613,6 +2619,18 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	return \@result;
 }
 
+# _rows_of_page(\@rows, $offset, $per_page) -> \@page
+#
+# One page of rows, in an array of its own.  The rows may be a backend's own
+# read-only array, as they are from a DBI handle that is not SQLite, so they are
+# copied and never spliced.
+sub _rows_of_page {
+	my ($rows, $offset, $per_page) = @_;
+	my $last = $offset + $per_page - 1;
+	$last = $#$rows if $last > $#$rows;
+	return [ @{$rows}[$offset .. $last] ];
+}
+
 # _fetch_page( $self, $source, \%params ) -> ( $records, $has_next )
 #   params: per_page  -- page size (required)
 #           offset    -- 0-based row offset (required)
@@ -2683,8 +2701,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 		# Non-SQL fast path: fetch all, sort in Perl, then paginate.
 		my $all = $source->selectall_arrayref(@sort_args) // [];
 		my $has_next = (@$all > $offset + $per_page) ? 1 : 0;
-		my @page = splice(@$all, $offset, $per_page);
-		return (\@page, $has_next);
+		return (_rows_of_page($all, $offset, $per_page), $has_next);
 	}
 
 	# Always fetch all rows in Perl and filter with _apply_filter_spec.
@@ -2731,7 +2748,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 
 	my $total    = scalar @$all;
 	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
-	my @page     = splice(@$all, $offset, $per_page);
+	my @page     = @{ _rows_of_page($all, $offset, $per_page) };
 
 	return (\@page, $has_next);
 }
@@ -5778,7 +5795,7 @@ sub _run_export_pipeline :Protected ($self) {
 		my ($page, $per_page, $offset) = $self->_pagination;
 		my $total    = scalar @$records;
 		my $has_next = ($total > $offset + $per_page) ? 1 : 0;
-		my @page_recs = splice(@$records, $offset, $per_page);
+		my @page_recs = @{ _rows_of_page($records, $offset, $per_page) };
 		$records = \@page_recs;
 		$self->stash(export_has_next => $has_next, export_page => $page, export_per_page => $per_page);
 	}
@@ -7082,7 +7099,7 @@ sub join_tables ($self) {
 			format   => 'html',
 			tables   => [],
 			title    => 'Error',
-			error    => $self->_i18n('error_table_open', $left_label, $@),
+			error    => $self->_i18n('error_table_open', $left_label, _tidy_error($@)),
 			language => $language,
 		);
 	}
@@ -7240,7 +7257,7 @@ sub combine_tables ($self) {
 	my ($page, $per_page, $offset) = $self->_pagination;
 	my $total    = scalar @$records;
 	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
-	my @page_recs = splice(@$records, $offset, $per_page);
+	my @page_recs = @{ _rows_of_page($records, $offset, $per_page) };
 	$records = \@page_recs;
 
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });

@@ -60,6 +60,7 @@ on 'test' => sub {
 	requires 'Test::Without::Module';
 	requires 'Text::xSV::Slurp';
 	requires 'XML::Simple';
+	recommends 'DBD::MariaDB';   # t/mariadb.t and t/mariadb_live.t skip without it or DBD::mysql
 	recommends 'Redis';
 };
 

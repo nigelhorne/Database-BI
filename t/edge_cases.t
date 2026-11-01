@@ -208,18 +208,15 @@ subtest '_apply_filter_spec -- undef cells are treated as empty string' => sub {
 };
 
 subtest '_apply_filter_spec -- gt with non-numeric value does not crash' => sub {
-	# Perl converts non-numeric strings to 0 for numeric comparison (with warning).
-	# This test verifies the comparison does not die; the result is deterministic
-	# (Perl numeric semantics) even if surprising.
-	local $SIG{__WARN__} = sub {};  # silence "isn't numeric" warnings for this test
+	# A value that is not a number has no order, so nothing is greater than it.
+	my @warnings;
+	local $SIG{__WARN__} = sub { push @warnings, @_ };
 	my $recs = [{ amount => '500' }, { amount => 'abc' }];
 	my $result;
 	lives_ok { $result = $APPLY_FILTER_SPEC->($recs, 'amount:gt:not_a_number') }
 		'non-numeric gt comparison does not die';
-	# '500' > 'not_a_number' -> 500 > 0 -> 1 (passes).
-	# 'abc' > 'not_a_number' -> 0 > 0 -> 0 (fails).
-	is scalar(@$result), 1, 'Perl numeric semantics: 500 > 0 (true), abc > 0 (false)';
-	diag "result: amount=$result->[0]{amount}" if $ENV{TEST_VERBOSE};
+	is scalar(@$result), 0, 'no row is greater than something that is not a number';
+	is_deeply \@warnings, [], 'and nothing warns';
 };
 
 subtest '_apply_filter_spec -- original arrayref is not mutated' => sub {

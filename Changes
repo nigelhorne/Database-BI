@@ -26,6 +26,14 @@ Revision history for Database-BI
 	  storage and applies at once to every open page.  Charts and tables follow
 	  it.  Saved charts, printed pages and embedded canvases stay light.
 	[ Bug Fixes ]
+	- Filters lt, le, gt and ge counted a blank or a word in a cell as zero, so a
+	  blank cell matched "less than 9", and each one logged a warning.  They now
+	  match numbers only, and read $1,234.56 and (1,234.56) as numbers.
+	- Paging could fail with "Modification of a read-only value" on a backend
+	  that returns a read-only array.  Pages now copy their rows.
+	- The page links on a table opened with no other query were broken:
+	  /view/orders&page=2 where /view/orders?page=2 was meant.
+	- An error opening the left table of /join showed the source file and line.
 	- hypnotoad script/database-bi never served the application: it hung in the
 	  development server.  It now starts the preforking server, as documented.
 	- On a device set to dark, a few parts of some pages went dark on an otherwise

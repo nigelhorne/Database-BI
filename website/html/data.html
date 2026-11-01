@@ -92,6 +92,13 @@
 	identified is read as header-less and given synthetic column names rather
 	than silently losing its first row.
 </p>
+<p id="mariadb">
+	A <strong>MariaDB or MySQL server</strong> cannot be opened: there is no
+	<code>mariadb:</code> spec, and nothing connects to one. Export the table to a
+	file, which then opens like any other. <code>--batch</code> writes a NULL as the
+	word <code>NULL</code>.
+</p>
+<pre><code>mariadb --batch --execute 'SELECT * FROM orders' shop &gt; orders.tsv</code></pre>
 
 <h2 id="pipeline">The pipeline</h2>
 <p class="section-intro">
@@ -136,7 +143,9 @@
 		<code>eq</code>, <code>ne</code>, <code>contains</code>,
 		<code>starts</code>, <code>lt</code>, <code>le</code>, <code>gt</code>,
 		<code>ge</code>, <code>empty</code>, <code>notempty</code>. String
-		comparisons are case-insensitive.
+		comparisons are case-insensitive. The four order operators compare numbers,
+		reading <code>$1,234.56</code> and <code>(1,234.56)</code> as numbers too; a
+		blank or a word in the cell matches none of them.
 	</dd>
 	<dt>Dates</dt>
 	<dd>
@@ -279,6 +288,10 @@ POST /export  l=...&amp;dir=/tmp&amp;filename=out.csv</code></pre>
 <h2>Limits worth knowing</h2>
 <ul class="plain">
 	<li>Read-only: cell editing and write-back are not implemented.</li>
+	<li>
+		Files and Redis, not database servers: a MariaDB or MySQL table has to be
+		<a href="#mariadb">exported to a file</a> first.
+	</li>
 	<li>
 		Joins happen in memory, with a spill to a temporary SQLite file when the
 		result is large; a join of files that do not fit in memory is not the use

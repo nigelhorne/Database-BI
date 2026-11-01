@@ -992,6 +992,14 @@ my @FAQ = (
 		answer   => 'Undo and Redo step through filters and other page state. They do not undo a change to a card, so a removed text card has to be added again.',
 	},
 	{
+		question => 'Can I open a MariaDB or MySQL database?',
+		answer   => 'Not directly. The program opens files, and it cannot connect to a database server. Export the table to a TSV file, then open that file. The mariadb command does this with its --batch option. A NULL in the table then appears as the word NULL.',
+	},
+	{
+		question => 'A number filter leaves out my blank cells.',
+		answer   => 'This is on purpose. Less than and greater than compare numbers, so a blank or a word in the cell does not match. Use the empty filter to find blank cells.',
+	},
+	{
 		question => 'The program does not remember my theme.',
 		answer   => 'The choice is saved in this browser. A private window forgets it when you close the window. If the browser will not save it, the Preferences page says so.',
 	},

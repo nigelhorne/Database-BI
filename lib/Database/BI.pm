@@ -95,7 +95,9 @@ the user add filter conditions without opening any panel.  Pressing Enter
 applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: C<eq>,
 C<ne>, C<contains>, C<starts>, C<lt>, C<le>, C<gt>, C<ge>, C<empty>,
-C<notempty>.  Filters are applied server-side after all joins.
+C<notempty>.  Filters are applied server-side after all joins.  C<lt>, C<le>,
+C<gt> and C<ge> compare numbers, reading C<$1,234.56> and C<(1,234.56)> as
+numbers too; a blank or a word in the cell matches none of them.
 
 =item *
 
@@ -1374,6 +1376,20 @@ with columns C<entry>, C<name>, and C<score>.
 Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.
+
+=item *
+
+A MariaDB or MySQL server cannot be opened.  There is no C<mariadb:> spec: the
+path field, C<l=> and a canvas's C<datasets> all refuse one, and nothing connects.
+To work with such a table, export it to a file, which is then a normal C<.tsv>:
+
+    mariadb --batch --execute 'SELECT * FROM orders' shop > orders.tsv
+
+C<--batch> writes a NULL as the word C<NULL>, so a blank cell reads as that word.
+C<t/mariadb.t> (mocked) and C<t/mariadb_live.t> hold how a MariaDB backend behaves
+inside the application, for when it can be opened; the second runs only when
+C<MARIADB_SERVER> is set, for example to C<mariadb://user:pass@host/test>.  It
+creates two tables and drops them.  Both need L<DBD::MariaDB> or L<DBD::mysql>.
 
 =item *
 

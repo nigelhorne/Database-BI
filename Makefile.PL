@@ -106,6 +106,7 @@ WriteMakefile(
 				}
 			}, test => {
 				recommends => {
+					'DBD::MariaDB' => 0,
 					'Redis' => 0
 				}
 			}

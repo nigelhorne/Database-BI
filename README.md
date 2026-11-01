@@ -43,7 +43,9 @@ the user add filter conditions without opening any panel.  Pressing Enter
 applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: `eq`,
 `ne`, `contains`, `starts`, `lt`, `le`, `gt`, `ge`, `empty`,
-`notempty`.  Filters are applied server-side after all joins.
+`notempty`.  Filters are applied server-side after all joins.  `lt`, `le`,
+`gt` and `ge` compare numbers, reading `$1,234.56` and `(1,234.56)` as
+numbers too; a blank or a word in the cell matches none of them.
 - **Combine (UNION ALL)** -- the "Combine data" panel stacks rows from a
 second (or further) file beneath the current rows, using a unified column
 set and leaving blanks where a source file lacks a column.
@@ -1348,6 +1350,20 @@ the same and shows that database, with a command word it runs that command, and 
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.
+- A MariaDB or MySQL server cannot be opened.  There is no `mariadb:` spec: the
+path field, `l=` and a canvas's `datasets` all refuse one, and nothing connects.
+To work with such a table, export it to a file, which is then a normal `.tsv`:
+
+    ```
+    mariadb --batch --execute 'SELECT * FROM orders' shop > orders.tsv
+    ```
+
+    `--batch` writes a NULL as the word `NULL`, so a blank cell reads as that word.
+    `t/mariadb.t` (mocked) and `t/mariadb_live.t` hold how a MariaDB backend behaves
+    inside the application, for when it can be opened; the second runs only when
+    `MARIADB_SERVER` is set, for example to `mariadb://user:pass@host/test`.  It
+    creates two tables and drops them.  Both need [DBD::MariaDB](https://metacpan.org/pod/DBD%3A%3AMariaDB) or [DBD::mysql](https://metacpan.org/pod/DBD%3A%3Amysql).
+
 - A relative time range is resolved against the server's clock and compares the
 column as a string, like every other filter.  A column holding a time zone
 offset or a non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so

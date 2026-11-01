@@ -98,6 +98,13 @@
 	<strong>Redis::Fast</strong>) is optional too, and switches on the
 	<code>redis:</code> data source when installed.
 </p>
+<p>
+	<strong>DBD::MariaDB</strong> (or <strong>DBD::mysql</strong>) is used only by the
+	tests. The application <a href="data.html#mariadb">cannot open a MariaDB server</a>.
+	<code>t/mariadb.t</code> runs without one; <code>t/mariadb_live.t</code> runs when
+	<code>MARIADB_SERVER</code> is set, and creates two tables and drops them.
+</p>
+<pre><code>MARIADB_SERVER=mariadb://user:pass@host/test prove -lv t/mariadb_live.t</code></pre>
 
 <h2>Install</h2>
 <pre><code># from CPAN
