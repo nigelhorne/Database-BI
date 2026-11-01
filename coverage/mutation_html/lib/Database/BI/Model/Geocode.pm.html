@@ -293,10 +293,10 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="DataSource.pm.html">⬅ Previous</a> <a href="../../../../../index.html">Index</a>
  <a href="../Tutorial.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 98.26%<br>
-TER2 (Branch): 90.91%<br>
+TER1 (Statement): 99.57%<br>
+TER2 (Branch): 97.01%<br>
 TER3 (LCSAJ): 100.0% (17/17)<br>
-Approximate LCSAJ segments: 133<br>
+Approximate LCSAJ segments: 135<br>
 </div>
 
     <div class="legend">
@@ -845,8 +845,8 @@ Approximate LCSAJ segments: 133<br>
 </span><span class="">  504: # _load_geocoder() -&gt; geocoder object, or undef when there is not one to be had
 </span><span class="">  505: #
 </span><span class="">  506: # The real geocoder, loaded on demand so the application installs, starts and
-</span><span class="">  507: # tests without it.  Returns nothing when the module is absent or older than the
-</span><span class="">  508: # floor, and records which of the two it was for the message.
+</span><span class="">  507: # tests without it.  Returns nothing when the module is absent, older than the
+</span><span class="">  508: # floor, will not load, or builds nothing, and records which it was for the message.
 </span><span class="">  509: sub _load_geocoder {
 </span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">510 → 518 → 529</span></span>  510: 	my $self = shift;
 </span><span class="">  511: 
@@ -867,7 +867,7 @@ Approximate LCSAJ segments: 133<br>
 </span><span class="">  526: 		return;
 </span><span class="">  527: 	}
 </span><span class="">  528: 
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  529: 	return Geo::Coder::Free-&gt;new(
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  529: 	my $geocoder = Geo::Coder::Free-&gt;new(
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -891,1128 +891,1166 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 							</li></ul></details>
 <span class="">  530: 		$self-&gt;{&#39;openaddr&#39;} ? (openaddr =&gt; $self-&gt;{&#39;openaddr&#39;}) : ()
 </span><span class="">  531: 	);
-</span><span class="">  532: }
-</span><span class="">  533: 
-</span><span class="">  534: # _geocoder() -&gt; geocoder object or undef
-</span><span class="">  535: #
-</span><span class="">  536: # Loaded once per object, so a missing module is not looked for on every value.
-</span><span class="">  537: sub _geocoder {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">538 → 540 → 544</span></span>  538: 	my $self = shift;
-</span><span class="">  539: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  540: 	if (!exists $self-&gt;{&#39;_geocoder&#39;}) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  541: 		$self-&gt;{&#39;_geocoder&#39;} = $self-&gt;_load_geocoder();
-</span><span class="">  542: 	}
-</span><span class="">  543: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  544: 	return $self-&gt;{&#39;_geocoder&#39;};
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  545: }
-</span><span class="">  546: 
-</span><span class="">  547: # _coordinates($result) -&gt; ($lat, $lon)
-</span><span class="">  548: #
-</span><span class="">  549: # The position out of a geocoder result, read through the accessors of a
-</span><span class="">  550: # Geo::Location::Point and the keys of a plain hashref from another geocoder.
-</span><span class="">  551: # &#39;lon&#39; is only a third fallback, as in HTML::Genealogy::Map: it is not part of
-</span><span class="">  552: # the point interface, and only one of Geo::Coder::Free&#39;s MaxMind shortcuts ever
-</span><span class="">  553: # spells longitude that way.
-</span><span class="">  554: sub _coordinates {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">555 → 559 → 563</span></span>  555: 	my $point = shift;
-</span><span class="">  556: 
-</span><span class="">  557: 	return unless ref($point) &amp;&amp; (ref($point) ne &#39;ARRAY&#39;);
-</span><span class="">  558: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  559: 	if (blessed($point) &amp;&amp; $point-&gt;can(&#39;latitude&#39;) &amp;&amp; $point-&gt;can(&#39;longitude&#39;)) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  560: 		return ($point-&gt;latitude(), $point-&gt;longitude());
-</span><span class="">  561: 	}
-</span><span class="">  562: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">563 → 563 → 567</span></span>  563: 	if (ref($point) eq &#39;HASH&#39;) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  564: 		return ($point-&gt;{&#39;lat&#39;}, $point-&gt;{&#39;long&#39;} // $point-&gt;{&#39;lng&#39;} // $point-&gt;{&#39;lon&#39;});
-</span><span class="">  565: 	}
-</span><span class="">  566: 
-</span><span class="">  567: 	return;
-</span><span class="">  568: }
-</span><span class="">  569: 
-</span><span class="">  570: # _backend_of($result) -&gt; $name or undef
-</span><span class="">  571: #
-</span><span class="">  572: # Which database answered, as section 6.2 wants recorded and shown.  &#39;database&#39;
-</span><span class="">  573: # names the backend and &#39;geocoder&#39; the distribution; a result carrying neither is
-</span><span class="">  574: # not guessed at.
-</span><span class="">  575: sub _backend_of {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">576 → 580 → 585</span></span>  576: 	my $point = shift;
-</span><span class="">  577: 
-</span><span class="">  578: 	return unless ref($point) &amp;&amp; (ref($point) ne &#39;ARRAY&#39;);
-</span><span class="">  579: 
-</span><span class="">  580: 	for my $key (qw(database geocoder)) {
-</span><span class="">  581: 		my $value = (blessed($point) &amp;&amp; $point-&gt;can($key)) ? $point-&gt;$key() : $point-&gt;{$key};
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  582: 		return $value if defined($value) &amp;&amp; length($value) &amp;&amp; !ref($value);
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  583: 	}
+</span><span class="">  532: 
+</span><span class="">  533: 	# It is installed, so the message must not fall back on saying that it is not.
+</span><span class="">  534: 	$self-&gt;{&#39;_unavailable&#39;} = &#39;it could not be started&#39; unless $geocoder;
+</span><span class="">  535: 
+</span><span class="">  536: 	return $geocoder;
+</span><span class="">  537: }
+</span><span class="">  538: 
+</span><span class="">  539: # _geocoder() -&gt; geocoder object or undef
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  540: #
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  541: # Loaded once per object, so a missing module is not looked for on every value.
+</span><span class="">  542: sub _geocoder {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">543 → 545 → 549</span></span>  543: 	my $self = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  544: 
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  545: 	if (!exists $self-&gt;{&#39;_geocoder&#39;}) {
+</span><span class="">  546: 		$self-&gt;{&#39;_geocoder&#39;} = $self-&gt;_load_geocoder();
+</span><span class="">  547: 	}
+</span><span class="">  548: 
+</span><span class="">  549: 	return $self-&gt;{&#39;_geocoder&#39;};
+</span><span class="">  550: }
+</span><span class="">  551: 
+</span><span class="">  552: # _coordinates($result) -&gt; ($lat, $lon)
+</span><span class="">  553: #
+</span><span class="">  554: # The position out of a geocoder result, read through the accessors of a
+</span><span class="">  555: # Geo::Location::Point and the keys of a plain hashref from another geocoder.
+</span><span class="">  556: # &#39;lon&#39; is only a third fallback, as in HTML::Genealogy::Map: it is not part of
+</span><span class="">  557: # the point interface, and only one of Geo::Coder::Free&#39;s MaxMind shortcuts ever
+</span><span class="">  558: # spells longitude that way.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  559: sub _coordinates {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">560 → 564 → 568</span></span>  560: 	my $point = shift;
+</span><span class="">  561: 
+</span><span class="">  562: 	return unless ref($point) &amp;&amp; (ref($point) ne &#39;ARRAY&#39;);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  563: 
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  564: 	if (blessed($point) &amp;&amp; $point-&gt;can(&#39;latitude&#39;) &amp;&amp; $point-&gt;can(&#39;longitude&#39;)) {
+</span><span class="">  565: 		return ($point-&gt;latitude(), $point-&gt;longitude());
+</span><span class="">  566: 	}
+</span><span class="">  567: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">568 → 568 → 572</span></span>  568: 	if (ref($point) eq &#39;HASH&#39;) {
+</span><span class="">  569: 		return ($point-&gt;{&#39;lat&#39;}, $point-&gt;{&#39;long&#39;} // $point-&gt;{&#39;lng&#39;} // $point-&gt;{&#39;lon&#39;});
+</span><span class="">  570: 	}
+</span><span class="">  571: 
+</span><span class="">  572: 	return;
+</span><span class="">  573: }
+</span><span class="">  574: 
+</span><span class="">  575: # _backend_of($result) -&gt; $name or undef
+</span><span class="">  576: #
+</span><span class="">  577: # Which database answered, as section 6.2 wants recorded and shown.  &#39;database&#39;
+</span><span class="">  578: # names the backend and &#39;geocoder&#39; the distribution; a result carrying neither is
+</span><span class="">  579: # not guessed at.
+</span><span class="">  580: sub _backend_of {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">581 → 585 → 590</span></span>  581: 	my $point = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  582: 
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  583: 	return unless ref($point) &amp;&amp; (ref($point) ne &#39;ARRAY&#39;);
 </span><span class="">  584: 
-</span><span class="">  585: 	return;
-</span><span class="">  586: }
-</span><span class="">  587: 
-</span><span class="">  588: # _has_position($cache_entry)
-</span><span class="">  589: #
-</span><span class="">  590: # True for a remembered [lat, lon]; false for a remembered 0, which says &quot;looked
-</span><span class="">  591: # up and not found&quot; and is a different thing from &quot;never looked up&quot;.
-</span><span class="">  592: sub _has_position {
-</span><span class="">  593: 	my $entry = shift;
-</span><span class="">  594: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  595: 	return 0 unless (ref($entry) eq &#39;ARRAY&#39;) &amp;&amp; (@{ $entry } &gt;= 2);
-</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  596: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  597: 	return (defined($entry-&gt;[0]) &amp;&amp; defined($entry-&gt;[1])) ? 1 : 0;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  598: }
+</span><span class="">  585: 	for my $key (qw(database geocoder)) {
+</span><span class="">  586: 		my $value = (blessed($point) &amp;&amp; $point-&gt;can($key)) ? $point-&gt;$key() : $point-&gt;{$key};
+</span><span class="">  587: 		return $value if defined($value) &amp;&amp; length($value) &amp;&amp; !ref($value);
+</span><span class="">  588: 	}
+</span><span class="">  589: 
+</span><span class="">  590: 	return;
+</span><span class="">  591: }
+</span><span class="">  592: 
+</span><span class="">  593: # _has_position($cache_entry)
+</span><span class="">  594: #
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  595: # True for a remembered [lat, lon]; false for a remembered 0, which says &quot;looked
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  596: # up and not found&quot; and is a different thing from &quot;never looked up&quot;.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  597: sub _has_position {
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  598: 	my $entry = shift;
 </span><span class="">  599: 
-</span><span class="">  600: # _resolve($values, \%opts) -&gt; \%result
-</span><span class="">  601: #
-</span><span class="">  602: # The whole of section 6.2 in one pass: classify every distinct value, apply the
-</span><span class="">  603: # cap, make one batch, and count.  No rows and no row-level message.
-</span><span class="">  604: sub _resolve {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">605 → 626 → 680</span></span>  605: 	my ($self, $values, $opts) = @_;
-</span><span class="">  606: 
-</span><span class="">  607: 	my $max    = $opts-&gt;{&#39;max&#39;};
-</span><span class="">  608: 	my $region = $opts-&gt;{&#39;region&#39;};
-</span><span class="">  609: 
-</span><span class="">  610: 	my ($available, $reason) = $self-&gt;geocoder_available();
-</span><span class="">  611: 	my $geocoder = $self-&gt;_geocoder();
-</span><span class="">  612: 
-</span><span class="">  613: 	# A working copy: a caller&#39;s cache is never modified, so a request that dies
-</span><span class="">  614: 	# half way through cannot leave a half-written one behind.
-</span><span class="">  615: 	my %cache = %{ $opts-&gt;{&#39;cache&#39;} // {} };
-</span><span class="">  616: 
-</span><span class="">  617: 	my %seen;
-</span><span class="">  618: 	my (@skipped, @unresolved, @not_attempted, @pending);
-</span><span class="">  619: 	my ($distinct, $cached_resolved, $cached_unresolved) = (0, 0, 0);
-</span><span class="">  620: 
-</span><span class="">  621: 	# The positions found, whether they were found now or in an earlier request.
-</span><span class="">  622: 	my %points;
-</span><span class="">  623: 	my %backends;
-</span><span class="">  624: 
-</span><span class="">  625: 	# 1. Which values are worth asking about at all.
-</span><span class="">  626: 	for my $value (@{ $values // [] }) {
-</span><span class="">  627: 		my $key = (defined($value) &amp;&amp; !ref($value)) ? $value : &#39;&#39;;
-</span><span class="">  628: 		next if $seen{$key}++;
-</span><span class="">  629: 		$distinct++;
-</span><span class="">  630: 
-</span><span class="">  631: 		# A cell with nothing in it is not a location under any reading, so it is
-</span><span class="">  632: 		# refused whether or not a geocoder is installed.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  633: 		if (!defined($value) || ref($value) || !length($key)) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  634: 			push @skipped, $value;
-</span><span class="">  635: 			next;
-</span><span class="">  636: 		}
-</span><span class="">  637: 
-</span><span class="">  638: 		# Remembered answers are used even when there is no geocoder: what has
-</span><span class="">  639: 		# been resolved before is still plottable.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  640: 		if (exists $cache{$key}) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  641: 			if (_has_position($cache{$key})) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  642: 				$cached_resolved++;
-</span><span class="">  643: 
-</span><span class="">  644: 				# A remembered place is a place to plot.  The point is built here
-</span><span class="">  645: 				# rather than only for the values looked up below, so that a
-</span><span class="">  646: 				# request which asks the geocoder nothing - because it has
-</span><span class="">  647: 				# nothing new to ask it - is not a request that plots nothing.
-</span><span class="">  648: 				# No backend is claimed for it: the cache remembers a position,
-</span><span class="">  649: 				# not which dataset gave it.
-</span><span class="">  650: 				$points{$key} = {
-</span><span class="">  651: 					&#39;lat&#39; =&gt; $cache{$key}[0],
-</span><span class="">  652: 					&#39;lon&#39; =&gt; $cache{$key}[1],
-</span><span class="">  653: 				};
-</span><span class="">  654: 			} else {
-</span><span class="">  655: 				$cached_unresolved++;
-</span><span class="">  656: 				push @unresolved, $value;
-</span><span class="">  657: 			}
-</span><span class="">  658: 			next;
-</span><span class="">  659: 		}
-</span><span class="">  660: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  661: 		unless ($geocoder) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  662: 			# No geocoder: the rule cannot be asked, so nothing is refused here
-</span><span class="">  663: 			# and nothing is looked up either.
-</span><span class="">  664: 			push @not_attempted, $value;
-</span><span class="">  665: 			next;
-</span><span class="">  666: 		}
-</span><span class="">  667: 
-</span><span class="">  668: 		# The rule, asked of the module that would do the lookup.  A value it
-</span><span class="">  669: 		# refuses never reaches a backend, so it cannot croak there.
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  670: 		unless ($geocoder-&gt;valid_location($key)) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  671: 			push @skipped, $value;
-</span><span class="">  672: 			next;
-</span><span class="">  673: 		}
-</span><span class="">  674: 
-</span><span class="">  675: 		push @pending, $value;
-</span><span class="">  676: 	}
-</span><span class="">  677: 
-</span><span class="">  678: 	# 2. The cap, counted in new lookups: map_geocode_max in section 6.2.  Values
-</span><span class="">  679: 	# held back are left out of the cache, so the next request picks them up.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">680 → 684 → 691</span></span>  680: 	my $wanted = scalar @pending;
-</span><span class="">  681: 	my @attempt = @pending;
-</span><span class="">  682: 	my $capped  = 0;
-</span><span class="">  683: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  684: 	if ($wanted &gt; $max) {
-</span><p> <b> Mutants (Total: 4, Killed: 4, Survived: 0)</b><p><span class="">  685: 		@attempt = @pending[0 .. $max - 1];
-</span><span class="">  686: 		push @not_attempted, @pending[$max .. $#pending];
-</span><span class="">  687: 		$capped = 1;
-</span><span class="">  688: 	}
-</span><span class="">  689: 
-</span><span class="">  690: 	# 3. One batch, with the non-croaking mode and the region hint.
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">691 → 693 → 735</span></span>  691: 	my ($lookups, $resolved, $unresolved) = (0, 0, 0);
-</span><span class="">  692: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  693: 	if (@attempt) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  694: 		my $batch = $geocoder-&gt;geocode_many(
-</span><span class="">  695: 			\@attempt,
-</span><span class="">  696: 			(defined($region) ? (region =&gt; $region) : ()),
-</span><span class="">  697: 			on_error =&gt; &#39;undef&#39;,
-</span><span class="">  698: 		);
-</span><span class="">  699: 
-</span><span class="">  700: 		# The count the geocoder reports for the batch is the one a caller caps
-</span><span class="">  701: 		# its work by; a geocoder that reports none leaves the number of values
-</span><span class="">  702: 		# it was handed.
-</span><span class="">  703: 		$lookups = ((ref($batch) eq &#39;HASH&#39;) &amp;&amp; defined($batch-&gt;{&#39;lookups&#39;}))
-</span><span class="">  704: 			? $batch-&gt;{&#39;lookups&#39;}
-</span><span class="">  705: 			: scalar @attempt;
-</span><span class="">  706: 
-</span><span class="">  707: 		for my $value (@attempt) {
-</span><span class="">  708: 			my $point = (ref($batch) eq &#39;HASH&#39;) ? $batch-&gt;{$value} : undef;
-</span><span class="">  709: 			my ($lat, $lon) = _coordinates($point);
-</span><span class="">  710: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  711: 			if (defined($lat) &amp;&amp; defined($lon)) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  712: 				my $backend = _backend_of($point);
-</span><span class="">  713: 
-</span><span class="">  714: 				$cache{$value} = [ $lat, $lon ];
-</span><span class="">  715: 				$points{$value} = {
-</span><span class="">  716: 					&#39;lat&#39; =&gt; $lat,
-</span><span class="">  717: 					&#39;lon&#39; =&gt; $lon,
-</span><span class="">  718: 					(defined($backend) ? (&#39;backend&#39; =&gt; $backend) : ()),
-</span><span class="">  719: 				};
-</span><span class="">  720: 				$backends{$backend}++ if defined($backend);
-</span><span class="">  721: 				$resolved++;
-</span><span class="">  722: 
-</span><span class="">  723: 			} else {
-</span><span class="">  724: 				# Looked up and not found: recorded as tried, so the next request
-</span><span class="">  725: 				# over this column does not ask again.
-</span><span class="">  726: 				$cache{$value} = 0;
-</span><span class="">  727: 				push @unresolved, $value;
-</span><span class="">  728: 				$unresolved++;
-</span><span class="">  729: 			}
-</span><span class="">  730: 		}
-</span><span class="">  731: 	}
-</span><span class="">  732: 
-</span><span class="">  733: 	# 4. What to tell the user.  Counts and keys, never a location value: a place
-</span><span class="">  734: 	# column in a personal dataset is personal data (section 7).
-</span><span class="">  735: 	my @messages;
-</span><span class="">  736: 
-</span><span class="">  737: 	# geocoder_available() already returns the finished sentence, so it is used as
-</span><span class="">  738: 	# the text; formatting it again repeated the whole message.
-</span><span class="">  739: 	push @messages, {
-</span><span class="">  740: 		&#39;key&#39;  =&gt; &#39;error_map_geocoder_missing&#39;,
-</span><span class="">  741: 		&#39;text&#39; =&gt; defined($reason) ? $reason : $self-&gt;_msg(&#39;error_map_geocoder_missing&#39;, $self-&gt;{&#39;min_version&#39;}, &#39;it is not installed&#39;),
-</span><span class="">  742: 	} unless $available;
-</span><span class="">  743: 
-</span><span class="">  744: 	push @messages, $self-&gt;_message(&#39;warn_map_geocode_capped&#39;, scalar @attempt, $wanted)
-</span><span class="">  745: 		if $capped;
-</span><span class="">  746: 
-</span><span class="">  747: 	push @messages, $self-&gt;_message(&#39;warn_map_geocoder_unavailable_data&#39;)
-</span><span class="">  748: 		if @attempt &amp;&amp; !$self-&gt;{&#39;openaddr&#39;};
-</span><span class="">  749: 
-</span><span class="">  750: 	my @names = sort keys %backends;
+</span><span class="">  600: 	return 0 unless (ref($entry) eq &#39;ARRAY&#39;) &amp;&amp; (@{ $entry } &gt;= 2);
+</span><span class="">  601: 
+</span><span class="">  602: 	return (defined($entry-&gt;[0]) &amp;&amp; defined($entry-&gt;[1])) ? 1 : 0;
+</span><span class="">  603: }
+</span><span class="">  604: 
+</span><span class="">  605: # _resolve($values, \%opts) -&gt; \%result
+</span><span class="">  606: #
+</span><span class="">  607: # The whole of section 6.2 in one pass: classify every distinct value, apply the
+</span><span class="">  608: # cap, make one batch, and count.  No rows and no row-level message.
+</span><span class="">  609: sub _resolve {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">610 → 631 → 685</span></span>  610: 	my ($self, $values, $opts) = @_;
+</span><span class="">  611: 
+</span><span class="">  612: 	my $max    = $opts-&gt;{&#39;max&#39;};
+</span><span class="">  613: 	my $region = $opts-&gt;{&#39;region&#39;};
+</span><span class="">  614: 
+</span><span class="">  615: 	my ($available, $reason) = $self-&gt;geocoder_available();
+</span><span class="">  616: 	my $geocoder = $self-&gt;_geocoder();
+</span><span class="">  617: 
+</span><span class="">  618: 	# A working copy: a caller&#39;s cache is never modified, so a request that dies
+</span><span class="">  619: 	# half way through cannot leave a half-written one behind.
+</span><span class="">  620: 	my %cache = %{ $opts-&gt;{&#39;cache&#39;} // {} };
+</span><span class="">  621: 
+</span><span class="">  622: 	my %seen;
+</span><span class="">  623: 	my (@skipped, @unresolved, @not_attempted, @pending);
+</span><span class="">  624: 	my ($distinct, $cached_resolved, $cached_unresolved) = (0, 0, 0);
+</span><span class="">  625: 
+</span><span class="">  626: 	# The positions found, whether they were found now or in an earlier request.
+</span><span class="">  627: 	my %points;
+</span><span class="">  628: 	my %backends;
+</span><span class="">  629: 
+</span><span class="">  630: 	# 1. Which values are worth asking about at all.
+</span><span class="">  631: 	for my $value (@{ $values // [] }) {
+</span><span class="">  632: 		my $key = (defined($value) &amp;&amp; !ref($value)) ? $value : &#39;&#39;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  633: 		next if $seen{$key}++;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  634: 		$distinct++;
+</span><span class="">  635: 
+</span><span class="">  636: 		# A cell with nothing in it is not a location under any reading, so it is
+</span><span class="">  637: 		# refused whether or not a geocoder is installed.
+</span><span class="">  638: 		if (!defined($value) || ref($value) || !length($key)) {
+</span><span class="">  639: 			push @skipped, $value;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  640: 			next;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  641: 		}
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  642: 
+</span><span class="">  643: 		# Remembered answers are used even when there is no geocoder: what has
+</span><span class="">  644: 		# been resolved before is still plottable.
+</span><span class="">  645: 		if (exists $cache{$key}) {
+</span><span class="">  646: 			if (_has_position($cache{$key})) {
+</span><span class="">  647: 				$cached_resolved++;
+</span><span class="">  648: 
+</span><span class="">  649: 				# A remembered place is a place to plot.  The point is built here
+</span><span class="">  650: 				# rather than only for the values looked up below, so that a
+</span><span class="">  651: 				# request which asks the geocoder nothing - because it has
+</span><span class="">  652: 				# nothing new to ask it - is not a request that plots nothing.
+</span><span class="">  653: 				# No backend is claimed for it: the cache remembers a position,
+</span><span class="">  654: 				# not which dataset gave it.
+</span><span class="">  655: 				$points{$key} = {
+</span><span class="">  656: 					&#39;lat&#39; =&gt; $cache{$key}[0],
+</span><span class="">  657: 					&#39;lon&#39; =&gt; $cache{$key}[1],
+</span><span class="">  658: 				};
+</span><span class="">  659: 			} else {
+</span><span class="">  660: 				$cached_unresolved++;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  661: 				push @unresolved, $value;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  662: 			}
+</span><span class="">  663: 			next;
+</span><span class="">  664: 		}
+</span><span class="">  665: 
+</span><span class="">  666: 		unless ($geocoder) {
+</span><span class="">  667: 			# No geocoder: the rule cannot be asked, so nothing is refused here
+</span><span class="">  668: 			# and nothing is looked up either.
+</span><span class="">  669: 			push @not_attempted, $value;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  670: 			next;
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  671: 		}
+</span><span class="">  672: 
+</span><span class="">  673: 		# The rule, asked of the module that would do the lookup.  A value it
+</span><span class="">  674: 		# refuses never reaches a backend, so it cannot croak there.
+</span><span class="">  675: 		unless ($geocoder-&gt;valid_location($key)) {
+</span><span class="">  676: 			push @skipped, $value;
+</span><span class="">  677: 			next;
+</span><span class="">  678: 		}
+</span><span class="">  679: 
+</span><span class="">  680: 		push @pending, $value;
+</span><span class="">  681: 	}
+</span><span class="">  682: 
+</span><span class="">  683: 	# 2. The cap, counted in new lookups: map_geocode_max in section 6.2.  Values
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  684: 	# held back are left out of the cache, so the next request picks them up.
+</span><p> <b> Mutants (Total: 4, Killed: 4, Survived: 0)</b><p><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">685 → 689 → 696</span></span>  685: 	my $wanted = scalar @pending;
+</span><span class="">  686: 	my @attempt = @pending;
+</span><span class="">  687: 	my $capped  = 0;
+</span><span class="">  688: 
+</span><span class="">  689: 	if ($wanted &gt; $max) {
+</span><span class="">  690: 		@attempt = @pending[0 .. $max - 1];
+</span><span class="">  691: 		push @not_attempted, @pending[$max .. $#pending];
+</span><span class="">  692: 		$capped = 1;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  693: 	}
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  694: 
+</span><span class="">  695: 	# 3. One batch, with the non-croaking mode and the region hint.
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">696 → 698 → 740</span></span>  696: 	my ($lookups, $resolved, $unresolved) = (0, 0, 0);
+</span><span class="">  697: 
+</span><span class="">  698: 	if (@attempt) {
+</span><span class="">  699: 		my $batch = $geocoder-&gt;geocode_many(
+</span><span class="">  700: 			\@attempt,
+</span><span class="">  701: 			(defined($region) ? (region =&gt; $region) : ()),
+</span><span class="">  702: 			on_error =&gt; &#39;undef&#39;,
+</span><span class="">  703: 		);
+</span><span class="">  704: 
+</span><span class="">  705: 		# The count the geocoder reports for the batch is the one a caller caps
+</span><span class="">  706: 		# its work by; a geocoder that reports none leaves the number of values
+</span><span class="">  707: 		# it was handed.
+</span><span class="">  708: 		$lookups = ((ref($batch) eq &#39;HASH&#39;) &amp;&amp; defined($batch-&gt;{&#39;lookups&#39;}))
+</span><span class="">  709: 			? $batch-&gt;{&#39;lookups&#39;}
+</span><span class="">  710: 			: scalar @attempt;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  711: 
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  712: 		for my $value (@attempt) {
+</span><span class="">  713: 			my $point = (ref($batch) eq &#39;HASH&#39;) ? $batch-&gt;{$value} : undef;
+</span><span class="">  714: 			my ($lat, $lon) = _coordinates($point);
+</span><span class="">  715: 
+</span><span class="">  716: 			if (defined($lat) &amp;&amp; defined($lon)) {
+</span><span class="">  717: 				my $backend = _backend_of($point);
+</span><span class="">  718: 
+</span><span class="">  719: 				$cache{$value} = [ $lat, $lon ];
+</span><span class="">  720: 				$points{$value} = {
+</span><span class="">  721: 					&#39;lat&#39; =&gt; $lat,
+</span><span class="">  722: 					&#39;lon&#39; =&gt; $lon,
+</span><span class="">  723: 					(defined($backend) ? (&#39;backend&#39; =&gt; $backend) : ()),
+</span><span class="">  724: 				};
+</span><span class="">  725: 				$backends{$backend}++ if defined($backend);
+</span><span class="">  726: 				$resolved++;
+</span><span class="">  727: 
+</span><span class="">  728: 			} else {
+</span><span class="">  729: 				# Looked up and not found: recorded as tried, so the next request
+</span><span class="">  730: 				# over this column does not ask again.
+</span><span class="">  731: 				$cache{$value} = 0;
+</span><span class="">  732: 				push @unresolved, $value;
+</span><span class="">  733: 				$unresolved++;
+</span><span class="">  734: 			}
+</span><span class="">  735: 		}
+</span><span class="">  736: 	}
+</span><span class="">  737: 
+</span><span class="">  738: 	# 4. What to tell the user.  Counts and keys, never a location value: a place
+</span><span class="">  739: 	# column in a personal dataset is personal data (section 7).
+</span><span class="">  740: 	my @messages;
+</span><span class="">  741: 
+</span><span class="">  742: 	# geocoder_available() already returns the finished sentence, so it is used as
+</span><span class="">  743: 	# the text; formatting it again repeated the whole message.
+</span><span class="">  744: 	push @messages, {
+</span><span class="">  745: 		&#39;key&#39;  =&gt; &#39;error_map_geocoder_missing&#39;,
+</span><span class="">  746: 		&#39;text&#39; =&gt; defined($reason) ? $reason : $self-&gt;_msg(&#39;error_map_geocoder_missing&#39;, $self-&gt;{&#39;min_version&#39;}, &#39;it is not installed&#39;),
+</span><span class="">  747: 	} unless $available;
+</span><span class="">  748: 
+</span><span class="">  749: 	push @messages, $self-&gt;_message(&#39;warn_map_geocode_capped&#39;, scalar @attempt, $wanted)
+</span><span class="">  750: 		if $capped;
 </span><span class="">  751: 
-</span><span class="">  752: 	return {
-</span><span class="">  753: 		&#39;available&#39;	=&gt; $available ? 1 : 0,
-</span><span class="">  754: 		&#39;points&#39;	=&gt; \%points,
-</span><span class="">  755: 		&#39;counts&#39;	=&gt; {
-</span><span class="">  756: 			&#39;distinct&#39;	=&gt; $distinct,
-</span><span class="">  757: 			&#39;skipped&#39;	=&gt; scalar @skipped,
-</span><span class="">  758: 			&#39;cached&#39;	=&gt; $cached_resolved + $cached_unresolved,
-</span><span class="">  759: 			&#39;attempted&#39;	=&gt; scalar @attempt,
-</span><span class="">  760: 			&#39;lookups&#39;	=&gt; $lookups,
-</span><span class="">  761: 			&#39;resolved&#39;	=&gt; $cached_resolved + $resolved,
-</span><span class="">  762: 			&#39;unresolved&#39;	=&gt; $cached_unresolved + $unresolved,
-</span><span class="">  763: 			&#39;not_attempted&#39;	=&gt; scalar @not_attempted,
-</span><span class="">  764: 		},
-</span><span class="">  765: 		&#39;skipped&#39;	=&gt; \@skipped,
-</span><span class="">  766: 		&#39;unresolved&#39;	=&gt; \@unresolved,
-</span><span class="">  767: 		&#39;not_attempted&#39;	=&gt; \@not_attempted,
-</span><span class="">  768: 		&#39;messages&#39;	=&gt; \@messages,
-</span><span class="">  769: 		&#39;cache&#39;		=&gt; \%cache,
-</span><span class="">  770: 		&#39;backends&#39;	=&gt; \%backends,
-</span><span class="">  771: 		&#39;backend&#39;	=&gt; @names ? join(&#39;, &#39;, @names) : undef,
-</span><span class="">  772: 		&#39;capped&#39;	=&gt; $capped,
-</span><span class="">  773: 	};
-</span><span class="">  774: }
-</span><span class="">  775: 
-</span><span class="">  776: # The options resolve_values() and resolve_column() share, validated once.
-</span><span class="">  777: sub _options {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">778 → 792 → 803</span></span>  778: 	my ($self, $opts) = @_;
-</span><span class="">  779: 
-</span><span class="">  780: 	my $args = validate_strict(
-</span><span class="">  781: 		schema =&gt; {
-</span><span class="">  782: 			cache  =&gt; { type =&gt; &#39;hashref&#39;, optional =&gt; 1, default =&gt; undef },
-</span><span class="">  783: 			region =&gt; { type =&gt; &#39;string&#39;,  optional =&gt; 1, default =&gt; undef },
-</span><span class="">  784: 			max    =&gt; { type =&gt; &#39;scalar&#39;,  optional =&gt; 1, default =&gt; undef },
-</span><span class="">  785: 		},
-</span><span class="">  786: 		stack_trace =&gt; 1,
-</span><span class="">  787: 		input =&gt; $opts,
-</span><span class="">  788: 	);
-</span><span class="">  789: 
-</span><span class="">  790: 	my $max = $DEFAULT_MAX;
-</span><span class="">  791: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  792: 	if (defined($args-&gt;{&#39;max&#39;})) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  793: 		# A cap that is not a positive integer is a caller bug, not a location
-</span><span class="">  794: 		# that could not be resolved: it is refused rather than defaulted,
-</span><span class="">  795: 		# because defaulting would silently cap a request the caller meant to
-</span><span class="">  796: 		# raise, or raise one they meant to cap.
-</span><span class="">  797: 		croak(_fmt(&#39;error_max_invalid&#39;, $args-&gt;{&#39;max&#39;}))
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  798: 			unless ($args-&gt;{&#39;max&#39;} =~ /\A\d+\z/) &amp;&amp; ($args-&gt;{&#39;max&#39;} &gt; 0);
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  799: 
-</span><span class="">  800: 		$max = $args-&gt;{&#39;max&#39;};
-</span><span class="">  801: 	}
-</span><span class="">  802: 
-</span><span class="">  803: 	return {
-</span><span class="">  804: 		&#39;cache&#39;  =&gt; $args-&gt;{&#39;cache&#39;},
-</span><span class="">  805: 		&#39;region&#39; =&gt; $args-&gt;{&#39;region&#39;},
-</span><span class="">  806: 		&#39;max&#39;    =&gt; $max,
-</span><span class="">  807: 	};
-</span><span class="">  808: }
-</span><span class="">  809: 
-</span><span class="">  810: =head2 resolve_values
-</span><span class="">  811: 
-</span><span class="">  812:     my $result = $geocode-&gt;resolve_values(\@values, %options);
-</span><span class="">  813:     my $result = $geocode-&gt;resolve_values(\@values, \%options);
+</span><span class="">  752: 	push @messages, $self-&gt;_message(&#39;warn_map_geocoder_unavailable_data&#39;)
+</span><span class="">  753: 		if @attempt &amp;&amp; !$self-&gt;{&#39;openaddr&#39;};
+</span><span class="">  754: 
+</span><span class="">  755: 	my @names = sort keys %backends;
+</span><span class="">  756: 
+</span><span class="">  757: 	return {
+</span><span class="">  758: 		&#39;available&#39;	=&gt; $available ? 1 : 0,
+</span><span class="">  759: 		&#39;points&#39;	=&gt; \%points,
+</span><span class="">  760: 		&#39;counts&#39;	=&gt; {
+</span><span class="">  761: 			&#39;distinct&#39;	=&gt; $distinct,
+</span><span class="">  762: 			&#39;skipped&#39;	=&gt; scalar @skipped,
+</span><span class="">  763: 			&#39;cached&#39;	=&gt; $cached_resolved + $cached_unresolved,
+</span><span class="">  764: 			&#39;attempted&#39;	=&gt; scalar @attempt,
+</span><span class="">  765: 			&#39;lookups&#39;	=&gt; $lookups,
+</span><span class="">  766: 			&#39;resolved&#39;	=&gt; $cached_resolved + $resolved,
+</span><span class="">  767: 			&#39;unresolved&#39;	=&gt; $cached_unresolved + $unresolved,
+</span><span class="">  768: 			&#39;not_attempted&#39;	=&gt; scalar @not_attempted,
+</span><span class="">  769: 		},
+</span><span class="">  770: 		&#39;skipped&#39;	=&gt; \@skipped,
+</span><span class="">  771: 		&#39;unresolved&#39;	=&gt; \@unresolved,
+</span><span class="">  772: 		&#39;not_attempted&#39;	=&gt; \@not_attempted,
+</span><span class="">  773: 		&#39;messages&#39;	=&gt; \@messages,
+</span><span class="">  774: 		&#39;cache&#39;		=&gt; \%cache,
+</span><span class="">  775: 		&#39;backends&#39;	=&gt; \%backends,
+</span><span class="">  776: 		&#39;backend&#39;	=&gt; @names ? join(&#39;, &#39;, @names) : undef,
+</span><span class="">  777: 		&#39;capped&#39;	=&gt; $capped,
+</span><span class="">  778: 	};
+</span><span class="">  779: }
+</span><span class="">  780: 
+</span><span class="">  781: # The options resolve_values() and resolve_column() share, validated once.
+</span><span class="">  782: sub _options {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">783 → 797 → 808</span></span>  783: 	my ($self, $opts) = @_;
+</span><span class="">  784: 
+</span><span class="">  785: 	my $args = validate_strict(
+</span><span class="">  786: 		schema =&gt; {
+</span><span class="">  787: 			cache  =&gt; { type =&gt; &#39;hashref&#39;, optional =&gt; 1, default =&gt; undef },
+</span><span class="">  788: 			region =&gt; { type =&gt; &#39;string&#39;,  optional =&gt; 1, default =&gt; undef },
+</span><span class="">  789: 			max    =&gt; { type =&gt; &#39;scalar&#39;,  optional =&gt; 1, default =&gt; undef },
+</span><span class="">  790: 		},
+</span><span class="">  791: 		stack_trace =&gt; 1,
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  792: 		input =&gt; $opts,
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  793: 	);
+</span><span class="">  794: 
+</span><span class="">  795: 	my $max = $DEFAULT_MAX;
+</span><span class="">  796: 
+</span><span class="">  797: 	if (defined($args-&gt;{&#39;max&#39;})) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  798: 		# A cap that is not a positive integer is a caller bug, not a location
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  799: 		# that could not be resolved: it is refused rather than defaulted,
+</span><span class="">  800: 		# because defaulting would silently cap a request the caller meant to
+</span><span class="">  801: 		# raise, or raise one they meant to cap.
+</span><span class="">  802: 		croak(_fmt(&#39;error_max_invalid&#39;, $args-&gt;{&#39;max&#39;}))
+</span><span class="">  803: 			unless ($args-&gt;{&#39;max&#39;} =~ /\A\d+\z/) &amp;&amp; ($args-&gt;{&#39;max&#39;} &gt; 0);
+</span><span class="">  804: 
+</span><span class="">  805: 		$max = $args-&gt;{&#39;max&#39;};
+</span><span class="">  806: 	}
+</span><span class="">  807: 
+</span><span class="">  808: 	return {
+</span><span class="">  809: 		&#39;cache&#39;  =&gt; $args-&gt;{&#39;cache&#39;},
+</span><span class="">  810: 		&#39;region&#39; =&gt; $args-&gt;{&#39;region&#39;},
+</span><span class="">  811: 		&#39;max&#39;    =&gt; $max,
+</span><span class="">  812: 	};
+</span><span class="">  813: }
 </span><span class="">  814: 
-</span><span class="">  815: Resolve a flat list of cell values, without the context of any row structure.
-</span><span class="">  816: Use this when you want to warm the cache for a column&#39;s distinct values, or
-</span><span class="">  817: when you have already extracted the values yourself and do not need per-marker
-</span><span class="">  818: row counts.
+</span><span class="">  815: =head2 resolve_values
+</span><span class="">  816: 
+</span><span class="">  817:     my $result = $geocode-&gt;resolve_values(\@values, %options);
+</span><span class="">  818:     my $result = $geocode-&gt;resolve_values(\@values, \%options);
 </span><span class="">  819: 
-</span><span class="">  820: The returned hashref is identical to L&lt;/resolve_column&gt;&#39;s, except that
-</span><span class="">  821: C&lt;counts.rows&gt;, C&lt;counts.plotted&gt;, C&lt;counts.unusable&gt;, and C&lt;markers&gt; are
-</span><span class="">  822: absent, and C&lt;warn_map_rows_skipped&gt; is never emitted.
-</span><span class="">  823: 
-</span><span class="">  824: =head3 API SPECIFICATION
-</span><span class="">  825: 
-</span><span class="">  826: =head4 INPUT
-</span><span class="">  827: 
-</span><span class="">  828:     \@values =&gt; arrayref, required;  elements may be any scalar or undef
-</span><span class="">  829:     cache    =&gt; hashref,             # optional; { value =&gt; [lat, lon] | 0 }
-</span><span class="">  830:     region   =&gt; string,              # optional; two-letter country hint
-</span><span class="">  831:     max      =&gt; positive integer,    # optional; new lookups allowed; default 500
+</span><span class="">  820: Resolve a flat list of cell values, without the context of any row structure.
+</span><span class="">  821: Use this when you want to warm the cache for a column&#39;s distinct values, or
+</span><span class="">  822: when you have already extracted the values yourself and do not need per-marker
+</span><span class="">  823: row counts.
+</span><span class="">  824: 
+</span><span class="">  825: The returned hashref is identical to L&lt;/resolve_column&gt;&#39;s, except that
+</span><span class="">  826: C&lt;counts.rows&gt;, C&lt;counts.plotted&gt;, C&lt;counts.unusable&gt;, and C&lt;markers&gt; are
+</span><span class="">  827: absent, and C&lt;warn_map_rows_skipped&gt; is never emitted.
+</span><span class="">  828: 
+</span><span class="">  829: =head3 API SPECIFICATION
+</span><span class="">  830: 
+</span><span class="">  831: =head4 INPUT
 </span><span class="">  832: 
-</span><span class="">  833: Duplicate values in C&lt;\@values&gt; cost one lookup each.  C&lt;undef&gt;, references,
-</span><span class="">  834: empty strings, and pure-digit strings are refused before any lookup and counted
-</span><span class="">  835: as C&lt;skipped&gt;.
-</span><span class="">  836: 
-</span><span class="">  837: =head4 OUTPUT
-</span><span class="">  838: 
-</span><span class="">  839: Returns a hashref (same shape as L&lt;/resolve_column&gt; but without C&lt;markers&gt;,
-</span><span class="">  840: C&lt;counts.rows&gt;, C&lt;counts.plotted&gt;, and C&lt;counts.unusable&gt;):
+</span><span class="">  833:     \@values =&gt; arrayref, required;  elements may be any scalar or undef
+</span><span class="">  834:     cache    =&gt; hashref,             # optional; { value =&gt; [lat, lon] | 0 }
+</span><span class="">  835:     region   =&gt; string,              # optional; two-letter country hint
+</span><span class="">  836:     max      =&gt; positive integer,    # optional; new lookups allowed; default 500
+</span><span class="">  837: 
+</span><span class="">  838: Duplicate values in C&lt;\@values&gt; cost one lookup each.  C&lt;undef&gt;, references,
+</span><span class="">  839: empty strings, and pure-digit strings are refused before any lookup and counted
+</span><span class="">  840: as C&lt;skipped&gt;.
 </span><span class="">  841: 
-</span><span class="">  842:     {
-</span><span class="">  843:         available     =&gt; 1 | 0,
-</span><span class="">  844:         points        =&gt; { $value =&gt; { lat =&gt; $n, lon =&gt; $n, backend? =&gt; $s } },
-</span><span class="">  845:         counts        =&gt; {
-</span><span class="">  846:             distinct      =&gt; $n,
-</span><span class="">  847:             skipped       =&gt; $n,
-</span><span class="">  848:             cached        =&gt; $n,
-</span><span class="">  849:             attempted     =&gt; $n,
-</span><span class="">  850:             lookups       =&gt; $n,
-</span><span class="">  851:             resolved      =&gt; $n,
-</span><span class="">  852:             unresolved    =&gt; $n,
-</span><span class="">  853:             not_attempted =&gt; $n,
-</span><span class="">  854:         },
-</span><span class="">  855:         skipped       =&gt; [ $value, ... ],
-</span><span class="">  856:         unresolved    =&gt; [ $value, ... ],
-</span><span class="">  857:         not_attempted =&gt; [ $value, ... ],
-</span><span class="">  858:         messages      =&gt; [ { key =&gt; $k, text =&gt; $t }, ... ],
-</span><span class="">  859:         cache         =&gt; { $value =&gt; [lat, lon] | 0 },
-</span><span class="">  860:         backends      =&gt; { $name =&gt; $count },
-</span><span class="">  861:         backend       =&gt; $name | undef,
-</span><span class="">  862:         capped        =&gt; 0 | 1,
-</span><span class="">  863:     }
-</span><span class="">  864: 
-</span><span class="">  865: Croaks with C&lt;error_values_arrayref&gt; if C&lt;\@values&gt; is not an arrayref.
-</span><span class="">  866: 
-</span><span class="">  867: =head3 EXAMPLE
-</span><span class="">  868: 
-</span><span class="">  869:     # Build the distinct-value list yourself and warm the cache offline.
-</span><span class="">  870:     my %seen;
-</span><span class="">  871:     my @cities = grep { defined($_) &amp;&amp; !$seen{$_}++ } map { $_-&gt;{&#39;city&#39;} } @{ $rows };
-</span><span class="">  872: 
-</span><span class="">  873:     my $result = $geocode-&gt;resolve_values(\@cities,
-</span><span class="">  874:         cache  =&gt; $cache,
-</span><span class="">  875:         region =&gt; &#39;GB&#39;,
-</span><span class="">  876:         max    =&gt; 2000,
-</span><span class="">  877:     );
-</span><span class="">  878: 
-</span><span class="">  879:     printf &quot;New lookups: %d  Resolved: %d  Unresolved: %d\n&quot;,
-</span><span class="">  880:         $result-&gt;{&#39;counts&#39;}{&#39;attempted&#39;},
-</span><span class="">  881:         $result-&gt;{&#39;counts&#39;}{&#39;resolved&#39;},
-</span><span class="">  882:         $result-&gt;{&#39;counts&#39;}{&#39;unresolved&#39;};
+</span><span class="">  842: =head4 OUTPUT
+</span><span class="">  843: 
+</span><span class="">  844: Returns a hashref (same shape as L&lt;/resolve_column&gt; but without C&lt;markers&gt;,
+</span><span class="">  845: C&lt;counts.rows&gt;, C&lt;counts.plotted&gt;, and C&lt;counts.unusable&gt;):
+</span><span class="">  846: 
+</span><span class="">  847:     {
+</span><span class="">  848:         available     =&gt; 1 | 0,
+</span><span class="">  849:         points        =&gt; { $value =&gt; { lat =&gt; $n, lon =&gt; $n, backend? =&gt; $s } },
+</span><span class="">  850:         counts        =&gt; {
+</span><span class="">  851:             distinct      =&gt; $n,
+</span><span class="">  852:             skipped       =&gt; $n,
+</span><span class="">  853:             cached        =&gt; $n,
+</span><span class="">  854:             attempted     =&gt; $n,
+</span><span class="">  855:             lookups       =&gt; $n,
+</span><span class="">  856:             resolved      =&gt; $n,
+</span><span class="">  857:             unresolved    =&gt; $n,
+</span><span class="">  858:             not_attempted =&gt; $n,
+</span><span class="">  859:         },
+</span><span class="">  860:         skipped       =&gt; [ $value, ... ],
+</span><span class="">  861:         unresolved    =&gt; [ $value, ... ],
+</span><span class="">  862:         not_attempted =&gt; [ $value, ... ],
+</span><span class="">  863:         messages      =&gt; [ { key =&gt; $k, text =&gt; $t }, ... ],
+</span><span class="">  864:         cache         =&gt; { $value =&gt; [lat, lon] | 0 },
+</span><span class="">  865:         backends      =&gt; { $name =&gt; $count },
+</span><span class="">  866:         backend       =&gt; $name | undef,
+</span><span class="">  867:         capped        =&gt; 0 | 1,
+</span><span class="">  868:     }
+</span><span class="">  869: 
+</span><span class="">  870: Croaks with C&lt;error_values_arrayref&gt; if C&lt;\@values&gt; is not an arrayref.
+</span><span class="">  871: 
+</span><span class="">  872: =head3 EXAMPLE
+</span><span class="">  873: 
+</span><span class="">  874:     # Build the distinct-value list yourself and warm the cache offline.
+</span><span class="">  875:     my %seen;
+</span><span class="">  876:     my @cities = grep { defined($_) &amp;&amp; !$seen{$_}++ } map { $_-&gt;{&#39;city&#39;} } @{ $rows };
+</span><span class="">  877: 
+</span><span class="">  878:     my $result = $geocode-&gt;resolve_values(\@cities,
+</span><span class="">  879:         cache  =&gt; $cache,
+</span><span class="">  880:         region =&gt; &#39;GB&#39;,
+</span><span class="">  881:         max    =&gt; 2000,
+</span><span class="">  882:     );
 </span><span class="">  883: 
-</span><span class="">  884: =cut
-</span><span class="">  885: 
-</span><span class="">  886: sub resolve_values {
-</span><span class="">  887: 	my $self   = shift;
-</span><span class="">  888: 	my $values = shift;
-</span><span class="">  889: 
-</span><span class="">  890: 	croak(_fmt(&#39;error_values_arrayref&#39;, defined($values) ? ref($values) || $values : &#39;undef&#39;))
-</span><span class="">  891: 		unless ref($values) eq &#39;ARRAY&#39;;
-</span><span class="">  892: 
-</span><span class="">  893: 	my $raw = Params::Get::get_params(undef, \@_) // {};
+</span><span class="">  884:     printf &quot;New lookups: %d  Resolved: %d  Unresolved: %d\n&quot;,
+</span><span class="">  885:         $result-&gt;{&#39;counts&#39;}{&#39;attempted&#39;},
+</span><span class="">  886:         $result-&gt;{&#39;counts&#39;}{&#39;resolved&#39;},
+</span><span class="">  887:         $result-&gt;{&#39;counts&#39;}{&#39;unresolved&#39;};
+</span><span class="">  888: 
+</span><span class="">  889: =cut
+</span><span class="">  890: 
+</span><span class="">  891: sub resolve_values {
+</span><span class="">  892: 	my $self   = shift;
+</span><span class="">  893: 	my $values = shift;
 </span><span class="">  894: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  895: 	return $self-&gt;_resolve($values, $self-&gt;_options($raw));
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  896: }
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  895: 	croak(_fmt(&#39;error_values_arrayref&#39;, defined($values) ? ref($values) || $values : &#39;undef&#39;))
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  896: 		unless ref($values) eq &#39;ARRAY&#39;;
 </span><span class="">  897: 
-</span><span class="">  898: =head2 resolve_column
+</span><span class="">  898: 	my $raw = Params::Get::get_params(undef, \@_) // {};
 </span><span class="">  899: 
-</span><span class="">  900: See full documentation above, in L&lt;/SUBROUTINES/METHODS&gt;.
-</span><span class="">  901: 
-</span><span class="">  902: =cut
-</span><span class="">  903: 
-</span><span class="">  904: sub resolve_column {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">905 → 922 → 932</span></span>  905: 	my $self   = shift;
-</span><span class="">  906: 	my $rows   = shift;
-</span><span class="">  907: 	my $column = shift;
+</span><span class="">  900: 	return $self-&gt;_resolve($values, $self-&gt;_options($raw));
+</span><span class="">  901: }
+</span><span class="">  902: 
+</span><span class="">  903: =head2 resolve_column
+</span><span class="">  904: 
+</span><span class="">  905: See full documentation above, in L&lt;/SUBROUTINES/METHODS&gt;.
+</span><span class="">  906: 
+</span><span class="">  907: =cut
 </span><span class="">  908: 
-</span><span class="">  909: 	croak(_fmt(&#39;error_rows_arrayref&#39;, defined($rows) ? ref($rows) || $rows : &#39;undef&#39;))
-</span><span class="">  910: 		unless ref($rows) eq &#39;ARRAY&#39;;
-</span><span class="">  911: 
-</span><span class="">  912: 	croak(_fmt(&#39;error_column_required&#39;)) unless defined($column) &amp;&amp; length($column);
+</span><span class="">  909: sub resolve_column {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">910 → 927 → 937</span></span>  910: 	my $self   = shift;
+</span><span class="">  911: 	my $rows   = shift;
+</span><span class="">  912: 	my $column = shift;
 </span><span class="">  913: 
-</span><span class="">  914: 	my $raw = Params::Get::get_params(undef, \@_) // {};
-</span><span class="">  915: 
-</span><span class="">  916: 	# The cells in row order, and whether the column is there at all.  A row that
-</span><span class="">  917: 	# is not a hashref has no cell, which is one of the things that gets skipped
-</span><span class="">  918: 	# rather than a reason to stop.
-</span><span class="">  919: 	my @cells;
-</span><span class="">  920: 	my $found = 0;
-</span><span class="">  921: 
-</span><span class="">  922: 	for my $row (@{ $rows }) {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  923: 		if (ref($row) eq &#39;HASH&#39;) {
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  924: 			$found = 1 if exists $row-&gt;{$column};
-</span><span class="">  925: 			push @cells, $row-&gt;{$column};
-</span><span class="">  926: 			next;
-</span><span class="">  927: 		}
-</span><span class="">  928: 
-</span><span class="">  929: 		push @cells, undef;
-</span><span class="">  930: 	}
-</span><span class="">  931: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">932 → 940 → 947</span></span>  932: 	croak(_fmt(&#39;error_map_loc_column&#39;, $column)) if @{ $rows } &amp;&amp; !$found;
+</span><span class="">  914: 	croak(_fmt(&#39;error_rows_arrayref&#39;, defined($rows) ? ref($rows) || $rows : &#39;undef&#39;))
+</span><span class="">  915: 		unless ref($rows) eq &#39;ARRAY&#39;;
+</span><span class="">  916: 
+</span><span class="">  917: 	croak(_fmt(&#39;error_column_required&#39;)) unless defined($column) &amp;&amp; length($column);
+</span><span class="">  918: 
+</span><span class="">  919: 	my $raw = Params::Get::get_params(undef, \@_) // {};
+</span><span class="">  920: 
+</span><span class="">  921: 	# The cells in row order, and whether the column is there at all.  A row that
+</span><span class="">  922: 	# is not a hashref has no cell, which is one of the things that gets skipped
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  923: 	# rather than a reason to stop.
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  924: 	my @cells;
+</span><span class="">  925: 	my $found = 0;
+</span><span class="">  926: 
+</span><span class="">  927: 	for my $row (@{ $rows }) {
+</span><span class="">  928: 		if (ref($row) eq &#39;HASH&#39;) {
+</span><span class="">  929: 			$found = 1 if exists $row-&gt;{$column};
+</span><span class="">  930: 			push @cells, $row-&gt;{$column};
+</span><span class="">  931: 			next;
+</span><span class="">  932: 		}
 </span><span class="">  933: 
-</span><span class="">  934: 	my $result = $self-&gt;_resolve(\@cells, $self-&gt;_options($raw));
-</span><span class="">  935: 
-</span><span class="">  936: 	# How many rows hold each distinct value, and where the first of them is: what
-</span><span class="">  937: 	# an aggregated marker&#39;s popup and its draw order need.
-</span><span class="">  938: 	my (%row_count, %first_row);
-</span><span class="">  939: 
-</span><span class="">  940: 	for my $index (0 .. $#cells) {
-</span><span class="">  941: 		my $key = (defined($cells[$index]) &amp;&amp; !ref($cells[$index])) ? $cells[$index] : &#39;&#39;;
-</span><span class="">  942: 
-</span><span class="">  943: 		$row_count{$key}++;
-</span><span class="">  944: 		$first_row{$key} = $index unless exists $first_row{$key};
-</span><span class="">  945: 	}
-</span><span class="">  946: 
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">947 → 949 → 956</span></span>  947: 	my $plotted = 0;
-</span><span class="">  948: 
-</span><span class="">  949: 	for my $key (keys %{ $result-&gt;{&#39;points&#39;} }) {
-</span><span class="">  950: 		$result-&gt;{&#39;points&#39;}{$key}{&#39;rows&#39;}      = $row_count{$key};
-</span><span class="">  951: 		$result-&gt;{&#39;points&#39;}{$key}{&#39;first_row&#39;} = $first_row{$key};
-</span><span class="">  952: 
-</span><span class="">  953: 		$plotted += $row_count{$key};
-</span><span class="">  954: 	}
-</span><span class="">  955: 
-</span><span class="">  956: 	$result-&gt;{&#39;markers&#39;} = [
-</span><span class="">  957: 		map { { &#39;value&#39; =&gt; $_, %{ $result-&gt;{&#39;points&#39;}{$_} } } }
-</span><span class="">  958: 		sort { $first_row{$a} &lt;=&gt; $first_row{$b} } keys %{ $result-&gt;{&#39;points&#39;} }
-</span><span class="">  959: 	];
+</span><span class="">  934: 		push @cells, undef;
+</span><span class="">  935: 	}
+</span><span class="">  936: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">937 → 945 → 952</span></span>  937: 	croak(_fmt(&#39;error_map_loc_column&#39;, $column)) if @{ $rows } &amp;&amp; !$found;
+</span><span class="">  938: 
+</span><span class="">  939: 	my $result = $self-&gt;_resolve(\@cells, $self-&gt;_options($raw));
+</span><span class="">  940: 
+</span><span class="">  941: 	# How many rows hold each distinct value, and where the first of them is: what
+</span><span class="">  942: 	# an aggregated marker&#39;s popup and its draw order need.
+</span><span class="">  943: 	my (%row_count, %first_row);
+</span><span class="">  944: 
+</span><span class="">  945: 	for my $index (0 .. $#cells) {
+</span><span class="">  946: 		my $key = (defined($cells[$index]) &amp;&amp; !ref($cells[$index])) ? $cells[$index] : &#39;&#39;;
+</span><span class="">  947: 
+</span><span class="">  948: 		$row_count{$key}++;
+</span><span class="">  949: 		$first_row{$key} = $index unless exists $first_row{$key};
+</span><span class="">  950: 	}
+</span><span class="">  951: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">952 → 954 → 961</span></span>  952: 	my $plotted = 0;
+</span><span class="">  953: 
+</span><span class="">  954: 	for my $key (keys %{ $result-&gt;{&#39;points&#39;} }) {
+</span><span class="">  955: 		$result-&gt;{&#39;points&#39;}{$key}{&#39;rows&#39;}      = $row_count{$key};
+</span><span class="">  956: 		$result-&gt;{&#39;points&#39;}{$key}{&#39;first_row&#39;} = $first_row{$key};
+</span><span class="">  957: 
+</span><span class="">  958: 		$plotted += $row_count{$key};
+</span><span class="">  959: 	}
 </span><span class="">  960: 
-</span><span class="">  961: 	my $rows_total = scalar @cells;
-</span><span class="">  962: 
-</span><span class="">  963: 	$result-&gt;{&#39;counts&#39;}{&#39;rows&#39;}     = $rows_total;
-</span><span class="">  964: 	$result-&gt;{&#39;counts&#39;}{&#39;plotted&#39;}  = $plotted;
-</span><span class="">  965: 	$result-&gt;{&#39;counts&#39;}{&#39;unusable&#39;} = $rows_total - $plotted;
-</span><span class="">  966: 
-</span><span class="">  967: 	push @{ $result-&gt;{&#39;messages&#39;} }, $self-&gt;_message(&#39;warn_map_rows_skipped&#39;, $plotted, $rows_total, $rows_total - $plotted)
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  968: 		if $plotted &lt; $rows_total;
-</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  969: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  970: 	return $result;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  971: }
-</span><span class="">  972: 
-</span><span class="">  973: =head2 geocoder_available
+</span><span class="">  961: 	$result-&gt;{&#39;markers&#39;} = [
+</span><span class="">  962: 		map { { &#39;value&#39; =&gt; $_, %{ $result-&gt;{&#39;points&#39;}{$_} } } }
+</span><span class="">  963: 		sort { $first_row{$a} &lt;=&gt; $first_row{$b} } keys %{ $result-&gt;{&#39;points&#39;} }
+</span><span class="">  964: 	];
+</span><span class="">  965: 
+</span><span class="">  966: 	my $rows_total = scalar @cells;
+</span><span class="">  967: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  968: 	$result-&gt;{&#39;counts&#39;}{&#39;rows&#39;}     = $rows_total;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  969: 	$result-&gt;{&#39;counts&#39;}{&#39;plotted&#39;}  = $plotted;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  970: 	$result-&gt;{&#39;counts&#39;}{&#39;unusable&#39;} = $rows_total - $plotted;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  971: 
+</span><span class="">  972: 	push @{ $result-&gt;{&#39;messages&#39;} }, $self-&gt;_message(&#39;warn_map_rows_skipped&#39;, $plotted, $rows_total, $rows_total - $plotted)
+</span><span class="">  973: 		if $plotted &lt; $rows_total;
 </span><span class="">  974: 
-</span><span class="">  975:     my ($is_available, $reason) = $geocode-&gt;geocoder_available();
-</span><span class="">  976: 
-</span><span class="">  977: Ask whether this object can make new geocoder lookups.  Returns a list of two
-</span><span class="">  978: values: a boolean (C&lt;1&gt; or C&lt;0&gt;) and a human-readable reason string when the
-</span><span class="">  979: answer is no.
-</span><span class="">  980: 
-</span><span class="">  981: Loads C&lt;Geo::Coder::Free&gt; lazily on the first call if it has not been loaded
-</span><span class="">  982: yet.  Never croaks: a panel uses this to decide whether to show the location
-</span><span class="">  983: option, so the answer must always be a string, not an exception.
-</span><span class="">  984: 
-</span><span class="">  985: =head3 API SPECIFICATION
-</span><span class="">  986: 
-</span><span class="">  987: =head4 INPUT
-</span><span class="">  988: 
-</span><span class="">  989: None.  (No arguments accepted.)
-</span><span class="">  990: 
-</span><span class="">  991: =head4 OUTPUT
-</span><span class="">  992: 
-</span><span class="">  993:     ($available, $reason)
-</span><span class="">  994: 
-</span><span class="">  995:     $available =&gt; 1      # geocoder is ready
-</span><span class="">  996:     $available =&gt; 0      # geocoder is not available
-</span><span class="">  997:     $reason    =&gt; undef  # when $available is 1
-</span><span class="">  998:     $reason    =&gt; string # error_map_geocoder_missing text; when $available is 0
+</span><span class="">  975: 	return $result;
+</span><span class="">  976: }
+</span><span class="">  977: 
+</span><span class="">  978: =head2 geocoder_available
+</span><span class="">  979: 
+</span><span class="">  980:     my ($is_available, $reason) = $geocode-&gt;geocoder_available();
+</span><span class="">  981: 
+</span><span class="">  982: Ask whether this object can make new geocoder lookups.  Returns a list of two
+</span><span class="">  983: values: a boolean (C&lt;1&gt; or C&lt;0&gt;) and a human-readable reason string when the
+</span><span class="">  984: answer is no.
+</span><span class="">  985: 
+</span><span class="">  986: Loads C&lt;Geo::Coder::Free&gt; lazily on the first call if it has not been loaded
+</span><span class="">  987: yet.  Never croaks: a panel uses this to decide whether to show the location
+</span><span class="">  988: option, so the answer must always be a string, not an exception.
+</span><span class="">  989: 
+</span><span class="">  990: =head3 API SPECIFICATION
+</span><span class="">  991: 
+</span><span class="">  992: =head4 INPUT
+</span><span class="">  993: 
+</span><span class="">  994: None.  (No arguments accepted.)
+</span><span class="">  995: 
+</span><span class="">  996: =head4 OUTPUT
+</span><span class="">  997: 
+</span><span class="">  998:     ($available, $reason)
 </span><span class="">  999: 
-</span><span class=""> 1000: =head3 EXAMPLE
-</span><span class=""> 1001: 
-</span><span class=""> 1002:     my ($ok, $reason) = $geocode-&gt;geocoder_available();
-</span><span class=""> 1003: 
-</span><span class=""> 1004:     if (!$ok) {
-</span><span class=""> 1005:         # Disable the &quot;Map by location column&quot; panel option.
-</span><span class=""> 1006:         $stash-&gt;{&#39;map_loc_disabled&#39;} = 1;
-</span><span class=""> 1007:         $stash-&gt;{&#39;map_loc_disabled_reason&#39;} = $reason;
-</span><span class=""> 1008:     }
-</span><span class=""> 1009: 
-</span><span class=""> 1010: =cut
-</span><span class=""> 1011: 
-</span><span class=""> 1012: sub geocoder_available {
-</span><span class=""> 1013: 	my $self = shift;
+</span><span class=""> 1000:     $available =&gt; 1      # geocoder is ready
+</span><span class=""> 1001:     $available =&gt; 0      # geocoder is not available
+</span><span class=""> 1002:     $reason    =&gt; undef  # when $available is 1
+</span><span class=""> 1003:     $reason    =&gt; string # error_map_geocoder_missing text; when $available is 0
+</span><span class=""> 1004: 
+</span><span class=""> 1005: =head3 EXAMPLE
+</span><span class=""> 1006: 
+</span><span class=""> 1007:     my ($ok, $reason) = $geocode-&gt;geocoder_available();
+</span><span class=""> 1008: 
+</span><span class=""> 1009:     if (!$ok) {
+</span><span class=""> 1010:         # Disable the &quot;Map by location column&quot; panel option.
+</span><span class=""> 1011:         $stash-&gt;{&#39;map_loc_disabled&#39;} = 1;
+</span><span class=""> 1012:         $stash-&gt;{&#39;map_loc_disabled_reason&#39;} = $reason;
+</span><span class=""> 1013:     }
 </span><span class=""> 1014: 
-</span><span class=""> 1015: 	return (1, undef) if $self-&gt;_geocoder();
+</span><span class=""> 1015: =cut
 </span><span class=""> 1016: 
-</span><span class=""> 1017: 	return (0, $self-&gt;_msg(&#39;error_map_geocoder_missing&#39;,
-</span><span class=""> 1018: 		$self-&gt;{&#39;min_version&#39;},
-</span><span class=""> 1019: 		$self-&gt;{&#39;_unavailable&#39;} // &#39;it is not installed&#39;));
-</span><span class=""> 1020: }
+</span><span class=""> 1017: sub geocoder_available {
+</span><span class=""> 1018: 	my $self = shift;
+</span><span class=""> 1019: 
+</span><span class=""> 1020: 	return (1, undef) if $self-&gt;_geocoder();
 </span><span class=""> 1021: 
-</span><span class=""> 1022: =head2 cache_from_models
-</span><span class=""> 1023: 
-</span><span class=""> 1024:     my $cache = Database::BI::Model::Geocode-&gt;cache_from_models(\%models, $spec_key);
-</span><span class=""> 1025: 
-</span><span class=""> 1026: Extract the geocode cache for one dataset spec from a model store.  Returns a
-</span><span class=""> 1027: B&lt;copy&gt; of the stored places hashref so the caller cannot accidentally modify
-</span><span class=""> 1028: the model store.
-</span><span class=""> 1029: 
-</span><span class=""> 1030: This is a B&lt;class method&gt;: call it on the package name, or on an instance if
-</span><span class=""> 1031: you prefer; either way the invocant is ignored.
-</span><span class=""> 1032: 
-</span><span class=""> 1033: =head3 API SPECIFICATION
+</span><span class=""> 1022: 	return (0, $self-&gt;_msg(&#39;error_map_geocoder_missing&#39;,
+</span><span class=""> 1023: 		$self-&gt;{&#39;min_version&#39;},
+</span><span class=""> 1024: 		$self-&gt;{&#39;_unavailable&#39;} // &#39;it is not installed&#39;));
+</span><span class=""> 1025: }
+</span><span class=""> 1026: 
+</span><span class=""> 1027: =head2 cache_from_models
+</span><span class=""> 1028: 
+</span><span class=""> 1029:     my $cache = Database::BI::Model::Geocode-&gt;cache_from_models(\%models, $spec_key);
+</span><span class=""> 1030: 
+</span><span class=""> 1031: Extract the geocode cache for one dataset spec from a model store.  Returns a
+</span><span class=""> 1032: B&lt;copy&gt; of the stored places hashref so the caller cannot accidentally modify
+</span><span class=""> 1033: the model store.
 </span><span class=""> 1034: 
-</span><span class=""> 1035: =head4 INPUT
-</span><span class=""> 1036: 
-</span><span class=""> 1037:     \%models  =&gt; hashref, required;  the structure returned by _read_models()
-</span><span class=""> 1038:     $spec_key =&gt; string, required;   the dataset spec (e.g. &#39;table:sales&#39;)
+</span><span class=""> 1035: This is a B&lt;class method&gt;: call it on the package name, or on an instance if
+</span><span class=""> 1036: you prefer; either way the invocant is ignored.
+</span><span class=""> 1037: 
+</span><span class=""> 1038: =head3 API SPECIFICATION
 </span><span class=""> 1039: 
-</span><span class=""> 1040: =head4 OUTPUT
+</span><span class=""> 1040: =head4 INPUT
 </span><span class=""> 1041: 
-</span><span class=""> 1042: Returns a plain hashref:
-</span><span class=""> 1043: 
-</span><span class=""> 1044:     { $place_name =&gt; [lat, lon] | 0, ... }
-</span><span class=""> 1045: 
-</span><span class=""> 1046: Returns an empty hashref C&lt;{}&gt; for an unknown spec, a spec that has never
-</span><span class=""> 1047: been geocoded, or a C&lt;\%models&gt; argument that is not a hashref.  Never
-</span><span class=""> 1048: croaks.
-</span><span class=""> 1049: 
-</span><span class=""> 1050: =head3 EXAMPLE
-</span><span class=""> 1051: 
-</span><span class=""> 1052:     my $models = decode_json(Mojo::File-&gt;new($model_path)-&gt;slurp);
-</span><span class=""> 1053:     my $cache  = Database::BI::Model::Geocode-&gt;cache_from_models(
-</span><span class=""> 1054:         $models, &#39;table:sales&#39;
-</span><span class=""> 1055:     );
+</span><span class=""> 1042:     \%models  =&gt; hashref, required;  the structure returned by _read_models()
+</span><span class=""> 1043:     $spec_key =&gt; string, required;   the dataset spec (e.g. &#39;table:sales&#39;)
+</span><span class=""> 1044: 
+</span><span class=""> 1045: =head4 OUTPUT
+</span><span class=""> 1046: 
+</span><span class=""> 1047: Returns a plain hashref:
+</span><span class=""> 1048: 
+</span><span class=""> 1049:     { $place_name =&gt; [lat, lon] | 0, ... }
+</span><span class=""> 1050: 
+</span><span class=""> 1051: Returns an empty hashref C&lt;{}&gt; for an unknown spec, a spec that has never
+</span><span class=""> 1052: been geocoded, or a C&lt;\%models&gt; argument that is not a hashref.  Never
+</span><span class=""> 1053: croaks.
+</span><span class=""> 1054: 
+</span><span class=""> 1055: =head3 EXAMPLE
 </span><span class=""> 1056: 
-</span><span class=""> 1057:     # $cache is now { &#39;Ramsgate&#39; =&gt; [51.336, 1.416], &#39;Paris&#39; =&gt; 0, ... }
-</span><span class=""> 1058: 
-</span><span class=""> 1059: =cut
-</span><span class=""> 1060: 
-</span><span class=""> 1061: sub cache_from_models {
-</span><span class=""> 1062: 	my ($class, $models, $spec_key) = @_;
+</span><span class=""> 1057:     my $models = decode_json(Mojo::File-&gt;new($model_path)-&gt;slurp);
+</span><span class=""> 1058:     my $cache  = Database::BI::Model::Geocode-&gt;cache_from_models(
+</span><span class=""> 1059:         $models, &#39;table:sales&#39;
+</span><span class=""> 1060:     );
+</span><span class=""> 1061: 
+</span><span class=""> 1062:     # $cache is now { &#39;Ramsgate&#39; =&gt; [51.336, 1.416], &#39;Paris&#39; =&gt; 0, ... }
 </span><span class=""> 1063: 
-</span><span class=""> 1064: 	my $entry = (ref($models) eq &#39;HASH&#39;) ? $models-&gt;{&#39;geo&#39;}{$spec_key} : undef;
+</span><span class=""> 1064: =cut
 </span><span class=""> 1065: 
-</span><span class=""> 1066: 	return {} unless ref($entry) eq &#39;HASH&#39; &amp;&amp; (ref($entry-&gt;{&#39;places&#39;}) eq &#39;HASH&#39;);
-</span><span class=""> 1067: 
-</span><span class=""> 1068: 	return { %{ $entry-&gt;{&#39;places&#39;} } };
-</span><span class=""> 1069: }
+</span><span class=""> 1066: sub cache_from_models {
+</span><span class=""> 1067: 	my ($class, $models, $spec_key) = @_;
+</span><span class=""> 1068: 
+</span><span class=""> 1069: 	my $entry = (ref($models) eq &#39;HASH&#39;) ? $models-&gt;{&#39;geo&#39;}{$spec_key} : undef;
 </span><span class=""> 1070: 
-</span><span class=""> 1071: =head2 models_with_cache
+</span><span class=""> 1071: 	return {} unless ref($entry) eq &#39;HASH&#39; &amp;&amp; (ref($entry-&gt;{&#39;places&#39;}) eq &#39;HASH&#39;);
 </span><span class=""> 1072: 
-</span><span class=""> 1073:     my $updated_models = Database::BI::Model::Geocode-&gt;models_with_cache(
-</span><span class=""> 1074:         \%models, $spec_key, \%cache,
-</span><span class=""> 1075:         backend =&gt; &#39;OpenAddresses&#39;,
-</span><span class=""> 1076:         built   =&gt; &#39;2026-10-18T12:00:00&#39;,
-</span><span class=""> 1077:     );
-</span><span class=""> 1078: 
-</span><span class=""> 1079: Produce a new model store in which the geocode cache for C&lt;$spec_key&gt; is
-</span><span class=""> 1080: replaced with C&lt;\%cache&gt;.  Every other key in the model store, and every
-</span><span class=""> 1081: other spec&#39;s geocode data, is carried over unchanged.
-</span><span class=""> 1082: 
-</span><span class=""> 1083: This is a B&lt;class method&gt;; the invocant is ignored.
-</span><span class=""> 1084: 
-</span><span class=""> 1085: This module never writes the file.  The caller is responsible for passing
-</span><span class=""> 1086: C&lt;$updated_models&gt; to C&lt;_write_models()&gt; or its equivalent, which is where
-</span><span class=""> 1087: the writability and C&lt;data_dir&gt; guards live.  The separation keeps those
-</span><span class=""> 1088: guards in the one place that already owns them (section 7 of the phase spec).
+</span><span class=""> 1073: 	return { %{ $entry-&gt;{&#39;places&#39;} } };
+</span><span class=""> 1074: }
+</span><span class=""> 1075: 
+</span><span class=""> 1076: =head2 models_with_cache
+</span><span class=""> 1077: 
+</span><span class=""> 1078:     my $updated_models = Database::BI::Model::Geocode-&gt;models_with_cache(
+</span><span class=""> 1079:         \%models, $spec_key, \%cache,
+</span><span class=""> 1080:         backend =&gt; &#39;OpenAddresses&#39;,
+</span><span class=""> 1081:         built   =&gt; &#39;2026-10-18T12:00:00&#39;,
+</span><span class=""> 1082:     );
+</span><span class=""> 1083: 
+</span><span class=""> 1084: Produce a new model store in which the geocode cache for C&lt;$spec_key&gt; is
+</span><span class=""> 1085: replaced with C&lt;\%cache&gt;.  Every other key in the model store, and every
+</span><span class=""> 1086: other spec&#39;s geocode data, is carried over unchanged.
+</span><span class=""> 1087: 
+</span><span class=""> 1088: This is a B&lt;class method&gt;; the invocant is ignored.
 </span><span class=""> 1089: 
-</span><span class=""> 1090: =head3 API SPECIFICATION
-</span><span class=""> 1091: 
-</span><span class=""> 1092: =head4 INPUT
-</span><span class=""> 1093: 
-</span><span class=""> 1094:     \%models  =&gt; hashref, required;  the existing model store (not modified)
-</span><span class=""> 1095:     $spec_key =&gt; string, required;   the dataset spec to update
-</span><span class=""> 1096:     \%cache   =&gt; hashref, required;  { place =&gt; [lat, lon] | 0 }
-</span><span class=""> 1097:     backend   =&gt; string, optional;   name of the geocoder backend that resolved
-</span><span class=""> 1098:     built     =&gt; string, optional;   ISO-8601 timestamp of when the cache was built
-</span><span class=""> 1099: 
-</span><span class=""> 1100: =head4 OUTPUT
-</span><span class=""> 1101: 
-</span><span class=""> 1102: Returns a new hashref.  The caller&#39;s C&lt;\%models&gt; is never modified.
-</span><span class=""> 1103: 
-</span><span class=""> 1104:     {
-</span><span class=""> 1105:         ...all existing model keys...,
-</span><span class=""> 1106:         geo =&gt; {
-</span><span class=""> 1107:             ...all existing geo specs...,
-</span><span class=""> 1108:             $spec_key =&gt; {
-</span><span class=""> 1109:                 places  =&gt; \%cache,
-</span><span class=""> 1110:                 backend =&gt; $backend,  # if supplied
-</span><span class=""> 1111:                 built   =&gt; $built,    # if supplied
-</span><span class=""> 1112:             },
-</span><span class=""> 1113:         },
-</span><span class=""> 1114:     }
-</span><span class=""> 1115: 
-</span><span class=""> 1116: =head3 EXAMPLE
-</span><span class=""> 1117: 
-</span><span class=""> 1118:     my $updated = Database::BI::Model::Geocode-&gt;models_with_cache(
-</span><span class=""> 1119:         $models,
-</span><span class=""> 1120:         &#39;path:/data/sales.csv&#39;,
-</span><span class=""> 1121:         $result-&gt;{&#39;cache&#39;},
-</span><span class=""> 1122:         backend =&gt; $result-&gt;{&#39;backend&#39;},
-</span><span class=""> 1123:         built   =&gt; &#39;2026-10-18T09:15:42&#39;,
-</span><span class=""> 1124:     );
-</span><span class=""> 1125: 
-</span><span class=""> 1126:     # Now write the updated store to disk.
-</span><span class=""> 1127:     Mojo::File-&gt;new($model_path)-&gt;spew(encode_json($updated));
-</span><span class=""> 1128: 
-</span><span class=""> 1129: =cut
+</span><span class=""> 1090: This module never writes the file.  The caller is responsible for passing
+</span><span class=""> 1091: C&lt;$updated_models&gt; to C&lt;_write_models()&gt; or its equivalent, which is where
+</span><span class=""> 1092: the writability and C&lt;data_dir&gt; guards live.  The separation keeps those
+</span><span class=""> 1093: guards in the one place that already owns them (section 7 of the phase spec).
+</span><span class=""> 1094: 
+</span><span class=""> 1095: =head3 API SPECIFICATION
+</span><span class=""> 1096: 
+</span><span class=""> 1097: =head4 INPUT
+</span><span class=""> 1098: 
+</span><span class=""> 1099:     \%models  =&gt; hashref, required;  the existing model store (not modified)
+</span><span class=""> 1100:     $spec_key =&gt; string, required;   the dataset spec to update
+</span><span class=""> 1101:     \%cache   =&gt; hashref, required;  { place =&gt; [lat, lon] | 0 }
+</span><span class=""> 1102:     backend   =&gt; string, optional;   name of the geocoder backend that resolved
+</span><span class=""> 1103:     built     =&gt; string, optional;   ISO-8601 timestamp of when the cache was built
+</span><span class=""> 1104: 
+</span><span class=""> 1105: =head4 OUTPUT
+</span><span class=""> 1106: 
+</span><span class=""> 1107: Returns a new hashref.  The caller&#39;s C&lt;\%models&gt; is never modified.
+</span><span class=""> 1108: 
+</span><span class=""> 1109:     {
+</span><span class=""> 1110:         ...all existing model keys...,
+</span><span class=""> 1111:         geo =&gt; {
+</span><span class=""> 1112:             ...all existing geo specs...,
+</span><span class=""> 1113:             $spec_key =&gt; {
+</span><span class=""> 1114:                 places  =&gt; \%cache,
+</span><span class=""> 1115:                 backend =&gt; $backend,  # if supplied
+</span><span class=""> 1116:                 built   =&gt; $built,    # if supplied
+</span><span class=""> 1117:             },
+</span><span class=""> 1118:         },
+</span><span class=""> 1119:     }
+</span><span class=""> 1120: 
+</span><span class=""> 1121: =head3 EXAMPLE
+</span><span class=""> 1122: 
+</span><span class=""> 1123:     my $updated = Database::BI::Model::Geocode-&gt;models_with_cache(
+</span><span class=""> 1124:         $models,
+</span><span class=""> 1125:         &#39;path:/data/sales.csv&#39;,
+</span><span class=""> 1126:         $result-&gt;{&#39;cache&#39;},
+</span><span class=""> 1127:         backend =&gt; $result-&gt;{&#39;backend&#39;},
+</span><span class=""> 1128:         built   =&gt; &#39;2026-10-18T09:15:42&#39;,
+</span><span class=""> 1129:     );
 </span><span class=""> 1130: 
-</span><span class=""> 1131: sub models_with_cache {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1132 → 1138 → 1142</span></span> 1132: 	my ($class, $models, $spec_key, $cache, %meta) = @_;
+</span><span class=""> 1131:     # Now write the updated store to disk.
+</span><span class=""> 1132:     Mojo::File-&gt;new($model_path)-&gt;spew(encode_json($updated));
 </span><span class=""> 1133: 
-</span><span class=""> 1134: 	my $spec = { %{ (ref($models) eq &#39;HASH&#39;) ? ($models-&gt;{&#39;geo&#39;}{$spec_key} // {}) : {} } };
+</span><span class=""> 1134: =cut
 </span><span class=""> 1135: 
-</span><span class=""> 1136: 	$spec-&gt;{&#39;places&#39;} = { %{ $cache // {} } };
-</span><span class=""> 1137: 
-</span><span class=""> 1138: 	for my $key (qw(backend built)) {
-</span><span class=""> 1139: 		$spec-&gt;{$key} = $meta{$key} if defined($meta{$key});
-</span><span class=""> 1140: 	}
-</span><span class=""> 1141: 
-</span><span class=""> 1142: 	my %updated = %{ (ref($models) eq &#39;HASH&#39;) ? $models : {} };
-</span><span class=""> 1143: 
-</span><span class=""> 1144: 	$updated{&#39;geo&#39;} = { %{ $updated{&#39;geo&#39;} // {} }, $spec_key =&gt; $spec };
-</span><span class=""> 1145: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1146: 	return \%updated;
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1147: }
+</span><span class=""> 1136: sub models_with_cache {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1137 → 1143 → 1147</span></span> 1137: 	my ($class, $models, $spec_key, $cache, %meta) = @_;
+</span><span class=""> 1138: 
+</span><span class=""> 1139: 	my $spec = { %{ (ref($models) eq &#39;HASH&#39;) ? ($models-&gt;{&#39;geo&#39;}{$spec_key} // {}) : {} } };
+</span><span class=""> 1140: 
+</span><span class=""> 1141: 	$spec-&gt;{&#39;places&#39;} = { %{ $cache // {} } };
+</span><span class=""> 1142: 
+</span><span class=""> 1143: 	for my $key (qw(backend built)) {
+</span><span class=""> 1144: 		$spec-&gt;{$key} = $meta{$key} if defined($meta{$key});
+</span><span class=""> 1145: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1146: 
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1147: 	my %updated = %{ (ref($models) eq &#39;HASH&#39;) ? $models : {} };
 </span><span class=""> 1148: 
-</span><span class=""> 1149: =head2 shared_cache_from_models
+</span><span class=""> 1149: 	$updated{&#39;geo&#39;} = { %{ $updated{&#39;geo&#39;} // {} }, $spec_key =&gt; $spec };
 </span><span class=""> 1150: 
-</span><span class=""> 1151:     my $cache = Database::BI::Model::Geocode-&gt;shared_cache_from_models(\%models);
-</span><span class=""> 1152: 
-</span><span class=""> 1153: Extract the place answers every dataset shares, as a B&lt;copy&gt; the caller may
-</span><span class=""> 1154: modify.  This is the cache a map request should pass to C&lt;resolve_column&gt;:
-</span><span class=""> 1155: a place geocoded for one file is then plotted for every other file that names
-</span><span class=""> 1156: it, without a second lookup.
+</span><span class=""> 1151: 	return \%updated;
+</span><span class=""> 1152: }
+</span><span class=""> 1153: 
+</span><span class=""> 1154: =head2 shared_cache_from_models
+</span><span class=""> 1155: 
+</span><span class=""> 1156:     my $cache = Database::BI::Model::Geocode-&gt;shared_cache_from_models(\%models);
 </span><span class=""> 1157: 
-</span><span class=""> 1158: A model store written before the cache was shared has no shared entry; this
-</span><span class=""> 1159: returns C&lt;{}&gt; and the per-dataset caches remain readable with
-</span><span class=""> 1160: C&lt;cache_from_models&gt;.  A caller that reads both gets the old answers once and
-</span><span class=""> 1161: writes them back to the shared entry (see C&lt;models_with_shared_cache&gt;).
+</span><span class=""> 1158: Extract the place answers every dataset shares, as a B&lt;copy&gt; the caller may
+</span><span class=""> 1159: modify.  This is the cache a map request should pass to C&lt;resolve_column&gt;:
+</span><span class=""> 1160: a place geocoded for one file is then plotted for every other file that names
+</span><span class=""> 1161: it, without a second lookup.
 </span><span class=""> 1162: 
-</span><span class=""> 1163: This is a B&lt;class method&gt;; the invocant is ignored.
-</span><span class=""> 1164: 
-</span><span class=""> 1165: =head3 API SPECIFICATION
-</span><span class=""> 1166: 
-</span><span class=""> 1167: =head4 INPUT
-</span><span class=""> 1168: 
-</span><span class=""> 1169:     \%models  =&gt; hashref, required;  the structure returned by _read_models()
-</span><span class=""> 1170: 
-</span><span class=""> 1171: =head4 OUTPUT
-</span><span class=""> 1172: 
-</span><span class=""> 1173:     { $place_name =&gt; [lat, lon] | 0, ... }
-</span><span class=""> 1174: 
-</span><span class=""> 1175: Returns an empty hashref for a store with no shared cache, for a malformed
-</span><span class=""> 1176: entry, or for a C&lt;\%models&gt; argument that is not a hashref.  Never croaks.
+</span><span class=""> 1163: A model store written before the cache was shared has no shared entry; this
+</span><span class=""> 1164: returns C&lt;{}&gt; and the per-dataset caches remain readable with
+</span><span class=""> 1165: C&lt;cache_from_models&gt;.  A caller that reads both gets the old answers once and
+</span><span class=""> 1166: writes them back to the shared entry (see C&lt;models_with_shared_cache&gt;).
+</span><span class=""> 1167: 
+</span><span class=""> 1168: This is a B&lt;class method&gt;; the invocant is ignored.
+</span><span class=""> 1169: 
+</span><span class=""> 1170: =head3 API SPECIFICATION
+</span><span class=""> 1171: 
+</span><span class=""> 1172: =head4 INPUT
+</span><span class=""> 1173: 
+</span><span class=""> 1174:     \%models  =&gt; hashref, required;  the structure returned by _read_models()
+</span><span class=""> 1175: 
+</span><span class=""> 1176: =head4 OUTPUT
 </span><span class=""> 1177: 
-</span><span class=""> 1178: =head3 EXAMPLE
+</span><span class=""> 1178:     { $place_name =&gt; [lat, lon] | 0, ... }
 </span><span class=""> 1179: 
-</span><span class=""> 1180:     my $models = decode_json(Mojo::File-&gt;new($model_path)-&gt;slurp);
-</span><span class=""> 1181:     my $cache  = Database::BI::Model::Geocode-&gt;shared_cache_from_models($models);
+</span><span class=""> 1180: Returns an empty hashref for a store with no shared cache, for a malformed
+</span><span class=""> 1181: entry, or for a C&lt;\%models&gt; argument that is not a hashref.  Never croaks.
 </span><span class=""> 1182: 
-</span><span class=""> 1183:     # $cache is now { &#39;Ramsgate&#39; =&gt; [51.336, 1.416], &#39;Paris&#39; =&gt; 0, ... }
+</span><span class=""> 1183: =head3 EXAMPLE
 </span><span class=""> 1184: 
-</span><span class=""> 1185: =cut
-</span><span class=""> 1186: 
-</span><span class=""> 1187: sub shared_cache_from_models {
-</span><span class=""> 1188: 	my ($class, $models) = @_;
+</span><span class=""> 1185:     my $models = decode_json(Mojo::File-&gt;new($model_path)-&gt;slurp);
+</span><span class=""> 1186:     my $cache  = Database::BI::Model::Geocode-&gt;shared_cache_from_models($models);
+</span><span class=""> 1187: 
+</span><span class=""> 1188:     # $cache is now { &#39;Ramsgate&#39; =&gt; [51.336, 1.416], &#39;Paris&#39; =&gt; 0, ... }
 </span><span class=""> 1189: 
-</span><span class=""> 1190: 	# One level at a time: a nested read would add an empty &#39;geo&#39; to the caller&#39;s
-</span><span class=""> 1191: 	# store, and the next write would save it.
-</span><span class=""> 1192: 	my $geo   = (ref($models) eq &#39;HASH&#39;) ? $models-&gt;{&#39;geo&#39;} : undef;
-</span><span class=""> 1193: 	my $entry = (ref($geo) eq &#39;HASH&#39;) ? $geo-&gt;{$SHARED_CACHE_KEY} : undef;
+</span><span class=""> 1190: =cut
+</span><span class=""> 1191: 
+</span><span class=""> 1192: sub shared_cache_from_models {
+</span><span class=""> 1193: 	my ($class, $models) = @_;
 </span><span class=""> 1194: 
-</span><span class=""> 1195: 	return {} unless ref($entry) eq &#39;HASH&#39; &amp;&amp; (ref($entry-&gt;{&#39;places&#39;}) eq &#39;HASH&#39;);
-</span><span class=""> 1196: 
-</span><span class=""> 1197: 	return { %{ $entry-&gt;{&#39;places&#39;} } };
-</span><span class=""> 1198: }
+</span><span class=""> 1195: 	# One level at a time: a nested read would add an empty &#39;geo&#39; to the caller&#39;s
+</span><span class=""> 1196: 	# store, and the next write would save it.
+</span><span class=""> 1197: 	my $geo   = (ref($models) eq &#39;HASH&#39;) ? $models-&gt;{&#39;geo&#39;} : undef;
+</span><span class=""> 1198: 	my $entry = (ref($geo) eq &#39;HASH&#39;) ? $geo-&gt;{$SHARED_CACHE_KEY} : undef;
 </span><span class=""> 1199: 
-</span><span class=""> 1200: =head2 models_with_shared_cache
+</span><span class=""> 1200: 	return {} unless ref($entry) eq &#39;HASH&#39; &amp;&amp; (ref($entry-&gt;{&#39;places&#39;}) eq &#39;HASH&#39;);
 </span><span class=""> 1201: 
-</span><span class=""> 1202:     my $updated_models = Database::BI::Model::Geocode-&gt;models_with_shared_cache(
-</span><span class=""> 1203:         \%models, \%cache,
-</span><span class=""> 1204:         backend =&gt; &#39;OpenAddresses&#39;,
-</span><span class=""> 1205:         built   =&gt; &#39;2026-10-18T12:00:00&#39;,
-</span><span class=""> 1206:     );
-</span><span class=""> 1207: 
-</span><span class=""> 1208: Produce a new model store in which the shared place cache holds C&lt;\%cache&gt;.
-</span><span class=""> 1209: The cache is B&lt;merged&gt;, not replaced: a request writes back every place it
-</span><span class=""> 1210: saw, and another request may have answered a different place since this one
-</span><span class=""> 1211: read the store.  Other model keys, and every per-dataset C&lt;geo&gt; entry, are
-</span><span class=""> 1212: carried over unchanged.
-</span><span class=""> 1213: 
-</span><span class=""> 1214: This module never writes the file, and does not add a per-dataset entry.  The
-</span><span class=""> 1215: caller passes the result to C&lt;_write_models()&gt; or its equivalent, where the
-</span><span class=""> 1216: writability and C&lt;data_dir&gt; guards live.
-</span><span class=""> 1217: 
-</span><span class=""> 1218: =head3 API SPECIFICATION
-</span><span class=""> 1219: 
-</span><span class=""> 1220: =head4 INPUT
-</span><span class=""> 1221: 
-</span><span class=""> 1222:     \%models =&gt; hashref, required;  the existing model store (not modified)
-</span><span class=""> 1223:     \%cache  =&gt; hashref, required;  { place =&gt; [lat, lon] | 0 }
-</span><span class=""> 1224:     backend  =&gt; string, optional;   name of the geocoder backend that resolved
-</span><span class=""> 1225:     built    =&gt; string, optional;   ISO-8601 timestamp of the cache update
+</span><span class=""> 1202: 	return { %{ $entry-&gt;{&#39;places&#39;} } };
+</span><span class=""> 1203: }
+</span><span class=""> 1204: 
+</span><span class=""> 1205: =head2 models_with_shared_cache
+</span><span class=""> 1206: 
+</span><span class=""> 1207:     my $updated_models = Database::BI::Model::Geocode-&gt;models_with_shared_cache(
+</span><span class=""> 1208:         \%models, \%cache,
+</span><span class=""> 1209:         backend =&gt; &#39;OpenAddresses&#39;,
+</span><span class=""> 1210:         built   =&gt; &#39;2026-10-18T12:00:00&#39;,
+</span><span class=""> 1211:     );
+</span><span class=""> 1212: 
+</span><span class=""> 1213: Produce a new model store in which the shared place cache holds C&lt;\%cache&gt;.
+</span><span class=""> 1214: The cache is B&lt;merged&gt;, not replaced: a request writes back every place it
+</span><span class=""> 1215: saw, and another request may have answered a different place since this one
+</span><span class=""> 1216: read the store.  Other model keys, and every per-dataset C&lt;geo&gt; entry, are
+</span><span class=""> 1217: carried over unchanged.
+</span><span class=""> 1218: 
+</span><span class=""> 1219: This module never writes the file, and does not add a per-dataset entry.  The
+</span><span class=""> 1220: caller passes the result to C&lt;_write_models()&gt; or its equivalent, where the
+</span><span class=""> 1221: writability and C&lt;data_dir&gt; guards live.
+</span><span class=""> 1222: 
+</span><span class=""> 1223: =head3 API SPECIFICATION
+</span><span class=""> 1224: 
+</span><span class=""> 1225: =head4 INPUT
 </span><span class=""> 1226: 
-</span><span class=""> 1227: =head4 OUTPUT
-</span><span class=""> 1228: 
-</span><span class=""> 1229: Returns a new hashref.  The caller&#39;s C&lt;\%models&gt; is never modified.
-</span><span class=""> 1230: 
-</span><span class=""> 1231:     {
-</span><span class=""> 1232:         ...all existing model keys...,
-</span><span class=""> 1233:         geo =&gt; {
-</span><span class=""> 1234:             ...all existing per-dataset entries...,
-</span><span class=""> 1235:             shared =&gt; {
-</span><span class=""> 1236:                 places  =&gt; \%merged_cache,
-</span><span class=""> 1237:                 backend =&gt; $backend,  # if supplied
-</span><span class=""> 1238:                 built   =&gt; $built,    # if supplied
-</span><span class=""> 1239:             },
-</span><span class=""> 1240:         },
-</span><span class=""> 1241:     }
-</span><span class=""> 1242: 
-</span><span class=""> 1243: =head3 EXAMPLE
-</span><span class=""> 1244: 
-</span><span class=""> 1245:     my $updated = Database::BI::Model::Geocode-&gt;models_with_shared_cache(
-</span><span class=""> 1246:         $models,
-</span><span class=""> 1247:         $result-&gt;{&#39;cache&#39;},
-</span><span class=""> 1248:         backend =&gt; $result-&gt;{&#39;backend&#39;},
-</span><span class=""> 1249:         built   =&gt; &#39;2026-10-18T09:15:42&#39;,
-</span><span class=""> 1250:     );
-</span><span class=""> 1251: 
-</span><span class=""> 1252:     Mojo::File-&gt;new($model_path)-&gt;spew(encode_json($updated));
-</span><span class=""> 1253: 
-</span><span class=""> 1254: =cut
-</span><span class=""> 1255: 
-</span><span class=""> 1256: sub models_with_shared_cache {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1257 → 1274 → 1278</span></span> 1257: 	my ($class, $models, $cache, %meta) = @_;
+</span><span class=""> 1227:     \%models =&gt; hashref, required;  the existing model store (not modified)
+</span><span class=""> 1228:     \%cache  =&gt; hashref, required;  { place =&gt; [lat, lon] | 0 }
+</span><span class=""> 1229:     backend  =&gt; string, optional;   name of the geocoder backend that resolved
+</span><span class=""> 1230:     built    =&gt; string, optional;   ISO-8601 timestamp of the cache update
+</span><span class=""> 1231: 
+</span><span class=""> 1232: =head4 OUTPUT
+</span><span class=""> 1233: 
+</span><span class=""> 1234: Returns a new hashref.  The caller&#39;s C&lt;\%models&gt; is never modified.
+</span><span class=""> 1235: 
+</span><span class=""> 1236:     {
+</span><span class=""> 1237:         ...all existing model keys...,
+</span><span class=""> 1238:         geo =&gt; {
+</span><span class=""> 1239:             ...all existing per-dataset entries...,
+</span><span class=""> 1240:             shared =&gt; {
+</span><span class=""> 1241:                 places  =&gt; \%merged_cache,
+</span><span class=""> 1242:                 backend =&gt; $backend,  # if supplied
+</span><span class=""> 1243:                 built   =&gt; $built,    # if supplied
+</span><span class=""> 1244:             },
+</span><span class=""> 1245:         },
+</span><span class=""> 1246:     }
+</span><span class=""> 1247: 
+</span><span class=""> 1248: =head3 EXAMPLE
+</span><span class=""> 1249: 
+</span><span class=""> 1250:     my $updated = Database::BI::Model::Geocode-&gt;models_with_shared_cache(
+</span><span class=""> 1251:         $models,
+</span><span class=""> 1252:         $result-&gt;{&#39;cache&#39;},
+</span><span class=""> 1253:         backend =&gt; $result-&gt;{&#39;backend&#39;},
+</span><span class=""> 1254:         built   =&gt; &#39;2026-10-18T09:15:42&#39;,
+</span><span class=""> 1255:     );
+</span><span class=""> 1256: 
+</span><span class=""> 1257:     Mojo::File-&gt;new($model_path)-&gt;spew(encode_json($updated));
 </span><span class=""> 1258: 
-</span><span class=""> 1259: 	# Merge over what is already shared: the request may have read the store
-</span><span class=""> 1260: 	# before another one resolved a place, and replacing the entry would lose
-</span><span class=""> 1261: 	# that answer for every dataset rather than just this request.
-</span><span class=""> 1262: 	my %places = (
-</span><span class=""> 1263: 		%{ $class-&gt;shared_cache_from_models($models) },
-</span><span class=""> 1264: 		%{ (ref($cache) eq &#39;HASH&#39;) ? $cache : {} },
-</span><span class=""> 1265: 	);
-</span><span class=""> 1266: 
-</span><span class=""> 1267: 	# A section of the wrong shape (a hand-edited store) is rebuilt, not dereferenced.
-</span><span class=""> 1268: 	my $geo   = (ref($models) eq &#39;HASH&#39; &amp;&amp; ref($models-&gt;{&#39;geo&#39;}) eq &#39;HASH&#39;) ? $models-&gt;{&#39;geo&#39;} : {};
-</span><span class=""> 1269: 	my $entry = $geo-&gt;{$SHARED_CACHE_KEY};
-</span><span class=""> 1270: 	my $spec  = { %{ (ref($entry) eq &#39;HASH&#39;) ? $entry : {} } };
+</span><span class=""> 1259: =cut
+</span><span class=""> 1260: 
+</span><span class=""> 1261: sub models_with_shared_cache {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1262 → 1279 → 1283</span></span> 1262: 	my ($class, $models, $cache, %meta) = @_;
+</span><span class=""> 1263: 
+</span><span class=""> 1264: 	# Merge over what is already shared: the request may have read the store
+</span><span class=""> 1265: 	# before another one resolved a place, and replacing the entry would lose
+</span><span class=""> 1266: 	# that answer for every dataset rather than just this request.
+</span><span class=""> 1267: 	my %places = (
+</span><span class=""> 1268: 		%{ $class-&gt;shared_cache_from_models($models) },
+</span><span class=""> 1269: 		%{ (ref($cache) eq &#39;HASH&#39;) ? $cache : {} },
+</span><span class=""> 1270: 	);
 </span><span class=""> 1271: 
-</span><span class=""> 1272: 	$spec-&gt;{&#39;places&#39;} = \%places;
-</span><span class=""> 1273: 
-</span><span class=""> 1274: 	for my $key (qw(backend built)) {
-</span><span class=""> 1275: 		$spec-&gt;{$key} = $meta{$key} if defined($meta{$key});
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1276: 	}
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1277: 
-</span><span class=""> 1278: 	my %updated = %{ (ref($models) eq &#39;HASH&#39;) ? $models : {} };
-</span><span class=""> 1279: 
-</span><span class=""> 1280: 	$updated{&#39;geo&#39;} = { %$geo, $SHARED_CACHE_KEY =&gt; $spec };
-</span><span class=""> 1281: 
-</span><span class=""> 1282: 	return \%updated;
-</span><span class=""> 1283: }
+</span><span class=""> 1272: 	# A section of the wrong shape (a hand-edited store) is rebuilt, not dereferenced.
+</span><span class=""> 1273: 	my $geo   = (ref($models) eq &#39;HASH&#39; &amp;&amp; ref($models-&gt;{&#39;geo&#39;}) eq &#39;HASH&#39;) ? $models-&gt;{&#39;geo&#39;} : {};
+</span><span class=""> 1274: 	my $entry = $geo-&gt;{$SHARED_CACHE_KEY};
+</span><span class=""> 1275: 	my $spec  = { %{ (ref($entry) eq &#39;HASH&#39;) ? $entry : {} } };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1276: 
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1277: 	$spec-&gt;{&#39;places&#39;} = \%places;
+</span><span class=""> 1278: 
+</span><span class=""> 1279: 	for my $key (qw(backend built)) {
+</span><span class=""> 1280: 		$spec-&gt;{$key} = $meta{$key} if defined($meta{$key});
+</span><span class=""> 1281: 	}
+</span><span class=""> 1282: 
+</span><span class=""> 1283: 	my %updated = %{ (ref($models) eq &#39;HASH&#39;) ? $models : {} };
 </span><span class=""> 1284: 
-</span><span class=""> 1285: 1;
+</span><span class=""> 1285: 	$updated{&#39;geo&#39;} = { %$geo, $SHARED_CACHE_KEY =&gt; $spec };
 </span><span class=""> 1286: 
-</span><span class=""> 1287: =head1 COMMON PITFALLS
-</span><span class=""> 1288: 
-</span><span class=""> 1289: =over 4
-</span><span class=""> 1290: 
-</span><span class=""> 1291: =item B&lt;The cache sentinel 0 is not &quot;false -- never looked up&quot;.&gt;
-</span><span class=""> 1292: 
-</span><span class=""> 1293: A cache entry of C&lt;0&gt; means the place was looked up and not found.  An absent
-</span><span class=""> 1294: key means it has never been attempted.  The module treats these two states
-</span><span class=""> 1295: differently: a C&lt;0&gt; entry contributes to C&lt;counts.unresolved&gt; without
-</span><span class=""> 1296: triggering a new lookup; an absent key enters the classification loop and may
-</span><span class=""> 1297: reach the geocoder.
-</span><span class=""> 1298: 
-</span><span class=""> 1299:     # WRONG -- checking definedness misses the 0 sentinel.
-</span><span class=""> 1300:     my $resolved = defined($cache{$place});
-</span><span class=""> 1301: 
-</span><span class=""> 1302:     # CORRECT -- use the internal _has_position logic.
-</span><span class=""> 1303:     my $resolved = (ref($cache{$place}) eq &#39;ARRAY&#39;);
-</span><span class=""> 1304: 
-</span><span class=""> 1305: =item B&lt;Pure-digit strings are skipped, not attempted.&gt;
+</span><span class=""> 1287: 	return \%updated;
+</span><span class=""> 1288: }
+</span><span class=""> 1289: 
+</span><span class=""> 1290: 1;
+</span><span class=""> 1291: 
+</span><span class=""> 1292: =head1 COMMON PITFALLS
+</span><span class=""> 1293: 
+</span><span class=""> 1294: =over 4
+</span><span class=""> 1295: 
+</span><span class=""> 1296: =item B&lt;The cache sentinel 0 is not &quot;false -- never looked up&quot;.&gt;
+</span><span class=""> 1297: 
+</span><span class=""> 1298: A cache entry of C&lt;0&gt; means the place was looked up and not found.  An absent
+</span><span class=""> 1299: key means it has never been attempted.  The module treats these two states
+</span><span class=""> 1300: differently: a C&lt;0&gt; entry contributes to C&lt;counts.unresolved&gt; without
+</span><span class=""> 1301: triggering a new lookup; an absent key enters the classification loop and may
+</span><span class=""> 1302: reach the geocoder.
+</span><span class=""> 1303: 
+</span><span class=""> 1304:     # WRONG -- checking definedness misses the 0 sentinel.
+</span><span class=""> 1305:     my $resolved = defined($cache{$place});
 </span><span class=""> 1306: 
-</span><span class=""> 1307: A value like C&lt;&#39;42&#39;&gt; fails C&lt;valid_location()&gt; and goes into C&lt;@skipped&gt;.  It
-</span><span class=""> 1308: is never stored in the cache.  This is the correct behaviour for a row number
-</span><span class=""> 1309: that ended up in the wrong column, but it surprises callers who expect every
-</span><span class=""> 1310: non-empty value to be attempted.
+</span><span class=""> 1307:     # CORRECT -- use the internal _has_position logic.
+</span><span class=""> 1308:     my $resolved = (ref($cache{$place}) eq &#39;ARRAY&#39;);
+</span><span class=""> 1309: 
+</span><span class=""> 1310: =item B&lt;Pure-digit strings are skipped, not attempted.&gt;
 </span><span class=""> 1311: 
-</span><span class=""> 1312: =item B&lt;The returned cache is a copy; the caller&#39;s hashref is never modified.&gt;
-</span><span class=""> 1313: 
-</span><span class=""> 1314: Do not compare C&lt;$cache_you_passed_in&gt; with C&lt;$result-&gt;{&#39;cache&#39;}&gt; expecting
-</span><span class=""> 1315: them to be the same reference.  The update is in C&lt;$result-&gt;{&#39;cache&#39;}&gt;.
+</span><span class=""> 1312: A value like C&lt;&#39;42&#39;&gt; fails C&lt;valid_location()&gt; and goes into C&lt;@skipped&gt;.  It
+</span><span class=""> 1313: is never stored in the cache.  This is the correct behaviour for a row number
+</span><span class=""> 1314: that ended up in the wrong column, but it surprises callers who expect every
+</span><span class=""> 1315: non-empty value to be attempted.
 </span><span class=""> 1316: 
-</span><span class=""> 1317: =item B&lt;resolve_column croaks when the column is absent; resolve_values does not.&gt;
+</span><span class=""> 1317: =item B&lt;The returned cache is a copy; the caller&#39;s hashref is never modified.&gt;
 </span><span class=""> 1318: 
-</span><span class=""> 1319: C&lt;resolve_column&gt; checks that the named column appears in at least one row.
-</span><span class=""> 1320: If it does not, it croaks with C&lt;error_map_loc_column&gt;.  C&lt;resolve_values&gt;
-</span><span class=""> 1321: does not do this check, because it receives values, not rows.
-</span><span class=""> 1322: 
-</span><span class=""> 1323: =item B&lt;max counts new lookups, not rows or distinct values.&gt;
-</span><span class=""> 1324: 
-</span><span class=""> 1325: A value already in C&lt;cache&gt; does not count toward C&lt;max&gt;, even if it was
-</span><span class=""> 1326: looked up in a previous request.  A value skipped by C&lt;valid_location()&gt; does
-</span><span class=""> 1327: not count either.
-</span><span class=""> 1328: 
-</span><span class=""> 1329: =item B&lt;new() always succeeds; geocoder load failure is not a constructor error.&gt;
-</span><span class=""> 1330: 
-</span><span class=""> 1331: You can always call C&lt;new()&gt; without checking whether C&lt;Geo::Coder::Free&gt; is
-</span><span class=""> 1332: installed.  The load failure is deferred to the first call that needs the
-</span><span class=""> 1333: geocoder, and is reported through C&lt;geocoder_available()&gt; and the
-</span><span class=""> 1334: C&lt;messages&gt; array in the result, not through an exception.
+</span><span class=""> 1319: Do not compare C&lt;$cache_you_passed_in&gt; with C&lt;$result-&gt;{&#39;cache&#39;}&gt; expecting
+</span><span class=""> 1320: them to be the same reference.  The update is in C&lt;$result-&gt;{&#39;cache&#39;}&gt;.
+</span><span class=""> 1321: 
+</span><span class=""> 1322: =item B&lt;resolve_column croaks when the column is absent; resolve_values does not.&gt;
+</span><span class=""> 1323: 
+</span><span class=""> 1324: C&lt;resolve_column&gt; checks that the named column appears in at least one row.
+</span><span class=""> 1325: If it does not, it croaks with C&lt;error_map_loc_column&gt;.  C&lt;resolve_values&gt;
+</span><span class=""> 1326: does not do this check, because it receives values, not rows.
+</span><span class=""> 1327: 
+</span><span class=""> 1328: =item B&lt;max counts new lookups, not rows or distinct values.&gt;
+</span><span class=""> 1329: 
+</span><span class=""> 1330: A value already in C&lt;cache&gt; does not count toward C&lt;max&gt;, even if it was
+</span><span class=""> 1331: looked up in a previous request.  A value skipped by C&lt;valid_location()&gt; does
+</span><span class=""> 1332: not count either.
+</span><span class=""> 1333: 
+</span><span class=""> 1334: =item B&lt;new() always succeeds; geocoder load failure is not a constructor error.&gt;
 </span><span class=""> 1335: 
-</span><span class=""> 1336: =item B&lt;cache_from_models and models_with_cache are class methods.&gt;
-</span><span class=""> 1337: 
-</span><span class=""> 1338: You may call them on an instance for convenience, but the invocant is not used.
-</span><span class=""> 1339: The pattern C&lt;&lt; Database::BI::Model::Geocode-&gt;cache_from_models(...) &gt;&gt; is
-</span><span class=""> 1340: clearer.
-</span><span class=""> 1341: 
-</span><span class=""> 1342: =item B&lt;The geocoder batch receives on_error =&gt; &#39;undef&#39;.&gt;
-</span><span class=""> 1343: 
-</span><span class=""> 1344: A value the geocoder rejects after the C&lt;valid_location()&gt; pre-filter is
-</span><span class=""> 1345: returned as C&lt;undef&gt; from the batch; it does not croak.  A backend that throws
-</span><span class=""> 1346: an exception (a real database error, a network failure) still propagates
-</span><span class=""> 1347: upward, because nothing here wraps the geocoder in an C&lt;eval&gt;.
+</span><span class=""> 1336: You can always call C&lt;new()&gt; without checking whether C&lt;Geo::Coder::Free&gt; is
+</span><span class=""> 1337: installed.  The load failure is deferred to the first call that needs the
+</span><span class=""> 1338: geocoder, and is reported through C&lt;geocoder_available()&gt; and the
+</span><span class=""> 1339: C&lt;messages&gt; array in the result, not through an exception.
+</span><span class=""> 1340: 
+</span><span class=""> 1341: =item B&lt;cache_from_models and models_with_cache are class methods.&gt;
+</span><span class=""> 1342: 
+</span><span class=""> 1343: You may call them on an instance for convenience, but the invocant is not used.
+</span><span class=""> 1344: The pattern C&lt;&lt; Database::BI::Model::Geocode-&gt;cache_from_models(...) &gt;&gt; is
+</span><span class=""> 1345: clearer.
+</span><span class=""> 1346: 
+</span><span class=""> 1347: =item B&lt;The geocoder batch receives on_error =&gt; &#39;undef&#39;.&gt;
 </span><span class=""> 1348: 
-</span><span class=""> 1349: =back
-</span><span class=""> 1350: 
-</span><span class=""> 1351: =head1 ENCODING
-</span><span class=""> 1352: 
-</span><span class=""> 1353: =over 4
-</span><span class=""> 1354: 
-</span><span class=""> 1355: =item B&lt;Place names (values in the location column)&gt;
-</span><span class=""> 1356: 
-</span><span class=""> 1357: Passed to the geocoder as byte strings.  UTF-8 place names such as
-</span><span class=""> 1358: &quot;Koeln&quot; or &quot;Beijing&quot; are supported if the geocoder backend handles them.
-</span><span class=""> 1359: The internal code does not re-encode or validate the bytes; it compares them
-</span><span class=""> 1360: as opaque strings for deduplication and caching.
+</span><span class=""> 1349: A value the geocoder rejects after the C&lt;valid_location()&gt; pre-filter is
+</span><span class=""> 1350: returned as C&lt;undef&gt; from the batch; it does not croak.  A backend that throws
+</span><span class=""> 1351: an exception (a real database error, a network failure) still propagates
+</span><span class=""> 1352: upward, because nothing here wraps the geocoder in an C&lt;eval&gt;.
+</span><span class=""> 1353: 
+</span><span class=""> 1354: =back
+</span><span class=""> 1355: 
+</span><span class=""> 1356: =head1 ENCODING
+</span><span class=""> 1357: 
+</span><span class=""> 1358: =over 4
+</span><span class=""> 1359: 
+</span><span class=""> 1360: =item B&lt;Place names (values in the location column)&gt;
 </span><span class=""> 1361: 
-</span><span class=""> 1362: =item B&lt;Column names&gt;
-</span><span class=""> 1363: 
-</span><span class=""> 1364: Matched against row hash keys with a string equality test.  The column name
-</span><span class=""> 1365: must be byte-for-byte identical to the key in the row hashrefs.  Column names
-</span><span class=""> 1366: with non-ASCII bytes are accepted.
-</span><span class=""> 1367: 
-</span><span class=""> 1368: =item B&lt;Spec keys (the $spec_key argument)&gt;
-</span><span class=""> 1369: 
-</span><span class=""> 1370: Used as hash keys in the model store.  Any byte sequence is safe; UTF-8 spec
-</span><span class=""> 1371: keys are stored and retrieved without modification.
+</span><span class=""> 1362: Passed to the geocoder as byte strings.  UTF-8 place names such as
+</span><span class=""> 1363: &quot;Koeln&quot; or &quot;Beijing&quot; are supported if the geocoder backend handles them.
+</span><span class=""> 1364: The internal code does not re-encode or validate the bytes; it compares them
+</span><span class=""> 1365: as opaque strings for deduplication and caching.
+</span><span class=""> 1366: 
+</span><span class=""> 1367: =item B&lt;Column names&gt;
+</span><span class=""> 1368: 
+</span><span class=""> 1369: Matched against row hash keys with a string equality test.  The column name
+</span><span class=""> 1370: must be byte-for-byte identical to the key in the row hashrefs.  Column names
+</span><span class=""> 1371: with non-ASCII bytes are accepted.
 </span><span class=""> 1372: 
-</span><span class=""> 1373: =item B&lt;Message strings&gt;
+</span><span class=""> 1373: =item B&lt;Spec keys (the $spec_key argument)&gt;
 </span><span class=""> 1374: 
-</span><span class=""> 1375: The built-in C&lt;%MESSAGES&gt; table contains ASCII-only text.  If your application
-</span><span class=""> 1376: needs non-ASCII messages (for example, a French translation), supply an C&lt;i18n&gt;
-</span><span class=""> 1377: object to C&lt;new()&gt; whose C&lt;maketext&gt; method renders the key in the desired
-</span><span class=""> 1378: locale.
+</span><span class=""> 1375: Used as hash keys in the model store.  Any byte sequence is safe; UTF-8 spec
+</span><span class=""> 1376: keys are stored and retrieved without modification.
+</span><span class=""> 1377: 
+</span><span class=""> 1378: =item B&lt;Message strings&gt;
 </span><span class=""> 1379: 
-</span><span class=""> 1380: =item B&lt;Geocoder result strings (backend names)&gt;
-</span><span class=""> 1381: 
-</span><span class=""> 1382: Stored and reported as returned by the geocoder.  The module does not impose
-</span><span class=""> 1383: any encoding on them.
+</span><span class=""> 1380: The built-in C&lt;%MESSAGES&gt; table contains ASCII-only text.  If your application
+</span><span class=""> 1381: needs non-ASCII messages (for example, a French translation), supply an C&lt;i18n&gt;
+</span><span class=""> 1382: object to C&lt;new()&gt; whose C&lt;maketext&gt; method renders the key in the desired
+</span><span class=""> 1383: locale.
 </span><span class=""> 1384: 
-</span><span class=""> 1385: =back
+</span><span class=""> 1385: =item B&lt;Geocoder result strings (backend names)&gt;
 </span><span class=""> 1386: 
-</span><span class=""> 1387: =head1 DIAGNOSTICS
-</span><span class=""> 1388: 
-</span><span class=""> 1389: All user-visible messages are keyed in C&lt;%Database::BI::Model::Geocode::MESSAGES&gt;.
-</span><span class=""> 1390: 
-</span><span class=""> 1391: =over 4
-</span><span class=""> 1392: 
-</span><span class=""> 1393: =item C&lt;error_map_geocoder_missing&gt;
-</span><span class=""> 1394: 
-</span><span class=""> 1395:     Geocoding a location column needs Geo::Coder::Free %s or later, and %s
-</span><span class=""> 1396: 
-</span><span class=""> 1397: The geocoder module is not installed (the second C&lt;%s&gt; is &quot;it is not
-</span><span class=""> 1398: installed&quot;) or is too old (the second C&lt;%s&gt; is the installed version number).
-</span><span class=""> 1399: The first C&lt;%s&gt; is the floor this module checks for - C&lt;0.48&gt; unless the caller
-</span><span class=""> 1400: pinned C&lt;min_geocoder_version&gt;.  Install or upgrade C&lt;Geo::Coder::Free&gt;.
+</span><span class=""> 1387: Stored and reported as returned by the geocoder.  The module does not impose
+</span><span class=""> 1388: any encoding on them.
+</span><span class=""> 1389: 
+</span><span class=""> 1390: =back
+</span><span class=""> 1391: 
+</span><span class=""> 1392: =head1 DIAGNOSTICS
+</span><span class=""> 1393: 
+</span><span class=""> 1394: All user-visible messages are keyed in C&lt;%Database::BI::Model::Geocode::MESSAGES&gt;.
+</span><span class=""> 1395: 
+</span><span class=""> 1396: =over 4
+</span><span class=""> 1397: 
+</span><span class=""> 1398: =item C&lt;error_map_geocoder_missing&gt;
+</span><span class=""> 1399: 
+</span><span class=""> 1400:     Geocoding a location column needs Geo::Coder::Free %s or later, and %s
 </span><span class=""> 1401: 
-</span><span class=""> 1402: =item C&lt;error_map_loc_column&gt;
-</span><span class=""> 1403: 
-</span><span class=""> 1404:     Column &quot;%s&quot; is not in this dataset, so there is nothing to geocode
-</span><span class=""> 1405: 
-</span><span class=""> 1406: The C&lt;$column_name&gt; argument to C&lt;resolve_column()&gt; did not appear as a key in
-</span><span class=""> 1407: any row.  Check the column name, including case and any spaces.
+</span><span class=""> 1402: The geocoder module is not installed (the second C&lt;%s&gt; is &quot;it is not
+</span><span class=""> 1403: installed&quot;) or is too old (the second C&lt;%s&gt; is the installed version number).
+</span><span class=""> 1404: The first C&lt;%s&gt; is the floor this module checks for - C&lt;0.48&gt; unless the caller
+</span><span class=""> 1405: pinned C&lt;min_geocoder_version&gt;.  Install or upgrade C&lt;Geo::Coder::Free&gt;.
+</span><span class=""> 1406: 
+</span><span class=""> 1407: =item C&lt;error_map_loc_column&gt;
 </span><span class=""> 1408: 
-</span><span class=""> 1409: =item C&lt;error_geocoder_interface&gt;
+</span><span class=""> 1409:     Column &quot;%s&quot; is not in this dataset, so there is nothing to geocode
 </span><span class=""> 1410: 
-</span><span class=""> 1411:     Geocode: the geocoder must provide %s; Geo::Coder::Free %s or later does
-</span><span class=""> 1412: 
-</span><span class=""> 1413: An injected C&lt;geocoder&gt; object does not respond to C&lt;valid_location()&gt; or
-</span><span class=""> 1414: C&lt;geocode_many()&gt;.  Either use the real C&lt;Geo::Coder::Free&gt; or add the missing
-</span><span class=""> 1415: method to your stub.
-</span><span class=""> 1416: 
-</span><span class=""> 1417: =item C&lt;error_max_invalid&gt;
-</span><span class=""> 1418: 
-</span><span class=""> 1419:     Geocode: option &quot;max&quot; must be a positive integer, not &quot;%s&quot;
-</span><span class=""> 1420: 
-</span><span class=""> 1421: The C&lt;max&gt; option was supplied but is not a positive integer string.  Passing
-</span><span class=""> 1422: C&lt;max =&gt; 0&gt; and C&lt;max =&gt; &#39;all&#39;&gt; both trigger this error.
+</span><span class=""> 1411: The C&lt;$column_name&gt; argument to C&lt;resolve_column()&gt; did not appear as a key in
+</span><span class=""> 1412: any row.  Check the column name, including case and any spaces.
+</span><span class=""> 1413: 
+</span><span class=""> 1414: =item C&lt;error_geocoder_interface&gt;
+</span><span class=""> 1415: 
+</span><span class=""> 1416:     Geocode: the geocoder must provide %s; Geo::Coder::Free %s or later does
+</span><span class=""> 1417: 
+</span><span class=""> 1418: An injected C&lt;geocoder&gt; object does not respond to C&lt;valid_location()&gt; or
+</span><span class=""> 1419: C&lt;geocode_many()&gt;.  Either use the real C&lt;Geo::Coder::Free&gt; or add the missing
+</span><span class=""> 1420: method to your stub.
+</span><span class=""> 1421: 
+</span><span class=""> 1422: =item C&lt;error_max_invalid&gt;
 </span><span class=""> 1423: 
-</span><span class=""> 1424: =item C&lt;error_values_arrayref&gt;
+</span><span class=""> 1424:     Geocode: option &quot;max&quot; must be a positive integer, not &quot;%s&quot;
 </span><span class=""> 1425: 
-</span><span class=""> 1426:     Geocode: the values must be an arrayref, not &quot;%s&quot;
-</span><span class=""> 1427: 
-</span><span class=""> 1428: The first argument to C&lt;resolve_values()&gt; is not an arrayref.  Pass
-</span><span class=""> 1429: C&lt;\@values&gt; (a reference), not C&lt;@values&gt; (a flat list).
+</span><span class=""> 1426: The C&lt;max&gt; option was supplied but is not a positive integer string.  Passing
+</span><span class=""> 1427: C&lt;max =&gt; 0&gt; and C&lt;max =&gt; &#39;all&#39;&gt; both trigger this error.
+</span><span class=""> 1428: 
+</span><span class=""> 1429: =item C&lt;error_values_arrayref&gt;
 </span><span class=""> 1430: 
-</span><span class=""> 1431: =item C&lt;error_rows_arrayref&gt;
+</span><span class=""> 1431:     Geocode: the values must be an arrayref, not &quot;%s&quot;
 </span><span class=""> 1432: 
-</span><span class=""> 1433:     Geocode: the rows must be an arrayref, not &quot;%s&quot;
-</span><span class=""> 1434: 
-</span><span class=""> 1435: The first argument to C&lt;resolve_column()&gt; is not an arrayref.
-</span><span class=""> 1436: 
-</span><span class=""> 1437: =item C&lt;error_column_required&gt;
-</span><span class=""> 1438: 
-</span><span class=""> 1439:     Geocode: the column name is required
-</span><span class=""> 1440: 
-</span><span class=""> 1441: The C&lt;$column_name&gt; argument to C&lt;resolve_column()&gt; is C&lt;undef&gt; or an empty
-</span><span class=""> 1442: string.
+</span><span class=""> 1433: The first argument to C&lt;resolve_values()&gt; is not an arrayref.  Pass
+</span><span class=""> 1434: C&lt;\@values&gt; (a reference), not C&lt;@values&gt; (a flat list).
+</span><span class=""> 1435: 
+</span><span class=""> 1436: =item C&lt;error_rows_arrayref&gt;
+</span><span class=""> 1437: 
+</span><span class=""> 1438:     Geocode: the rows must be an arrayref, not &quot;%s&quot;
+</span><span class=""> 1439: 
+</span><span class=""> 1440: The first argument to C&lt;resolve_column()&gt; is not an arrayref.
+</span><span class=""> 1441: 
+</span><span class=""> 1442: =item C&lt;error_column_required&gt;
 </span><span class=""> 1443: 
-</span><span class=""> 1444: =item C&lt;warn_map_rows_skipped&gt;
+</span><span class=""> 1444:     Geocode: the column name is required
 </span><span class=""> 1445: 
-</span><span class=""> 1446:     Plotted %d of %d rows; %d hold no location that could be plotted ...
-</span><span class=""> 1447: 
-</span><span class=""> 1448: Some rows in the input had a cell that was empty, a bare number, or a place
-</span><span class=""> 1449: that the geocoder could not find.  The count of plotted rows is less than the
-</span><span class=""> 1450: total.  Not an error: the map renders with the rows that could be resolved.
-</span><span class=""> 1451: 
-</span><span class=""> 1452: =item C&lt;warn_map_geocode_capped&gt;
-</span><span class=""> 1453: 
-</span><span class=""> 1454:     Geocoded %d of the %d places that had not been looked up before; ...
-</span><span class=""> 1455: 
-</span><span class=""> 1456: The C&lt;max&gt; cap prevented all pending values from being looked up in this
-</span><span class=""> 1457: request.  The un-looked-up values are in C&lt;not_attempted&gt; and are not stored
-</span><span class=""> 1458: in the cache, so the next request picks them up.
-</span><span class=""> 1459: 
-</span><span class=""> 1460: =item C&lt;warn_map_geocoder_unavailable_data&gt;
-</span><span class=""> 1461: 
-</span><span class=""> 1462:     The geocoder has no OpenAddresses data configured (OPENADDR_HOME), ...
-</span><span class=""> 1463: 
-</span><span class=""> 1464: The geocoder was loaded successfully but C&lt;OPENADDR_HOME&gt; is not set and
-</span><span class=""> 1465: C&lt;openaddr&gt; was not passed to C&lt;new()&gt;.  Resolution will succeed for broad
-</span><span class=""> 1466: place names (cities, countries) but will fail for street-level addresses.
-</span><span class=""> 1467: Set the environment variable or pass C&lt;openaddr =&gt; $path&gt; to C&lt;new()&gt;.
+</span><span class=""> 1446: The C&lt;$column_name&gt; argument to C&lt;resolve_column()&gt; is C&lt;undef&gt; or an empty
+</span><span class=""> 1447: string.
+</span><span class=""> 1448: 
+</span><span class=""> 1449: =item C&lt;warn_map_rows_skipped&gt;
+</span><span class=""> 1450: 
+</span><span class=""> 1451:     Plotted %d of %d rows; %d hold no location that could be plotted ...
+</span><span class=""> 1452: 
+</span><span class=""> 1453: Some rows in the input had a cell that was empty, a bare number, or a place
+</span><span class=""> 1454: that the geocoder could not find.  The count of plotted rows is less than the
+</span><span class=""> 1455: total.  Not an error: the map renders with the rows that could be resolved.
+</span><span class=""> 1456: 
+</span><span class=""> 1457: =item C&lt;warn_map_geocode_capped&gt;
+</span><span class=""> 1458: 
+</span><span class=""> 1459:     Geocoded %d of the %d places that had not been looked up before; ...
+</span><span class=""> 1460: 
+</span><span class=""> 1461: The C&lt;max&gt; cap prevented all pending values from being looked up in this
+</span><span class=""> 1462: request.  The un-looked-up values are in C&lt;not_attempted&gt; and are not stored
+</span><span class=""> 1463: in the cache, so the next request picks them up.
+</span><span class=""> 1464: 
+</span><span class=""> 1465: =item C&lt;warn_map_geocoder_unavailable_data&gt;
+</span><span class=""> 1466: 
+</span><span class=""> 1467:     The geocoder has no OpenAddresses data configured (OPENADDR_HOME), ...
 </span><span class=""> 1468: 
-</span><span class=""> 1469: =back
-</span><span class=""> 1470: 
-</span><span class=""> 1471: =head1 FORMAL SPECIFICATION
-</span><span class=""> 1472: 
-</span><span class=""> 1473: The following sections use Z calculus notation to describe the exact state
-</span><span class=""> 1474: transitions and invariants of each public operation.  Notation: &acirc;&#136;&#136; (member of),
-</span><span class=""> 1475: &acirc;&#136;&#137; (not member of), &acirc;&#138;&#134; (subset), &acirc;&#136;&ordf; (union), &acirc;&#136;&copy; (intersection), &acirc;&#136;&sect; (and), &acirc;&#136;&uml; (or),
-</span><span class=""> 1476: &Acirc;&not; (not), &acirc;&#136;&#128; (for all), &acirc;&#136;&#131; (there exists), &acirc;&#134;&#146; (maps to), &acirc;&#137;&curren; (less than or equal),
-</span><span class=""> 1477: &acirc;&#137;&nbsp; (not equal).
-</span><span class=""> 1478: 
-</span><span class=""> 1479: =head3 FORMAL SPECIFICATION
-</span><span class=""> 1480: 
-</span><span class=""> 1481: State transitions and invariants for each operation are described below.
-</span><span class=""> 1482: 
-</span><span class=""> 1483: =head2 _resolve -- value classification and batch geocoding
-</span><span class=""> 1484: 
-</span><span class=""> 1485: Let V be the multiset of input values.
-</span><span class=""> 1486: 
-</span><span class=""> 1487: Define the following disjoint sets that partition distinct(V):
-</span><span class=""> 1488: 
-</span><span class=""> 1489:     SKIPPED          = { v | v = undef, ref(v), or len(v) = 0,
-</span><span class=""> 1490:                              or geocoder.valid_location(v) = false }
-</span><span class=""> 1491:     CACHED_RESOLVED  = { v | v in dom(CACHE) and _has_position(CACHE(v)) }
-</span><span class=""> 1492:     CACHED_UNRESOLVED = { v | v in dom(CACHE) and not _has_position(CACHE(v)) }
-</span><span class=""> 1493:     NOT_ATTEMPTED    = { v | geocoder unavailable } (excludes SKIPPED and CACHED)
-</span><span class=""> 1494:     PENDING          = distinct(V) \ (SKIPPED &acirc;&#136;&ordf; CACHED_RESOLVED &acirc;&#136;&ordf; CACHED_UNRESOLVED
-</span><span class=""> 1495:                                       &acirc;&#136;&ordf; NOT_ATTEMPTED)
-</span><span class=""> 1496: 
-</span><span class=""> 1497: Partition invariant:
-</span><span class=""> 1498: 
-</span><span class=""> 1499:     |SKIPPED| + |CACHED_RESOLVED| + |CACHED_UNRESOLVED|
-</span><span class=""> 1500:         + |NOT_ATTEMPTED| + |PENDING| = |distinct(V)|
+</span><span class=""> 1469: The geocoder was loaded successfully but C&lt;OPENADDR_HOME&gt; is not set and
+</span><span class=""> 1470: C&lt;openaddr&gt; was not passed to C&lt;new()&gt;.  Resolution will succeed for broad
+</span><span class=""> 1471: place names (cities, countries) but will fail for street-level addresses.
+</span><span class=""> 1472: Set the environment variable or pass C&lt;openaddr =&gt; $path&gt; to C&lt;new()&gt;.
+</span><span class=""> 1473: 
+</span><span class=""> 1474: =back
+</span><span class=""> 1475: 
+</span><span class=""> 1476: =head1 FORMAL SPECIFICATION
+</span><span class=""> 1477: 
+</span><span class=""> 1478: The following sections use Z calculus notation to describe the exact state
+</span><span class=""> 1479: transitions and invariants of each public operation.  Notation: &acirc;&#136;&#136; (member of),
+</span><span class=""> 1480: &acirc;&#136;&#137; (not member of), &acirc;&#138;&#134; (subset), &acirc;&#136;&ordf; (union), &acirc;&#136;&copy; (intersection), &acirc;&#136;&sect; (and), &acirc;&#136;&uml; (or),
+</span><span class=""> 1481: &Acirc;&not; (not), &acirc;&#136;&#128; (for all), &acirc;&#136;&#131; (there exists), &acirc;&#134;&#146; (maps to), &acirc;&#137;&curren; (less than or equal),
+</span><span class=""> 1482: &acirc;&#137;&nbsp; (not equal).
+</span><span class=""> 1483: 
+</span><span class=""> 1484: =head3 FORMAL SPECIFICATION
+</span><span class=""> 1485: 
+</span><span class=""> 1486: State transitions and invariants for each operation are described below.
+</span><span class=""> 1487: 
+</span><span class=""> 1488: =head2 _resolve -- value classification and batch geocoding
+</span><span class=""> 1489: 
+</span><span class=""> 1490: Let V be the multiset of input values.
+</span><span class=""> 1491: 
+</span><span class=""> 1492: Define the following disjoint sets that partition distinct(V):
+</span><span class=""> 1493: 
+</span><span class=""> 1494:     SKIPPED          = { v | v = undef, ref(v), or len(v) = 0,
+</span><span class=""> 1495:                              or geocoder.valid_location(v) = false }
+</span><span class=""> 1496:     CACHED_RESOLVED  = { v | v in dom(CACHE) and _has_position(CACHE(v)) }
+</span><span class=""> 1497:     CACHED_UNRESOLVED = { v | v in dom(CACHE) and not _has_position(CACHE(v)) }
+</span><span class=""> 1498:     NOT_ATTEMPTED    = { v | geocoder unavailable } (excludes SKIPPED and CACHED)
+</span><span class=""> 1499:     PENDING          = distinct(V) \ (SKIPPED &acirc;&#136;&ordf; CACHED_RESOLVED &acirc;&#136;&ordf; CACHED_UNRESOLVED
+</span><span class=""> 1500:                                       &acirc;&#136;&ordf; NOT_ATTEMPTED)
 </span><span class=""> 1501: 
-</span><span class=""> 1502: Cap application (MAX = the max option, default 500):
+</span><span class=""> 1502: Partition invariant:
 </span><span class=""> 1503: 
-</span><span class=""> 1504:     ATTEMPT        = PENDING[0 .. min(MAX, |PENDING|) - 1]
-</span><span class=""> 1505:     CAPPED         = |PENDING| &gt; MAX
-</span><span class=""> 1506:     NOT_ATTEMPTED&#39; = NOT_ATTEMPTED &acirc;&#136;&ordf; PENDING[MAX .. |PENDING| - 1]   (when CAPPED)
-</span><span class=""> 1507: 
-</span><span class=""> 1508: Geocoding step -- for each v in ATTEMPT:
-</span><span class=""> 1509: 
-</span><span class=""> 1510:     BATCH = geocoder.geocode_many(ATTEMPT, on_error =&gt; &#39;undef&#39;)
-</span><span class=""> 1511: 
-</span><span class=""> 1512:     for v in ATTEMPT:
-</span><span class=""> 1513:         (lat, lon) = coordinates(BATCH(v))
-</span><span class=""> 1514:         if defined(lat) and defined(lon):
-</span><span class=""> 1515:             CACHE&#39;(v)  = [lat, lon]
-</span><span class=""> 1516:             POINTS&#39;(v) = { lat, lon, backend? }
-</span><span class=""> 1517:         else:
-</span><span class=""> 1518:             CACHE&#39;(v)  = 0
-</span><span class=""> 1519:             UNRESOLVED_NEW += {v}
-</span><span class=""> 1520: 
-</span><span class=""> 1521: Count invariants (always hold):
-</span><span class=""> 1522: 
-</span><span class=""> 1523:     skipped + cached + attempted + not_attempted = distinct(V)
-</span><span class=""> 1524:     resolved + unresolved = cached + attempted
-</span><span class=""> 1525:     resolved  = |CACHED_RESOLVED| + |ATTEMPT &acirc;&#136;&copy; POINTS&#39;|
-</span><span class=""> 1526:     unresolved = |CACHED_UNRESOLVED| + |ATTEMPT \ POINTS&#39;|
-</span><span class=""> 1527:     lookups   &lt;= attempted
-</span><span class=""> 1528: 
-</span><span class=""> 1529: Cache monotonicity:
-</span><span class=""> 1530: 
-</span><span class=""> 1531:     dom(CACHE&#39;) &acirc;&#138;&#135; dom(CACHE)
-</span><span class=""> 1532:     For all v in dom(CACHE): CACHE&#39;(v) = CACHE(v)  (existing entries not modified)
+</span><span class=""> 1504:     |SKIPPED| + |CACHED_RESOLVED| + |CACHED_UNRESOLVED|
+</span><span class=""> 1505:         + |NOT_ATTEMPTED| + |PENDING| = |distinct(V)|
+</span><span class=""> 1506: 
+</span><span class=""> 1507: Cap application (MAX = the max option, default 500):
+</span><span class=""> 1508: 
+</span><span class=""> 1509:     ATTEMPT        = PENDING[0 .. min(MAX, |PENDING|) - 1]
+</span><span class=""> 1510:     CAPPED         = |PENDING| &gt; MAX
+</span><span class=""> 1511:     NOT_ATTEMPTED&#39; = NOT_ATTEMPTED &acirc;&#136;&ordf; PENDING[MAX .. |PENDING| - 1]   (when CAPPED)
+</span><span class=""> 1512: 
+</span><span class=""> 1513: Geocoding step -- for each v in ATTEMPT:
+</span><span class=""> 1514: 
+</span><span class=""> 1515:     BATCH = geocoder.geocode_many(ATTEMPT, on_error =&gt; &#39;undef&#39;)
+</span><span class=""> 1516: 
+</span><span class=""> 1517:     for v in ATTEMPT:
+</span><span class=""> 1518:         (lat, lon) = coordinates(BATCH(v))
+</span><span class=""> 1519:         if defined(lat) and defined(lon):
+</span><span class=""> 1520:             CACHE&#39;(v)  = [lat, lon]
+</span><span class=""> 1521:             POINTS&#39;(v) = { lat, lon, backend? }
+</span><span class=""> 1522:         else:
+</span><span class=""> 1523:             CACHE&#39;(v)  = 0
+</span><span class=""> 1524:             UNRESOLVED_NEW += {v}
+</span><span class=""> 1525: 
+</span><span class=""> 1526: Count invariants (always hold):
+</span><span class=""> 1527: 
+</span><span class=""> 1528:     skipped + cached + attempted + not_attempted = distinct(V)
+</span><span class=""> 1529:     resolved + unresolved = cached + attempted
+</span><span class=""> 1530:     resolved  = |CACHED_RESOLVED| + |ATTEMPT &acirc;&#136;&copy; POINTS&#39;|
+</span><span class=""> 1531:     unresolved = |CACHED_UNRESOLVED| + |ATTEMPT \ POINTS&#39;|
+</span><span class=""> 1532:     lookups   &lt;= attempted
 </span><span class=""> 1533: 
-</span><span class=""> 1534: =head2 resolve_column -- row augmentation
+</span><span class=""> 1534: Cache monotonicity:
 </span><span class=""> 1535: 
-</span><span class=""> 1536: Given the output R of _resolve applied to the column&#39;s cell sequence CELLS:
-</span><span class=""> 1537: 
-</span><span class=""> 1538:     row_count  : Value -&gt; N   where row_count(v) = |{ i | CELLS[i] = v }|
-</span><span class=""> 1539:     first_row  : Value -&gt; N   where first_row(v)  = min{ i | CELLS[i] = v }
+</span><span class=""> 1536:     dom(CACHE&#39;) &acirc;&#138;&#135; dom(CACHE)
+</span><span class=""> 1537:     For all v in dom(CACHE): CACHE&#39;(v) = CACHE(v)  (existing entries not modified)
+</span><span class=""> 1538: 
+</span><span class=""> 1539: =head2 resolve_column -- row augmentation
 </span><span class=""> 1540: 
-</span><span class=""> 1541:     For each v in dom(R.points):
-</span><span class=""> 1542:         R.points(v).rows      = row_count(v)
-</span><span class=""> 1543:         R.points(v).first_row = first_row(v)
-</span><span class=""> 1544: 
-</span><span class=""> 1545:     R.markers = [ { value: v, ...R.points(v) }
-</span><span class=""> 1546:                   | v &lt;- sort_by(first_row, dom(R.points)) ]
-</span><span class=""> 1547: 
-</span><span class=""> 1548:     R.counts.rows     = |CELLS|
-</span><span class=""> 1549:     R.counts.plotted  = sum{ row_count(v) | v in dom(R.points) }
-</span><span class=""> 1550:     R.counts.unusable = R.counts.rows - R.counts.plotted
-</span><span class=""> 1551: 
-</span><span class=""> 1552: =head2 cache_from_models -- safe extraction
-</span><span class=""> 1553: 
-</span><span class=""> 1554:     cache_from_models(models, spec)
-</span><span class=""> 1555:         = if ref(models) = HASH and ref(models.geo.spec) = HASH
-</span><span class=""> 1556:                                 and ref(models.geo.spec.places) = HASH
-</span><span class=""> 1557:             then copy(models.geo.spec.places)
-</span><span class=""> 1558:             else {}
-</span><span class=""> 1559: 
-</span><span class=""> 1560: The result is a shallow copy: the caller cannot modify the model store by
-</span><span class=""> 1561: modifying the returned hashref, but values inside the cache (the [lat, lon]
-</span><span class=""> 1562: arrayrefs) are shared references.
-</span><span class=""> 1563: 
-</span><span class=""> 1564: =head2 models_with_cache -- safe merge
-</span><span class=""> 1565: 
-</span><span class=""> 1566:     models_with_cache(models, spec, cache, backend?, built?)
-</span><span class=""> 1567:         = { ...models,
-</span><span class=""> 1568:             geo: { ...models.geo,
-</span><span class=""> 1569:                    spec: { ...models.geo.spec,
-</span><span class=""> 1570:                             places:  copy(cache),
-</span><span class=""> 1571:                             backend: backend (if defined),
-</span><span class=""> 1572:                             built:   built   (if defined) } } }
-</span><span class=""> 1573: 
-</span><span class=""> 1574: The caller&#39;s models hashref is never modified; a new top-level hashref is
-</span><span class=""> 1575: returned.
-</span><span class=""> 1576: 
-</span><span class=""> 1577: =head1 STATE DIAGRAM
+</span><span class=""> 1541: Given the output R of _resolve applied to the column&#39;s cell sequence CELLS:
+</span><span class=""> 1542: 
+</span><span class=""> 1543:     row_count  : Value -&gt; N   where row_count(v) = |{ i | CELLS[i] = v }|
+</span><span class=""> 1544:     first_row  : Value -&gt; N   where first_row(v)  = min{ i | CELLS[i] = v }
+</span><span class=""> 1545: 
+</span><span class=""> 1546:     For each v in dom(R.points):
+</span><span class=""> 1547:         R.points(v).rows      = row_count(v)
+</span><span class=""> 1548:         R.points(v).first_row = first_row(v)
+</span><span class=""> 1549: 
+</span><span class=""> 1550:     R.markers = [ { value: v, ...R.points(v) }
+</span><span class=""> 1551:                   | v &lt;- sort_by(first_row, dom(R.points)) ]
+</span><span class=""> 1552: 
+</span><span class=""> 1553:     R.counts.rows     = |CELLS|
+</span><span class=""> 1554:     R.counts.plotted  = sum{ row_count(v) | v in dom(R.points) }
+</span><span class=""> 1555:     R.counts.unusable = R.counts.rows - R.counts.plotted
+</span><span class=""> 1556: 
+</span><span class=""> 1557: =head2 cache_from_models -- safe extraction
+</span><span class=""> 1558: 
+</span><span class=""> 1559:     cache_from_models(models, spec)
+</span><span class=""> 1560:         = if ref(models) = HASH and ref(models.geo.spec) = HASH
+</span><span class=""> 1561:                                 and ref(models.geo.spec.places) = HASH
+</span><span class=""> 1562:             then copy(models.geo.spec.places)
+</span><span class=""> 1563:             else {}
+</span><span class=""> 1564: 
+</span><span class=""> 1565: The result is a shallow copy: the caller cannot modify the model store by
+</span><span class=""> 1566: modifying the returned hashref, but values inside the cache (the [lat, lon]
+</span><span class=""> 1567: arrayrefs) are shared references.
+</span><span class=""> 1568: 
+</span><span class=""> 1569: =head2 models_with_cache -- safe merge
+</span><span class=""> 1570: 
+</span><span class=""> 1571:     models_with_cache(models, spec, cache, backend?, built?)
+</span><span class=""> 1572:         = { ...models,
+</span><span class=""> 1573:             geo: { ...models.geo,
+</span><span class=""> 1574:                    spec: { ...models.geo.spec,
+</span><span class=""> 1575:                             places:  copy(cache),
+</span><span class=""> 1576:                             backend: backend (if defined),
+</span><span class=""> 1577:                             built:   built   (if defined) } } }
 </span><span class=""> 1578: 
-</span><span class=""> 1579: The object transitions through three states based on whether the geocoder
-</span><span class=""> 1580: has been loaded yet.
+</span><span class=""> 1579: The caller&#39;s models hashref is never modified; a new top-level hashref is
+</span><span class=""> 1580: returned.
 </span><span class=""> 1581: 
-</span><span class=""> 1582:     new()
-</span><span class=""> 1583:       |
-</span><span class=""> 1584:       v
-</span><span class=""> 1585:   +-------------------+
-</span><span class=""> 1586:   |    CONSTRUCTED    |  Geocoder not yet lazy-loaded.
-</span><span class=""> 1587:   |  _geocoder not    |  resolve_*() and geocoder_available()
-</span><span class=""> 1588:   |  yet called       |  may trigger a load on first call.
-</span><span class=""> 1589:   +-------------------+
-</span><span class=""> 1590:        |          |
-</span><span class=""> 1591:   first call,     first call,
-</span><span class=""> 1592:   module OK       module absent or too old
-</span><span class=""> 1593:        |          |
-</span><span class=""> 1594:        v          v
-</span><span class=""> 1595:   +---------+  +------------+
-</span><span class=""> 1596:   |  READY  |  | UNAVAILABLE|
-</span><span class=""> 1597:   |         |  |            |
-</span><span class=""> 1598:   | Geocoder|  | No lookups |
-</span><span class=""> 1599:   | loaded  |  | possible.  |
-</span><span class=""> 1600:   | and     |  | Cache still|
-</span><span class=""> 1601:   | working.|  | served.    |
-</span><span class=""> 1602:   +---------+  +------------+
-</span><span class=""> 1603:        |          |
-</span><span class=""> 1604:   resolve_*()  resolve_*()
-</span><span class=""> 1605:   geocodes +   cache only;
-</span><span class=""> 1606:   cache        not_attempted
-</span><span class=""> 1607:        |          |
-</span><span class=""> 1608:        v          v
-</span><span class=""> 1609:   +---------+  +------------+
-</span><span class=""> 1610:   |  READY  |  | UNAVAILABLE|
-</span><span class=""> 1611:   | (no     |  | (no        |
-</span><span class=""> 1612:   | change) |  | change)    |
+</span><span class=""> 1582: =head1 STATE DIAGRAM
+</span><span class=""> 1583: 
+</span><span class=""> 1584: The object is in one of three states, according to whether it has a geocoder yet.
+</span><span class=""> 1585: A geocoder given to C&lt;new&gt; is one straight away; otherwise one is looked for on
+</span><span class=""> 1586: the first call that needs it.
+</span><span class=""> 1587: 
+</span><span class=""> 1588:     new()
+</span><span class=""> 1589:       |
+</span><span class=""> 1590:       +--[bad arguments, or a geocoder lacking
+</span><span class=""> 1591:       |   valid_location or geocode_many]-----&gt; croaks; no object
+</span><span class=""> 1592:       |
+</span><span class=""> 1593:       +--[geocoder =&gt; $g]---------------------&gt; READY
+</span><span class=""> 1594:       |
+</span><span class=""> 1595:       v
+</span><span class=""> 1596:   +-------------------+
+</span><span class=""> 1597:   |    CONSTRUCTED    |  Geocoder not yet lazy-loaded.
+</span><span class=""> 1598:   |  _geocoder not    |  resolve_*() and geocoder_available()
+</span><span class=""> 1599:   |  yet called       |  may trigger a load on first call.
+</span><span class=""> 1600:   +-------------------+
+</span><span class=""> 1601:        |          |
+</span><span class=""> 1602:   first call,     first call,
+</span><span class=""> 1603:   module OK       module absent, too old or will not
+</span><span class=""> 1604:        |          load, or its new() answers nothing
+</span><span class=""> 1605:        v          v
+</span><span class=""> 1606:   +---------+  +------------+
+</span><span class=""> 1607:   |  READY  |  | UNAVAILABLE|
+</span><span class=""> 1608:   |         |  |            |
+</span><span class=""> 1609:   | Geocoder|  | No lookups |
+</span><span class=""> 1610:   | loaded  |  | possible.  |
+</span><span class=""> 1611:   | and     |  | Cache still|
+</span><span class=""> 1612:   | working.|  | served.    |
 </span><span class=""> 1613:   +---------+  +------------+
-</span><span class=""> 1614: 
-</span><span class=""> 1615: Resolution itself is stateless: the object&#39;s geocoder-load state does not
-</span><span class=""> 1616: change after the first load attempt.  All state is in the result hashref and
-</span><span class=""> 1617: the cache the caller manages.
-</span><span class=""> 1618: 
-</span><span class=""> 1619: Value-level state transitions within a single resolve_* call:
-</span><span class=""> 1620: 
-</span><span class=""> 1621:     RECEIVED
-</span><span class=""> 1622:        |
-</span><span class=""> 1623:        +--[undef / ref / empty]-----------&gt; SKIPPED
-</span><span class=""> 1624:        |
-</span><span class=""> 1625:        +--[in cache, has position]---------&gt; CACHED_RESOLVED --&gt; POINTS
-</span><span class=""> 1626:        |
-</span><span class=""> 1627:        +--[in cache, no position (= 0)]----&gt; CACHED_UNRESOLVED --&gt; UNRESOLVED
-</span><span class=""> 1628:        |
-</span><span class=""> 1629:        +--[geocoder unavailable]-----------&gt; NOT_ATTEMPTED
-</span><span class=""> 1630:        |
-</span><span class=""> 1631:        +--[valid_location() = false]-------&gt; SKIPPED
-</span><span class=""> 1632:        |
-</span><span class=""> 1633:        +--[within cap]--------------------&gt; ATTEMPT
-</span><span class=""> 1634:        |                                        |
-</span><span class=""> 1635:        |                                        +--[geocoder returns position]--&gt; RESOLVED_NEW --&gt; POINTS, CACHE==[lat,lon]
-</span><span class=""> 1636:        |                                        |
-</span><span class=""> 1637:        |                                        +--[geocoder returns undef]-----&gt; UNRESOLVED_NEW, CACHE==0
-</span><span class=""> 1638:        |
-</span><span class=""> 1639:        +--[beyond cap]-------------------&gt; NOT_ATTEMPTED
-</span><span class=""> 1640: 
-</span><span class=""> 1641: =head1 AUTHOR
-</span><span class=""> 1642: 
-</span><span class=""> 1643: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class=""> 1644: 
-</span><span class=""> 1645: =head1 LICENCE AND COPYRIGHT
-</span><span class=""> 1646: 
-</span><span class=""> 1647: Copyright 2026 Nigel Horne.
-</span><span class=""> 1648: 
-</span><span class=""> 1649: Usage is subject to the GPL2 licence terms.
-</span><span class=""> 1650: If you use it,
-</span><span class=""> 1651: please let me know.
-</span><span class=""> 1652: 
-</span><span class=""> 1653: =cut
+</span><span class=""> 1614:        |          |
+</span><span class=""> 1615:   resolve_*()  resolve_*()
+</span><span class=""> 1616:   geocodes +   cache only;
+</span><span class=""> 1617:   cache        not_attempted
+</span><span class=""> 1618:        |          |
+</span><span class=""> 1619:        v          v
+</span><span class=""> 1620:   +---------+  +------------+
+</span><span class=""> 1621:   |  READY  |  | UNAVAILABLE|
+</span><span class=""> 1622:   | (no     |  | (no        |
+</span><span class=""> 1623:   | change) |  | change)    |
+</span><span class=""> 1624:   +---------+  +------------+
+</span><span class=""> 1625: 
+</span><span class=""> 1626: Once the object is READY or UNAVAILABLE that does not change: neither a module
+</span><span class=""> 1627: that appears nor one that goes away moves it, and the module is looked for once.
+</span><span class=""> 1628: 
+</span><span class=""> 1629: There are two ways for a call to croak and leave the state as it was.  Arguments a
+</span><span class=""> 1630: resolve_*() call refuses are refused before any load is attempted.  A module that
+</span><span class=""> 1631: loads and whose new() dies sends that exception to the caller and remembers
+</span><span class=""> 1632: nothing, so the object stays CONSTRUCTED and the next call tries again.
+</span><span class=""> 1633: 
+</span><span class=""> 1634: Resolution itself is stateless: all state is in the result hashref and the cache
+</span><span class=""> 1635: the caller manages.
+</span><span class=""> 1636: 
+</span><span class=""> 1637:     Valid state transitions summary:
+</span><span class=""> 1638: 
+</span><span class=""> 1639:     [START]          -&gt; CONSTRUCTED      (new() with no geocoder)
+</span><span class=""> 1640:     [START]          -&gt; READY            (new() given a geocoder)
+</span><span class=""> 1641:     [START]          -&gt; ERROR            (new() refuses its arguments; croaks, no object)
+</span><span class=""> 1642:     CONSTRUCTED      -&gt; READY            (first call, module OK)
+</span><span class=""> 1643:     CONSTRUCTED      -&gt; UNAVAILABLE      (first call, no module that can be used)
+</span><span class=""> 1644:     CONSTRUCTED      -&gt; CONSTRUCTED      (arguments refused, or the module&#39;s new() dies; croaks)
+</span><span class=""> 1645:     READY            -&gt; READY            (resolve_*(), or arguments refused)
+</span><span class=""> 1646:     UNAVAILABLE      -&gt; UNAVAILABLE      (resolve_*(), or arguments refused)
+</span><span class=""> 1647: 
+</span><span class=""> 1648: Value-level state transitions within a single resolve_* call.  Each distinct value
+</span><span class=""> 1649: takes the first of these that applies, from the top.  CACHE is the C&lt;cache&gt; in the
+</span><span class=""> 1650: result, a copy: the cache the caller passed in is never modified.
+</span><span class=""> 1651: 
+</span><span class=""> 1652:     RECEIVED
+</span><span class=""> 1653:        |
+</span><span class=""> 1654:        +--[undef / ref / empty]-----------&gt; SKIPPED
+</span><span class=""> 1655:        |
+</span><span class=""> 1656:        +--[in cache, has position]---------&gt; CACHED_RESOLVED --&gt; POINTS
+</span><span class=""> 1657:        |
+</span><span class=""> 1658:        +--[in cache, no position (= 0)]----&gt; CACHED_UNRESOLVED --&gt; UNRESOLVED
+</span><span class=""> 1659:        |
+</span><span class=""> 1660:        +--[geocoder unavailable]-----------&gt; NOT_ATTEMPTED
+</span><span class=""> 1661:        |
+</span><span class=""> 1662:        +--[valid_location() throws]--------&gt; EXCEPTION
+</span><span class=""> 1663:        |
+</span><span class=""> 1664:        +--[valid_location() = false]-------&gt; SKIPPED
+</span><span class=""> 1665:        |
+</span><span class=""> 1666:        +--[within cap]--------------------&gt; ATTEMPT
+</span><span class=""> 1667:        |                                        |
+</span><span class=""> 1668:        |                                        +--[geocoder returns position]--&gt; RESOLVED_NEW --&gt; POINTS, CACHE==[lat,lon]
+</span><span class=""> 1669:        |                                        |
+</span><span class=""> 1670:        |                                        +--[geocoder returns no position]--&gt; UNRESOLVED_NEW, CACHE==0
+</span><span class=""> 1671:        |                                        |
+</span><span class=""> 1672:        |                                        +--[geocoder throws]--&gt; EXCEPTION
+</span><span class=""> 1673:        |
+</span><span class=""> 1674:        +--[beyond cap]-------------------&gt; NOT_ATTEMPTED
+</span><span class=""> 1675: 
+</span><span class=""> 1676: EXCEPTION is the whole request failing, on purpose: it goes to the caller, who has
+</span><span class=""> 1677: no result and a cache exactly as it was, so nothing can be half-written.
+</span><span class=""> 1678: 
+</span><span class=""> 1679: =head1 AUTHOR
+</span><span class=""> 1680: 
+</span><span class=""> 1681: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class=""> 1682: 
+</span><span class=""> 1683: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 1684: 
+</span><span class=""> 1685: Copyright 2026 Nigel Horne.
+</span><span class=""> 1686: 
+</span><span class=""> 1687: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 1688: If you use it,
+</span><span class=""> 1689: please let me know.
+</span><span class=""> 1690: 
+</span><span class=""> 1691: =cut
 </span></pre>
 
 <script>
