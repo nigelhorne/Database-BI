@@ -19,10 +19,10 @@ use Mojo::File;
 # It is a pure cache: deleting the extracts/ directory at any time leaves
 # the application fully functional.  No file under data_dir is created.
 #
-# This is a standalone cache class: the web application does not call it (the
-# routes read their sources directly), and the tests cover the class itself.
-# A caller decides whether to build a new extract; Extract only stores and
-# retrieves bytes.
+# The web application reads an accelerated dataset's extract through get(), and
+# script/bi-extract builds one through put() (Dashboard::accelerate).  A caller
+# decides whether to build a new extract; Extract only stores and retrieves
+# bytes.
 # ---------------------------------------------------------------------------
 
 # new( model_dir => $dir ) -> $self
@@ -142,9 +142,10 @@ Stores SQLite materialisation files (extracts) under C<model_dir/extracts/>.
 The cache key is an MD5 of the dataset spec, its source mtime, and its size.
 Deleting the extracts directory leaves the application fully functional.
 
-This is a standalone cache class.  The web application does not call it; the
-caller decides when to build an extract, and the class only stores and finds
-the bytes.
+The application reads the extract of an accelerated dataset through C<get>,
+and C<script/bi-extract> builds one through C<put>; see
+L<Database::BI/Accelerated datasets>.  The caller decides when to build an
+extract, and the class only stores and finds the bytes.
 
 =head1 METHODS
 

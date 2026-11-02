@@ -65,6 +65,21 @@
     color: var(--body-color, #5a4000);
   }
   .schema-warnings li + li { margin-top: 0.25rem; }
+  /* Accelerated datasets: where the rows came from (Phase 7.5) */
+  .accel-note {
+    margin: 0.4rem 0 0.6rem;
+    padding: 0.4rem 0.8rem;
+    background: var(--info-bg, #eaf4fb);
+    border-left: 3px solid var(--info-border, #2980b9);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    color: var(--info-fg, #1a5276);
+  }
+  .accel-note.accel-stale {
+    background: var(--warning-bg, #fffbe6);
+    border-left-color: var(--warning-border, #f0a000);
+    color: var(--body-color, #5a4000);
+  }
   /* Pagination bar */
   .pagination {
     display: flex;
@@ -163,6 +178,13 @@
 </style>
 
 <nav class="back-link" aria-label="Breadcrumb">[% PROCESS "web/en/layouts/breadcrumb.html.tt" %][%- IF left_spec -%]<span class="record-count">[% records.size %] record[% records.size != 1 ? 's' : '' %][%- IF join_summaries.size -%]&ensp;[%- FOREACH s IN join_summaries -%]<span class="join-chip">&#x2b; [% s.label | html %][% IF s.left_key %] <span class="join-chip-key">(on [% s.left_key | html %] = [% s.right_key | html %])</span>[% END %]</span>[%- END -%][%- END -%]</span>[%- END -%]</nav>
+[%- IF acceleration -%]
+[%- IF acceleration.state == 'fresh' -%]
+<p class="accel-note" id="accel-note" data-state="fresh">&#x26A1; Accelerated: read from an extract built [% acceleration.built_text | html %].</p>
+[%- ELSE -%]
+<p class="accel-note accel-stale" id="accel-note" data-state="stale" role="status">&#9888; Accelerated, but the file has changed since its extract was built[% IF acceleration.built_text.length %] ([% acceleration.built_text | html %])[% END %], so the file itself was read.  Rebuild it with <code>script/bi-extract --spec [% acceleration.spec | html %]</code>.</p>
+[%- END -%]
+[%- END -%]
 [%- IF schema_warnings.size -%]
 <ul class="schema-warnings" role="alert">
   [%- FOREACH w IN schema_warnings -%]

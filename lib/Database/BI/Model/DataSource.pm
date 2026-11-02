@@ -376,6 +376,7 @@ Creates and returns a new C<Database::BI::Model::DataSource> instance.
 	    host           => 'string',   # optional; "hostname" or "user@hostname" for SFTP access
 	    file_ext       => 'string',   # optional; extension hint when remote file has non-standard suffix (e.g. "log")
 	    internal_table => 'string',   # optional; name of a specific internal SQLite table to open
+	    column_order   => \@names,    # optional; the order columns() gives, when the backend has none
 	    cache          => 'object',   # optional; CHI cache object for result caching
 	    cache_ttl_url  => 'string',   # optional; CHI TTL string for URL-backed tables (default "15 min")
 	    mariadb        => \%settings, # optional; a mariadb_servers entry; needs server and table
@@ -387,6 +388,12 @@ C<internal_table> selects a named table inside a multi-table SQLite file.
 When omitted, C<DataSource> auto-selects the first user table whose name
 matches the filename stem; if no match, it picks the first table found.
 Supplying a name that does not exist in the file croaks C<error_table_not_found>.
+
+C<column_order> is for a caller that knows the columns' order better than the
+backend does.  A SQLite backend lists its columns alphabetically, so an
+extract of an accelerated dataset passes the order its file had.  It is used
+only when the file itself gives no order (SQLite, XML), and is trusted, not
+checked against the columns the backend has.
 
 Accepts a flat key/value list, a hashref, or positional arguments via
 C<Params::Get>.
@@ -489,6 +496,7 @@ sub new {
 			host           => { type => 'string', optional => 1, default => undef },
 			file_ext       => { type => 'string', optional => 1, default => undef },
 			internal_table => { type => 'string', optional => 1, default => undef },
+			column_order   => { type => 'arrayref', optional => 1, default => undef },
 			i18n           => { type => 'object', optional => 1, default => undef, can => 'maketext' },
 			cache          => { type => 'object', optional => 1, default => undef },
 			cache_ttl_url  => { type => 'string', optional => 1, default => '15 min' },
@@ -528,6 +536,7 @@ sub new {
 		_host           => $args->{host},
 		_file_ext       => $args->{file_ext},
 		_internal_table => $args->{internal_table},
+		_column_order   => $args->{column_order},
 		_i18n           => $args->{i18n},
 		_cache          => $args->{cache},
 		_cache_ttl_url  => $args->{cache_ttl_url},
@@ -1728,6 +1737,9 @@ sub columns {
 	my $self = shift;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	return $self->{_columns} if defined $self->{_columns};
+	# A caller that knows the order (an extract, which records its file's) says
+	# so; a SQLite backend would otherwise list the columns alphabetically.
+	return [ @{ $self->{_column_order} } ] if $self->{_column_order} && @{ $self->{_column_order} };
 	# URL-backed tables have no canonical column order at construction time;
 	# calling _db->columns() would trigger a live HTTP request which may fail.
 	# Return undef so _get_columns derives column names from fetched data.
@@ -2548,7 +2560,7 @@ C<|S|> means the cardinality (size) of set or sequence S.
 
   new == [directory : PATH; table : NAME;
           host? : HOST_STRING; file_ext? : EXT_STRING;
-          internal_table? : STRING;
+          internal_table? : STRING; column_order? : seq NAME;
           cache? : CHI_OBJECT; cache_ttl_url? : TTL_STRING;
           i18n? : I18N_OBJECT]
          pre  (host = undef => is_dir directory)

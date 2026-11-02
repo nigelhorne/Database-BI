@@ -7882,7 +7882,7 @@ sub croak_rethrow {
 		my $wr = \&Database::BI::Controller::Dashboard::_write_models;
 		my $file = Mojo::File->new($tm->app->config->{model_dir})->child('models.json');
 
-		is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {} }, 'an empty scaffold';
+		is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {}, accelerated => {} }, 'an empty scaffold';
 		is $wr->($c, { version => 1, fields => { x => { a => 'b' } } }), 1, 'writing says so';
 		is $rd->($c)->{fields}{x}{a}, 'b', 'and it comes back';
 		is_deeply $rd->($c)->{groups}, {}, 'with the missing sections filled in';
@@ -7891,7 +7891,7 @@ sub croak_rethrow {
 
 		for my $junk ('', 'not json', '[1,2]', '"x"', '{') {
 			$file->spew($junk);
-			is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {} }, "'$junk' reads as empty";
+			is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {}, accelerated => {} }, "'$junk' reads as empty";
 		}
 
 		# Why: callers go straight to ->{fields}{$key}.  A hand-edited section of the

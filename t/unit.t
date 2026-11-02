@@ -317,6 +317,7 @@ $ledger{"api.$_"} = "documented behaviour: $_" for qw(
 	analyses.add_visual analyses.update_visual analyses.export analyses.import analyses.storage_503 analyses.unknown_keys
 	share.share share.embed share.visual_download
 	crud.calc crud.groups crud.dates crud.lookups crud.extract crud.geo
+	accel.accelerate accel.unaccelerate accel.specs DataSource.column_order
 	route.range route.tables route.wordcloud route.catalog route.tutorial route.index route.stats_percentile
 );
 
@@ -3182,6 +3183,51 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok("/extract/delete?$l")->status_is(200)->json_is('/ok', 1);
 		$tm->get_ok("/extract/list?$l")->json_is('/extractions', {});
 		delete $ledger{'api.crud.extract'};
+	};
+
+	subtest 'accelerated datasets and their messages' => sub {
+		plan skip_all => 'DBD::SQLite is not available' unless eval { require DBD::SQLite; 1 };
+		my $tm   = unit_app();
+		my $data = tempdir(CLEANUP => 1);
+		$tm->app->config->{data_dir} = $data;
+		Mojo::File->new($data, 'sales.csv')->spew("id,region,amount\n1,North,10\n");
+		Mojo::File->new($data, 'odd.csv')->spew("a b,c d\nx y,z w\n");
+		my $db = unit_sqlite('lite.sqlite', 'CREATE TABLE lite (id INTEGER)');
+		my $tx  = Mojo::Transaction::HTTP->new;
+		my $c   = Database::BI::Controller::Dashboard->new(app => $tm->app, tx => $tx);
+		my $acc = \&Database::BI::Controller::Dashboard::accelerate;
+		my $err = sub { my ($spec) = @_; eval { $acc->($c, $spec); 1 } ? undef : $@ };
+
+		message_ok(Dashboard => 'error_accel_spec', without_location($err->('url:http://x/y.csv')), ['url:http://x/y.csv']);
+		message_ok(Dashboard => 'error_accel_sqlite', without_location($err->("path:$db")), ["path:$db"]);
+		message_ok(Dashboard => 'error_accel_open', without_location($err->('table:odd')), ['table:odd', undef]);
+
+		my $built = $acc->($c, 'table:sales');
+		returns_is $built, { type => 'hashref' }, 'accelerate returns what it built';
+		is_deeply [ @{$built}{qw(spec rows columns)} ], [ 'table:sales', 1, 3 ], 'the spec, rows and columns';
+		ok -f $built->{path}, 'and the extract is on disc';
+		is_deeply [ Database::BI::Controller::Dashboard::accelerated_specs($c) ], ['table:sales'], 'accelerated_specs lists it';
+		delete $ledger{'api.accel.specs'};
+		delete $ledger{'api.accel.accelerate'};
+
+		my $src = $tm->app->build_controller->open_table(
+			Mojo::File->new($built->{path})->basename =~ s/\.db\z//r,
+			directory => Mojo::File->new($built->{path})->dirname->to_string, column_order => [qw(id region amount)]);
+		is_deeply $src->columns, [qw(id region amount)], 'DataSource gives the column_order it was given';
+		delete $ledger{'api.DataSource.column_order'};
+
+		ok Database::BI::Controller::Dashboard::unaccelerate($c, 'table:sales'), 'unaccelerate says it was';
+		ok !-f $built->{path}, 'and removes the extract';
+		ok !Database::BI::Controller::Dashboard::unaccelerate($c, 'table:sales'), 'and is false the second time';
+		delete $ledger{'api.accel.unaccelerate'};
+
+		$tm->app->config->{model_dir} = File::Spec->catdir($data, 'models');
+		message_ok(Dashboard => 'error_accel_store', without_location($err->('table:sales')), ['table:sales']);
+
+		# A file with nothing in it opens, but has no columns for a SQLite table.
+		$tm->app->config->{model_dir} = tempdir(CLEANUP => 1);
+		Mojo::File->new($data, 'blank.csv')->spew('');
+		message_ok(Dashboard => 'error_accel_build', without_location($err->('table:blank')), ['table:blank', undef]);
 	};
 
 	subtest 'messages that need a collaborator to fail' => sub {

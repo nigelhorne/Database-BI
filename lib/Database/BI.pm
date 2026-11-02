@@ -1088,6 +1088,26 @@ a lookup stored for another dataset.  Both repeat, and the panels carry them on.
 A lookup is not a join: for more than one key, or rows that match many rows,
 use Merge.
 
+=head2 Accelerated datasets
+
+A large CSV, TSV, PSV, XLSX or XML file can be read from a SQLite copy of
+itself, an I<extract>, which is faster to page through and lets totals be
+worked out in SQL.  C<script/bi-extract --spec table:sales> marks the dataset
+accelerated and builds the extract under C<E<lt>model_dirE<gt>/extracts/>.
+
+An extract is used only while it matches the file: its name is a fingerprint
+of the spec and the file's modification time and size.  Once the file changes,
+the file itself is read, and the table page says the extract is stale and how
+to rebuild it.  Stale numbers are never shown.  The table page also says when
+a dataset is read from its extract, and when that was built.
+
+An extract is a cache.  Deleting C<extracts/> loses nothing: each accelerated
+dataset reads its file until the next build.  Nothing is written under
+C<data_dir>, and a C<model_dir> inside it is refused.  Only a C<table:> or
+C<path:> spec naming a local file can be accelerated; a SQLite file is one
+already.  C<table:sales> and C<path:/data/sales.csv> are separate datasets, each
+accelerated on its own.
+
 =head2 Field extraction
 
 A regular expression can pull values out of a column.  For one value, use
@@ -1307,6 +1327,21 @@ lookups:
 It is idempotent: a second run against a warm cache resolves nothing and says
 so.  Exit status is 0 on success, 1 when the column is missing or no rows load,
 and 2 on bad arguments or an unopenable source.
+
+=head2 script/bi-extract
+
+Builds the extracts of accelerated datasets (see L</Accelerated datasets>):
+
+    ./script/bi-extract --spec table:sales [--spec ...]   # accelerate, and build
+    ./script/bi-extract --all                             # rebuild every one
+    ./script/bi-extract --remove --spec table:sales       # stop, and remove its extract
+    ./script/bi-extract --list
+                        [--data-dir DIR] [--model-dir DIR]
+
+It prints a line for each extract it builds: the rows, the columns, the file
+and the time.  Exit status is 0 on success, 1 when an extract could not be built
+(the others still are), and 2 on bad arguments.  Run C<--all> from cron after
+the data files are refreshed.
 
 =head2 script/bi-alert
 
@@ -1922,6 +1957,7 @@ sub startup ($self) {
 			exists $opts{host}           ? (host           => $opts{host})           : (),
 			exists $opts{file_ext}       ? (file_ext       => $opts{file_ext})       : (),
 			exists $opts{internal_table} ? (internal_table => $opts{internal_table}) : (),
+			exists $opts{column_order}   ? (column_order   => $opts{column_order})   : (),
 		);
 	});
 

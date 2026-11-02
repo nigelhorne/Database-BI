@@ -181,6 +181,11 @@ Readonly my %MESSAGES => (
 	error_extract_field         => 'Extraction "%s": the pattern has no group named "%s"',
 	error_extract_col_unknown   => 'Extraction "%s": column "%s" is not in this dataset',
 	error_extract_name_taken    => 'Extraction "%s": group "%s" cannot be added, because "%s" is a column already',
+	error_accel_spec            => 'Cannot accelerate "%s": it must be a table: or path: spec naming a local file that exists',
+	error_accel_sqlite          => 'Cannot accelerate "%s": it is a SQLite database already',
+	error_accel_open            => 'Cannot accelerate "%s": the file cannot be opened: %s',
+	error_accel_store           => 'Cannot accelerate "%s": the model store cannot be written (model_dir inside data_dir, or not writable)',
+	error_accel_build           => 'Cannot accelerate "%s": %s',
 	error_analysis_not_found    => 'Analysis "%s" not found',
 	error_analysis_invalid      => 'Invalid analysis spec: %s',
 	error_analysis_version      => 'Unsupported analysis version %s; please upgrade the application',
@@ -1015,6 +1020,176 @@ sub _analysis_json_error {
 	return sprintf($MESSAGES{error_analysis_json}, length($reason) ? $reason : 'expected a JSON object');
 }
 
+# ---------------------------------------------------------------------------
+# Accelerated views (Phase 7 item 7.5)
+#
+# A dataset marked in models.json accelerated.<spec> is read from a SQLite copy
+# of itself, built by script/bi-extract through Database::BI::Extract, as long
+# as the copy's fingerprint (the spec, and the file's mtime and size) still
+# matches the file.  When it does not, the file itself is read and the table
+# page says the extract is stale: stale numbers are never served.  An extract is
+# a cache.  Deleting <model_dir>/extracts/ only makes every accelerated dataset
+# read its file again, and nothing is ever written under data_dir.
+# ---------------------------------------------------------------------------
+
+# _model_dir_of($app) -> Mojo::File
+#
+# Purpose: model_dir as a path: absolute as configured, or under the app home.
+#          Nothing is created and nothing is checked; the writers check.
+sub _model_dir_of {
+	my ($app) = @_;
+	my $cfg = Mojo::File->new($app->config('model_dir') // '.bi');
+	return $cfg->is_abs ? $cfg : $app->home->child($cfg->to_string);
+}
+
+# _accel_file($self, $spec) -> $path | undef
+#
+# Purpose: The local file a spec can be accelerated from: table:<name> in
+#          data_dir, or path:<file>.  An internal table, a remote path and
+#          every other kind of spec have none.
+sub _accel_file :Protected ($self, $spec) {
+	$spec //= '';
+	if ($spec =~ m{\Atable:([A-Za-z0-9_]+)\z}) {
+		my $data_dir = _data_dir_for($self->app);
+		my ($file) = grep { -f } map { $data_dir->child(lc($1) . ".$_")->to_string } @SUPPORTED_EXT;
+		return $file;
+	}
+	if ($spec =~ m{\Apath:(?!/\.\./)(.+)\z}) {
+		my $file = eval { Mojo::File->new($1)->realpath };
+		return (defined $file && -f $file && $file->basename =~ $EXT_RE) ? $file->to_string : undef;
+	}
+	return undef;
+}
+
+# _accelerated_source($self, $spec) -> $DataSource | undef
+#
+# Purpose: The extract of an accelerated dataset, when it still matches the file.
+# Exit:    The extract opened as a source, or undef: the spec is not accelerated,
+#          or its extract is missing or stale, and the caller reads the file.
+#          The first call in a request stashes acceleration => { state =>
+#          'fresh' | 'stale', built => epoch, spec => $spec } for the table page.
+sub _accelerated_source :Protected ($self, $spec) {
+	return undef if $self->stash('_no_acceleration');
+	return undef unless defined $spec && length $spec;
+	# Only this application's controller has a model store; a bare controller
+	# (a test's, calling _open_spec as a function) has nothing accelerated.
+	return undef unless $self->isa(__PACKAGE__);
+	my $entry = $self->_read_models->{accelerated}{$spec};
+	return undef unless ref $entry eq 'HASH';
+	my $file = $self->_accel_file($spec) // return undef;
+
+	my @st = stat $file;
+	require Database::BI::Extract;
+	my $cache = Database::BI::Extract->new(model_dir => _model_dir_of($self->app)->to_string);
+	my $path  = $cache->get($spec, $st[9], $st[7]);
+	my $src;
+	if (defined $path) {
+		my $x = Mojo::File->new($path);
+		$src = eval { $self->open_table($x->basename =~ s/\.db\z//r, directory => $x->dirname->to_string,
+			(ref $entry->{columns} eq 'ARRAY' ? (column_order => $entry->{columns}) : ())) };
+	}
+	require POSIX;
+	my $built = $src ? (stat $path)[9] : $entry->{built};
+	$self->stash(acceleration => {
+		spec       => $spec,
+		state      => ($src ? 'fresh' : 'stale'),
+		built      => $built,
+		built_text => (defined $built && $built =~ /\A\d+\z/ ? POSIX::strftime('%Y-%m-%d %H:%M', localtime $built) : ''),
+	}) unless $self->stash('acceleration');
+	return $src;
+}
+
+# _is_sqlite_file($path) -> $bool
+#
+# Purpose: True for a SQLite database, whatever its extension (a .db may be one).
+sub _is_sqlite_file {
+	my ($path) = @_;
+	open my $fh, '<:raw', $path or return 0;
+	my $n = read $fh, my $head, 16;
+	close $fh;
+	return ($n && $head eq "SQLite format 3\0") ? 1 : 0;
+}
+
+# accelerate($c, $spec) -> \%built
+#
+# Purpose: Mark a dataset accelerated and build its extract: the rows its file
+#          gives, in a SQLite file under <model_dir>/extracts/.  Called by
+#          script/bi-extract; not a route.
+# Entry:   $c is a controller of the application (Mojolicious build_controller);
+#          $spec is a table: or path: spec naming a local, non-SQLite file.
+# Exit:    { spec, path, rows, columns, built } -- the extract written and when.
+#          The model store records accelerated.<spec> = { built, file, rows }.
+#          Croaks error_accel_spec, error_accel_sqlite, error_accel_open,
+#          error_accel_store or error_accel_build.
+# Side Effects: Writes the extract, removes the one it replaces, and writes
+#          models.json.
+sub accelerate {
+	my ($c, $spec) = @_;
+	croak 'accelerate() needs a controller and a spec' unless ref $c && defined $spec;
+	my $file = $c->_accel_file($spec)
+		// croak $c->_i18n('error_accel_spec', $spec);
+	croak $c->_i18n('error_accel_sqlite', $spec) if $file =~ /\.(?:sql|sqlite3?)\z/i || _is_sqlite_file($file);
+	defined $c->_calc_models_path or croak $c->_i18n('error_accel_store', $spec);
+
+	# Read the file itself, not the extract being replaced.
+	local $c->stash->{_no_acceleration} = 1;
+	my @st = stat $file;
+	my ($src) = $c->_open_spec($spec);
+	croak $c->_i18n('error_accel_open', $spec, _tidy_error($c->stash('open_spec_error') // 'unreadable')) unless $src;
+	my ($records, @columns);
+	my $ok = eval {
+		$records = $src->fetch_all;
+		@columns = _get_columns($src, $records);
+		1;
+	};
+	croak $c->_i18n('error_accel_open', $spec, _tidy_error($@)) unless $ok;
+	my $bytes = eval { $c->_write_sqlite_db($records, \@columns, 'extract') };
+	croak $c->_i18n('error_accel_build', $spec, _tidy_error($@)) unless defined $bytes;
+
+	require Database::BI::Extract;
+	my $cache = Database::BI::Extract->new(model_dir => _model_dir_of($c->app)->to_string);
+	my $path  = eval { $cache->put($spec, $st[9], $st[7], $bytes) };
+	croak $c->_i18n('error_accel_build', $spec, _tidy_error($@)) unless defined $path;
+
+	my $models = $c->_read_models;
+	my $old    = $models->{accelerated}{$spec};
+	my $name   = Mojo::File->new($path)->basename;
+	if (ref $old eq 'HASH' && defined $old->{file} && $old->{file} ne $name && $old->{file} =~ /\A[0-9a-f]{32}\.db\z/) {
+		unlink Mojo::File->new($path)->dirname->child($old->{file})->to_string;
+	}
+	my $built = time;
+	# The file's own column order: the extract would list its columns alphabetically.
+	$models->{accelerated}{$spec} = { built => $built, file => $name, rows => scalar(@$records), columns => \@columns };
+	$c->_write_models($models) or croak $c->_i18n('error_accel_store', $spec);
+	return { spec => $spec, path => $path, rows => scalar(@$records), columns => scalar(@columns), built => $built };
+}
+
+# unaccelerate($c, $spec) -> $bool
+#
+# Purpose: Stop reading a dataset from an extract, and remove its extract.
+# Exit:    True when the spec was accelerated.
+sub unaccelerate {
+	my ($c, $spec) = @_;
+	croak 'unaccelerate() needs a controller and a spec' unless ref $c && defined $spec;
+	my $models = $c->_read_models;
+	my $entry  = delete $models->{accelerated}{$spec};
+	return 0 unless ref $entry eq 'HASH';
+	if (defined $entry->{file} && $entry->{file} =~ /\A[0-9a-f]{32}\.db\z/) {
+		unlink _model_dir_of($c->app)->child('extracts', $entry->{file})->to_string;
+	}
+	$c->_write_models($models);
+	return 1;
+}
+
+# accelerated_specs($c) -> @specs
+#
+# Purpose: Every spec marked accelerated, sorted, for script/bi-extract --all.
+sub accelerated_specs {
+	my ($c) = @_;
+	croak 'accelerated_specs() needs a controller' unless ref $c;
+	return sort keys %{ $c->_read_models->{accelerated} };
+}
+
 # _open_spec($self, $spec) -> ($DataSource, $label) or ()
 #
 # Purpose: Parse a "table:name", "table:file/table" or "path:/abs/path" spec,
@@ -1026,6 +1201,12 @@ sub _analysis_json_error {
 #          (invalid spec format, file missing, DataSource init error).
 # Side Effects: Filesystem stat; DataSource construction (reads file header).
 sub _open_spec :Protected ($self, $spec) {
+	# An accelerated dataset whose extract still matches its file is read from
+	# the extract, under the file's own label.
+	if (my $fast = _accelerated_source($self, $spec)) {
+		my $label = $spec =~ m{\Atable:(.+)\z} ? lc $1 : Mojo::File->new($spec =~ s/\Apath://r)->basename;
+		return ($fast, $label);
+	}
 	if ($spec =~ m{\Atable:([A-Za-z0-9_]+)(?:/([A-Za-z0-9_]+))?\z}) {
 		my ($table, $internal) = ($1, $2);
 		$table = lc $table;
@@ -2961,10 +3142,12 @@ sub _list_dir :Protected ($self, $dir, $want_files) {
 #          The temporary file is created, written, read, and then unlinked in
 #          one synchronous sequence.  Used by both _render_sqlite (HTTP download)
 #          and export_write (filesystem write) to eliminate code duplication.
-# Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names.
+# Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names;
+#          $table names the table, "data" unless given.  An extract passes
+#          "extract": Database::Abstraction cannot read a table called "data".
 # Exit:    Returns scalar binary string.  Croaks on any DBI error.
 # Side Effects: Creates and unlinks one temporary file under system tmpdir.
-sub _write_sqlite_db :Protected ($self, $records, $columns) {
+sub _write_sqlite_db :Protected ($self, $records, $columns, $table = 'data') {
 	# D~ fix: an empty column list produces "CREATE TABLE data ()" which is
 	# invalid SQLite syntax.  Croak before touching the filesystem.
 	croak 'Cannot export SQLite: result set has no columns'
@@ -2987,11 +3170,12 @@ sub _write_sqlite_db :Protected ($self, $records, $columns) {
 	# triggers cleanup (disconnect + unlink) before the error propagates.
 	eval {
 		my @quoted = map { (my $c = $_) =~ s/"/""/g; qq{"$c"} } @$columns;
-		$dbh->do('CREATE TABLE "data" (' . join(', ', map { "$_ TEXT" } @quoted) . ')');
+		(my $t = $table) =~ s/"/""/g;
+		$dbh->do(qq{CREATE TABLE "$t" (} . join(', ', map { "$_ TEXT" } @quoted) . ')');
 		if (@$records) {
 			my $ph  = join(', ', ('?') x scalar @$columns);
 			my $sth = $dbh->prepare(
-				'INSERT INTO "data" (' . join(', ', @quoted) . ") VALUES ($ph)"
+				qq{INSERT INTO "$t" (} . join(', ', @quoted) . ") VALUES ($ph)"
 			);
 			for my $row (@$records) {
 				$sth->execute(map { $row->{$_} } @$columns);
@@ -3917,7 +4101,7 @@ sub _calc_models_path :Protected ($self) {
 # Returns the parsed models hashref from .bi/models.json, or an empty scaffold.
 sub _read_models :Protected ($self) {
 	my $path = $self->_calc_models_path;
-	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {} };
+	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {}, accelerated => {} };
 	return $scaffold unless defined $path && -f $path;
 	my $json = eval { Mojo::File->new($path)->slurp };
 	return $scaffold unless $json && !$@;
@@ -3925,7 +4109,7 @@ sub _read_models :Protected ($self) {
 	return $scaffold unless ref $data eq 'HASH';
 	# Callers go straight to ->{fields}{$spec}{$name}, so a hand-edited section of
 	# the wrong shape would otherwise be a strict-refs crash on every page.
-	for my $section (qw(fields groups date_patterns lookups extractions)) {
+	for my $section (qw(fields groups date_patterns lookups extractions accelerated)) {
 		$data->{$section} = {} unless ref $data->{$section} eq 'HASH';
 		my $by_spec = $data->{$section};
 		delete @{$by_spec}{ grep { ref $by_spec->{$_} ne 'HASH' } keys %$by_spec };
@@ -6723,7 +6907,7 @@ sub view ($self) {
 	my $dedup = $self->param('d') ? 1 : 0;
 	my ($source, $records, $has_next, $is_multi);
 	eval {
-		$source = $self->open_table($table);
+		$source = $self->_accelerated_source("table:$table") // $self->open_table($table);
 		# Multi-table SQLite: flag redirect without fetching data.
 		if ($source && $source->sqlite_tables && @{ $source->sqlite_tables } > 1) {
 			$is_multi = 1;
@@ -7185,8 +7369,9 @@ sub open_file ($self) {
 	my $dedup = $self->param('d') ? 1 : 0;
 	my ($source, $records, $has_next, $is_multi_local);
 	eval {
-		$source = $self->open_table($table, directory => $dir->to_string,
-			defined $it ? (internal_table => $it) : ());
+		$source = (defined $it ? undef : $self->_accelerated_source($lspec))
+			// $self->open_table($table, directory => $dir->to_string,
+				defined $it ? (internal_table => $it) : ());
 		# Multi-table SQLite without it=: flag redirect without fetching data.
 		if (!defined $it && $source && $source->sqlite_tables
 				&& @{ $source->sqlite_tables } > 1) {
@@ -13860,6 +14045,41 @@ keeps the first row and is logged once per request
 written as C<E<lt>nameE<gt>_E<lt>fieldE<gt>>; when that is taken too, the request
 is a 400.  The file is read once per request, through the same loader as any
 data file.
+
+=cut
+
+=head2 accelerate / unaccelerate / accelerated_specs
+
+Package functions, not routes, called by C<script/bi-extract> with a
+controller of the application.  An accelerated dataset is
+C<models.json> C<accelerated.E<lt>specE<gt> = { built, file, rows, columns }>;
+the page reads its extract (C<_accelerated_source>, from C<_open_spec>,
+C<view> and C<open_file>) while L<Database::BI::Extract>'s fingerprint still
+matches the file, and the file otherwise, stashing C<acceleration> for the
+table page's note either way.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	accelerate:        ($c, $spec)   # $spec: table:<name> or path:<local file>, not SQLite
+	unaccelerate:      ($c, $spec)
+	accelerated_specs: ($c)
+
+=head4 OUTPUT
+
+	accelerate:        { spec => 'string', path => 'string', rows => 'integer',
+	                     columns => 'integer', built => 'integer (epoch)' }
+	                   croaks error_accel_spec | error_accel_sqlite | error_accel_open
+	                        | error_accel_store | error_accel_build
+	unaccelerate:      1 when the spec was accelerated (its extract is removed), else 0
+	accelerated_specs: the accelerated specs, sorted
+
+C<accelerate> reads the file itself, never the extract it replaces, and removes
+the extract it replaces.  The extract's table is C<extract>, not C<data>:
+L<Database::Abstraction> cannot read a table called C<data>.  The file's column
+order is stored with it and passed back as C<column_order>, because a SQLite
+backend lists columns alphabetically.
 
 =cut
 

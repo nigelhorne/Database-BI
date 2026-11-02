@@ -968,6 +968,10 @@ my @FAQ = (
 		answer   => 'You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others.',
 	},
 	{
+		question => 'The table says its extract is stale.',
+		answer   => 'The file has changed since its fast copy was made, so the file itself was read. Run script/bi-extract --all to make the copy again.',
+	},
+	{
 		question => 'An extracted column says (unparseable).',
 		answer   => 'The pattern did not match the value in that row. Those rows are kept and grouped together, so you can see how many there are.',
 	},

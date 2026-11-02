@@ -291,6 +291,24 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	and 2 on bad arguments or an unopenable source.
 </p>
 
+<h3 id="bi-extract"><code>script/bi-extract</code></h3>
+<p>
+	Accelerates a large file: builds a SQLite copy of it, an extract, which the
+	pages read for as long as the file is unchanged. Once the file changes, the
+	file itself is read and the table page says the extract is stale.
+</p>
+<pre><code>./script/bi-extract --spec table:sales [--spec ...]   # accelerate, and build
+./script/bi-extract --all                             # rebuild every one
+./script/bi-extract --remove --spec table:sales       # stop, and remove its extract
+./script/bi-extract --list
+                    [--data-dir DIR] [--model-dir DIR]</code></pre>
+<p>
+	Extracts live in <code>&lt;model_dir&gt;/extracts/</code>, never under
+	<code>data_dir</code>, and deleting that directory loses nothing. Exit status
+	is 0 on success, 1 when an extract could not be built, and 2 on bad
+	arguments. Run <code>--all</code> from cron after the files are refreshed.
+</p>
+
 <h3><code>script/bi-alert</code></h3>
 <p>
 	Reports saved analyses and turns a crossed threshold into a non-zero exit

@@ -14,6 +14,11 @@ Revision history for Database-BI
 	  becomes a column everywhere.  A row it does not match is (unparseable).
 	  Patterns over 200 characters, and those using (?{, (??{, (?p or (*, are
 	  refused.
+	- Accelerated datasets: script/bi-extract --spec table:sales builds a SQLite
+	  copy of a large file under <model_dir>/extracts/, and the pages read it
+	  while the file is unchanged.  Once the file changes, the file itself is
+	  read and the table page says the copy is stale; --all rebuilds every one.
+	  Deleting extracts/ loses nothing, and nothing is written under data_dir.
 	- A calculated field can read a cross-row column: cs=amount:running_total:ytd
 	  with c=half:ytd/2.  The field runs after the cross-row pass, on canvases per
 	  card.  With no cs= the name is unknown, the 400 it always was.
