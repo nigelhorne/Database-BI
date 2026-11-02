@@ -2,6 +2,9 @@ Revision history for Database-BI
 
 0.019.0
 	[ Enhancements ]
+	- A calculated field can read a cross-row column: cs=amount:running_total:ytd
+	  with c=half:ytd/2.  The field runs after the cross-row pass, on canvases per
+	  card.  With no cs= the name is unknown, the 400 it always was.
 	- MariaDB and MySQL: name a server in mariadb_servers in the configuration, and
 	  mariadb:server/table opens a table anywhere a source is taken, in Merge,
 	  Combine and canvases too.  The home page has a card for each server, which
@@ -32,6 +35,11 @@ Revision history for Database-BI
 	  storage and applies at once to every open page.  Charts and tables follow
 	  it.  Saved charts, printed pages and embedded canvases stay light.
 	[ Bug Fixes ]
+	- A SQLite file ending .db could not be opened when it held a table named after
+	  the file, such as a table called orders in orders.db: it was read as text.
+	  Charts and exports answered 404, and the table page reported a parse error.
+	- cs= on the table page could not read a calculated field or a time bucket, as
+	  it could on charts and in the export: it was a 400.
 	- Merge hung, then failed with "database is locked", on a BSD with File::Temp
 	  older than 0.2308, as Perl 5.28 ships.  Such a File::Temp holds a new file
 	  under an exclusive lock, which stopped SQLite writing to it.  0.2308 is now

@@ -3704,6 +3704,45 @@ subtest 'A cell holding a script tag cannot end the script of a chart' => sub {
 	}
 };
 
+# Database::Abstraction reads any .db file as CSV, so DataSource shows it a SQLite
+# one under a .sql name.  That used to happen only when the table was named after
+# something other than the file, so orders.db holding a table called orders was
+# read as text, and reported as if there were no such file.
+subtest 'A SQLite .db file opens when its table is named after the file' => sub {
+	plan skip_all => 'DBD::SQLite is not available' unless eval { DBI->install_driver('SQLite'); 1 };
+
+	my $make = sub {
+		my ($dir, $file, @tables) = @_;
+		my $path = File::Spec->catfile($dir, $file);
+		my $dbh = DBI->connect("dbi:SQLite:dbname=$path", '', '', { RaiseError => 1, PrintError => 0 });
+		for my $table (@tables) {
+			$dbh->do("CREATE TABLE $table (id INTEGER PRIMARY KEY, label TEXT)");
+			$dbh->do("INSERT INTO $table VALUES (1, 'row_of_$table')");
+		}
+		$dbh->disconnect;
+		return $path;
+	};
+
+	my $path = $make->(tempdir(CLEANUP => 1), 'orders.db', 'orders');
+	my $before = Mojo::File->new($path)->slurp;
+	my $l = 'l=' . url_escape("path:$path");
+
+	$t->get_ok("/export?$l&format=csv")->status_is(200)->content_like(qr/row_of_orders/, '/export reads it');
+	$t->get_ok("/bar?$l&cat=label&val=__count__")->status_is(200)->content_like(qr/row_of_orders/, 'a chart reads it');
+	$t->get_ok('/open?path=' . url_escape($path))->status_is(200)->content_like(qr/row_of_orders/, '/open reads it');
+
+	my $two = $make->(tempdir(CLEANUP => 1), 'shop.db', 'orders', 'shop');
+	$t->get_ok('/export?format=csv&l=' . url_escape("path:$two"))->status_is(200)
+		->content_like(qr/row_of_shop/, 'the table named after the file is the one chosen from several');
+
+	my $tm = Test::Mojo->new('Database::BI', { data_dir => File::Basename::dirname($path), model_dir => tempdir(CLEANUP => 1) });
+	$tm->get_ok('/view/orders')->status_is(200)->content_like(qr/row_of_orders/, 'so does a table in the data directory');
+	$tm->get_ok('/export?format=csv&l=' . url_escape('table:orders'))->status_is(200)
+		->content_like(qr/row_of_orders/, 'and table: names it');
+
+	is(Mojo::File->new($path)->slurp, $before, 'the file itself is left as it was');
+};
+
 subtest 'A temporary directory that refuses new files' => sub {
 	my $tmp = tempdir(CLEANUP => 1);
 	plan skip_all => 'cannot revoke create here' unless can_revoke_create($tmp);

@@ -259,6 +259,12 @@ order=&lt;column&gt;[:asc|desc]                  the order rows are read in</cod
 <p>
 	An unknown function or column, or a parameter where none is taken, is a 400.
 </p>
+<p>
+	Cross-row columns and calculated fields can build on each other. A calculated field can read
+	the new column, as in <code>c=half:ytd/2</code>, and <code>cs=</code> can read a calculated field or a
+	time bucket, as in <code>span=1mon&amp;tcol=at&amp;order=at_span&amp;cs=amount:running_total:ytd</code>.
+	Filters run before the pass, so <code>f=</code> cannot select on a cross-row column: it finds no rows.
+</p>
 
 <h2 id="pivot">Pivot and statistics</h2>
 <p>

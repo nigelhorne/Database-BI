@@ -7,6 +7,7 @@ use Mojo::DOM  ();
 use Mojo::File ();
 use File::Temp ();
 use Mojo::Util qw(url_escape);
+use DBI ();
 
 use Database::BI::Controller::Dashboard ();
 
@@ -395,6 +396,194 @@ subtest 'what a run refuses, and with which status' => sub {
 			. '&cs=' . url_escape('amount:window_avg:x'))
 		->status_is(400)
 		->content_like(qr/takes a whole number/, 'and the export keeps its 400 rather than turning it into a 404');
+};
+
+# --- stage 7: a calculated field over a cross-row column ---------------------
+
+# _csv($body) -> list of { column => value } rows
+sub _csv {
+	my @lines = split /\r?\n/, $_[0];
+	my @names = split /,/, shift(@lines) // '';
+	return map { my %r; @r{@names} = split /,/, $_, -1; \%r } @lines;
+}
+
+# The running totals, in day order, are 10, 30, 60, 100, 150.
+my $YTD = 'cs=' . url_escape('amount:running_total:ytd') . '&order=day:asc';
+my $ORDERS = 'l=' . url_escape('table:orders');
+
+subtest 'a calculated field can read a cross-row column' => sub {
+	my $half = 'c=' . url_escape('half:ytd/2');
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&$half")->status_is(200);
+	is_deeply [ map { $_->{half} } _csv($t->tx->res->body) ], [ 5, 15, 30, 50, 75 ],
+		'half of each running total';
+
+	my $quarter = 'c=' . url_escape('quarter_of:half/2');
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&$half&$quarter")->status_is(200);
+	is_deeply [ map { $_->{quarter_of} } _csv($t->tx->res->body) ], [ 2.5, 7.5, 15, 25, 37.5 ],
+		'and one field can build on another that had to wait';
+
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&$half&f=" . url_escape('region:eq:North'))->status_is(200);
+	is_deeply [ map { $_->{half} } _csv($t->tx->res->body) ], [ 5, 15, 35 ],
+		'over the rows the filters left: 10, 30 and 70 halved';
+
+	# North's halves are 5, 15, 50 and South's 30, 75.
+	$t->get_ok("/bar?$ORDERS&cat=region&val=half&$YTD&$half")->status_is(200);
+	my $body = $t->tx->res->body;
+	like $body, qr/(?:"value":70,"label":"North"|"label":"North","value":70)/, 'a chart can plot it';
+	like $body, qr/(?:"value":105,"label":"South"|"label":"South","value":105)/, 'for each group';
+
+	$t->get_ok("/pivot?$ORDERS&rows=region&m=" . url_escape('half:sum:total') . "&$YTD&$half")->status_is(200)
+		->content_like(qr{<td[^>]*>\s*105\s*</td>}, 'and a pivot can total it');
+
+	$t->get_ok("/view/orders?$YTD&$half&per_page=2&page=2")->status_is(200);
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'half') ] } @{ $page->{rows} } ], [ 30, 50 ],
+		'the second page of the table goes on from the first';
+};
+
+subtest 'holding a field back does not hide a mistake' => sub {
+	$t->get_ok("/export?$ORDERS&format=csv&c=" . url_escape('half:ytd/2'))->status_is(400)
+		->content_like(qr/Unknown column 'ytd'/, 'with no cs= it is the error it always was');
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&c=" . url_escape('half:ytdd/2'))->status_is(400)
+		->content_like(qr/Unknown column 'ytdd'/, 'a mistyped name is still an error with cs=');
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&c=" . url_escape('half:ytd/'))->status_is(400)
+		->content_like(qr/Calculated field "half"/, 'and so is a syntax error');
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&c=" . url_escape('half:nosuch(ytd)'))->status_is(400)
+		->content_like(qr/Calculated field "half"/, 'and an unknown function');
+};
+
+subtest 'nothing is held without a reason' => sub {
+	my $c = _controller($t, '/export?c=' . url_escape('twice:amount*2'));
+	my $rows = [ { day => '2026-01-01', amount => 10 } ];
+	$c->_apply_calc_fields($rows, [qw(day amount)]);
+	is_deeply $c->stash('_held_calc_fields'), [], 'no cs=, nothing held';
+	is $rows->[0]{twice}, 20, 'and the field ran at once';
+
+	$c = _controller($t, "/export?$YTD&c=" . url_escape('twice:amount*2') . '&c=' . url_escape('half:ytd/2'));
+	$rows = [ { day => '2026-01-01', amount => 10 } ];
+	$c->_apply_calc_fields($rows, [qw(day amount)]);
+	is_deeply [ map { $_->{name} } @{ $c->stash('_held_calc_fields') } ], ['half'],
+		'with cs=, only the field that needs its column waits';
+	is $rows->[0]{twice}, 20, 'and the other still runs at stage 4';
+	ok !exists $rows->[0]{half}, 'the held one has not run';
+};
+
+subtest 'on the table page, a cross-row column can read a calculated column' => sub {
+	$t->get_ok('/view/orders?cs=' . url_escape('twice:rank:place') . '&c=' . url_escape('twice:amount*2'))
+		->status_is(200);
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'place') ] } @{ $page->{rows} } ], [ 5, 4, 3, 2, 1 ],
+		'a rank of the doubled amounts';
+	is_deeply [ map { $_->[ _col($page, 'twice') ] } @{ $page->{rows} } ], [ 20, 40, 60, 80, 100 ],
+		'and the column it read';
+
+	$t->get_ok('/view/orders?cs=' . url_escape('twice:rank:place') . '&c=' . url_escape('twice:nosuch*2'))
+		->status_is(400)->content_like(qr/Unknown column 'nosuch'/, 'a field that cannot run says so');
+	$t->get_ok('/view/orders?span=1x&tcol=day&cs=' . url_escape('amount:rank:place'))
+		->status_is(400)->content_unlike(qr/<table/, 'and so does a bucket');
+};
+
+# --- the monthly-revenue example, worked by hand ------------------------------
+#
+#   id  at          product amount  month       ytd  share  rank
+#   1   2026-02-03  A       30      2026-02-01   60  1/2    1
+#   2   2026-01-20  A       20      2026-01-01   20  1/3    2
+#   3   2026-01-05  A       10      2026-01-01   30  1/6    3
+#   4   2026-03-01  B       15      2026-03-01   20  3/4    1
+#   5   2026-01-10  B        5      2026-01-01    5  1/4    2
+#
+# The window is read in month order, so product A's February row closes its
+# total though it comes first in the file; rows 2 and 3 tie on the month and
+# keep file order, which is why 20 is added before 10.
+subtest 'the monthly revenue example' => sub {
+	Mojo::File->new($data_dir)->child('revenue.csv')->spew(join("\n",
+		'id,at,product,amount',
+		'1,2026-02-03,A,30',
+		'2,2026-01-20,A,20',
+		'3,2026-01-05,A,10',
+		'4,2026-03-01,B,15',
+		'5,2026-01-10,B,5',
+	) . "\n");
+	my $plan = 'span=1mon&tcol=at&by=product&order=at_span:asc'
+		. '&cs=' . url_escape('amount:running_total:ytd')
+		. '&cs=' . url_escape('amount:pct_of_total:share')
+		. '&cs=' . url_escape('amount:rank:place');
+	my %want = (
+		at_span => [ qw(2026-02-01 2026-01-01 2026-01-01 2026-03-01 2026-01-01) ],
+		ytd     => [ 60, 20, 30, 20, 5 ],
+		place   => [ 1, 2, 3, 1, 2 ],
+	);
+	my @shares = (1/2, 1/3, 1/6, 3/4, 1/4);
+
+	$t->get_ok('/export?l=' . url_escape('table:revenue') . "&format=csv&$plan")->status_is(200);
+	my @rows = _csv($t->tx->res->body);
+	for my $name (sort keys %want) {
+		is_deeply [ map { $_->{$name} } @rows ], $want{$name}, "export: $name";
+	}
+	_is($rows[$_]{share}, $shares[$_], "export: share of row $_") for 0 .. $#shares;
+
+	$t->get_ok("/view/revenue?$plan")->status_is(200);
+	my $page = _table($t->tx->res->body);
+	for my $name (sort keys %want) {
+		is_deeply [ map { $_->[ _col($page, $name) ] } @{ $page->{rows} } ], $want{$name},
+			"table page: $name, the same as the export";
+	}
+};
+
+# --- a SQL backend ------------------------------------------------------------
+
+subtest 'on a SQLite source, a cross-row column folds in Perl' => sub {
+	plan skip_all => 'DBD::SQLite is not available' unless eval { require DBD::SQLite; 1 };
+	my $dbh = DBI->connect('dbi:SQLite:dbname=' . Mojo::File->new($data_dir)->child('ledger.sqlite'),
+		'', '', { RaiseError => 1, PrintError => 0 });
+	$dbh->do('CREATE TABLE ledger (id INTEGER PRIMARY KEY, day TEXT, region TEXT, amount REAL)');
+	$dbh->do('INSERT INTO ledger VALUES (?,?,?,?)', undef, @$_) for
+		[ 1, '2026-01-01', 'North', 10 ], [ 2, '2026-01-02', 'North', 20 ],
+		[ 3, '2026-01-03', 'South', 30 ], [ 4, '2026-01-04', 'North', 40 ],
+		[ 5, '2026-01-05', 'South', 50 ];
+	$dbh->disconnect;
+
+	my $l = 'l=' . url_escape('table:ledger');
+	my $cells = sub {
+		my ($url) = @_;
+		$t->get_ok($url)->status_is(200);
+		return [ map { $_->all_text =~ s/\s+//gr }
+			@{ Mojo::DOM->new($t->tx->res->body)->find('table tbody td')->to_array } ];
+	};
+
+	# Count what reaches the backend's aggregate, so "never pushed" is observed.
+	require Database::BI::Model::DataSource;
+	my $pushed = 0;
+	my $real = \&Database::BI::Model::DataSource::aggregate;
+	no warnings 'redefine';
+	local *Database::BI::Model::DataSource::aggregate = sub { $pushed++; return $real->(@_) };
+
+	$cells->("/pivot?$l&rows=region&m=" . url_escape('amount:sum:total'));
+	cmp_ok $pushed, '>', 0, 'a source column is pushed, so the count can see a push';
+
+	for my $case (
+		[ 'a window column as the measure', "rows=region&m=" . url_escape('ytd:sum:total') ],
+		[ 'a window column as the group',   "rows=ytd&m=" . url_escape('amount:sum:total') ],
+		[ 'a field over a window column',   "rows=region&m=" . url_escape('half:sum:total') . '&c=' . url_escape('half:ytd/2') ],
+	) {
+		my ($name, $query) = @$case;
+		$pushed = 0;
+		my $page = $cells->("/pivot?$l&$query&$YTD");
+		is $pushed, 0, "$name never reaches aggregate()";
+		ok scalar(@$page), "$name gives a table";
+		local $ENV{BI_FORCE_PERL_AGG} = 1;
+		is_deeply $cells->("/pivot?$l&$query&$YTD"), $page, "$name: the same with the fold forced";
+	}
+
+	$t->get_ok("/export?$l&format=csv&$YTD&c=" . url_escape('half:ytd/2'))->status_is(200);
+	is_deeply [ map { $_->{half} } _csv($t->tx->res->body) ], [ 5, 15, 30, 50, 75 ],
+		'and the locked rows of a SQL source take the new columns';
+
+	$t->get_ok("/view/ledger?$YTD&per_page=2&page=2&cs=" . url_escape('amount:rank:place') . '&c=' . url_escape('twice:amount*2'))
+		->status_is(200);
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'ytd') ] } @{ $page->{rows} } ], [ 60, 100 ],
+		'the table page works from them too';
 };
 
 done_testing;

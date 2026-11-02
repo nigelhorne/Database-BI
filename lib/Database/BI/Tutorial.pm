@@ -255,7 +255,7 @@ my @CHAPTERS = (
 			'Choose the column that says which order to read the rows in, for example the date.',
 			'Type a name for the new column and click Add column.',
 		],
-		tip   => 'The new column is in the table and in every chart list. The Cross-row chip removes it. Restart for each groups the rows before counting. On a canvas, a card can hold cross-row columns of its own. Choose Has a column of its own in Add current view, then Add this column once for each. Each one is listed there and can be taken out before the card is added.',
+		tip   => 'The new column is in the table and in every chart list. The Cross-row chip removes it. A calculated column can read it by name. Restart for each groups the rows before counting. On a canvas, a card can hold cross-row columns of its own. Choose Has a column of its own in Add current view, then Add this column once for each. Each one is listed there and can be taken out before the card is added.',
 		walkthrough => {
 			title => 'Walk through: a running total per region',
 			intro => 'This example adds a running total to the sales table.',

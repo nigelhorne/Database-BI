@@ -1527,11 +1527,13 @@ sub _init_backend :Protected {
 		# find the file by target name and issue SELECT * FROM <target>.
 		# Always use a D::A-recognised SQLite extension (.sql, .sqlite, .sqlite3)
 		# for the symlink name -- D::A does not use the DBI/SQLite backend for
-		# .db files, so a customer.db symlink would be read as CSV.
-		if ($target ne $dbname) {
-			my ($src_ext) = grep { -f File::Spec->catfile($dir, "$raw_table.$_") }
-				qw(sql sqlite sqlite3 db);
-			$src_ext //= 'sql';
+		# .db files, so a customer.db symlink would be read as CSV.  For the same
+		# reason a SQLite .db file needs the symlink even when its table is named
+		# after the file: orders.db holding a table called orders.
+		my ($src_ext) = grep { -f File::Spec->catfile($dir, "$raw_table.$_") }
+			qw(sql sqlite sqlite3 db);
+		$src_ext //= 'sql';
+		if ($target ne $dbname || $src_ext eq 'db') {
 			my $link_ext = ($src_ext eq 'db') ? 'sql' : $src_ext;
 			require File::Temp;
 			my $tmp     = File::Temp->newdir(CLEANUP => 1);
@@ -2457,7 +2459,7 @@ C<Database::Abstraction> does not use its DBI/SQLite backend for files
 with a C<.db> extension -- it falls through to the CSV reader, which tries
 to read a SQLite binary file as text and fails with a parse error.
 
-When C<DataSource> detects a multi-table SQLite C<.db> file, it creates a
+When C<DataSource> detects a SQLite C<.db> file, it creates a
 temporary symlink named C<E<lt>tableE<gt>.sql> (not C<.db>) pointing to the
 original C<.db> file.  SQLite follows symlinks transparently, so the data is
 read correctly.  If you ever audit temporary directories and see C<*.sql>

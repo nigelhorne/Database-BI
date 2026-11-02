@@ -915,4 +915,36 @@ subtest 'the canvas refuses a spec it cannot honour' => sub {
 		->content_like(qr/id="visual-0"/, 'a window over a partition still renders');
 };
 
+subtest 'a calculated field can read the column a card\'s pass adds' => sub {
+	my $cid = $t->post_ok('/api/analyses', { 'Content-Type' => 'application/json' }, encode_json({
+		name     => 'Composed canvas',
+		datasets => [ { spec => 'table:orders', alias => 'left' } ],
+		visuals  => [
+			{ kind => 'table', title => 'Everything',
+			  encode => { columns => [qw(day half)] } },
+			{ kind => 'table', title => 'North',
+			  encode => { columns => [qw(day half)] }, filters => ['region:eq:North'] },
+			{ kind => 'table', title => 'Its own plan',
+			  encode => { columns => [qw(day half)] },
+			  cross_row => { cs => ['amount:rank:place'] } },
+			{ kind => 'table', title => 'Another plan',
+			  encode => { columns => [qw(day half)] },
+			  cross_row => { cs => ['amount:rank:rt'] } },
+		],
+	}))->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid?cs=amount:running_total:rt&order=day&c=half:rt/2")->status_is(200);
+	my $dom = Mojo::DOM->new($t->tx->res->body);
+
+	is_deeply _column(_card($dom, 0), 1), [ 5, 15, 65, 165 ], 'half of each running total';
+	is_deeply _column(_card($dom, 1), 1), [ 5, 15 ], 'a card halves its own totals';
+	like _error(_card($dom, 2)), qr/half/,
+		'a card whose plan has no such column cannot show the field';
+	is_deeply _column(_card($dom, 3), 1), [ 2, 1.5, 1, 0.5 ],
+		'and a card whose plan gives the name another meaning uses its own';
+
+	$t->get_ok("/a/$cid?cs=amount:running_total:rt&order=day&c=half:rtt/2")->status_is(400)
+		->content_like(qr/Unknown column 'rtt'/, 'a mistyped name is the page\'s 400');
+};
+
 done_testing();

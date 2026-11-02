@@ -2054,8 +2054,11 @@ sub _reduce_records {
 	# has to run before anything paginates, which is why the routes that slice
 	# their own page call it again (once) inside _fetch_page.
 	if (!$opts || !$opts->{no_cross_row}) {
-		($records, $columns) = $self->_apply_cross_row($records, $columns)
-			if length($self->param('cs') // '');
+		if (length($self->param('cs') // '')) {
+			($records, $columns) = $self->_apply_cross_row($records, $columns);
+			# Stage 7: the calculated fields stage 4 held back for these columns.
+			($records, $columns) = $self->_apply_held_calc_fields($records, $columns);
+		}
 	}
 
 	return ($records, $columns);
@@ -2741,6 +2744,35 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	$self->_apply_date_normalization($all, [_get_columns($source, $all)],
 		$self->_calc_spec_key);
 
+	# Stage 4, for a page that draws calculated columns.  /view runs its fields
+	# on the sliced page, which is enough to show them, but a cross-row column has
+	# to be able to read one -- a running total per month reads a bucket -- so a
+	# request with cs= runs them here too, before the filters and the window.  The
+	# page's own pass then only repeats them, on the rows of the page.
+	my @stage4_cols;
+	if ($cross && defined $params->{calc_spec_key}) {
+		my @before = _get_columns($source, $all);
+		my $span   = $self->_span_calc_spec(\@before, ());
+		my $failed = $span && $span->{error};
+		unless ($failed) {
+			# A new array: the backend's own can be read-only.
+			my @rows = @$all;
+			my ($r, $c) = eval {
+				$self->_apply_calc_fields(\@rows, \@before, {
+					spec_key => $params->{calc_spec_key},
+					($span ? (calc => $span->{calc}) : ()),
+				})
+			};
+			($all, @stage4_cols) = ($r, @$c) if $r;
+			($failed = $@) =~ s/ at \S+ line \d+\.?\n?$// unless $r;
+		}
+		if ($failed) {
+			$self->render(text => $failed, status => 400);
+			$self->stash('_cross_row_error' => $failed);
+			return ();
+		}
+	}
+
 	$all = _apply_filter_spec($all, $_) for @f_specs;
 
 	if ($dedup) {
@@ -2754,7 +2786,8 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# renders its 400 here; the caller returns rather than drawing a page over it.
 	if ($cross) {
 		my $cols  = $source->columns;
-		my @xcols = $cols ? @$cols : (sort keys %{ $all->[0] // {} });
+		my @xcols = @stage4_cols ? @stage4_cols
+			: $cols ? @$cols : (sort keys %{ $all->[0] // {} });
 		my ($crossed) = eval { $self->_apply_cross_row($all, \@xcols) };
 		if ($@) {
 			(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
@@ -3174,6 +3207,89 @@ sub _extend_row {
 	return { %$row, $name => $value };
 }
 
+# _write_calc_column($self, $records, \@cols, $name, $calc)
+#
+# Purpose: Evaluate one compiled calculated field over the rows and write it as
+#          a column, recording it as virtual so _grouped_totals skips the SQL
+#          push path.  \@cols gains the name if it is new.
+sub _write_calc_column :Protected ($self, $records, $cols, $name, $calc) {
+	my $undef_count = 0;
+	for my $i (0 .. $#$records) {
+		my $row = $records->[$i];
+		my $val = $calc->evaluate($row);
+		$undef_count++ unless defined $val;
+		# Store '(unparseable)' rather than undef so that pivot/bar
+		# grouping (which skips empty-string keys) keeps these rows in a
+		# visible '(unparseable)' bucket rather than silently dropping them.
+		# See _extend_row for why the row may have to be replaced.
+		$records->[$i] = _extend_row($row, $name,
+			defined $val ? $val : '(unparseable)');
+	}
+	if ($undef_count) {
+		$self->app->log->warn($self->_i18n('warn_calc_undef', $name, $undef_count));
+	}
+	push @$cols, $name unless grep { $_ eq $name } @$cols;
+	$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
+	$self->stash('_virtual_columns')->{$name} = 1;
+	return;
+}
+
+# _apply_held_calc_fields($self, $records, \@columns, $card) -> ($records, \@columns)
+#
+# Purpose: Stage 7 of the pipeline: the calculated fields stage 4 held back,
+#          now that the cross-row columns they name exist.  Each was checked
+#          against those names when it was held, so a failure here is reported
+#          as any other compile failure is.
+# Entry:   $card is true for a canvas card.  A canvas holds a field for any
+#          card's plan, so a field that does not compile against this card's
+#          columns belongs to another card, and this card goes without it.
+# Exit:    The rows and columns, extended.  The list is a new array, and both
+#          come back as they arrived when nothing is held.
+sub _apply_held_calc_fields :Protected ($self, $records, $columns, $card = 0) {
+	my $held = $self->stash('_held_calc_fields');
+	return ($records, $columns) unless $held && @$held;
+
+	require Database::BI::Calc;
+	my @cols = @{ $columns // [ sort keys %{ $records->[0] // {} } ] };
+	for my $cs (@$held) {
+		my $calc = Database::BI::Calc->new(
+			expr    => $cs->{expr},
+			columns => \@cols,
+			params  => $cs->{params},
+		);
+		if ($calc->has_error) {
+			next if $card;
+			croak $self->_i18n('error_calc_compile', $cs->{name}, $calc->error);
+		}
+		$self->_write_calc_column($records, \@cols, $cs->{name}, $calc);
+	}
+	return ($records, \@cols);
+}
+
+# _cross_row_aliases(@specs) -> @names
+#
+# Purpose: The columns a list of cs= specs will add: the third field of each.
+#          Only names are wanted, so a malformed spec simply has none; refusing
+#          it is the work of _cross_row_specs_from.
+sub _cross_row_aliases {
+	return map { (split /:/, $_, 4)[2] // () } grep { defined && !ref && length } @_;
+}
+
+# _canvas_window_columns($analysis, $params) -> \@names
+#
+# Purpose: Every column a cross-row plan may add on this canvas: the page's cs=,
+#          read from $params, and each card's own plan.
+sub _canvas_window_columns {
+	my ($analysis, $params) = @_;
+	my @specs = @{ $params->every_param('cs') // [] };
+	for my $vis (@{ $analysis->{visuals} // [] }) {
+		next unless ref $vis eq 'HASH' && ref $vis->{cross_row} eq 'HASH'
+			&& ref $vis->{cross_row}{cs} eq 'ARRAY';
+		push @specs, @{ $vis->{cross_row}{cs} };
+	}
+	return [ _cross_row_aliases(@specs) ];
+}
+
 # _apply_calc_fields($self, $records, \@columns, \%extra) -> ($records, \@columns)
 #
 # Reads ?c=<name>:<expression> params (those NOT matching a path:/table:/url:/redis:/mariadb:
@@ -3190,6 +3306,14 @@ sub _extend_row {
 #   calc     => \@specs -- additional ?c=-style specs, for a canvas whose query
 #                          string arrived with the request rather than as the
 #                          request's own parameters.
+#   window_columns => \@names -- the columns the cross-row pass will add, for a
+#                          canvas, whose plans are not the request's own cs=.
+#
+# A field that needs a cross-row column cannot run yet: stage 6 comes after the
+# filters this stage feeds.  So a field that fails to compile, and would compile
+# once those columns exist, is held back for _apply_held_calc_fields.  Any other
+# failure is still the error it always was, a mistyped name included, so holding
+# cannot hide a mistake, and with no cs= nothing is ever held.
 sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	my $bound_params     = ($extra // {})->{params}   // {};
 	my $spec_key_override = ($extra // {})->{spec_key};
@@ -3232,6 +3356,11 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 
 	my @cols = @{$columns};
 
+	my @window = $extra && $extra->{window_columns}
+		? @{ $extra->{window_columns} }
+		: _cross_row_aliases(@{ $self->every_param('cs') // [] });
+	my @held;
+
 	if (@calc_specs) {
 		require Database::BI::Calc;
 		for my $cs (@calc_specs) {
@@ -3241,32 +3370,25 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 				columns => \@cols,
 				params  => $bound_params,
 			);
-			croak $self->_i18n('error_calc_compile', $name, $calc->error)
-				if $calc->has_error;
-
-			my $undef_count = 0;
-			for my $i (0 .. $#$records) {
-				my $row = $records->[$i];
-				my $val = $calc->evaluate($row);
-				$undef_count++ unless defined $val;
-				# Store '(unparseable)' rather than undef so that pivot/bar
-				# grouping (which skips empty-string keys) keeps these rows in a
-				# visible '(unparseable)' bucket rather than silently dropping them.
-				# See _extend_row for why the row may have to be replaced.
-				$records->[$i] = _extend_row($row, $name,
-					defined $val ? $val : '(unparseable)');
-			}
-			if ($undef_count) {
-				$self->app->log->warn(
-					$self->_i18n('warn_calc_undef', $name, $undef_count)
+			if ($calc->has_error) {
+				# The names of fields already held count too, so that a field
+				# can build on one that is waiting.
+				my $later = @window && Database::BI::Calc->new(
+					expr    => $cs->{expr},
+					columns => [ @cols, @window, map { $_->{name} } @held ],
+					params  => $bound_params,
 				);
+				if ($later && !$later->has_error) {
+					push @held, { %$cs, params => $bound_params };
+					next;
+				}
+				croak $self->_i18n('error_calc_compile', $name, $calc->error);
 			}
-			push @cols, $name unless grep { $_ eq $name } @cols;
-		# Record as virtual so _grouped_totals can skip the SQL push path.
-		$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
-		$self->stash('_virtual_columns')->{$name} = 1;
+
+			$self->_write_calc_column($records, \@cols, $name, $calc);
 		}
 	}
+	$self->stash('_held_calc_fields' => \@held);
 
 	# Apply named value groups from models.json.
 	# For each source column that has groups registered under the current l=
@@ -4429,6 +4551,7 @@ sub _canvas_render_context :Protected ($self, $a, $query) {
 				params   => \%param_values,
 				spec_key => ($a->{datasets}[0]{spec} // ''),
 				calc     => [ $params ? @{ $params->every_param('c') // [] } : () ],
+				window_columns => _canvas_window_columns($a, $params || Mojo::Parameters->new),
 			}
 		);
 	};
@@ -4670,7 +4793,8 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		# card that asked for no plan at all reads a column it never asked for.
 		my $own = [ map { ref $_ eq 'HASH' ? { %$_ } : $_ } @$vis_recs ];
 		my ($crossed, $crossed_cols) = eval {
-			$self->_apply_cross_row($own, $columns, $plan)
+			my ($r, $c) = $self->_apply_cross_row($own, $columns, $plan);
+			$self->_apply_held_calc_fields($r, $c, 1);
 		};
 		if (my $e = $@) {
 			$e =~ s/ at \S+ line \d+\.?\n?$//;
@@ -5467,7 +5591,11 @@ sub canvas_render ($self) {
 		eval {
 			($records, $columns) = $self->_apply_calc_fields(
 				$records, $columns,
-				{ params => \%bound_params, spec_key => $canvas_spec_key }
+				{
+					params         => \%bound_params,
+					spec_key       => $canvas_spec_key,
+					window_columns => _canvas_window_columns($a, $self),
+				}
 			);
 		};
 		if ($@) {
@@ -6189,7 +6317,8 @@ sub view ($self) {
 			# _fetch_page applies reduce-before-paginate: full-fetch + filter + dedup
 			# + Perl paginate when f= or d=1 are set; N+1 trick otherwise.
 			($records, $has_next) = $self->_fetch_page($source,
-				{ per_page => $per_page, offset => $offset, dedup => $dedup });
+				{ per_page => $per_page, offset => $offset, dedup => $dedup,
+				  calc_spec_key => "table:$table" });
 		}
 	};
 	if ($@) {
@@ -13219,6 +13348,19 @@ stages and carries the same column.  A spec that cannot be honoured -- an
 unknown function, an unknown column, a parameter on a function that takes
 none, a parameter that is not a positive whole number, a missing C<order=>
 for an accumulating function -- is a 400 naming the parameter.
+
+A calculated field runs before the filters, so it can feed the pass:
+C<cs=> can read a C<?c=> field, a stored field or a C<span=> bucket.  One that
+names a cross-row column cannot run that early, so it waits and runs straight
+after the pass: C<cs=amount:running_total:ytd&order=day&c=half:ytd/2>.  This is
+stage 7, and it needs a C<cs=> that adds the column.  Without one the name is
+unknown, the 400 it always was, and any other fault in the field is reported at
+once.  A field cannot be both: C<cs=> cannot read a field that is itself waiting
+for a cross-row column.  On a canvas each card runs the waiting fields after its
+own pass, and a card whose plan lacks the column goes without the field.
+
+Because the filters come first, C<f=> cannot select on a cross-row column, or on
+a field that waits for one: the column does not exist yet, so no row matches.
 
 =head1 COMMON PITFALLS
 
