@@ -813,6 +813,23 @@ perl Makefile.PL
     Removes a date-normalisation pattern.  Body: `l=&col=`.
     Omit `col=` to clear all patterns for the spec.
 
+- `GET /lookups/list`
+
+    Returns `{ lookups: { name: { file, key, col, fields, default } } }` for the
+    stored lookups of `?l=<spec>`; `col`, `fields` and `default` appear
+    only when they were given.  See ["Stored lookups"](#stored-lookups).
+
+- `POST /lookups/save`
+
+    Saves a lookup.  Body: `l=&name=&file=&key=`, plus optional `col=`,
+    `fields=` and `default=`.  The file is read when it is saved, so a bad one is
+    a 400 at once.
+
+- `POST /lookups/delete`
+
+    Removes a lookup.  Body: `l=&name=`.  Omit `name=` to remove every lookup of
+    the spec.
+
 - `GET /geo/list`
 
     Returns `{ columns: { col: { kind: "lat"|"lon"|"location" } } }` for the
@@ -988,6 +1005,36 @@ changing their totals.  On a canvas, a card's own filters and a cross-filter
 follow the same rule.
 The table page's Cross-row panel builds the same parameters.  See
 ["Cross-row columns" in Database::BI::Controller::Dashboard](https://metacpan.org/pod/Database%3A%3ABI%3A%3AController%3A%3ADashboard#Cross-row-columns) for the full rules.
+
+### Stored Lookups
+
+A lookup adds columns to every row of a dataset from a second file, matched on
+one key: a shop code in the orders gains the shop's city and region.
+
+```
+POST /lookups/save  l=table:orders&name=shops&file=lookups/shops.csv
+                    &key=code&col=shop&fields=city,region&default=unknown
+```
+
+`file=` is a data file under `data_dir` (a relative path is read from there),
+of at most 8 MiB; a file outside it, a symlink that leads outside it, a URL and
+a remote path are refused.  `key=` is the lookup file's key column and `col=`
+the dataset's (default: the same name).  `fields=` lists the columns to add
+(default: all but the key).  Keys are compared as text after trimming spaces,
+and case matters.  When the file has a key twice, the first row is used and the
+log says so.  A row whose key is not in the file gets `default=`, or nothing.
+
+A field keeps its own name unless the dataset already has a column of that
+name; it is then called `<name>_<field>` (`shops_region`).  A
+source column is never overwritten.
+
+Stored lookups apply on every route, a canvas and `/export`, before
+calculated fields and filters, so either can read the new columns.  A total
+grouped or filtered by one is worked out in Perl, never sent to SQL.  For one request,
+`nolk=<name>` skips a stored lookup, and `lk=<name>` applies
+a lookup stored for another dataset.  Both repeat, and the panels carry them on.
+A lookup is not a join: for more than one key, or rows that match many rows,
+use Merge.
 
 ## Configuration
 

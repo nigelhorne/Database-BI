@@ -209,6 +209,7 @@
 [%- range_hidden -%]
 [%- cross_row_params -%]
 [%- IF dedup -%]<input type="hidden" name="d" value="1">[%- END -%]
+[%- FOREACH lkp IN view_lookups -%]<input type="hidden" name="[% lkp.name | html %]" value="[% lkp.value | html %]">[%- END -%]
 [%- END -%]
 
 [%- IF left_spec -%]
@@ -5424,7 +5425,8 @@ function biDetectColType(colName) {
     // A cross-row column is part of the view too, so the file holds the column
     // the table is showing rather than the rows it was worked out from.  All
     // three repeat (several columns, one order each), so they travel as lists.
-    ['cs', 'order', 'by'].forEach(function (k) {
+    // So is a lookup turned on or off for this view (lk=, nolk=).
+    ['cs', 'order', 'by', 'lk', 'nolk'].forEach(function (k) {
       urlP.getAll(k).forEach(function (v) { params.append(k, v); });
     });
 

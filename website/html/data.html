@@ -4,14 +4,14 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Data &mdash; Database::BI</title>
-<meta name="description" content="How Database::BI reads data files, and the pipeline every table, chart and canvas shares: joins, combine, filters, ranges, calculated fields, groups, cross-row columns.">
+<meta name="description" content="How Database::BI reads data files, and the pipeline every table, chart and canvas shares: joins, combine, filters, ranges, calculated fields, groups, lookups, cross-row columns.">
 <meta name="theme-color" content="#fbfaf7" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#12161b" media="(prefers-color-scheme: dark)">
 <link rel="canonical" href="data.html">
 <meta property="og:type" content="article">
 <meta property="og:site_name" content="Database::BI">
 <meta property="og:title" content="Data &mdash; Database::BI">
-<meta property="og:description" content="How Database::BI reads data files, and the pipeline every table, chart and canvas shares: joins, combine, filters, ranges, calculated fields, groups, cross-row columns.">
+<meta property="og:description" content="How Database::BI reads data files, and the pipeline every table, chart and canvas shares: joins, combine, filters, ranges, calculated fields, groups, lookups, cross-row columns.">
 <meta name="twitter:card" content="summary">
 <link rel="stylesheet" href="../css/site.css">
 </head>
@@ -133,8 +133,9 @@
 		stacks further files under the result on a unified column set.
 	</li>
 	<li>
-		<strong>Normalise dates and compute fields.</strong> A stored date pattern
-		turns a column into ISO-8601; calculated fields
+		<strong>Normalise dates, look up and compute fields.</strong> A stored date pattern
+		turns a column into ISO-8601; a stored lookup adds columns from a second
+		file, matched on one key; calculated fields
 		(<code>c=name:expression</code>) become virtual columns; named groups become
 		virtual <code>&lt;col&gt;_group</code> columns.
 	</li>
@@ -233,6 +234,32 @@ this_year, last_year</code></pre>
 	a timestamp that <code>epoch()</code>, <code>span()</code> and
 	<code>last_24_hours</code> can read. Both are stored per dataset in
 	<code>models.json</code> and managed from panels on the data pages.
+</p>
+
+<h2 id="lookups">Stored lookups</h2>
+<p>
+	A lookup adds columns to every row from a second file, matched on one key: a
+	shop code in the orders gains the shop's city and region. It is stored per
+	dataset and applied on every route, the export and a canvas, before
+	calculated fields and filters, so both can read the new columns.
+</p>
+<pre><code>POST /lookups/save  l=table:orders&amp;name=shops&amp;file=lookups/shops.csv
+                    &amp;key=code&amp;col=shop&amp;fields=city,region&amp;default=unknown</code></pre>
+<p>
+	The file must be a data file under <code>data_dir</code>, of at most 8&nbsp;MiB;
+	a URL, a remote path and a symlink leading outside are refused.
+	<code>key</code> is the lookup file's column and <code>col</code> the
+	dataset's (the same name when left out). Keys are compared as text after
+	trimming spaces, and case matters. The first row with a key wins, and the log
+	says when a key repeats. A key that is not in the file gets
+	<code>default</code>, or nothing. A field whose name the dataset already has
+	is added as <code>&lt;name&gt;_&lt;field&gt;</code>, so a source column is
+	never overwritten.
+</p>
+<p>
+	<code>nolk=&lt;name&gt;</code> skips a stored lookup for one request, and
+	<code>lk=&lt;name&gt;</code> applies one stored for another dataset. A lookup
+	is not a join: for more than one key, or a row that matches many rows, use Merge.
 </p>
 
 <h2 id="cross-row">Cross-row columns</h2>

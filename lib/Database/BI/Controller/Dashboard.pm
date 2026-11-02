@@ -163,6 +163,18 @@ Readonly my %MESSAGES => (
 	error_date_pattern          => 'Unsupported date format pattern "%s"; allowed: %%m/%%d/%%Y, %%d/%%m/%%Y, %%d-%%b-%%Y',
 	error_date_time_pattern     => 'Unsupported time format pattern "%s"; allowed: %%H:%%M, %%H:%%M:%%S',
 	error_date_as               => 'as= must be "timestamp" or absent; "%s" is neither',
+	error_lookup_name           => 'Lookup name "%s" is not a valid identifier',
+	error_lookup_unknown        => 'Lookup "%s" is not stored for any dataset',
+	error_lookup_remote         => 'Lookup "%s": "%s" is not a file; a lookup reads a file under data_dir (use Import for a URL)',
+	error_lookup_outside        => 'Lookup "%s": "%s" is not under data_dir',
+	error_lookup_not_found      => 'Lookup "%s": file "%s" not found, or not a supported data file',
+	error_lookup_too_large      => 'Lookup "%s": "%s" is %d bytes, more than a lookup may be (%d)',
+	error_lookup_unreadable     => 'Lookup "%s": cannot read "%s": %s',
+	error_lookup_key_unknown    => 'Lookup "%s": key column "%s" is not in "%s"',
+	error_lookup_field_unknown  => 'Lookup "%s": field "%s" is not in "%s"',
+	error_lookup_col_unknown    => 'Lookup "%s": column "%s" is not in this dataset (nolk=%s skips the lookup)',
+	error_lookup_name_taken     => 'Lookup "%s": field "%s" cannot be added, because "%s" is a column already',
+	warn_lookup_duplicate_key   => 'Lookup "%s": %d duplicate key(s) in "%s"; the first row of each is used',
 	error_analysis_not_found    => 'Analysis "%s" not found',
 	error_analysis_invalid      => 'Invalid analysis spec: %s',
 	error_analysis_version      => 'Unsupported analysis version %s; please upgrade the application',
@@ -236,6 +248,8 @@ Readonly my %MESSAGES => (
 Readonly my $MAX_UPLOAD_MIB      => 50;
 Readonly my $MAX_UPLOAD_BYTES    => $MAX_UPLOAD_MIB * 1_048_576;
 Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
+Readonly my $LOOKUP_MAX_BYTES      => 8 * 1_048_576;	# a bigger file is a join, not a lookup
+Readonly my $LOOKUP_NAME_RE        => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_geocode_max)
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
 Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
@@ -3200,6 +3214,197 @@ sub _apply_date_normalization :Protected ($self, $records, $columns, $spec_key) 
 	}
 }
 
+# _lookups_of_request($self, $spec_key) -> @lookups
+#
+# Purpose: The lookups this request applies, in order: those stored for
+#          $spec_key, by name, then each lk=<name> stored for another dataset,
+#          less every nolk=<name>.
+# Entry:   $spec_key files the stored lookups (the l= spec, or a canvas's).
+# Exit:    A list of { name => $name, %definition }.  Croaks error_lookup_unknown
+#          for an lk= that names no stored lookup, and error_lookup_name for one
+#          that is not an identifier.
+sub _lookups_of_request :Protected ($self, $spec_key) {
+	my $all  = $self->_read_models->{lookups};
+	my %skip = map { $_ => 1 } @{ $self->every_param('nolk') // [] };
+	my $own  = (length($spec_key // '') && ref $all->{$spec_key} eq 'HASH') ? $all->{$spec_key} : {};
+
+	my (@lookups, %seen);
+	for my $name (sort keys %$own) {
+		next if $skip{$name} || ref $own->{$name} ne 'HASH';
+		push @lookups, { %{ $own->{$name} }, name => $name };
+		$seen{$name} = 1;
+	}
+	for my $name (@{ $self->every_param('lk') // [] }) {
+		next if $seen{$name}++ || $skip{$name};
+		croak $self->_i18n('error_lookup_name', $name) unless $name =~ $LOOKUP_NAME_RE;
+		# Another dataset's lookup, the first by the order of the specs, so the
+		# choice does not depend on how the store happens to be read.
+		my ($def) = grep { ref $_ eq 'HASH' }
+			map { $all->{$_}{$name} } sort keys %$all;
+		croak $self->_i18n('error_lookup_unknown', $name) unless $def;
+		push @lookups, { %$def, name => $name };
+	}
+	return @lookups;
+}
+
+# _lookup_file($self, $name, $file) -> $path
+#
+# Purpose: Resolve a lookup's file= to the file it reads.  A relative path is
+#          under data_dir; an absolute one must be, after symlinks are resolved,
+#          so a link inside data_dir cannot reach outside it.
+# Entry:   $name names the lookup in the messages.
+# Exit:    The resolved path as a string.  Croaks error_lookup_remote (a URL or
+#          another source spec, or a remote /../host/ path), error_lookup_outside,
+#          error_lookup_not_found (missing, or not a supported extension) or
+#          error_lookup_too_large (over $LOOKUP_MAX_BYTES).
+sub _lookup_file :Protected ($self, $name, $file) {
+	$file //= '';
+	# Two letters at least before the colon, so C:\data is still a path.
+	croak $self->_i18n('error_lookup_remote', $name, $file)
+		if $file =~ m{\A(?:[A-Za-z][A-Za-z0-9+.-]+:|/\.\./)};
+	croak $self->_i18n('error_lookup_not_found', $name, $file) unless length $file;
+
+	my $data_dir = _data_dir_for($self->app);
+	my $given    = Mojo::File->new($file);
+	my $path     = $given->is_abs ? $given : $data_dir->child($file);
+	croak $self->_i18n('error_lookup_outside', $name, $file)
+		unless _inside_dir(_canonical_path($path), _canonical_path($data_dir));
+	croak $self->_i18n('error_lookup_not_found', $name, $file)
+		unless -f $path && $path->basename =~ $EXT_RE;
+	my $size = -s $path // 0;
+	croak $self->_i18n('error_lookup_too_large', $name, $file, $size, $LOOKUP_MAX_BYTES)
+		if $size > $LOOKUP_MAX_BYTES;
+	return _canonical_path($path);
+}
+
+# _load_lookup($self, $lookup) -> \%entry
+#
+# Purpose: Read a lookup's file into a map from key to row, once per request.
+# Entry:   $lookup is one entry of _lookups_of_request.
+# Exit:    { map => { key => \%row }, fields => \@names, file => $basename }.
+#          Keys are compared as strings after trimming, case-sensitively; a
+#          duplicate key keeps its first row and is logged once.  Croaks one of
+#          _lookup_file's errors, error_lookup_unreadable, error_lookup_key_unknown
+#          or error_lookup_field_unknown.
+# Side Effects: Caches the entry in the stash, keyed by name, path and mtime.
+sub _load_lookup :Protected ($self, $lookup) {
+	my $name = $lookup->{name};
+	my $path = $self->_lookup_file($name, $lookup->{file});
+	my $file = Mojo::File->new($path)->basename;
+	my $memo = $self->stash('_lookup_maps') // {};
+	my $tag  = join "\0", $name, $path, (stat $path)[9] // 0,
+		$lookup->{key} // '', @{ ref $lookup->{fields} eq 'ARRAY' ? $lookup->{fields} : [] };
+	return $memo->{$tag} if $memo->{$tag};
+
+	(my $table = $file) =~ s/\.[^.]+\z//;
+	my ($src, $rows);
+	my $ok = eval {
+		$src  = $self->open_table($table, directory => Mojo::File->new($path)->dirname->to_string);
+		$rows = $src->fetch_all;
+		1;
+	};
+	croak $self->_i18n('error_lookup_unreadable', $name, $file, _tidy_error($@)) unless $ok;
+
+	my @columns = _get_columns($src, $rows);
+	my %has     = map { $_ => 1 } @columns;
+	my $key     = $lookup->{key} // '';
+	croak $self->_i18n('error_lookup_key_unknown', $name, $key, $file) unless $has{$key};
+
+	my @fields = ref $lookup->{fields} eq 'ARRAY' && @{ $lookup->{fields} }
+		? @{ $lookup->{fields} }
+		: grep { $_ ne $key } @columns;
+	for my $f (@fields) {
+		croak $self->_i18n('error_lookup_field_unknown', $name, $f, $file) unless $has{$f};
+	}
+
+	my (%map, $duplicates);
+	for my $row (@$rows) {
+		my $k = _lookup_key($row->{$key});
+		next unless defined $k && length $k;
+		if (exists $map{$k}) {
+			$duplicates++;
+			next;
+		}
+		$map{$k} = { map { $_ => $row->{$_} } @fields };
+	}
+	$self->app->log->warn($self->_i18n('warn_lookup_duplicate_key', $name, $duplicates, $file))
+		if $duplicates;
+
+	$memo->{$tag} = { map => \%map, fields => \@fields, file => $file };
+	$self->stash('_lookup_maps' => $memo);
+	return $memo->{$tag};
+}
+
+# _lookup_key($value) -> $key | undef
+#
+# Purpose: The form in which a lookup compares a key: the string, trimmed.  Case
+#          and everything else are left as they are, so "ab" and "AB" are two keys.
+sub _lookup_key {
+	my ($v) = @_;
+	return undef unless defined $v && !ref $v;
+	(my $k = $v) =~ s/\A\s+|\s+\z//g;
+	return $k;
+}
+
+# _apply_lookups($self, $records, \@cols, $spec_key) -> void
+#
+# Purpose: Stage 3 of the pipeline: each lookup the request applies adds its
+#          fields to every row, read from the lookup file's row whose key equals
+#          the row's own (col=, which defaults to the key's name).  A row whose
+#          key is missing gets the lookup's default, or undef.
+# Entry:   \@cols is the column list so far; it gains the new columns.
+# Exit:    Rows are replaced through _extend_row where they must be.  The new
+#          columns are virtual, so an aggregate that groups by one is folded in
+#          Perl.  Croaks with a message for a bad lookup or a missing column.
+# Notes:   A field lands under its own name unless a column has it, and then
+#          under <lookup>_<field>; a source column is never overwritten.  The
+#          columns this pass wrote do not count as taken when it runs again in
+#          the same request, so the names a page gets do not depend on how
+#          many times the stage has run over it.
+sub _apply_lookups :Protected ($self, $records, $cols, $spec_key) {
+	my @lookups = $self->_lookups_of_request($spec_key);
+	return unless @lookups;
+
+	my $written = $self->stash('_lookup_written') // {};
+	my %taken   = map { $_ => 1 } grep { !$written->{$_} } @$cols;
+	for my $lookup (@lookups) {
+		my $name  = $lookup->{name};
+		my $entry = $self->_load_lookup($lookup);
+		my $col   = length($lookup->{col} // '') ? $lookup->{col} : $lookup->{key};
+		croak $self->_i18n('error_lookup_col_unknown', $name, $col, $name)
+			unless $taken{$col} || $written->{$col};
+
+		my @out;
+		for my $f (@{ $entry->{fields} }) {
+			my $as = $taken{$f} ? "${name}_$f" : $f;
+			croak $self->_i18n('error_lookup_name_taken', $name, $f, $as) if $taken{$as};
+			$taken{$as} = 1;
+			push @out, [ $f, $as ];
+		}
+
+		my $default = $lookup->{default};
+		my $map     = $entry->{map};
+		for my $i (0 .. $#$records) {
+			my $k   = _lookup_key($records->[$i]{$col});
+			my $hit = defined $k ? $map->{$k} : undef;
+			for my $pair (@out) {
+				$records->[$i] = _extend_row($records->[$i], $pair->[1],
+					$hit ? $hit->{ $pair->[0] } : $default);
+			}
+		}
+
+		my %have = map { $_ => 1 } @$cols;
+		push @$cols, grep { !$have{$_} } map { $_->[1] } @out;
+		$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
+		for my $pair (@out) {
+			$self->stash('_virtual_columns')->{ $pair->[1] } = 1;
+			$written->{ $pair->[1] } = 1;
+		}
+	}
+	$self->stash('_lookup_written' => $written);
+	return;
+}
+
 # _extend_row($row, $name, $value) -> $row | \%copy
 #
 # Purpose: Write a virtual column into a row that came out of a source.  A row
@@ -3429,6 +3634,11 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 		? $spec_key_override : ($self->param('l') // '');
 	$self->_apply_date_normalization($records, $columns, $date_spec);
 
+	# Stage 3: the stored lookups, so that a field, a filter, a bucket or a window
+	# can read a looked-up column.  They join the column list from here on.
+	my @cols = @{$columns};
+	$self->_apply_lookups($records, \@cols, $date_spec);
+
 	# Build calc spec list: stored fields from models.json first (lower priority),
 	# then URL ?c= params (higher priority -- they override stored fields of the
 	# same name so the user can test a new expression without permanently saving).
@@ -3456,8 +3666,6 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 			$seen_calc{$name} = $#calc_specs;
 		}
 	}
-
-	my @cols = @{$columns};
 
 	my @window = $extra && $extra->{window_columns}
 		? @{ $extra->{window_columns} }
@@ -3623,7 +3831,7 @@ sub _calc_models_path :Protected ($self) {
 # Returns the parsed models hashref from .bi/models.json, or an empty scaffold.
 sub _read_models :Protected ($self) {
 	my $path = $self->_calc_models_path;
-	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {} };
+	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {} };
 	return $scaffold unless defined $path && -f $path;
 	my $json = eval { Mojo::File->new($path)->slurp };
 	return $scaffold unless $json && !$@;
@@ -3631,7 +3839,7 @@ sub _read_models :Protected ($self) {
 	return $scaffold unless ref $data eq 'HASH';
 	# Callers go straight to ->{fields}{$spec}{$name}, so a hand-edited section of
 	# the wrong shape would otherwise be a strict-refs crash on every page.
-	for my $section (qw(fields groups date_patterns)) {
+	for my $section (qw(fields groups date_patterns lookups)) {
 		$data->{$section} = {} unless ref $data->{$section} eq 'HASH';
 		my $by_spec = $data->{$section};
 		delete @{$by_spec}{ grep { ref $by_spec->{$_} ne 'HASH' } keys %$by_spec };
@@ -10120,6 +10328,76 @@ sub dates_list ($self) {
 }
 
 # ---------------------------------------------------------------------------
+# Stored-lookup CRUD  (POST /lookups/save, POST /lookups/delete, GET /lookups/list)
+# ---------------------------------------------------------------------------
+
+# lookups_save: POST /lookups/save?l=<spec>&name=<ident>&file=<path>&key=<col>
+#               [&col=<col>][&fields=<col>[,<col>...]][&default=<value>]
+# Stores models.json lookups.<spec>.<name>.  The file is read now, so a file
+# outside data_dir, a missing one, one too large, and a key or field it does not
+# have are all 400s here rather than on the next page.  fields= may repeat or
+# hold a comma-separated list; without it every column but the key is added.
+sub lookups_save ($self) {
+	my $spec = $self->param('l')    // '';
+	my $name = $self->param('name') // '';
+	my $key  = $self->param('key')  // '';
+	my $col  = $self->param('col')  // '';
+	my @fields = grep { length } map { split /,/ } @{ $self->every_param('fields') // [] };
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+	return $self->render(json => { error => $self->_i18n('error_lookup_name', $name) }, status => 400)
+		unless $name =~ $LOOKUP_NAME_RE;
+	return $self->render(json => { error => 'key= required' }, status => 400)
+		unless length $key;
+
+	my %def = (
+		file => $self->param('file') // '',
+		key  => $key,
+		(length $col ? (col => $col) : ()),
+		(@fields ? (fields => \@fields) : ()),
+		(defined $self->param('default') ? (default => $self->param('default')) : ()),
+	);
+	my $ok = eval { $self->_load_lookup({ %def, name => $name }); 1 };
+	return $self->render(json => { error => _tidy_error($@) }, status => 400) unless $ok;
+
+	my $models = $self->_read_models;
+	$models->{lookups}{$spec}{$name} = \%def;
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+# lookups_delete: POST /lookups/delete?l=<spec>[&name=<ident>]
+# Removes one lookup, or every lookup of $spec when name= is absent.
+sub lookups_delete ($self) {
+	my $spec = $self->param('l')    // '';
+	my $name = $self->param('name') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	if (length $name) {
+		delete $models->{lookups}{$spec}{$name};
+	} else {
+		delete $models->{lookups}{$spec};
+	}
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+# lookups_list: GET /lookups/list?l=<spec>
+# Returns { lookups: { name: { file, key, col?, fields?, default? }, ... } }.
+sub lookups_list ($self) {
+	my $spec = $self->param('l') // '';
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	$self->render(json => { lookups => $models->{lookups}{$spec} // {} });
+}
+
+# ---------------------------------------------------------------------------
 # Geo column preferences CRUD  (POST /geo/save, POST /geo/delete, GET /geo/list)
 #
 # Stores the user's choice of lat/lon/loc columns for a given l= spec in
@@ -13371,6 +13649,63 @@ date-normalisation patterns that convert non-ISO date columns to ISO-8601
     -> 200 { "ok": 1 }
   GET /dates/list?l=path:/data/sales.csv
     -> 200 { "patterns": { "sale_date": "%m/%d/%Y" } }
+
+=cut
+
+=head2 lookups_list / lookups_save / lookups_delete
+
+C<GET /lookups/list>, C<POST /lookups/save>, C<POST /lookups/delete> -- Manage
+the stored lookups of a dataset: C<models.json> C<lookups.E<lt>specE<gt>.E<lt>nameE<gt>>.
+Each is applied at stage 3 of the pipeline by C<_apply_lookups>, after dates
+are normalised and before calculated fields, so every later stage can read the
+columns it adds.  C<lk=> and C<nolk=> on any data route add or skip one for a
+single request.
+
+=head3 API SPECIFICATION
+
+=head4 lookups_list (GET /lookups/list)
+
+  INPUT:  l=<spec>  (required)
+  OUTPUT: 200 application/json
+            { "lookups": { "<name>": { "file": "<path>", "key": "<col>",
+                                       "col": "<col>", "fields": ["<col>", ...],
+                                       "default": "<value>" }, ... } }
+          400 application/json  { "error": "l= required" }
+
+=head4 lookups_save (POST /lookups/save)
+
+  INPUT:  l=<spec>, name=<identifier>, file=<path under data_dir>, key=<col>
+          optional: col=<dataset column, default key>,
+                    fields=<col>[,<col>...] (repeatable; default every column but key),
+                    default=<value for a key not in the file>
+  OUTPUT: 200 application/json  { "ok": 1 }
+          400 application/json  { "error": "..." } -- l=, name= or key= missing or
+              invalid; the file remote, outside data_dir, missing, unsupported,
+              over 8 MiB or unreadable; key= or a field not in the file
+
+=head4 lookups_delete (POST /lookups/delete)
+
+  INPUT:  l=<spec>, name=<identifier>  (omit name= to delete every lookup of the spec)
+  OUTPUT: 200 application/json  { "ok": 1 }
+          400 application/json  { "error": "l= required" }
+
+=head3 EXAMPLE
+
+  POST /lookups/save  l=table:orders&name=shops&file=shops.csv&key=code&col=shop
+    -> 200 { "ok": 1 }
+  GET /export?l=table:orders&format=json
+    -> 200 [ { "shop": "LDN", "city": "London", ... }, ... ]
+  GET /export?l=table:orders&format=json&nolk=shops
+    -> 200 [ { "shop": "LDN", ... }, ... ]
+
+=head3 NOTES
+
+Keys are compared as strings after trimming, case-sensitively.  A duplicate key
+keeps the first row and is logged once per request
+(C<warn_lookup_duplicate_key>).  A field whose name the dataset already has is
+written as C<E<lt>nameE<gt>_E<lt>fieldE<gt>>; when that is taken too, the request
+is a 400.  The file is read once per request, through the same loader as any
+data file.
 
 =cut
 

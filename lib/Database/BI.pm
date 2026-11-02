@@ -857,6 +857,23 @@ string, unchanged, so no existing store needs migrating.
 Removes a date-normalisation pattern.  Body: C<l=&col=>.
 Omit C<col=> to clear all patterns for the spec.
 
+=item C<GET /lookups/list>
+
+Returns C<{ lookups: { name: { file, key, col, fields, default } } }> for the
+stored lookups of C<?l=E<lt>specE<gt>>; C<col>, C<fields> and C<default> appear
+only when they were given.  See L</Stored lookups>.
+
+=item C<POST /lookups/save>
+
+Saves a lookup.  Body: C<l=&name=&file=&key=>, plus optional C<col=>,
+C<fields=> and C<default=>.  The file is read when it is saved, so a bad one is
+a 400 at once.
+
+=item C<POST /lookups/delete>
+
+Removes a lookup.  Body: C<l=&name=>.  Omit C<name=> to remove every lookup of
+the spec.
+
 =item C<GET /geo/list>
 
 Returns C<{ columns: { col: { kind: "lat"|"lon"|"location" } } }> for the
@@ -1026,6 +1043,34 @@ changing their totals.  On a canvas, a card's own filters and a cross-filter
 follow the same rule.
 The table page's Cross-row panel builds the same parameters.  See
 L<Database::BI::Controller::Dashboard/Cross-row columns> for the full rules.
+
+=head2 Stored lookups
+
+A lookup adds columns to every row of a dataset from a second file, matched on
+one key: a shop code in the orders gains the shop's city and region.
+
+  POST /lookups/save  l=table:orders&name=shops&file=lookups/shops.csv
+                      &key=code&col=shop&fields=city,region&default=unknown
+
+C<file=> is a data file under C<data_dir> (a relative path is read from there),
+of at most 8 MiB; a file outside it, a symlink that leads outside it, a URL and
+a remote path are refused.  C<key=> is the lookup file's key column and C<col=>
+the dataset's (default: the same name).  C<fields=> lists the columns to add
+(default: all but the key).  Keys are compared as text after trimming spaces,
+and case matters.  When the file has a key twice, the first row is used and the
+log says so.  A row whose key is not in the file gets C<default=>, or nothing.
+
+A field keeps its own name unless the dataset already has a column of that
+name; it is then called C<E<lt>nameE<gt>_E<lt>fieldE<gt>> (C<shops_region>).  A
+source column is never overwritten.
+
+Stored lookups apply on every route, a canvas and C</export>, before
+calculated fields and filters, so either can read the new columns.  A total
+grouped or filtered by one is worked out in Perl, never sent to SQL.  For one request,
+C<nolk=E<lt>nameE<gt>> skips a stored lookup, and C<lk=E<lt>nameE<gt>> applies
+a lookup stored for another dataset.  Both repeat, and the panels carry them on.
+A lookup is not a join: for more than one key, or rows that match many rows,
+use Merge.
 
 =head1 CONFIGURATION
 
@@ -1689,6 +1734,9 @@ sub startup ($self) {
 			view_filters   => [ grep { length } @{ $c->every_param('f') } ],
 			view_combines  => [ grep { /\A(?:path|table|url|redis|mariadb):/i } @{ $c->every_param('c') } ],
 			view_dedup     => ($c->param('d') ? 1 : 0),
+			# lk=/nolk= turn a stored lookup on or off for this view, as name=value
+			# pairs so the macro can write them back in the order they came.
+			view_lookups   => [ map { my $k = $_; map { { name => $k, value => $_ } } grep { length } @{ $c->every_param($k) } } qw(lk nolk) ],
 			# Names only: the rest of an entry is credentials.
 			mariadb_server_names => [ sort keys %{ $c->app->config('mariadb_servers') // {} } ],
 		);
@@ -1867,6 +1915,9 @@ sub startup ($self) {
 	$r->post('/dates/save')   ->to('Dashboard#dates_save');
 	$r->post('/dates/delete') ->to('Dashboard#dates_delete');
 	$r->get('/dates/list')    ->to('Dashboard#dates_list');
+	$r->post('/lookups/save')  ->to('Dashboard#lookups_save');
+	$r->post('/lookups/delete')->to('Dashboard#lookups_delete');
+	$r->get('/lookups/list')   ->to('Dashboard#lookups_list');
 	$r->post('/geo/save')     ->to('Dashboard#geo_save');
 	$r->post('/geo/delete')   ->to('Dashboard#geo_delete');
 	$r->get('/geo/list')      ->to('Dashboard#geo_list');

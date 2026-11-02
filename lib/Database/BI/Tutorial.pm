@@ -968,6 +968,10 @@ my @FAQ = (
 		answer   => 'You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others.',
 	},
 	{
+		question => 'New columns appeared that are not in my file.',
+		answer   => 'A stored lookup adds them from a second file. Add nolk= and the name of the lookup to the address to see the table without them.',
+	},
+	{
 		question => 'The program will not open my file.',
 		answer   => 'Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.',
 	},
@@ -1108,6 +1112,7 @@ my %EXEMPT_ROUTES = (
 	'/geo/list'                => 'JSON list of saved coordinate column preferences for the Map panel',
 	'/embed/:id'               => 'chrome-less embed view; requires a share token and is not a standalone page',
 	'/groups/list'             => 'JSON list of value groups for the Group panel',
+	'/lookups/list'            => 'JSON list of the stored lookups of a dataset',
 	'/share/:id'               => 'shared read-only canvas view; requires a signed token and cannot be navigated to directly',
 	'/tutorial'                => 'this page',
 );

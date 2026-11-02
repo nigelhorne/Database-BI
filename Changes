@@ -2,6 +2,12 @@ Revision history for Database-BI
 
 0.019.0
 	[ Enhancements ]
+	- Stored lookups: POST /lookups/save?l=table:orders&name=shops&file=shops.csv
+	  &key=code&col=shop adds the columns of shops.csv to every order whose shop
+	  matches a code, on every page, chart, export and canvas.  Filters and
+	  calculated fields can read the new columns.  The file must be under
+	  data_dir and at most 8 MiB.  nolk=shops skips it for one view; lk= applies a
+	  lookup stored for another dataset.  A source column is never overwritten.
 	- A calculated field can read a cross-row column: cs=amount:running_total:ytd
 	  with c=half:ytd/2.  The field runs after the cross-row pass, on canvases per
 	  card.  With no cs= the name is unknown, the 400 it always was.

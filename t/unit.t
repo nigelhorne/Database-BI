@@ -316,7 +316,7 @@ $ledger{"api.$_"} = "documented behaviour: $_" for qw(
 	analyses.list analyses.create analyses.get analyses.update analyses.patch analyses.delete
 	analyses.add_visual analyses.update_visual analyses.export analyses.import analyses.storage_503 analyses.unknown_keys
 	share.share share.embed share.visual_download
-	crud.calc crud.groups crud.dates crud.geo
+	crud.calc crud.groups crud.dates crud.lookups crud.geo
 	route.range route.tables route.wordcloud route.catalog route.tutorial route.index route.stats_percentile
 );
 
@@ -3058,6 +3058,76 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok('/upload' => form => { file => { content => 'x', filename => 'x.csv' } })->status_is(413);
 		restore_all();
 		message_ok(Dashboard => 'error_upload_too_large', $tm->tx->res->json->{error}, [undef]);
+	};
+
+	subtest 'the lookup store and its messages' => sub {
+		my $tm   = unit_app();
+		my $data = tempdir(CLEANUP => 1);
+		$tm->app->config->{data_dir} = $data;
+		my $put = sub { Mojo::File->new($data, $_[0])->spew($_[1]) };
+		$put->('orders.csv', "id,shop,region,shops_region\n1,A,x,y\n");
+		$put->('shops.csv', "code,city,region\nA,Here,North\nA,There,South\n");
+		$put->('odd.csv', "a b,c d\nx y,z w\n");
+		my $outside = unit_csv('far.csv', "code,city\nA,Far\n");
+		open my $fh, '>', "$data/huge.csv" or BAIL_OUT("huge.csv: $!");
+		truncate $fh, 9 * 1_048_576;
+		close $fh;
+
+		my $l    = 'l=table:orders';
+		my $save = sub {
+			$tm->post_ok('/lookups/save' => form => { l => 'table:orders', @_ });
+			return $tm->tx->res->json->{error};
+		};
+
+		$tm->get_ok('/lookups/list')->status_is(400)->json_is('/error', 'l= required');
+		$tm->post_ok('/lookups/save')->status_is(400)->json_is('/error', 'l= required');
+		$tm->post_ok('/lookups/delete')->status_is(400)->json_is('/error', 'l= required');
+		message_ok(Dashboard => 'error_lookup_name', $save->(name => '9x', file => 'shops.csv', key => 'code'), ['9x']);
+		is $save->(name => 's', file => 'shops.csv'), 'key= required', 'key= is required';
+		message_ok(Dashboard => 'error_lookup_remote', $save->(name => 's', file => 'http://x/y.csv', key => 'code'),
+			['s', 'http://x/y.csv']);
+		message_ok(Dashboard => 'error_lookup_outside', $save->(name => 's', file => $outside, key => 'code'),
+			['s', $outside]);
+		message_ok(Dashboard => 'error_lookup_not_found', $save->(name => 's', file => 'nope.csv', key => 'code'),
+			['s', 'nope.csv']);
+		message_ok(Dashboard => 'error_lookup_too_large', $save->(name => 's', file => 'huge.csv', key => 'code'),
+			['s', 'huge.csv', 9 * 1_048_576, 8 * 1_048_576]);
+		message_ok(Dashboard => 'error_lookup_unreadable', $save->(name => 's', file => 'odd.csv', key => 'code'),
+			['s', 'odd.csv', undef]);
+		message_ok(Dashboard => 'error_lookup_key_unknown', $save->(name => 's', file => 'shops.csv', key => 'nope'),
+			['s', 'nope', 'shops.csv']);
+		message_ok(Dashboard => 'error_lookup_field_unknown',
+			$save->(name => 's', file => 'shops.csv', key => 'code', fields => 'nope'), ['s', 'nope', 'shops.csv']);
+
+		$tm->get_ok("/export?$l&format=json&lk=ghost")->status_is(400);
+		message_ok(Dashboard => 'error_lookup_unknown', $tm->tx->res->text, ['ghost']);
+
+		is $save->(name => 'bycode', file => 'shops.csv', key => 'code', fields => 'city'), undef, 'a lookup saves';
+		$tm->get_ok("/export?$l&format=json")->status_is(400);
+		message_ok(Dashboard => 'error_lookup_col_unknown', $tm->tx->res->text, ['bycode', 'code', 'bycode']);
+		$tm->post_ok("/lookups/delete?$l&name=bycode")->status_is(200)->json_is('/ok', 1);
+
+		# region is the orders' own, and shops_region too, so there is nowhere to put it.
+		is $save->(name => 'shops', file => 'shops.csv', key => 'code', col => 'shop', fields => 'region'), undef,
+			'a lookup whose field has no free name still saves';
+		$tm->get_ok("/export?$l&format=json")->status_is(400);
+		message_ok(Dashboard => 'error_lookup_name_taken', $tm->tx->res->text, ['shops', 'region', 'shops_region']);
+
+		is $save->(name => 'shops', file => 'shops.csv', key => 'code', col => 'shop', fields => 'city'), undef,
+			'and saving it again replaces it';
+		$tm->get_ok("/lookups/list?$l")->json_is('/lookups/shops/fields', ['city']);
+		my @logged;
+		$tm->app->log->level('warn');
+		my $sub = $tm->app->log->on(message => sub { push @logged, $_[2] if $_[1] eq 'warn' });
+		$tm->get_ok("/export?$l&format=json")->status_is(200)->json_is('/0/city', 'Here');
+		$tm->app->log->unsubscribe(message => $sub);
+		$tm->app->log->level('fatal');
+		my ($dup) = grep { /duplicate key/ } @logged;
+		message_ok(Dashboard => 'warn_lookup_duplicate_key', $dup, ['shops', 1, 'shops.csv']);
+
+		$tm->post_ok("/lookups/delete?$l")->status_is(200)->json_is('/ok', 1);
+		$tm->get_ok("/lookups/list?$l")->json_is('/lookups', {});
+		delete $ledger{'api.crud.lookups'};
 	};
 
 	subtest 'messages that need a collaborator to fail' => sub {

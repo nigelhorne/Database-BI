@@ -7882,15 +7882,16 @@ sub croak_rethrow {
 		my $wr = \&Database::BI::Controller::Dashboard::_write_models;
 		my $file = Mojo::File->new($tm->app->config->{model_dir})->child('models.json');
 
-		is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {} }, 'an empty scaffold';
+		is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {} }, 'an empty scaffold';
 		is $wr->($c, { version => 1, fields => { x => { a => 'b' } } }), 1, 'writing says so';
 		is $rd->($c)->{fields}{x}{a}, 'b', 'and it comes back';
 		is_deeply $rd->($c)->{groups}, {}, 'with the missing sections filled in';
+		is_deeply $rd->($c)->{lookups}, {}, 'the lookups too';
 		memory_cycle_ok($rd->($c), 'no cycle');
 
 		for my $junk ('', 'not json', '[1,2]', '"x"', '{') {
 			$file->spew($junk);
-			is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {} }, "'$junk' reads as empty";
+			is_deeply $rd->($c), { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {} }, "'$junk' reads as empty";
 		}
 
 		# Why: callers go straight to ->{fields}{$key}.  A hand-edited section of the
@@ -8883,13 +8884,13 @@ sub croak_rethrow {
 	subtest 'every GET route -- hostile parameters' => sub {
 		my $tm = isolated_app();
 		my @routes = (qw(/ /tutorial /browse /open /join /api/columns /api/range /import /combine /export /api/dirs /api/stat
-			/graph /line /pie /heatmap /bar /folder /tables /pivot /stats /calc/list /groups/list /dates/list /geo/list
+			/graph /line /pie /heatmap /bar /folder /tables /pivot /stats /calc/list /groups/list /dates/list /lookups/list /geo/list
 			/scatter /stacked /combo /treemap /histogram /wordcloud /map /insights /api/analyses /catalog), '/view/sales');
 		my @params = (qw(l x y cat val seg col rows cols m bar line size group bins page per_page topn minlen
-			f c j jtype range rcol cs by order span tcol as path table format back back2 scheme sort lat lon loc));
+			f c j jtype range rcol cs by order span tcol as lk nolk path table format back back2 scheme sort lat lon loc));
 		my @evil = ('', '0', '-1', 'abc', '1e400', '9' x 40, "a\nb", "a\0b", $XSS_PROBE, q{"'}, '../../etc/passwd',
 			'nan', 'inf', 'table:sales', 'table:nosuch', 'path:/etc/passwd', "\xFF\xFE", ':::', '%');
-		my %no_data_needed = map { $_ => 1 } qw(/tutorial /calc/list /groups/list /dates/list /geo/list /api/analyses /api/dirs /api/stat /catalog);
+		my %no_data_needed = map { $_ => 1 } qw(/tutorial /calc/list /groups/list /dates/list /lookups/list /geo/list /api/analyses /api/dirs /api/stat /catalog);
 		my %bad_in_bulk = map { $_ => 1 } ('', 'abc', '9' x 40, "a\nb", $XSS_PROBE, "\xFF\xFE");
 
 		$tm->ua->inactivity_timeout($REPLY_TIMEOUT);
