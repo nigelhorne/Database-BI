@@ -3683,6 +3683,27 @@ subtest 'A temporary file from File::Temp can be written by SQLite' => sub {
 	$dbh->disconnect;
 };
 
+# HTML::D3 writes a chart's labels into a script.  Before 0.27 it left "</" as it was,
+# so a cell could end that script and start its own.
+subtest 'A cell holding a script tag cannot end the script of a chart' => sub {
+	Readonly my $FLOOR  => '0.27';
+	Readonly my $ATTACK => '</script><script>alert(1)//';
+
+	for my $file (qw(Makefile.PL cpanfile)) {
+		next unless -r $file;
+		my ($declared) = Mojo::File->new($file)->slurp =~ /'HTML::D3'\s*(?:=>|,)\s*'([\d.]+)'/;
+		cmp_ok($declared // 0, '>=', $FLOOR, "$file asks for an HTML::D3 that escapes its labels");
+	}
+
+	my $csv = _csv_file(tempdir(CLEANUP => 1), 'labels.csv', 'id,label,seg,amount,day', "1,$ATTACK,$ATTACK,5,$ATTACK", '2,Plain,Other,7,Plain');
+	my $source = 'l=' . url_escape("path:$csv");
+	for my $query ('bar?cat=label&val=amount', 'pie?cat=label&val=amount', 'stacked?cat=label&seg=seg&val=amount', 'graph?x=day&y=amount') {
+		$t->get_ok("/$query&$source")->status_is(200)
+		  ->content_like(qr/alert\(1\)/, "$query draws the cell")
+		  ->content_unlike(qr{</script>\s*<script>\s*alert}i, "$query keeps it inside the script");
+	}
+};
+
 subtest 'A temporary directory that refuses new files' => sub {
 	my $tmp = tempdir(CLEANUP => 1);
 	plan skip_all => 'cannot revoke create here' unless can_revoke_create($tmp);
