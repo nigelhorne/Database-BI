@@ -830,6 +830,22 @@ perl Makefile.PL
     Removes a lookup.  Body: `l=&name=`.  Omit `name=` to remove every lookup of
     the spec.
 
+- `GET /extract/list`
+
+    Returns `{ extractions: { name: { col, pattern, fields } } }` for the stored
+    field extractions of `?l=<spec>`.  See ["Field extraction"](#field-extraction).
+
+- `POST /extract/save`
+
+    Saves an extraction.  Body: `l=&name=&col=&pattern=`, plus optional
+    `fields=`.  The pattern is compiled when it is saved, so a bad one is a 400 at
+    once.  The reply names the columns it will add: `{ ok: 1, fields: [...] }`.
+
+- `POST /extract/delete`
+
+    Removes an extraction.  Body: `l=&name=`.  Omit `name=` to remove every
+    extraction of the spec.
+
 - `GET /geo/list`
 
     Returns `{ columns: { col: { kind: "lat"|"lon"|"location" } } }` for the
@@ -1035,6 +1051,39 @@ grouped or filtered by one is worked out in Perl, never sent to SQL.  For one re
 a lookup stored for another dataset.  Both repeat, and the panels carry them on.
 A lookup is not a join: for more than one key, or rows that match many rows,
 use Merge.
+
+### Field Extraction
+
+A regular expression can pull values out of a column.  For one value, use
+`rx()` in a calculated field:
+
+```
+c=country:rx(ref,'^([A-Z]{2})-','1')
+```
+
+To make several columns from one pattern, store an extraction.  Each named
+group, `(?<name>...)`, becomes a column:
+
+```
+POST /extract/save  l=table:invoices&name=parts&col=ref
+                    &pattern=^(?<country>[A-Z]{2})-(?<year>\d{4})-
+```
+
+`fields=country` keeps only the groups it names.  Stored extractions apply on
+every route, a canvas and `/export`, after the lookups and before calculated
+fields and filters, so either can read the new columns.  A row the pattern does
+not match gets `(unparseable)` in each column, as a calculated field's row
+does, so those rows group visibly instead of vanishing; they are not blank.  A
+group that took no part in a match is empty.  Columns are named as a lookup's
+are: the group's own name, or `<name>_<group>` when the
+dataset has a column of that name.  A capture is cut to 200 characters.
+
+A pattern is refused when it is over 200 characters, when it does not compile,
+or when it uses `(?{`, `(??{`, `(?p` or `(*`, which run code or steer the
+engine.  These checks are not a sandbox.  Perl's regular expressions have no
+timeout, so a pathological pattern such as `(a+)+$` stalls the request that
+uses it.  Patterns are entered by whoever runs the server, never by a remote
+party.  See ["Regular expressions" in Database::BI::Calc](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACalc#Regular-expressions).
 
 ## Configuration
 

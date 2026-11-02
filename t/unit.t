@@ -306,7 +306,7 @@ for my $module (sort keys %MESSAGE_FILES) {
 
 # Those the POD documents that are not messages.
 $ledger{"api.$_"} = "documented behaviour: $_" for qw(
-	Util.parse_number Calc.new Calc.error Calc.has_error Calc.evaluate Calc.span_interval Calc.date_normalise
+	Util.parse_number Calc.new Calc.error Calc.has_error Calc.evaluate Calc.span_interval Calc.date_normalise Calc.compile_pattern Calc.capture_of
 	Extract.new Extract.path Extract.get Extract.put Extract.evict
 	Tutorial.intro Tutorial.chapters Tutorial.faq Tutorial.glossary Tutorial.parts
 	Tutorial.covered_routes Tutorial.exempt_routes Tutorial.chapter_for_action
@@ -316,7 +316,7 @@ $ledger{"api.$_"} = "documented behaviour: $_" for qw(
 	analyses.list analyses.create analyses.get analyses.update analyses.patch analyses.delete
 	analyses.add_visual analyses.update_visual analyses.export analyses.import analyses.storage_503 analyses.unknown_keys
 	share.share share.embed share.visual_download
-	crud.calc crud.groups crud.dates crud.lookups crud.geo
+	crud.calc crud.groups crud.dates crud.lookups crud.extract crud.geo
 	route.range route.tables route.wordcloud route.catalog route.tutorial route.index route.stats_percentile
 );
 
@@ -3128,6 +3128,60 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok("/lookups/delete?$l")->status_is(200)->json_is('/ok', 1);
 		$tm->get_ok("/lookups/list?$l")->json_is('/lookups', {});
 		delete $ledger{'api.crud.lookups'};
+	};
+
+	subtest 'Calc.compile_pattern and Calc.capture_of' => sub {
+		my $c = Database::BI::Calc::compile_pattern('^(?<cc>[A-Z]{2})-(\d+)');
+		returns_is $c, { type => 'hashref' }, 'a compiled pattern is a hashref';
+		is_deeply [ $c->{groups}, $c->{names} ], [ 2, ['cc'] ], 'with its group count and names';
+		ok !eval { Database::BI::Calc::compile_pattern('(*FAIL)'); 1 }, 'a refused construct croaks';
+		is Database::BI::Calc::capture_of($c, 'GB-1', 'cc'), 'GB', 'capture_of by name';
+		is Database::BI::Calc::capture_of($c, 'GB-1', 2), '1', 'and by number';
+		is Database::BI::Calc::capture_of($c, 'nope', 1), undef, 'undef on no match';
+		delete $ledger{'api.Calc.compile_pattern'};
+		delete $ledger{'api.Calc.capture_of'};
+	};
+
+	subtest 'the extraction store and its messages' => sub {
+		my $tm   = unit_app();
+		my $data = tempdir(CLEANUP => 1);
+		$tm->app->config->{data_dir} = $data;
+		Mojo::File->new($data, 'refs.csv')->spew("id,ref,cc\n1,GB-1,x\n");
+		my $l    = 'l=table:refs';
+		my $save = sub {
+			$tm->post_ok('/extract/save' => form => { l => 'table:refs', @_ });
+			return $tm->tx->res->json->{error};
+		};
+
+		$tm->get_ok('/extract/list')->status_is(400)->json_is('/error', 'l= required');
+		$tm->post_ok('/extract/save')->status_is(400)->json_is('/error', 'l= required');
+		$tm->post_ok('/extract/delete')->status_is(400)->json_is('/error', 'l= required');
+		message_ok(Dashboard => 'error_extract_name', $save->(name => '9x', col => 'ref', pattern => '(?<a>.)'), ['9x']);
+		is $save->(name => 'p', pattern => '(?<a>.)'), 'col= required', 'col= is required';
+		is $save->(name => 'p', col => 'ref'), 'pattern= required', 'pattern= is required';
+		message_ok(Dashboard => 'error_extract_pattern', $save->(name => 'p', col => 'ref', pattern => '(a'), ['p', undef]);
+		message_ok(Dashboard => 'error_extract_no_names', $save->(name => 'p', col => 'ref', pattern => '(a)'), ['p']);
+		message_ok(Dashboard => 'error_extract_field', $save->(name => 'p', col => 'ref', pattern => '(?<a>.)', fields => 'b'),
+			['p', 'b']);
+
+		is $save->(name => 'p', col => 'nope', pattern => '(?<a>.)'), undef, 'an extraction saves';
+		$tm->get_ok("/export?$l&format=json")->status_is(400);
+		message_ok(Dashboard => 'error_extract_col_unknown', $tm->tx->res->text, ['p', 'nope']);
+
+		# cc is a source column, and so is the prefixed name x_cc would need to be:
+		# here it is the extraction's own name that collides.
+		Mojo::File->new($data, 'refs.csv')->spew("id,ref,cc,p_cc\n1,GB-1,x,y\n");
+		is $save->(name => 'p', col => 'ref', pattern => '^(?<cc>[A-Z]+)'), undef, 'and again';
+		$tm->get_ok("/export?$l&format=json")->status_is(400);
+		message_ok(Dashboard => 'error_extract_name_taken', $tm->tx->res->text, ['p', 'cc', 'p_cc']);
+
+		is $save->(name => 'p', col => 'ref', pattern => '^(?<code>[A-Z]+)'), undef, 'a free name';
+		$tm->get_ok("/extract/list?$l")->json_is('/extractions/p/fields', ['code']);
+		$tm->get_ok("/export?$l&format=json")->status_is(200)->json_is('/0/code', 'GB');
+		$tm->post_ok("/extract/delete?$l&name=p")->status_is(200)->json_is('/ok', 1);
+		$tm->post_ok("/extract/delete?$l")->status_is(200)->json_is('/ok', 1);
+		$tm->get_ok("/extract/list?$l")->json_is('/extractions', {});
+		delete $ledger{'api.crud.extract'};
 	};
 
 	subtest 'messages that need a collaborator to fail' => sub {

@@ -8,6 +8,12 @@ Revision history for Database-BI
 	  calculated fields can read the new columns.  The file must be under
 	  data_dir and at most 8 MiB.  nolk=shops skips it for one view; lk= applies a
 	  lookup stored for another dataset.  A source column is never overwritten.
+	- Field extraction: rx(ref,'^([A-Z]{2})-','1') in a calculated field takes
+	  one value out of a column with a regular expression.  POST /extract/save
+	  stores a pattern for a dataset, and each named group, (?<country>...),
+	  becomes a column everywhere.  A row it does not match is (unparseable).
+	  Patterns over 200 characters, and those using (?{, (??{, (?p or (*, are
+	  refused.
 	- A calculated field can read a cross-row column: cs=amount:running_total:ytd
 	  with c=half:ytd/2.  The field runs after the cross-row pass, on canvases per
 	  card.  With no cs= the name is unknown, the 400 it always was.

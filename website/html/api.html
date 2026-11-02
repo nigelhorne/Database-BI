@@ -271,7 +271,7 @@ DELETE /api/analyses/:id/visuals/:visual</code></pre>
 <h2 id="stored">Stored fields</h2>
 <p>
 	The definitions saved beside the data &mdash; calculated fields, value groups,
-	date patterns, lookups and coordinate columns &mdash; have a list, a save and a delete
+	date patterns, lookups, extractions and coordinate columns &mdash; have a list, a save and a delete
 	endpoint each, all keyed by <code>l=&lt;spec&gt;</code>:
 </p>
 <div class="table-wrap">
@@ -303,6 +303,12 @@ DELETE /api/analyses/:id/visuals/:visual</code></pre>
 			<td><code>GET /lookups/list</code></td>
 			<td><code>POST /lookups/save</code> (<code>name</code>, <code>file</code>, <code>key</code>, optional <code>col</code>, <code>fields</code>, <code>default</code>)</td>
 			<td><code>POST /lookups/delete</code></td>
+		</tr>
+		<tr>
+			<td>Field extractions (<a href="data.html#extract">how they apply</a>)</td>
+			<td><code>GET /extract/list</code></td>
+			<td><code>POST /extract/save</code> (<code>name</code>, <code>col</code>, <code>pattern</code>, optional <code>fields</code>)</td>
+			<td><code>POST /extract/delete</code></td>
 		</tr>
 		<tr>
 			<td>Coordinate columns</td>

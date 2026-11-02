@@ -175,6 +175,12 @@ Readonly my %MESSAGES => (
 	error_lookup_col_unknown    => 'Lookup "%s": column "%s" is not in this dataset (nolk=%s skips the lookup)',
 	error_lookup_name_taken     => 'Lookup "%s": field "%s" cannot be added, because "%s" is a column already',
 	warn_lookup_duplicate_key   => 'Lookup "%s": %d duplicate key(s) in "%s"; the first row of each is used',
+	error_extract_name          => 'Extraction name "%s" is not a valid identifier',
+	error_extract_pattern       => 'Extraction "%s": %s',
+	error_extract_no_names      => 'Extraction "%s": the pattern names no group; write one as (?<name>...) for each column',
+	error_extract_field         => 'Extraction "%s": the pattern has no group named "%s"',
+	error_extract_col_unknown   => 'Extraction "%s": column "%s" is not in this dataset',
+	error_extract_name_taken    => 'Extraction "%s": group "%s" cannot be added, because "%s" is a column already',
 	error_analysis_not_found    => 'Analysis "%s" not found',
 	error_analysis_invalid      => 'Invalid analysis spec: %s',
 	error_analysis_version      => 'Unsupported analysis version %s; please upgrade the application',
@@ -3405,6 +3411,85 @@ sub _apply_lookups :Protected ($self, $records, $cols, $spec_key) {
 	return;
 }
 
+# _compile_extraction($self, $name, \%definition) -> (\%compiled, \@fields)
+#
+# Purpose: Check a stored extraction and compile its pattern, the same way on
+#          save and on every request.
+# Exit:    The compiled pattern (Calc::compile_pattern) and the named groups it
+#          writes: fields= when it was given, else every named group, in order.
+#          Croaks error_extract_pattern (wrapping Calc's reason),
+#          error_extract_no_names or error_extract_field.
+sub _compile_extraction :Protected ($self, $name, $def) {
+	require Database::BI::Calc;
+	my $compiled = eval { Database::BI::Calc::compile_pattern($def->{pattern}) };
+	croak $self->_i18n('error_extract_pattern', $name, _tidy_error($@)) unless $compiled;
+	my @names = @{ $compiled->{names} };
+	croak $self->_i18n('error_extract_no_names', $name) unless @names;
+	my %named  = map { $_ => 1 } @names;
+	my @fields = ref $def->{fields} eq 'ARRAY' && @{ $def->{fields} } ? @{ $def->{fields} } : @names;
+	for my $f (@fields) {
+		croak $self->_i18n('error_extract_field', $name, $f) unless $named{$f};
+	}
+	return ($compiled, \@fields);
+}
+
+# _apply_extractions($self, $records, \@cols, $spec_key) -> void
+#
+# Purpose: The stored extractions of $spec_key, after the lookups in stage 3:
+#          each named group of a pattern becomes a column, read from the column
+#          the extraction names.  A row the pattern does not match, or whose
+#          cell is empty, gets '(unparseable)', so it groups visibly rather than
+#          vanishing; a group that took no part in a match is ''.
+# Entry:   \@cols is the column list so far; it gains the new columns.
+# Exit:    Croaks with a message for a bad pattern or a missing column.
+# Notes:   Columns are named as a lookup's are: the group's own name unless a
+#          column has it, then <extraction>_<group>.  A capture is cut to 200
+#          characters (Calc::capture_of).
+sub _apply_extractions :Protected ($self, $records, $cols, $spec_key) {
+	return unless length($spec_key // '');
+	my $stored = $self->_read_models->{extractions}{$spec_key};
+	return unless ref $stored eq 'HASH' && %$stored;
+
+	my $written = $self->stash('_extract_written') // {};
+	my %taken   = map { $_ => 1 } grep { !$written->{$_} } @$cols;
+	for my $name (sort keys %$stored) {
+		my $def = $stored->{$name};
+		next unless ref $def eq 'HASH';
+		my ($compiled, $fields) = $self->_compile_extraction($name, $def);
+		my $col = $def->{col} // '';
+		croak $self->_i18n('error_extract_col_unknown', $name, $col)
+			unless $taken{$col} || $written->{$col};
+
+		my @out;
+		for my $f (@$fields) {
+			my $as = $taken{$f} ? "${name}_$f" : $f;
+			croak $self->_i18n('error_extract_name_taken', $name, $f, $as) if $taken{$as};
+			$taken{$as} = 1;
+			push @out, [ $f, $as ];
+		}
+
+		# The groups were checked against the pattern, so undef is a row it
+		# does not match, and a group that took no part is ''.
+		for my $i (0 .. $#$records) {
+			my $v = $records->[$i]{$col};
+			for my $pair (@out) {
+				my $got = Database::BI::Calc::capture_of($compiled, $v, $pair->[0]);
+				$records->[$i] = _extend_row($records->[$i], $pair->[1], $got // '(unparseable)');
+			}
+		}
+
+		my %have = map { $_ => 1 } @$cols;
+		push @$cols, grep { !$have{$_} } map { $_->[1] } @out;
+		$self->stash('_virtual_columns' => {}) unless $self->stash('_virtual_columns');
+		for my $pair (@out) {
+			$self->stash('_virtual_columns')->{ $pair->[1] } = 1;
+			$written->{ $pair->[1] } = 1;
+		}
+	}
+	$self->stash('_extract_written' => $written);
+	return;
+}
+
 # _extend_row($row, $name, $value) -> $row | \%copy
 #
 # Purpose: Write a virtual column into a row that came out of a source.  A row
@@ -3638,6 +3723,7 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	# can read a looked-up column.  They join the column list from here on.
 	my @cols = @{$columns};
 	$self->_apply_lookups($records, \@cols, $date_spec);
+	$self->_apply_extractions($records, \@cols, $date_spec);
 
 	# Build calc spec list: stored fields from models.json first (lower priority),
 	# then URL ?c= params (higher priority -- they override stored fields of the
@@ -3831,7 +3917,7 @@ sub _calc_models_path :Protected ($self) {
 # Returns the parsed models hashref from .bi/models.json, or an empty scaffold.
 sub _read_models :Protected ($self) {
 	my $path = $self->_calc_models_path;
-	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {} };
+	my $scaffold = { version => 1, fields => {}, groups => {}, date_patterns => {}, lookups => {}, extractions => {} };
 	return $scaffold unless defined $path && -f $path;
 	my $json = eval { Mojo::File->new($path)->slurp };
 	return $scaffold unless $json && !$@;
@@ -3839,7 +3925,7 @@ sub _read_models :Protected ($self) {
 	return $scaffold unless ref $data eq 'HASH';
 	# Callers go straight to ->{fields}{$spec}{$name}, so a hand-edited section of
 	# the wrong shape would otherwise be a strict-refs crash on every page.
-	for my $section (qw(fields groups date_patterns lookups)) {
+	for my $section (qw(fields groups date_patterns lookups extractions)) {
 		$data->{$section} = {} unless ref $data->{$section} eq 'HASH';
 		my $by_spec = $data->{$section};
 		delete @{$by_spec}{ grep { ref $by_spec->{$_} ne 'HASH' } keys %$by_spec };
@@ -10398,6 +10484,74 @@ sub lookups_list ($self) {
 }
 
 # ---------------------------------------------------------------------------
+# Stored-extraction CRUD  (POST /extract/save, POST /extract/delete, GET /extract/list)
+# ---------------------------------------------------------------------------
+
+# extract_save: POST /extract/save?l=<spec>&name=<ident>&col=<col>&pattern=<re>
+#               [&fields=<group>[,<group>...]]
+# Stores models.json extractions.<spec>.<name> = { col, pattern, fields }.  The
+# pattern is compiled now, so one that is too long, uses a refused construct,
+# does not compile or names no group is a 400 here.  fields= picks some of the
+# named groups; without it every named group becomes a column.
+sub extract_save ($self) {
+	my $spec    = $self->param('l')       // '';
+	my $name    = $self->param('name')    // '';
+	my $col     = $self->param('col')     // '';
+	my $pattern = $self->param('pattern') // '';
+	my @fields  = grep { length } map { split /,/ } @{ $self->every_param('fields') // [] };
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+	return $self->render(json => { error => $self->_i18n('error_extract_name', $name) }, status => 400)
+		unless $name =~ $LOOKUP_NAME_RE;
+	return $self->render(json => { error => 'col= required' }, status => 400)
+		unless length $col;
+	return $self->render(json => { error => 'pattern= required' }, status => 400)
+		unless length $pattern;
+
+	my %def = (col => $col, pattern => $pattern, (@fields ? (fields => \@fields) : ()));
+	my $fields;
+	my $ok = eval { (undef, $fields) = $self->_compile_extraction($name, \%def); 1 };
+	return $self->render(json => { error => _tidy_error($@) }, status => 400) unless $ok;
+	$def{fields} = $fields;
+
+	my $models = $self->_read_models;
+	$models->{extractions}{$spec}{$name} = \%def;
+	$self->_write_models($models);
+	$self->render(json => { ok => 1, fields => $fields });
+}
+
+# extract_delete: POST /extract/delete?l=<spec>[&name=<ident>]
+# Removes one extraction, or every extraction of $spec when name= is absent.
+sub extract_delete ($self) {
+	my $spec = $self->param('l')    // '';
+	my $name = $self->param('name') // '';
+
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	if (length $name) {
+		delete $models->{extractions}{$spec}{$name};
+	} else {
+		delete $models->{extractions}{$spec};
+	}
+	$self->_write_models($models);
+	$self->render(json => { ok => 1 });
+}
+
+# extract_list: GET /extract/list?l=<spec>
+# Returns { extractions: { name: { col, pattern, fields }, ... } }.
+sub extract_list ($self) {
+	my $spec = $self->param('l') // '';
+	return $self->render(json => { error => 'l= required' }, status => 400)
+		unless length $spec;
+
+	my $models = $self->_read_models;
+	$self->render(json => { extractions => $models->{extractions}{$spec} // {} });
+}
+
+# ---------------------------------------------------------------------------
 # Geo column preferences CRUD  (POST /geo/save, POST /geo/delete, GET /geo/list)
 #
 # Stores the user's choice of lat/lon/loc columns for a given l= spec in
@@ -13706,6 +13860,58 @@ keeps the first row and is logged once per request
 written as C<E<lt>nameE<gt>_E<lt>fieldE<gt>>; when that is taken too, the request
 is a 400.  The file is read once per request, through the same loader as any
 data file.
+
+=cut
+
+=head2 extract_list / extract_save / extract_delete
+
+C<GET /extract/list>, C<POST /extract/save>, C<POST /extract/delete> -- Manage
+the stored field extractions of a dataset: C<models.json>
+C<extractions.E<lt>specE<gt>.E<lt>nameE<gt>>.  Each is applied by
+C<_apply_extractions> straight after the lookups, so every later stage can read
+the columns it adds.
+
+=head3 API SPECIFICATION
+
+=head4 extract_list (GET /extract/list)
+
+  INPUT:  l=<spec>  (required)
+  OUTPUT: 200 application/json
+            { "extractions": { "<name>": { "col": "<col>", "pattern": "<re>",
+                                           "fields": ["<group>", ...] }, ... } }
+          400 application/json  { "error": "l= required" }
+
+=head4 extract_save (POST /extract/save)
+
+  INPUT:  l=<spec>, name=<identifier>, col=<col>, pattern=<regular expression>
+          optional: fields=<group>[,<group>...] (repeatable; default every named group)
+  OUTPUT: 200 application/json  { "ok": 1, "fields": ["<group>", ...] }
+          400 application/json  { "error": "..." } -- l=, name=, col= or pattern=
+              missing or invalid; the pattern too long, using a refused
+              construct, not compiling or naming no group; a field not a group
+
+=head4 extract_delete (POST /extract/delete)
+
+  INPUT:  l=<spec>, name=<identifier>  (omit name= to delete every extraction of the spec)
+  OUTPUT: 200 application/json  { "ok": 1 }
+          400 application/json  { "error": "l= required" }
+
+=head3 EXAMPLE
+
+  POST /extract/save  l=table:invoices&name=parts&col=ref
+                      &pattern=^(?<country>[A-Z]{2})-(?<year>\d{4})-
+    -> 200 { "ok": 1, "fields": ["country", "year"] }
+  GET /export?l=table:invoices&format=json
+    -> 200 [ { "ref": "GB-2026-001", "country": "GB", "year": "2026", ... },
+             { "ref": "unknown", "country": "(unparseable)", "year": "(unparseable)", ... } ]
+
+=head3 NOTES
+
+The column the extraction reads is checked on every request; one the dataset
+does not have is a 400 (C<error_extract_col_unknown>).  A row that does not
+match is C<(unparseable)> in every column; a group that took no part is C<''>.
+The pattern is compiled by L<Database::BI::Calc/Regular expressions>, which
+has no timeout.
 
 =cut
 

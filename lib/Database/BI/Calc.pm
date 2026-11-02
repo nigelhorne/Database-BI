@@ -18,6 +18,18 @@ Readonly my $MAX_DEPTH    => 20;
 # two thousand million of them.
 Readonly my $MAX_ROUND_PLACES => 15;
 
+# A pattern, and what one capture may hold.  A capture becomes a group key, so an
+# unbounded one is a performance and a layout problem; Perl's regex engine has no
+# timeout, so the length cap is the only bound a pattern itself can be given.
+Readonly my $MAX_PATTERN_LEN => 200;
+Readonly my $MAX_CAPTURE_LEN => 200;
+
+# The constructs that run code or steer the engine: (?{ }) and (??{ }) run Perl,
+# (?p is the old preserve flag, and (* opens a backtracking verb.
+# A paren after an even number of backslashes is a real one, after an odd number
+# a literal.
+Readonly my $REFUSED_PATTERN_RE => qr/(?:\A|[^\\])(?:\\\\)*\K(\((?:\?\??\{|\?p|\*))/;
+
 # --- token type constants ---
 Readonly my $T_NUM    => 'NUM';
 Readonly my $T_STR    => 'STR';
@@ -55,6 +67,10 @@ our %MESSAGES = (
 	error_time_format_date  => "Time format '%s' must name a date, with a year, a month and a day token",
 	error_const_arg         => "The second argument of %s() must be a quoted literal",
 	error_span_interval     => "Unknown time bucket '%s'; use a count and one of s, m, h, d, w, mon, q or y, for example 1h or 15m",
+	error_pattern_too_long  => "Pattern '%s' is longer than %d characters",
+	error_pattern_construct => "Pattern '%s' uses %s, which is not allowed",
+	error_pattern_invalid   => "Pattern '%s' does not compile: %s",
+	error_rx_args           => 'rx() takes a column, a quoted pattern and an optional quoted group',
 );
 
 sub _fmt {
@@ -450,6 +466,77 @@ sub span_interval {
 		: $unit eq 'h' ? 3_600
 		: undef;
 	return { n => $n, unit => $unit, (defined $secs ? (secs => $secs) : ()) };
+}
+
+# compile_pattern($pattern) -> \%compiled
+#
+# Purpose: The one place a reader's regular expression is checked and compiled,
+#          for rx() and for the stored extractions, so both refuse the same
+#          things with the same words.
+# Entry:   $pattern is a string.
+# Exit:    { re => qr//, groups => N, names => [ named groups, in order ] }.
+#          Croaks error_pattern_too_long, error_pattern_construct or
+#          error_pattern_invalid.
+# Notes:   A pattern is checked, not sandboxed: the engine has no timeout, so a
+#          pathological one stalls the request that uses it.  Patterns are typed
+#          by the reader who owns the machine, never taken from a remote party.
+sub compile_pattern {
+	my ($pattern) = @_;
+	local $@;
+	$pattern = '' unless defined $pattern && !ref $pattern;
+	croak _fmt('error_pattern_too_long', substr($pattern, 0, 40) . (length($pattern) > 40 ? '...' : ''), $MAX_PATTERN_LEN)
+		if length($pattern) > $MAX_PATTERN_LEN;
+	if ($pattern =~ $REFUSED_PATTERN_RE) {
+		croak _fmt('error_pattern_construct', $pattern, $1);
+	}
+
+	my $re = eval { qr/$pattern/ };
+	unless ($re) {
+		(my $why = $@ // '') =~ s/ at \S+ line \d+\.?\n?\z//;
+		$why =~ s/\s+\z//;
+		croak _fmt('error_pattern_invalid', $pattern, $why);
+	}
+
+	# An optional match of the empty string always succeeds, and leaves behind
+	# how many groups the pattern has and every name it declares.
+	'' =~ /(?:$re)?/;
+	my $groups = $#+;
+	require re;
+	my %known = map { $_ => 1 } re::regnames(1);
+	# The names in the order they are written, which is the order a reader
+	# expects the columns in; regnames() itself has no order.
+	my (@names, %seen);
+	while ($pattern =~ /(?<!\\)\(\?(?:P?<([A-Za-z_]\w*)>|'([A-Za-z_]\w*)')/g) {
+		my $n = defined $1 ? $1 : $2;
+		push @names, $n if $known{$n} && !$seen{$n}++;
+	}
+	push @names, grep { !$seen{$_}++ } sort keys %known;
+
+	return { re => $re, groups => $groups, names => \@names };
+}
+
+# capture_of(\%compiled, $value, $group) -> $capture | undef
+#
+# Purpose: One capture of a compiled pattern against a value: $group is a
+#          number (1 is the first group) or a group's name.
+# Exit:    The capture, cut to $MAX_CAPTURE_LEN characters; '' when the pattern
+#          matched but the group took no part; undef when the value is undefined,
+#          the pattern does not match, or there is no such group.
+sub capture_of {
+	my ($compiled, $value, $group) = @_;
+	return undef unless defined $value && !ref $value && defined $group;
+	# Which group is asked for is settled first: a match of its own here would
+	# replace the captures of the one that matters.
+	my $number = $group =~ /\A[0-9]+\z/ ? $group + 0 : undef;
+	if (defined $number) {
+		return undef if $number < 1 || $number > $compiled->{groups};
+	} else {
+		return undef unless grep { $_ eq $group } @{ $compiled->{names} };
+	}
+	return undef unless $value =~ $compiled->{re};
+	my $got = defined $number ? ${^CAPTURE}[$number - 1] : $+{$group};
+	return '' unless defined $got;
+	return length($got) > $MAX_CAPTURE_LEN ? substr($got, 0, $MAX_CAPTURE_LEN) : $got;
 }
 
 # _span_label($value, \%interval) -> bucket label | undef
@@ -929,7 +1016,29 @@ sub _parse_call {
 	my $lc = lc($name);
 
 	croak _fmt('error_unknown_fn', $name)
-		unless exists $FUNCTIONS{$lc} || $lc eq 'if' || $TIME_CONST_FNS{$lc};
+		unless exists $FUNCTIONS{$lc} || $lc eq 'if' || $lc eq 'rx' || $TIME_CONST_FNS{$lc};
+
+	# rx(v, 'pattern' [, 'group']): the pattern and the group are constants,
+	# so the pattern is checked and compiled once, here.  A group the pattern
+	# does not have is undef on every row rather than an error, as the POD says.
+	if ($lc eq 'rx') {
+		$$pos_ref++;	# consume '('
+		my $value_fn = _parse_cmp($tokens, $pos_ref, $depth_ref, $cols);
+		my @const;
+		while ($tokens->[$$pos_ref]{type} eq $T_COMMA) {
+			$$pos_ref++;
+			my $tok = $tokens->[$$pos_ref];
+			croak _fmt('error_rx_args')
+				unless $tok->{type} eq $T_STR || $tok->{type} eq $T_NUM;
+			push @const, $tok->{val};
+			$$pos_ref++;
+		}
+		_expect($tokens, $pos_ref, $T_RPAREN);
+		croak _fmt('error_rx_args') unless @const == 1 || @const == 2;
+		my $compiled = compile_pattern($const[0]);
+		my $group    = defined $const[1] ? $const[1] : 1;
+		return sub { capture_of($compiled, $value_fn->($_[0]), $group) };
+	}
 
 	# epoch(v [, fmt]) and span(v, interval) take a constant second argument:
 	# a format or an interval.  It is checked here, once per column rather than
@@ -1242,6 +1351,16 @@ Use C<=> for equality, not C<==>. Writing C<==> is a compile-time error.
     concat(a, b, ...)        join('', ...), undef treated as ''
     substr(s, start)         0-based start, to end of string
     substr(s, start, len)    0-based start, len characters
+    rx(s, 'pattern')         the first capture of a regular expression
+    rx(s, 'pattern', 'g')    capture g: a number (1 is the first) or a group's name
+
+C<rx(ref,'^([A-Z]{2})-','1')> is C<GB> for C<GB-2026-001>.  The pattern and
+the group are quoted constants, and the pattern is checked once, when the
+expression is compiled (see L</Regular expressions>).  A value it does not
+match, an undefined value and a group the pattern does not have are all
+C<undef>, not an error; a group that took no part in the match is C<''>.  One
+C<rx()> gives one value: a stored extraction is what makes several columns from
+one pattern.
 
 =head2 Numeric
 
@@ -1354,6 +1473,42 @@ The interval rule is also a function:
 C<secs> is present only for C<s>, C<m> and C<h>, whose buckets are floored from
 the epoch.  Anything else, including a reference, is C<undef>.
 
+=head2 Regular expressions
+
+    compile_pattern($pattern)              -> { re, groups, names }
+    capture_of($compiled, $value, $group)  -> capture | '' | undef
+
+C<rx()> and the stored extractions both compile through C<compile_pattern>, so
+they refuse the same patterns: one over 200 characters; one that uses C<(?{>,
+C<(??{>, C<(?p> or C<(*>, which run code or steer the engine (an escaped paren
+is a literal and is allowed); and one that does not compile, with perl's reason.
+C<names> lists the named groups, C<(?E<lt>nameE<gt>...)>, in the order they are
+written.  C<capture_of> cuts a capture to 200 characters, because a capture
+becomes a group key.
+
+Perl's regular-expression engine has no timeout, so these checks are not a
+sandbox: a pathological pattern, such as C<(a+)+$> against a long string of
+C<a>s, stalls the request that uses it.  Patterns are typed by the reader who
+owns the server, never accepted from a remote party, which is the only reason
+this is acceptable.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	compile_pattern: $pattern   # string, at most 200 characters
+	capture_of:      $compiled  # from compile_pattern
+	                 $value     # string | undef
+	                 $group     # integer >= 1 | named group
+
+=head4 OUTPUT
+
+	compile_pattern: { re => 'Regexp', groups => 'integer', names => [ 'string', ... ] }
+	                 croaks error_pattern_too_long | error_pattern_construct | error_pattern_invalid
+	capture_of:      'string' (at most 200 characters) | '' | undef
+
+C<compile_pattern> keeps the caller's C<$@>.
+
 =head2 Date normalisation (standalone helper)
 
     date_normalise($value, $pattern) -> ISO string or undef
@@ -1417,6 +1572,12 @@ C<"Per Unit Price"> automatically.
 =item *
 
 No C<eval> of user-supplied strings is performed anywhere in this module.
+
+=item *
+
+A regular expression from C<rx()> is compiled with C<qr//>, never C<eval>, and
+the constructs that run code are refused before that.  It has no timeout; see
+L</Regular expressions>.
 
 =item *
 

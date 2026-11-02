@@ -874,6 +874,22 @@ a 400 at once.
 Removes a lookup.  Body: C<l=&name=>.  Omit C<name=> to remove every lookup of
 the spec.
 
+=item C<GET /extract/list>
+
+Returns C<{ extractions: { name: { col, pattern, fields } } }> for the stored
+field extractions of C<?l=E<lt>specE<gt>>.  See L</Field extraction>.
+
+=item C<POST /extract/save>
+
+Saves an extraction.  Body: C<l=&name=&col=&pattern=>, plus optional
+C<fields=>.  The pattern is compiled when it is saved, so a bad one is a 400 at
+once.  The reply names the columns it will add: C<{ ok: 1, fields: [...] }>.
+
+=item C<POST /extract/delete>
+
+Removes an extraction.  Body: C<l=&name=>.  Omit C<name=> to remove every
+extraction of the spec.
+
 =item C<GET /geo/list>
 
 Returns C<{ columns: { col: { kind: "lat"|"lon"|"location" } } }> for the
@@ -1071,6 +1087,35 @@ C<nolk=E<lt>nameE<gt>> skips a stored lookup, and C<lk=E<lt>nameE<gt>> applies
 a lookup stored for another dataset.  Both repeat, and the panels carry them on.
 A lookup is not a join: for more than one key, or rows that match many rows,
 use Merge.
+
+=head2 Field extraction
+
+A regular expression can pull values out of a column.  For one value, use
+C<rx()> in a calculated field:
+
+  c=country:rx(ref,'^([A-Z]{2})-','1')
+
+To make several columns from one pattern, store an extraction.  Each named
+group, C<(?E<lt>nameE<gt>...)>, becomes a column:
+
+  POST /extract/save  l=table:invoices&name=parts&col=ref
+                      &pattern=^(?<country>[A-Z]{2})-(?<year>\d{4})-
+
+C<fields=country> keeps only the groups it names.  Stored extractions apply on
+every route, a canvas and C</export>, after the lookups and before calculated
+fields and filters, so either can read the new columns.  A row the pattern does
+not match gets C<(unparseable)> in each column, as a calculated field's row
+does, so those rows group visibly instead of vanishing; they are not blank.  A
+group that took no part in a match is empty.  Columns are named as a lookup's
+are: the group's own name, or C<E<lt>nameE<gt>_E<lt>groupE<gt>> when the
+dataset has a column of that name.  A capture is cut to 200 characters.
+
+A pattern is refused when it is over 200 characters, when it does not compile,
+or when it uses C<(?{>, C<(??{>, C<(?p> or C<(*>, which run code or steer the
+engine.  These checks are not a sandbox.  Perl's regular expressions have no
+timeout, so a pathological pattern such as C<(a+)+$> stalls the request that
+uses it.  Patterns are entered by whoever runs the server, never by a remote
+party.  See L<Database::BI::Calc/Regular expressions>.
 
 =head1 CONFIGURATION
 
@@ -1918,6 +1963,9 @@ sub startup ($self) {
 	$r->post('/lookups/save')  ->to('Dashboard#lookups_save');
 	$r->post('/lookups/delete')->to('Dashboard#lookups_delete');
 	$r->get('/lookups/list')   ->to('Dashboard#lookups_list');
+	$r->post('/extract/save')  ->to('Dashboard#extract_save');
+	$r->post('/extract/delete')->to('Dashboard#extract_delete');
+	$r->get('/extract/list')   ->to('Dashboard#extract_list');
 	$r->post('/geo/save')     ->to('Dashboard#geo_save');
 	$r->post('/geo/delete')   ->to('Dashboard#geo_delete');
 	$r->get('/geo/list')      ->to('Dashboard#geo_list');
