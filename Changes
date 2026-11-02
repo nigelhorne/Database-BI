@@ -40,6 +40,16 @@ Revision history for Database-BI
 	  Charts and exports answered 404, and the table page reported a parse error.
 	- cs= on the table page could not read a calculated field or a time bucket, as
 	  it could on charts and in the export: it was a 400.
+	- A filter on a cross-row column found no rows.  It now runs after the pass, so
+	  f=ytd:gt:50 selects rows without changing their totals; the same goes for a
+	  canvas card's own filters and for a cross-filter.
+	- A filter on a calculated column or a time bucket found no rows on the table
+	  page, though the page drew the column.
+	- /open, /join and /combine left out calculated fields, saved ones included, and
+	  span= time buckets.  They now draw them as /view does.  /join took a c= holding
+	  a calculated field for a file to stack, and went to the Combine page.
+	- The panels of /view, /open and /join now carry calculated fields, so a chart
+	  opened from one can read them.
 	- Merge hung, then failed with "database is locked", on a BSD with File::Temp
 	  older than 0.2308, as Perl 5.28 ships.  Such a File::Temp holds a new file
 	  under an exclusive lock, which stopped SQLite writing to it.  0.2308 is now

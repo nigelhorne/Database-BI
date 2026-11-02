@@ -263,7 +263,8 @@ order=&lt;column&gt;[:asc|desc]                  the order rows are read in</cod
 	Cross-row columns and calculated fields can build on each other. A calculated field can read
 	the new column, as in <code>c=half:ytd/2</code>, and <code>cs=</code> can read a calculated field or a
 	time bucket, as in <code>span=1mon&amp;tcol=at&amp;order=at_span&amp;cs=amount:running_total:ytd</code>.
-	Filters run before the pass, so <code>f=</code> cannot select on a cross-row column: it finds no rows.
+	Filters run before the pass, so a window is over the rows they leave. A filter that names a
+	column the pass writes runs last instead: <code>f=ytd:gt:50</code> selects rows without changing their totals.
 </p>
 
 <h2 id="pivot">Pivot and statistics</h2>

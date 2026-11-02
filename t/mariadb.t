@@ -294,7 +294,7 @@ sub _export_rows {
 	return decode_json($t->tx->res->body);
 }
 
-plan tests => 22;
+plan tests => 23;
 
 # ---------------------------------------------------------------------------
 # The DataSource methods
@@ -539,4 +539,15 @@ subtest 'M18: rows that come back from the backend can be extended' => sub {
 	my ($row1) = grep { $_->{entry} eq 'row1' } @{$rows};
 	is($row1->{double}, 20, 'the new column is there');
 	is($row1->{amount}, 10, 'beside the old one');
+};
+
+subtest 'M23: /open on a server draws a calculated field, and can filter on it' => sub {
+	plan tests => 9;
+	my ($dbh, $guard) = _mock_dbh();
+	$t->get_ok("/open?path=$SPEC&c=double:amount*2")->status_is(200)
+		->content_like(qr{<td[^>]*>\s*20\s*</td>}, 'the column is on the page');
+	$t->get_ok("/open?path=$SPEC&c=double:amount*2&f=double:gt:1000000")->status_is(200)
+		->content_unlike(qr{<td[^>]*>\s*20\s*</td>}, 'and a filter on it selects');
+	$t->get_ok("/open?path=$SPEC&c=double:nosuch*2")->status_is(400)
+		->content_like(qr/Unknown column 'nosuch'/, 'a field that cannot run is a 400');
 };

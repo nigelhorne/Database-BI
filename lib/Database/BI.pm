@@ -1020,7 +1020,10 @@ An unknown function or column, or a parameter where none is taken, is a 400.
 A calculated field can read the new column, as in
 C<c=half:ytd/2>, and C<cs=> can read a calculated field or a time bucket, as in
 C<span=1mon&tcol=at&order=at_span&cs=amount:running_total:ytd>.  A filter runs
-before the pass, so C<f=> cannot select on a cross-row column: it finds no rows.
+before the pass, so a window is over the rows it leaves, unless it names a
+column the pass writes: C<f=ytd:gt:50> runs last, and selects rows without
+changing their totals.  On a canvas, a card's own filters and a cross-filter
+follow the same rule.
 The table page's Cross-row panel builds the same parameters.  See
 L<Database::BI::Controller::Dashboard/Cross-row columns> for the full rules.
 

@@ -579,11 +579,156 @@ subtest 'on a SQLite source, a cross-row column folds in Perl' => sub {
 	is_deeply [ map { $_->{half} } _csv($t->tx->res->body) ], [ 5, 15, 30, 50, 75 ],
 		'and the locked rows of a SQL source take the new columns';
 
+	# Only the filter names a column SQL has never heard of, and it must not get there.
+	$pushed = 0;
+	my $page_of = $cells->("/pivot?$l&rows=region&m=" . url_escape('amount:sum:total') . "&$YTD&f=" . url_escape('ytd:gt:50'));
+	is $pushed, 0, 'a filter on a window column keeps the aggregate from being pushed';
+	is_deeply $page_of, [ 'North', 40, 'South', 80 ], 'and the totals are of the rows it left';
+	$pushed = 0;
+	is_deeply $cells->("/pivot?$l&rows=region&m=" . url_escape('amount:sum:total') . '&c=' . url_escape('dbl:amount*2') . '&f=' . url_escape('dbl:gt:70')),
+		[ 'North', 40, 'South', 50 ], 'and so does one on a calculated column';
+	is $pushed, 0, 'which is not pushed either';
+
+	$t->get_ok('/view/ledger?c=' . url_escape('dbl:amount*2') . '&f=' . url_escape('dbl:gt:70'))->status_is(200);
+	my $kept = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($kept, 'dbl') ] } @{ $kept->{rows} } ], [ 80, 100 ],
+		'the table page filters a calculated column of a SQL source';
+
 	$t->get_ok("/view/ledger?$YTD&per_page=2&page=2&cs=" . url_escape('amount:rank:place') . '&c=' . url_escape('twice:amount*2'))
 		->status_is(200);
 	my $page = _table($t->tx->res->body);
 	is_deeply [ map { $_->[ _col($page, 'ytd') ] } @{ $page->{rows} } ], [ 60, 100 ],
 		'the table page works from them too';
+};
+
+# --- a filter on a column the pass writes -------------------------------------
+
+subtest 'a filter on a cross-row column selects rows and leaves their totals alone' => sub {
+	my $over = sub { 'f=' . url_escape($_[0]) };
+
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&" . $over->('ytd:gt:50'))->status_is(200);
+	is_deeply [ map { $_->{ytd} } _csv($t->tx->res->body) ], [ 60, 100, 150 ],
+		'the rows past 50, and their totals are the ones they always had';
+
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&" . $over->('region:eq:North') . '&' . $over->('ytd:gt:40'))->status_is(200);
+	is_deeply [ map { $_->{ytd} } _csv($t->tx->res->body) ], [ 70 ],
+		'a filter on a source column still narrows the window: North is 10, 30, 70';
+
+	$t->get_ok("/export?$ORDERS&format=csv&$YTD&c=" . url_escape('half:ytd/2') . '&' . $over->('half:gt:20'))->status_is(200);
+	is_deeply [ map { $_->{half} } _csv($t->tx->res->body) ], [ 30, 50, 75 ],
+		'a field that waited for the pass can be filtered on too';
+
+	$t->get_ok("/bar?$ORDERS&cat=region&val=amount&$YTD&" . $over->('ytd:gt:50'))->status_is(200);
+	my $body = $t->tx->res->body;
+	like $body, qr/(?:"value":40,"label":"North"|"label":"North","value":40)/, 'a chart draws the rows that are left';
+	like $body, qr/(?:"value":80,"label":"South"|"label":"South","value":80)/, 'in each group';
+
+	$t->get_ok("/view/orders?$YTD&" . $over->('ytd:gt:50') . '&per_page=2')->status_is(200)
+		->content_like(qr{href="/view/orders\?[^"]*page=2}, 'the table page knows there is another page');
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'ytd') ] } @{ $page->{rows} } ], [ 60, 100 ], 'the first page of the rows left';
+	$t->get_ok("/view/orders?$YTD&" . $over->('ytd:gt:50') . '&per_page=2&page=2')->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'ytd') ] } @{ $page->{rows} } ], [ 150 ], 'and the second';
+
+	$t->get_ok("/view/orders?$YTD&c=" . url_escape('half:ytd/2') . '&' . $over->('half:gt:40'))->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'half') ] } @{ $page->{rows} } ], [ 50, 75 ],
+		'and the table page can filter on a field over the column';
+
+	$t->get_ok('/view/orders?' . $over->('ytd:gt:50'))->status_is(200);
+	is_deeply _table($t->tx->res->body)->{rows}, [], 'with no cs= the name is an unknown column, and matches nothing';
+};
+
+# --- calculated fields on every table page ------------------------------------
+
+subtest 'the table page can filter on a calculated column' => sub {
+	my $dbl = 'c=' . url_escape('dbl:amount*2');
+	$t->get_ok("/view/orders?$dbl&f=" . url_escape('dbl:gt:50') . '&per_page=2')->status_is(200);
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'dbl') ] } @{ $page->{rows} } ], [ 60, 80 ], 'the first page of the rows it selects';
+	$t->content_like(qr{<a[^>]+href="/view/orders\?[^"]*page=2}, 'with a link to the next');
+
+	$t->get_ok('/view/orders?span=1mon&tcol=day&f=' . url_escape('day_span:eq:2026-01-01'))->status_is(200);
+	is scalar @{ _table($t->tx->res->body)->{rows} }, 5, 'so can a bucket, with all of January';
+	$t->get_ok('/view/orders?span=1mon&tcol=day&f=' . url_escape('day_span:eq:2026-02-01'))->status_is(200);
+	is scalar @{ _table($t->tx->res->body)->{rows} }, 0, 'and none of February';
+
+	$t->post_ok('/calc/save' => form => { l => 'table:ties', name => 'stored', expr => 'amount+1' })->status_is(200);
+	$t->get_ok('/view/ties?f=' . url_escape('stored:gt:25'))->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'id') ] } @{ $page->{rows} } ], [qw(b c)], 'and a saved field';
+	$t->post_ok('/calc/delete' => form => { l => 'table:ties', name => 'stored' });
+
+	$t->get_ok("/view/orders?$dbl")->status_is(200)
+		->element_exists('input[type="hidden"][name="c"][value="dbl:amount*2"]', 'the panels carry the field, so a chart can read it');
+};
+
+subtest '/open draws calculated fields' => sub {
+	my $path = url_escape(Mojo::File->new($data_dir)->child('orders.csv')->to_string);
+	my $dbl  = 'c=' . url_escape('dbl:amount*2');
+
+	$t->get_ok("/open?path=$path&$dbl")->status_is(200);
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'dbl') ] } @{ $page->{rows} } ], [ 20, 40, 60, 80, 100 ], 'the column is there';
+	$t->element_exists('input[type="hidden"][name="c"][value="dbl:amount*2"]', 'and the panels carry it');
+
+	$t->get_ok("/open?path=$path&$dbl&f=" . url_escape('dbl:gt:70'))->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'dbl') ] } @{ $page->{rows} } ], [ 80, 100 ], 'it can be filtered on';
+
+	$t->get_ok("/open?path=$path&$dbl&cs=" . url_escape('dbl:rank:place'))->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'place') ] } @{ $page->{rows} } ], [ 5, 4, 3, 2, 1 ], 'a window can read it';
+
+	$t->get_ok("/open?path=$path&$YTD&c=" . url_escape('half:ytd/2'))->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'half') ] } @{ $page->{rows} } ], [ 5, 15, 30, 50, 75 ], 'and it can read a window';
+
+	$t->get_ok("/open?path=$path&span=1mon&tcol=day")->status_is(200);
+	$page = _table($t->tx->res->body);
+	is $page->{rows}[0][ _col($page, 'day_span') ], '2026-01-01', 'a bucket is a column here too';
+
+	my $spec = 'path:' . Mojo::File->new($data_dir)->child('orders.csv')->realpath->to_string;
+	$t->post_ok('/calc/save' => form => { l => $spec, name => 'saved_one', expr => 'amount+1' })->status_is(200);
+	$t->get_ok("/open?path=$path")->status_is(200);
+	$page = _table($t->tx->res->body);
+	is $page->{rows}[0][ _col($page, 'saved_one') ], 11, 'and a field saved for this file appears';
+	$t->post_ok('/calc/delete' => form => { l => $spec, name => 'saved_one' });
+
+	$t->get_ok("/open?path=$path&c=" . url_escape('bad:nosuch*2'))->status_is(400)
+		->content_like(qr/Unknown column 'nosuch'/, 'a field that cannot run is the 400 it is elsewhere');
+	$t->get_ok("/open?path=$path&c=" . url_escape('bad:nosuch*2') . '&f=' . url_escape('amount:gt:1'))->status_is(400)
+		->content_like(qr/Unknown column 'nosuch'/, 'with a filter as well');
+};
+
+subtest '/join and /combine draw calculated fields' => sub {
+	my $orders = url_escape('table:orders');
+	my $self_join = 'j=' . url_escape('table:orders|day|day');
+	my $dbl = 'c=' . url_escape('dbl:amount*2');
+
+	$t->get_ok("/join?l=$orders&$self_join&$dbl")->status_is(200)
+		->element_exists('#bi-table[data-table^="join:"], [data-table^="join:"]', 'a field does not turn a Merge into a Combine');
+	my $page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'dbl') ] } @{ $page->{rows} } ], [ 20, 40, 60, 80, 100 ], 'the column is there';
+
+	$t->get_ok("/join?l=$orders&$self_join&$dbl&f=" . url_escape('dbl:gt:70'))->status_is(200);
+	$page = _table($t->tx->res->body);
+	is_deeply [ map { $_->[ _col($page, 'dbl') ] } @{ $page->{rows} } ], [ 80, 100 ], 'it can be filtered on';
+
+	$t->get_ok("/join?l=$orders&$self_join&c=" . url_escape('bad:nosuch*2'))->status_is(400)
+		->content_like(qr/Unknown column 'nosuch'/, 'a field that cannot run is a 400');
+
+	# A file stacked in and a field, in the same parameter.
+	my $stack = 'c=' . url_escape('table:orders');
+	for my $route ('join', 'combine') {
+		$t->get_ok("/$route?l=$orders&$stack&$dbl")->status_is(200);
+		$page = _table($t->tx->res->body);
+		is_deeply [ map { $_->[ _col($page, 'dbl') ] } @{ $page->{rows} } ],
+			[ 20, 40, 60, 80, 100, 20, 40, 60, 80, 100 ], "/$route stacks the file and draws the field";
+		$t->get_ok("/$route?l=$orders&$stack&$dbl&f=" . url_escape('dbl:gt:70'))->status_is(200);
+		is scalar @{ _table($t->tx->res->body)->{rows} }, 4, 'and filters on it';
+	}
 };
 
 done_testing;

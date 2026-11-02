@@ -2038,7 +2038,17 @@ sub _reduce_records {
 	# these rows a second time.
 	return ($records, $columns) if $opts && $opts->{chips_only};
 
+	# A filter on a column stage 6 or 7 will write has to wait for it: f=ytd:gt:50
+	# selects rows by their running total, and must not change those totals.  So
+	# every filter that can run first does, and the rest run last.
+	my $crossing = (!$opts || !$opts->{no_cross_row}) && length($self->param('cs') // '');
+	my %written  = $crossing ? map { $_ => 1 } _cross_row_written($self) : ();
+	my @late;
 	for my $s (@{ _filter_specs($self) }) {
+		if ($written{ (split /:/, $s, 2)[0] // '' }) {
+			push @late, $s;
+			next;
+		}
 		$records = _apply_filter_spec($records, $s);
 	}
 
@@ -2053,12 +2063,11 @@ sub _reduce_records {
 	# has to see filtered rows -- a window is over what the filters left -- and it
 	# has to run before anything paginates, which is why the routes that slice
 	# their own page call it again (once) inside _fetch_page.
-	if (!$opts || !$opts->{no_cross_row}) {
-		if (length($self->param('cs') // '')) {
-			($records, $columns) = $self->_apply_cross_row($records, $columns);
-			# Stage 7: the calculated fields stage 4 held back for these columns.
-			($records, $columns) = $self->_apply_held_calc_fields($records, $columns);
-		}
+	if ($crossing) {
+		($records, $columns) = $self->_apply_cross_row($records, $columns);
+		# Stage 7: the calculated fields stage 4 held back for these columns.
+		($records, $columns) = $self->_apply_held_calc_fields($records, $columns);
+		$records = _apply_filter_spec($records, $_) for @late;
 	}
 
 	return ($records, $columns);
@@ -2529,7 +2538,7 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	# the backend and would cause a "No such column" SQL error before the fold fallback.
 	my $virt        = $self->stash('_virtual_columns') // {};
 	my $has_virtual = grep { $virt->{$_} }
-		(@$by, (defined $val_col ? $val_col : ()));
+		(@$by, (defined $val_col ? $val_col : ()), map { (split /:/, $_, 2)[0] // () } @f_specs);
 
 	unless ($ENV{BI_FORCE_PERL_AGG} || _dedup_requested($self) || $has_virtual || !$can_push_filters || $has_null_by_key || !$source
 		|| !_measure_pushable($source, $fn, $val_col, $records)) {
@@ -2744,36 +2753,45 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	$self->_apply_date_normalization($all, [_get_columns($source, $all)],
 		$self->_calc_spec_key);
 
-	# Stage 4, for a page that draws calculated columns.  /view runs its fields
-	# on the sliced page, which is enough to show them, but a cross-row column has
-	# to be able to read one -- a running total per month reads a bucket -- so a
-	# request with cs= runs them here too, before the filters and the window.  The
-	# page's own pass then only repeats them, on the rows of the page.
-	my @stage4_cols;
-	if ($cross && defined $params->{calc_spec_key}) {
+	# A failure below is a 400 about the request.  It is rendered here, and the
+	# caller sees the stash and returns rather than drawing a page over it.
+	my $refuse = sub {
+		my ($why) = @_;
+		$why =~ s/ at \S+ line \d+\.?\n?$//;
+		$self->render(text => $why, status => 400);
+		$self->stash('_cross_row_error' => $why);
+		return;
+	};
+
+	# Stage 4.  The page's own fields run on the sliced page (_page_columns), which
+	# is enough to show them, but a filter or a window that reads one needs it on
+	# every row, and before them.  That pass then only repeats these, on one page.
+	$all = [ @$all ];	# the backend's own array can be read-only
+	my @cols_so_far;
+	if (defined $params->{calc_spec_key}) {
 		my @before = _get_columns($source, $all);
-		my $span   = $self->_span_calc_spec(\@before, ());
-		my $failed = $span && $span->{error};
-		unless ($failed) {
-			# A new array: the backend's own can be read-only.
-			my @rows = @$all;
-			my ($r, $c) = eval {
-				$self->_apply_calc_fields(\@rows, \@before, {
-					spec_key => $params->{calc_spec_key},
-					($span ? (calc => $span->{calc}) : ()),
-				})
-			};
-			($all, @stage4_cols) = ($r, @$c) if $r;
-			($failed = $@) =~ s/ at \S+ line \d+\.?\n?$// unless $r;
-		}
-		if ($failed) {
-			$self->render(text => $failed, status => 400);
-			$self->stash('_cross_row_error' => $failed);
+		my $span   = @before ? $self->_span_calc_spec(\@before, ()) : undef;
+		if ($span && $span->{error}) {
+			$refuse->($span->{error});
 			return ();
 		}
+		my ($r, $c) = eval {
+			$self->_apply_calc_fields($all, \@before, {
+				spec_key => $params->{calc_spec_key},
+				($span ? (calc => $span->{calc}) : ()),
+			})
+		};
+		unless ($r) {
+			$refuse->($@);
+			return ();
+		}
+		($all, @cols_so_far) = ($r, @$c);
 	}
 
-	$all = _apply_filter_spec($all, $_) for @f_specs;
+	# A filter on a column stages 6 and 7 write waits for them.  See _reduce_records.
+	my %written = $cross ? map { $_ => 1 } _cross_row_written($self) : ();
+	my @late    = grep { $written{ (split /:/, $_, 2)[0] } } @f_specs;
+	$all = _apply_filter_spec($all, $_) for grep { !$written{ (split /:/, $_, 2)[0] } } @f_specs;
 
 	if ($dedup) {
 		my $cols = $source->columns;
@@ -2781,21 +2799,22 @@ sub _fetch_page :Protected ($self, $source, $params) {
 		$all = _dedup_records($all, \@dcols);
 	}
 
-	# Stage 6, and before the slice: a running total has to see every filtered
-	# row, or page 2 would start again from zero.  A spec that cannot be honoured
-	# renders its 400 here; the caller returns rather than drawing a page over it.
+	# Stages 6 and 7, before the slice: a running total has to see every filtered
+	# row, or page 2 would start again from zero.
 	if ($cross) {
 		my $cols  = $source->columns;
-		my @xcols = @stage4_cols ? @stage4_cols
+		my @xcols = @cols_so_far ? @cols_so_far
 			: $cols ? @$cols : (sort keys %{ $all->[0] // {} });
-		my ($crossed) = eval { $self->_apply_cross_row($all, \@xcols) };
-		if ($@) {
-			(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
-			$self->render(text => $e, status => 400);
-			$self->stash('_cross_row_error' => $e);
+		my $done = eval {
+			my ($r, $c) = $self->_apply_cross_row($all, \@xcols);
+			($all) = $self->_apply_held_calc_fields($r, $c);
+			1;
+		};
+		unless ($done) {
+			$refuse->($@);
 			return ();
 		}
-		$all = $crossed;
+		$all = _apply_filter_spec($all, $_) for @late;
 	}
 
 	my $total    = scalar @$all;
@@ -3275,19 +3294,103 @@ sub _cross_row_aliases {
 	return map { (split /:/, $_, 4)[2] // () } grep { defined && !ref && length } @_;
 }
 
-# _canvas_window_columns($analysis, $params) -> \@names
+# _cross_row_written($self) -> @names
+#
+# Purpose: The columns this request writes at stages 6 and 7: the cs= aliases and
+#          the calculated fields held back for them.  A filter on one of these
+#          has to run after them.
+sub _cross_row_written {
+	my ($self) = @_;
+	return (
+		_cross_row_aliases(@{ $self->every_param('cs') // [] }),
+		map { $_->{name} } @{ $self->stash('_held_calc_fields') // [] },
+	);
+}
+
+# _canvas_window_columns($analysis, $params, \@more) -> \@names
 #
 # Purpose: Every column a cross-row plan may add on this canvas: the page's cs=,
-#          read from $params, and each card's own plan.
+#          read from $params, and each card's own plan.  \@more holds cards that
+#          are not on the canvas yet: one being added, or being given a new plan.
 sub _canvas_window_columns {
-	my ($analysis, $params) = @_;
+	my ($analysis, $params, $more) = @_;
 	my @specs = @{ $params->every_param('cs') // [] };
-	for my $vis (@{ $analysis->{visuals} // [] }) {
+	for my $vis (@{ $analysis->{visuals} // [] }, @{ $more // [] }) {
 		next unless ref $vis eq 'HASH' && ref $vis->{cross_row} eq 'HASH'
 			&& ref $vis->{cross_row}{cs} eq 'ARRAY';
 		push @specs, @{ $vis->{cross_row}{cs} };
 	}
 	return [ _cross_row_aliases(@specs) ];
+}
+
+# _canvas_cross_filter($self, $records, \@columns, \@specs) -> ($records, \@late)
+#
+# Purpose: Apply a canvas's cross-filter to a card's rows, except any spec on a
+#          column a cross-row plan writes.  That column does not exist yet, so
+#          the spec comes back for _render_visual_html to apply after the pass.
+sub _canvas_cross_filter :Protected ($self, $records, $columns, $specs) {
+	my %written = map { $_ => 1 }
+		@{ $self->stash('_canvas_window_names') // [] },
+		map { $_->{name} } @{ $self->stash('_held_calc_fields') // [] };
+	delete @written{ @$columns };
+	my @late;
+	for my $spec (@$specs) {
+		if ($written{ (split /:/, $spec, 2)[0] // '' }) {
+			push @late, $spec;
+			next;
+		}
+		$records = _apply_filter_spec($records, $spec);
+	}
+	return ($records, \@late);
+}
+
+# _calc_specs_of_request($self) -> @specs
+#
+# Purpose: The calculated fields among the request's c= params, leaving out the
+#          files it stacks, which share that parameter.
+sub _calc_specs_of_request :Protected ($self) {
+	return grep { !/\A(?:path|table|url|redis|mariadb):/i } @{ $self->every_param('c') // [] };
+}
+
+# _page_columns($self, $source, $records, $spec_key) -> ($records, \@columns) | ()
+#
+# Purpose: The columns of a table page from _fetch_page, with the calculated
+#          fields and any span= bucket drawn on its rows.  A page is one slice,
+#          so _fetch_page has already run them over the whole set if a filter or
+#          a window needed them; this pass is what puts them on the page.
+# Entry:   $spec_key files the stored fields: the page's left_spec.
+# Exit:    The rows and columns; or the empty list after rendering a 400, and the
+#          caller returns.
+sub _page_columns :Protected ($self, $source, $records, $spec_key) {
+	my @columns  = _get_columns($source, $records);
+	my %seen_col = map { $_ => 1 } @columns;
+	# Stage 6 wrote its columns onto the rows before the page was sliced, so the
+	# list is what makes the table show them, and lets a field below read one.
+	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
+	# Nothing to draw a field from: a source with no declared columns and no rows.
+	return ($records, \@columns) unless @columns;
+
+	# span= adds a bucket column to the table rather than grouping it: a table has
+	# no dimension to bucket *into*, so the reader gets the column and the raw
+	# value beside it.  See _span_calc_spec.
+	my $span = $self->_span_calc_spec(\@columns, ());
+	if ($span && $span->{error}) {
+		$self->render(text => $span->{error}, status => 400);
+		return ();
+	}
+
+	my ($calc_records, $calc_columns) = eval {
+		$self->_apply_calc_fields($records, \@columns, {
+			spec_key => $spec_key,
+			($span ? (calc => $span->{calc}) : ()),
+		})
+	};
+	unless ($calc_records) {
+		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+		$self->render(text => $e, status => 400);
+		return ();
+	}
+	return ($calc_records, $calc_columns);
 }
 
 # _apply_calc_fields($self, $records, \@columns, \%extra) -> ($records, \@columns)
@@ -4098,17 +4201,14 @@ sub analyses_add_visual ($self) {
 	# cross-filtering the canvas, with calculated columns on the URL, or with a
 	# what-if parameter set, gets a card drawn like the ones beside it rather
 	# than against the unfiltered table.
-	my $ctx = $self->_canvas_render_context($a, $body->{query});
+	my $ctx = $self->_canvas_render_context($a, $body->{query}, [$vis]);
 	return $self->render(json => { error => $ctx->{error} }, status => $ctx->{status})
 		if $ctx->{error};
 
 	# The new card is never the cross-filter source: it did not exist when the
 	# filter was made, so every cf applies to it, as it does to every card but
 	# the source.
-	my $records = $ctx->{records};
-	for my $spec (@{ $ctx->{cf_specs} }) {
-		$records = _apply_filter_spec($records, $spec);
-	}
+	my ($records, $late_cf) = $self->_canvas_cross_filter($ctx->{records}, $ctx->{columns}, $ctx->{cf_specs});
 
 	# The index is known before the render, so the card's SVG and Leaflet ids
 	# match the ones a later page load will give it.
@@ -4118,6 +4218,7 @@ sub analyses_add_visual ($self) {
 		$vis, $records, $ctx->{columns}, $ctx->{src}, $index, $ctx->{spec_key},
 		(@{ $ctx->{cf_specs} } ? 1 : 0),
 		$ctx->{cross_row},
+		$late_cf,
 	);
 	return $self->render(json => { error => $rendered->{error} }, status => 400)
 		if $rendered->{error};
@@ -4228,7 +4329,7 @@ sub analyses_update_visual ($self) {
 		}
 	}
 
-	my $ctx = $self->_canvas_render_context($a, $body->{query});
+	my $ctx = $self->_canvas_render_context($a, $body->{query}, [$vis]);
 	return $self->render(json => { error => $ctx->{error} }, status => $ctx->{status})
 		if $ctx->{error};
 
@@ -4236,10 +4337,9 @@ sub analyses_update_visual ($self) {
 	# card but the one that made it, and this card may be that one.
 	my $records      = $ctx->{records};
 	my $prefiltered  = 0;
+	my $late_cf      = [];
 	if (@{ $ctx->{cf_specs} } && $ctx->{cf_source} != $index) {
-		for my $spec (@{ $ctx->{cf_specs} }) {
-			$records = _apply_filter_spec($records, $spec);
-		}
+		($records, $late_cf) = $self->_canvas_cross_filter($records, $ctx->{columns}, $ctx->{cf_specs});
 		$prefiltered = 1;
 	}
 
@@ -4247,6 +4347,7 @@ sub analyses_update_visual ($self) {
 		$vis, $records, $ctx->{columns}, $ctx->{src}, $index, $ctx->{spec_key},
 		$prefiltered,
 		$ctx->{cross_row},
+		$late_cf,
 	);
 	return $self->render(json => { error => $rendered->{error} }, status => 400)
 		if $rendered->{error};
@@ -4524,7 +4625,7 @@ sub analyses_import ($self) {
 # C<cv>, C<c>, C<cs>, C<by>, C<order>, C<range>, C<rcol> and C<p.<name>> are read
 # from C<$query> - the same keys canvas_render reads from its own URL - so a
 # page's state is not a way to reach anything else.
-sub _canvas_render_context :Protected ($self, $a, $query) {
+sub _canvas_render_context :Protected ($self, $a, $query, $more_cards = undef) {
 	my $params;
 	if (defined $query) {
 		return { error => 'query must be a string', status => 400 }
@@ -4544,6 +4645,9 @@ sub _canvas_render_context :Protected ($self, $a, $query) {
 		if @$p_errors;
 	my %param_values = %$bound_ref;
 
+	my $window_names = _canvas_window_columns($a, $params || Mojo::Parameters->new, $more_cards);
+	$self->stash('_canvas_window_names' => $window_names);
+
 	eval {
 		($records, $columns) = $self->_apply_calc_fields(
 			$records, $columns,
@@ -4551,7 +4655,7 @@ sub _canvas_render_context :Protected ($self, $a, $query) {
 				params   => \%param_values,
 				spec_key => ($a->{datasets}[0]{spec} // ''),
 				calc     => [ $params ? @{ $params->every_param('c') // [] } : () ],
-				window_columns => _canvas_window_columns($a, $params || Mojo::Parameters->new),
+				window_columns => $window_names,
 			}
 		);
 	};
@@ -4716,9 +4820,9 @@ sub _visual_measure {
 # caller wants the same thing: a card's script and the page's are separate
 # programs, whether the card is drawn on a canvas of its own kind or returned
 # to a page that is about to insert it.
-sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
+sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef, $late_cf = undef) {
 	my $rendered = $self->_render_visual_markup(
-		$vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row,
+		$vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row, $late_cf,
 	);
 	return $rendered unless defined $rendered->{html};
 
@@ -4737,8 +4841,10 @@ sub _render_visual_html :Protected ($self, $vis, $records, $columns, $src, $vis_
 # geocode entry may still be read while the shared cache is migrated.
 # $cross_row is the canvas's validated cs= plan, run here so that each card's
 # window is over that card's own rows: see the note at the pass below.  A card
-# that saved a plan of its own uses that one instead.
-sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef) {
+# that saved a plan of its own uses that one instead.  $late_cf holds the
+# cross-filter specs on columns a plan writes (_canvas_cross_filter); a card
+# whose plan does not write the column has nothing to filter by, and ignores it.
+sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vis_id, $spec_key, $prefiltered, $cross_row = undef, $late_cf = undef) {
 	my $kind    = $vis->{kind}    // '';
 	return { html => _text_card_markup($vis), title => _text_card_title($vis) }
 		if $kind eq 'text';
@@ -4756,21 +4862,6 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 	# HTML::D3's default.
 	my $svg_id = 'vis-' . (defined($vis_id) ? $vis_id : 'chart');
 
-	# Apply per-visual filters on top of the base pipeline records.
-	my $vis_recs = $records;
-	for my $f (@$filters) {
-		$vis_recs = _apply_filter_spec($vis_recs, $f);
-	}
-
-	# Stage 6, per card.  A canvas names cs= once, but by the time the pass runs
-	# the card has already been narrowed by its own filters and by the page's
-	# cross-filter, so a running total is over the rows that card is drawn from:
-	# two cards showing different regions show different running totals.  The
-	# pass therefore cannot be hoisted above the card loop -- one shared pass
-	# would give every card the same numbers, and those are the numbers of
-	# neither card.  A fault is this card's error, not the page's: the plan was
-	# validated once, and only the arithmetic can still fail here.
-	#
 	# A card that carries a cross-row plan of its own (visual.cross_row) runs that
 	# plan instead of the page's: putting a running total on one card is not a
 	# request to put one on every card, and a card whose plan is empty has none
@@ -4785,6 +4876,30 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			if $plan && $plan->{error};
 	}
 
+	# Apply per-visual filters on top of the base pipeline records.  One on a column
+	# this card's plan writes waits for the pass, as it does on a table page.
+	my %written = $plan
+		? (map({ $_->{as} => 1 } @{ $plan->{specs} }),
+			map({ $_->{name} => 1 } @{ $self->stash('_held_calc_fields') // [] }))
+		: ();
+	my $vis_recs = $records;
+	my @late_filters;
+	for my $f (@$filters) {
+		if ($written{ (split /:/, $f, 2)[0] // '' }) {
+			push @late_filters, $f;
+			next;
+		}
+		$vis_recs = _apply_filter_spec($vis_recs, $f);
+	}
+
+	# Stage 6, per card.  A canvas names cs= once, but by the time the pass runs
+	# the card has already been narrowed by its own filters and by the page's
+	# cross-filter, so a running total is over the rows that card is drawn from:
+	# two cards showing different regions show different running totals.  The
+	# pass therefore cannot be hoisted above the card loop -- one shared pass
+	# would give every card the same numbers, and those are the numbers of
+	# neither card.  A fault is this card's error, not the page's: the plan was
+	# validated once, and only the arithmetic can still fail here.
 	if ($plan) {
 		# The pass writes its column onto the rows it is handed, and a card is
 		# handed the canvas's rows -- the same hashrefs every card draws from.  The
@@ -4804,6 +4919,9 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 	}
 
 	my %col_set = map { $_ => 1 } @$columns;
+
+	$vis_recs = _apply_filter_spec($vis_recs, $_)
+		for @late_filters, grep { $col_set{ (split /:/, $_, 2)[0] // '' } } @{ $late_cf // [] };
 
 	# The aggregate function this card picked for itself, if any (encode.agg).
 	# It is read and checked here, before the dispatch, so a misspelt function
@@ -5588,13 +5706,15 @@ sub canvas_render ($self) {
 
 		# Apply calc fields with bound params so expressions may reference them.
 		my $canvas_spec_key = ($a->{datasets}[0]{spec} // '');
+		my $window_names    = _canvas_window_columns($a, $self);
+		$self->stash('_canvas_window_names' => $window_names);
 		eval {
 			($records, $columns) = $self->_apply_calc_fields(
 				$records, $columns,
 				{
 					params         => \%bound_params,
 					spec_key       => $canvas_spec_key,
-					window_columns => _canvas_window_columns($a, $self),
+					window_columns => $window_names,
 				}
 			);
 		};
@@ -5769,16 +5889,16 @@ sub canvas_render ($self) {
 
 			# Apply cross-filter to every visual except the source (self-highlighting).
 			my $vis_recs = $records;
+			my $late_cf  = [];
 			if ($cf_active && $i != $cf_source) {
-				for my $cfs (@cf_specs) {
-					$vis_recs = _apply_filter_spec($vis_recs, $cfs);
-				}
+				($vis_recs, $late_cf) = $self->_canvas_cross_filter($records, $columns, \@cf_specs);
 			}
 
 			my $result = $self->_render_visual_html(
 				$vis, $vis_recs, $columns, $src, $i, $canvas_spec_key,
 				($cf_active && $i != $cf_source ? 1 : 0),
 				$cross_row,
+				$late_cf,
 			);
 			$canvas_map_head ||= $result->{head} // '';
 			push @rendered, {
@@ -6361,12 +6481,6 @@ sub view ($self) {
 	return if $self->stash('_cross_row_error');
 
 	$records //= [];
-	my @columns = _get_columns($source, $records);
-	# Stage 6 wrote its columns onto the rows before the page was sliced, so the
-	# list is what makes the table show them -- and what lets a calculated field
-	# below name one of them.
-	my %seen_col = map { $_ => 1 } @columns;
-	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 	# The page from _fetch_page is already reduced; this call is here for the chip
 	# list only -- filter_specs (for export URLs) and filters_json (for the UI).
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
@@ -6375,24 +6489,10 @@ sub view ($self) {
 	# action is addressed by :table rather than l=, so name the spec explicitly
 	# when looking up the fields saved for it; otherwise a saved column would
 	# appear in every chart and not in the table it was made from.
-	# span= adds a bucket column to the table rather than grouping it: a table has
-	# no dimension to bucket *into*, so the reader gets the column and the raw
-	# value beside it.  See _span_calc_spec.
-	my $span = $self->_span_calc_spec(\@columns, ());
-	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
-
-	my ($calc_records, $calc_columns) = eval {
-		$self->_apply_calc_fields($records, \@columns, {
-			spec_key => "table:$table",
-			($span ? (calc => $span->{calc}) : ()),
-		})
-	};
-	if ($@) {
-		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
-		return $self->render(text => $e, status => 400);
-	}
-	$records = $calc_records;
-	@columns = @$calc_columns;
+	my $page_columns;
+	($records, $page_columns) = $self->_page_columns($source, $records, "table:$table");
+	return unless $page_columns;
+	my @columns = @$page_columns;
 
 	my $page_url = $self->req->url->clone;
 	$page_url->query->remove('page')->remove('per_page');
@@ -6407,7 +6507,7 @@ sub view ($self) {
 		table            => $table,
 		title            => ucfirst($table),
 		left_spec        => "table:$table",
-		combine_specs    => [],
+		combine_specs    => [ $self->_calc_specs_of_request ],
 		current_joins    => [],
 		available_tables => $self->_scan_join_tables,
 		join_summaries   => [],
@@ -6634,7 +6734,7 @@ sub open_file ($self) {
 		my ($records, $has_next);
 		eval {
 			($records, $has_next) = $self->_fetch_page($source,
-				{ per_page => $per_page, offset => $offset, dedup => $dedup });
+				{ per_page => $per_page, offset => $offset, dedup => $dedup, calc_spec_key => $lspec });
 		};
 		if ($@) {
 			return $self->render(
@@ -6654,10 +6754,11 @@ sub open_file ($self) {
 		return if $self->stash('_cross_row_error');
 
 		$records //= [];
-		my @columns  = _get_columns($source, $records);
-		my %seen_col = map { $_ => 1 } @columns;
-		push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
+		my $page_columns;
+		($records, $page_columns) = $self->_page_columns($source, $records, $lspec);
+		return unless $page_columns;
+		my @columns = @$page_columns;
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
@@ -6674,7 +6775,7 @@ sub open_file ($self) {
 			back2_label      => $self->param('back2_label') // 'Back',
 			file_path        => $file_path,
 			left_spec        => $lspec,
-			combine_specs    => [],
+			combine_specs    => [ $self->_calc_specs_of_request ],
 			current_joins    => [],
 			available_tables => $self->_scan_join_tables,
 			join_summaries   => [],
@@ -6702,7 +6803,7 @@ sub open_file ($self) {
 		my ($records, $has_next);
 		eval {
 			($records, $has_next) = $self->_fetch_page($source,
-				{ per_page => $per_page, offset => $offset, dedup => $dedup });
+				{ per_page => $per_page, offset => $offset, dedup => $dedup, calc_spec_key => $lspec });
 		};
 		if ($@) {
 			return $self->render(
@@ -6722,10 +6823,11 @@ sub open_file ($self) {
 		return if $self->stash('_cross_row_error');
 
 		$records //= [];
-		my @columns  = _get_columns($source, $records);
-		my %seen_col = map { $_ => 1 } @columns;
-		push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 		my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
+		my $page_columns;
+		($records, $page_columns) = $self->_page_columns($source, $records, $lspec);
+		return unless $page_columns;
+		my @columns = @$page_columns;
 		my $rpage_url = $self->req->url->clone;
 		$rpage_url->query->remove('page')->remove('per_page');
 		return $self->render(
@@ -6742,7 +6844,7 @@ sub open_file ($self) {
 			back2_label      => $self->param('back2_label') // 'Back',
 			file_path        => $file_path,
 			left_spec        => $lspec,
-			combine_specs    => [],
+			combine_specs    => [ $self->_calc_specs_of_request ],
 			current_joins    => [],
 			available_tables => $self->_scan_join_tables,
 			join_summaries   => [],
@@ -6797,7 +6899,7 @@ sub open_file ($self) {
 			$is_multi_local = 1;
 		} else {
 			($records, $has_next) = $self->_fetch_page($source,
-				{ per_page => $per_page, offset => $offset, dedup => $dedup });
+				{ per_page => $per_page, offset => $offset, dedup => $dedup, calc_spec_key => $lspec });
 		}
 	};
 	if ($@) {
@@ -6835,10 +6937,11 @@ sub open_file ($self) {
 	return if $self->stash('_cross_row_error');
 
 	$records //= [];
-	my @columns  = _get_columns($source, $records);
-	my %seen_col = map { $_ => 1 } @columns;
-	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
+	my $page_columns;
+	($records, $page_columns) = $self->_page_columns($source, $records, $lspec);
+	return unless $page_columns;
+	my @columns = @$page_columns;
 
 	my $lpage_url = $self->req->url->clone;
 	$lpage_url->query->remove('page')->remove('per_page');
@@ -6857,7 +6960,7 @@ sub open_file ($self) {
 		back2_label      => $self->param('back2_label') // 'Back',
 		file_path        => $file->to_string,
 		left_spec        => $lspec,
-		combine_specs    => [],
+		combine_specs    => [ $self->_calc_specs_of_request ],
 		current_joins    => [],
 		available_tables => $self->_scan_join_tables,
 		join_summaries   => [],
@@ -7197,8 +7300,10 @@ Renders C<dashboard.html.tt> with the merged/filtered result set.
 
 sub join_tables ($self) {
 	# Rows stacked from other files cannot be paged from one backend; the
-	# combine route runs joins and combines together.
-	return $self->combine_tables if @{ $self->every_param('c') };
+	# combine route runs joins and combines together.  c= also carries calculated
+	# fields, which do not stack anything and stay on this page.
+	return $self->combine_tables
+		if @{ $self->every_param('c') } > $self->_calc_specs_of_request;
 
 	my ($platform, $language) = $self->_resolve_template;
 
@@ -7261,7 +7366,7 @@ sub join_tables ($self) {
 		($records, $has_next) = $self->_fetch_page($src,
 			{ per_page  => $per_page, offset   => $offset,
 			  dedup     => $dedup,    sort_col => $sort,
-			  sort_dir  => $dir });
+			  sort_dir  => $dir,      calc_spec_key => $left_spec });
 	};
 	if ($@) {
 		return $self->render(
@@ -7279,9 +7384,10 @@ sub join_tables ($self) {
 	return if $self->stash('_cross_row_error');
 
 	$records //= [];
-	my @columns = _get_columns($src, $records);
-	my %seen_col = map { $_ => 1 } @columns;
-	push @columns, grep { !$seen_col{$_}++ } @{ $self->stash('_cross_row_columns') // [] };
+	my $page_columns;
+	($records, $page_columns) = $self->_page_columns($src, $records, $left_spec);
+	return unless $page_columns;
+	my @columns = @$page_columns;
 
 	if (defined $sort && !grep { $_ eq $sort } @columns) {
 		carp $self->_i18n('error_sort_column', $sort);
@@ -7310,7 +7416,7 @@ sub join_tables ($self) {
 		back2_url        => _safe_back_url($self->param('back2')),
 		back2_label      => $self->param('back2_label') // 'Back',
 		left_spec        => $left_spec,
-		combine_specs    => [],
+		combine_specs    => [ $self->_calc_specs_of_request ],
 		current_joins    => \@join_specs,
 		available_tables => $self->_scan_join_tables,
 		join_summaries   => \@summaries,
@@ -7403,6 +7509,18 @@ sub combine_tables ($self) {
 	my @combine_specs = @{ $self->every_param('c') };
 	my @summaries     = (@{ $self->stash('pipeline_joined') // [] },
 		@{ $self->stash('pipeline_combined') // [] });
+
+	# Stage 4, for a table of stacked rows as for any other.
+	my $span = $self->_span_calc_spec($cols_ref, ());
+	return $self->render(text => $span->{error}, status => 400) if $span && $span->{error};
+	my ($calc_records, $calc_columns) = eval {
+		$self->_apply_calc_fields($records, $cols_ref, ($span ? { calc => $span->{calc} } : undef))
+	};
+	unless ($calc_records) {
+		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
+		return $self->render(text => $e, status => 400);
+	}
+	($records, $cols_ref) = ($calc_records, $calc_columns);
 
 	# Apply the filters in memory before paginating (reduce-before-paginate).
 	my @columns;
@@ -13359,8 +13477,12 @@ once.  A field cannot be both: C<cs=> cannot read a field that is itself waiting
 for a cross-row column.  On a canvas each card runs the waiting fields after its
 own pass, and a card whose plan lacks the column goes without the field.
 
-Because the filters come first, C<f=> cannot select on a cross-row column, or on
-a field that waits for one: the column does not exist yet, so no row matches.
+The filters come first, so a window is over the rows they leave, with one
+exception.  A filter naming a column stage 6 or 7 writes runs after them:
+C<f=ytd:gt:50> selects rows by their running total and does not change it.  The
+same goes for a card's own filters on a canvas and for a cross-filter, which a
+card whose plan does not write the column ignores.  Such a filter also keeps an
+aggregate from being pushed to SQL, as any filter on a virtual column does.
 
 =head1 COMMON PITFALLS
 
