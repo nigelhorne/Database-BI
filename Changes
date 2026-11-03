@@ -72,6 +72,13 @@ Revision history for Database-BI
 	  read a SQLite table named data, which is the table Export > SQLite writes,
 	  so an exported file could not be opened again.
 	[ Bug Fixes ]
+	- A path: dataset reached through a symlink kept two sets of saved
+	  definitions.  /open names a file by its real path, but the stores filed a
+	  group, calculated field, lookup, extraction, map column or bi-extract
+	  extract under the path as typed, so the file's page never showed them.
+	  Every path: spec is now resolved first, in requests, canvases and
+	  bi-extract.  Found on macOS, where the temporary directory is under /var,
+	  a symlink to /private/var.
 	- A saved definition that could no longer be applied -- a lookup file that
 	  was deleted, a column an extraction or calculated field reads that the file
 	  dropped -- made every page of that dataset a 400, the table page included,

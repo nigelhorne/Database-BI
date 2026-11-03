@@ -1076,6 +1076,7 @@ sub _accelerated_source :Protected ($self, $spec) {
 	# Only this application's controller has a model store; a bare controller
 	# (a test's, calling _open_spec as a function) has nothing accelerated.
 	return undef unless $self->isa(__PACKAGE__);
+	$spec = canonical_spec($spec);
 	my $entry = $self->_read_models->{accelerated}{$spec};
 	return undef unless ref $entry eq 'HASH';
 	my $file = $self->_accel_file($spec) // return undef;
@@ -1128,6 +1129,7 @@ sub _is_sqlite_file {
 sub accelerate {
 	my ($c, $spec) = @_;
 	croak 'accelerate() needs a controller and a spec' unless ref $c && defined $spec;
+	$spec = canonical_spec($spec);
 	my $file = $c->_accel_file($spec)
 		// croak $c->_i18n('error_accel_spec', $spec);
 	croak $c->_i18n('error_accel_sqlite', $spec) if $file =~ /\.(?:sql|sqlite3?)\z/i || _is_sqlite_file($file);
@@ -1173,6 +1175,7 @@ sub accelerate {
 sub unaccelerate {
 	my ($c, $spec) = @_;
 	croak 'unaccelerate() needs a controller and a spec' unless ref $c && defined $spec;
+	$spec = canonical_spec($spec);
 	my $models = $c->_read_models;
 	my $entry  = delete $models->{accelerated}{$spec};
 	return 0 unless ref $entry eq 'HASH';
@@ -3958,6 +3961,9 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	# file uses a non-ISO format (e.g. M/D/YYYY).
 	my $date_spec = defined $spec_key_override
 		? $spec_key_override : ($self->param('l') // '');
+	# A canvas dataset's spec comes from the stored canvas, not the request,
+	# so the hook that spells the request's specs one way has not seen it.
+	$date_spec = canonical_spec($date_spec);
 	$self->_apply_date_normalization($records, $columns, $date_spec);
 
 	# Stage 3: the stored lookups, so that a field, a filter, a bucket or a window
@@ -4111,6 +4117,55 @@ sub _canonical_path {
 	# Nothing on the path exists at all, so the lexical absolute form is all
 	# there is to compare.
 	return File::Spec->canonpath($abs->to_string);
+}
+
+# canonical_spec($spec) -> $spec
+#
+# Purpose: The one spelling of a path: spec that the model store files things
+#          under.  /open names its file by its realpath, so a definition saved,
+#          or an extract built, under a path reached through a symlink (macOS's
+#          /var is /private/var) would never be found by the page it is for.
+# Entry:   Any spec, or undef.
+# Exit:    path:<realpath> when the spec is path:<file> and the file exists
+#          locally; anything else -- another kind of spec, a remote /../host
+#          path, a file that is not there, a name with a newline -- unchanged.
+sub canonical_spec {
+	my ($spec) = @_;
+	return $spec unless defined $spec && $spec =~ m{\Apath:(?!/\.\./)([^\n]+)\z};
+	my $path = $1;
+	return $spec unless -e $path;
+	my $real = eval { Mojo::File->new($path)->realpath->to_string };
+	return (defined $real && length $real) ? "path:$real" : $spec;
+}
+
+# _canonical_request_specs($c) -> 1
+#
+# Purpose: Rewrite the path: specs a request carries -- l=, the source of each
+#          j=, and each c= -- through canonical_spec, so every route, every
+#          model-store reader and writer, and every link a page builds from
+#          them agree with /open.  Registered as a before_dispatch hook in
+#          Database::BI::startup.
+# Side Effects: Edits the query and form parameters in place and drops the
+#          request's merged parameter cache, so param() sees the new values.
+sub _canonical_request_specs ($c) {
+	my $req     = $c->req;
+	my $changed = 0;
+	for my $params ($req->url->query, $req->body_params) {
+		for my $name (qw(l j c)) {
+			my $old = $params->every_param($name);
+			next unless grep { /\Apath:/ } @$old;
+			my @new = map {
+				$name eq 'j'
+					? do { my ($s, $rest) = split /\|/, $_, 2; join '|', canonical_spec($s), (defined $rest ? $rest : ()) }
+					: canonical_spec($_)
+			} @$old;
+			next unless join("\0", @new) ne join("\0", @$old);
+			$params->param($name => \@new);
+			$changed = 1;
+		}
+	}
+	delete $req->{params} if $changed;
+	return 1;
 }
 
 # _inside_dir($path, $dir) -> $bool
@@ -14181,6 +14236,30 @@ the extract it replaces.  The extract's table is C<extract>, not C<data>:
 L<Database::Abstraction> cannot read a table called C<data>.  The file's column
 order is stored with it and passed back as C<column_order>, because a SQLite
 backend lists columns alphabetically.
+
+=cut
+
+=head2 canonical_spec
+
+The one spelling of a C<path:> spec: C<path:> followed by the realpath of its
+file, the name C<open_file> gives it.  A C<before_dispatch> hook
+(C<_canonical_request_specs>) passes the request's C<l=>, the source of each
+C<j=> and each C<c=> through it.  C<_apply_calc_fields> also passes a canvas
+dataset's spec through it, as do C<_accelerated_source>, C<accelerate> and
+C<unaccelerate>.  So a definition saved under a path reached through a symlink
+is the one the file's page reads.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	$spec   # any spec string, or undef
+
+=head4 OUTPUT
+
+	'path:<realpath>' when $spec is path:<file> and the file exists locally;
+	otherwise $spec unchanged (other kinds of spec, remote /../host paths,
+	missing files, a name holding a newline, undef)
 
 =cut
 
