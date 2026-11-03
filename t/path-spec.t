@@ -6,13 +6,14 @@ use Test::Mojo;
 use Mojo::DOM  ();
 use Mojo::File ();
 use File::Temp ();
-use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use Mojo::JSON ();
 use DBI ();
 use Mojo::Util qw(url_escape);
 
 use Database::BI::Controller::Dashboard ();
+
+use lib 't/lib';
+use BI::Test::Command qw(run_command);
 
 # ---------------------------------------------------------------------------
 # A path: spec has one spelling: the realpath of its file, which is how /open
@@ -145,12 +146,12 @@ subtest 'bi-extract --spec through the link accelerates /open' => sub {
 	plan skip_all => 'DBD::SQLite is not available' unless eval { require DBD::SQLite; 1 };
 	my @dirs = ('--data-dir', $data_dir->to_string, '--model-dir', $model_dir->to_string);
 	my $cli = sub {
-		my $err = gensym;
-		my $pid = open3(my $in, my $out, $err, $^X, '-Ilib', 'script/bi-extract', @dirs, @_);
-		close $in;
-		my $stdout = do { local $/; <$out> } // '';
-		waitpid $pid, 0;
-		return ($? >> 8, $stdout);
+		my ($exit, $stdout, $stderr, $timed_out) = run_command([ $^X, '-Ilib', 'script/bi-extract', @dirs, @_ ]);
+		if ($timed_out) {
+			fail("bi-extract @_ finished");
+			diag("stdout:\n$stdout\nstderr:\n$stderr");
+		}
+		return ($exit, $stdout);
 	};
 	my ($code) = $cli->('--spec', "path:$via_link");
 	is($code, 0, 'built');

@@ -6,12 +6,13 @@ use Test::Mojo;
 use Mojo::DOM  ();
 use Mojo::File ();
 use File::Temp ();
-use IPC::Open3 qw(open3);
-use Symbol     qw(gensym);
 use Mojo::Util qw(url_escape);
 use DBI ();
 
 use Database::BI::Controller::Dashboard ();
+
+use lib 't/lib';
+use BI::Test::Command qw(run_command);
 
 # ---------------------------------------------------------------------------
 # Accelerated views -- Phase 7 item 7.5.
@@ -48,16 +49,17 @@ my $db = $data_dir->child('store.sqlite');
 }
 
 # _cli(@args) -> ($exit, $stdout, $stderr)
+# A run past its deadline fails here, with what it had written, rather than
+# hanging the file (as open3's pipes did on Windows).
 sub _cli {
-	my @cmd = ($^X, '-Ilib', 'script/bi-extract', @_);
-	my $err = gensym;
-	my $pid = open3(my $in, my $out, $err, @cmd);
-	close $in;
-	my $stdout = do { local $/; <$out> } // '';
-	my $stderr = do { local $/; <$err> } // '';
-	waitpid $pid, 0;
-	return ($? >> 8, $stdout, $stderr);
+	my ($exit, $stdout, $stderr, $timed_out) = run_command([ $^X, '-Ilib', 'script/bi-extract', @_ ]);
+	if ($timed_out) {
+		fail("bi-extract @_ finished");
+		diag("stdout:\n$stdout\nstderr:\n$stderr");
+	}
+	return ($exit, $stdout, $stderr);
 }
+
 my @DIRS = ('--data-dir', $data_dir->to_string, '--model-dir', $model_dir->to_string);
 
 # _listing($dir) -> sorted names of every file under $dir

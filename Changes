@@ -2,249 +2,88 @@ Revision history for Database-BI
 
 0.019.0
 	[ Enhancements ]
-	- Stored lookups: POST /lookups/save?l=table:orders&name=shops&file=shops.csv
-	  &key=code&col=shop adds the columns of shops.csv to every order whose shop
-	  matches a code, on every page, chart, export and canvas.  Filters and
-	  calculated fields can read the new columns.  The file must be under
-	  data_dir and at most 8 MiB.  nolk=shops skips it for one view; lk= applies a
-	  lookup stored for another dataset.  A source column is never overwritten.
-	- Field extraction: rx(ref,'^([A-Z]{2})-','1') in a calculated field takes
-	  one value out of a column with a regular expression.  POST /extract/save
-	  stores a pattern for a dataset, and each named group, (?<country>...),
-	  becomes a column everywhere.  A row it does not match is (unparseable).
-	  Patterns over 200 characters, and those using (?{, (??{, (?p or (*, are
-	  refused.
-	- Accelerated datasets: script/bi-extract --spec table:sales builds a SQLite
-	  copy of a large file under <model_dir>/extracts/, and the pages read it
-	  while the file is unchanged.  Once the file changes, the file itself is
-	  read and the table page says the copy is stale; --all rebuilds every one.
-	  Deleting extracts/ loses nothing, and nothing is written under data_dir.
-	- A calculated field can read a cross-row column: cs=amount:running_total:ytd
-	  with c=half:ytd/2.  The field runs after the cross-row pass, on canvases per
-	  card.  With no cs= the name is unknown, the 400 it always was.
-	- MariaDB and MySQL: name a server in mariadb_servers in the configuration, and
-	  mariadb:server/table opens a table anywhere a source is taken, in Merge,
-	  Combine and canvases too.  The home page has a card for each server, which
-	  lists its tables.  A page of a table is read with LIMIT, in key order.  The
-	  password stays in the configuration: a spec holds only the name, and cannot
-	  name an address.
-	- Every chart page with Export SVG and Export PNG now has Export PDF too: a
-	  one-page PDF the size of the chart, with the pie legend and the source
-	  line drawn in as they are in the PNG.  It is made in the browser and
-	  holds a high-resolution picture of the chart, so it needs no PDF library;
-	  use Export SVG for vector output.
-	- Canvas: Add text puts a card of plain text on a canvas, for a title or an
-	  explanation, with its own font, size in points, colours and alignment.  It
-	  moves and resizes like any card, can hide its frame until it is pointed at,
-	  and a row holding only one-row text cards is as tall as its text.
-	  Double-click the text to edit it or remove the card.
-	- Canvas cards: Save image becomes SVG, PNG and PDF buttons.  A card now
-	  shows and saves its whole chart, rotated axis labels included.
-	- Saved charts (SVG, PNG and PDF, from chart pages and canvas cards) carry
-	  "Database::BI" at the bottom right.  In the PDF it links to
-	  https://metacpan.org/dist/Database-BI.
-	- Added website
-	- script/database-bi FILE starts the server showing that database.  Naming
-	  more than one, or a file that cannot be opened, is an error before the
-	  server starts.
-	- Dark mode, and a new Preferences page to choose it: the same as the device
-	  (the default), light or dark.  The choice is kept in the browser's local
-	  storage and applies at once to every open page.  Charts and tables follow
-	  it.  Saved charts, printed pages and embedded canvases stay light.
-	- Every feature can now be reached from the pages.  The table page has
-	  Lookups and Extract fields panels beside Calc fields, Group values and
-	  Date format: each saves, lists and deletes, and a lookup can be skipped in
-	  one view.  A canvas has a Share panel that makes the read-only link, gives
-	  its embed code and downloads the canvas as JSON; Import canvas on the
-	  Canvases page reads that file back.  The map panel can forget the columns it
-	  remembered.  t/ui-reach.t fails when a route is named by no page.
-	- A refused request in a browser (a chart of a column the view does not
-	  have, say) shows the reason on a page with the breadcrumb and a Back button,
-	  rather than a line of plain text.  Scripts, fetch() and /api/ routes still
-	  get plain text or JSON.
-	- POST /geo/save takes col= and kind= in repeated pairs, and replace=1.
-	- Canvases in the main navigation opens /canvases, a page listing the saved
-	  canvases with Import canvas, which says how to make one when there are
-	  none.  It used to scroll the home page to a list that was filled in only
-	  after the page loaded, and was empty without canvases.  A canvas's
-	  breadcrumb is now Home > Canvases > its name.
-	- Database::Abstraction 0.54 is now required.  Earlier versions could not
-	  read a SQLite table named data, which is the table Export > SQLite writes,
-	  so an exported file could not be opened again.
-	[ Bug Fixes ]
-	- A path: dataset reached through a symlink kept two sets of saved
-	  definitions.  /open names a file by its real path, but the stores filed a
-	  group, calculated field, lookup, extraction, map column or bi-extract
-	  extract under the path as typed, so the file's page never showed them.
-	  The stores now file a path: dataset under its real path, and read an
-	  entry saved under another spelling as well; pages and messages still show
-	  the path as it was given.  Found on macOS, where the temporary directory is
-	  under /var, a symlink to /private/var.
-	- A saved definition that could no longer be applied -- a lookup file that
-	  was deleted, a column an extraction or calculated field reads that the file
-	  dropped -- made every page of that dataset a 400, the table page included,
-	  so the panels that mend it could not be reached.  The table page is now
-	  drawn without the saved columns, with a note naming the one at fault and
-	  buttons that open its panel.  Charts and exports still refuse, with the
-	  reason.
-	- A saved group's <col>_group column was in the charts and the export but not
-	  in the table page (/view, /open) or a canvas card, which looked the groups
-	  up by l= and so found none.
-	- The map panel's Remember columns added to the saved columns rather than
-	  replacing them, so a place-name column remembered earlier kept the panel in
-	  place-name mode after a latitude and longitude were chosen.  It also sent a
-	  request per column as the page left, which could be lost.
-	- A panel reopened after a save could list what was there before it: replies
-	  carried a Last-Modified dated by the code, not the data, and no
-	  Cache-Control, so a browser could reuse one without asking.  The header is
-	  gone; the ETag makes every reuse a revalidation.
-	- The tutorial's canvas-sharing chapter described a Share button that did not
-	  exist, and the website said /embed/ could be framed by another site; it
-	  sends X-Frame-Options: SAMEORIGIN.
-	- A SQLite file ending .db could not be opened when it held a table named after
-	  the file, such as a table called orders in orders.db: it was read as text.
-	  Charts and exports answered 404, and the table page reported a parse error.
-	- cs= on the table page could not read a calculated field or a time bucket, as
-	  it could on charts and in the export: it was a 400.
-	- A filter on a cross-row column found no rows.  It now runs after the pass, so
-	  f=ytd:gt:50 selects rows without changing their totals; the same goes for a
-	  canvas card's own filters and for a cross-filter.
-	- A filter on a calculated column or a time bucket found no rows on the table
-	  page, though the page drew the column.
-	- /open, /join and /combine left out calculated fields, saved ones included, and
-	  span= time buckets.  They now draw them as /view does.  /join took a c= holding
-	  a calculated field for a file to stack, and went to the Combine page.
-	- The panels of /view, /open and /join now carry calculated fields, so a chart
-	  opened from one can read them.
-	- Merge hung, then failed with "database is locked", on a BSD with File::Temp
-	  older than 0.2308, as Perl 5.28 ships.  Such a File::Temp holds a new file
-	  under an exclusive lock, which stopped SQLite writing to it.  0.2308 is now
+	- Stored lookups: POST /lookups/save adds the columns of another file under
+	  data_dir to every matching row, on every page, chart, export and canvas.
+	  nolk= skips one for a view; lk= applies one stored for another dataset.
+	- Field extraction: rx() in a calculated field takes a value out of a column
+	  with a regular expression, and POST /extract/save stores a pattern whose
+	  named groups become columns everywhere.
+	- Accelerated datasets: script/bi-extract builds a SQLite copy of a large
+	  file under <model_dir>/extracts/, which the pages read while the file is
+	  unchanged.  Once it changes, the file is read and the page says so.
+	- A calculated field can read a cross-row column (cs=).
+	- MariaDB and MySQL: mariadb:server/table opens a table of a server named in
+	  mariadb_servers, anywhere a source is taken.  The spec holds only the name.
+	- Export PDF on every chart page.
+	- Canvas: text cards, for titles and explanations.  Cards save as SVG, PNG
+	  and PDF, showing the whole chart and a pie's legend.
+	- Saved charts carry "Database::BI" at the bottom right.
+	- A website, in website/html/.
+	- script/database-bi FILE starts the server showing that database.
+	- Dark mode, chosen on a new Preferences page.  Saved charts, printed pages
+	  and embedded canvases stay light.
+	- Every feature can be reached from the pages: Lookups and Extract fields
+	  panels, a canvas Share panel (link, embed code, JSON download) with Import
+	  canvas to read it back, and Forget remembered columns on the map panel.
+	- A refused request in a browser shows the reason on a page with a way back.
+	- POST /geo/save takes repeated col=/kind= pairs, and replace=1.
+	- Canvases in the main navigation opens a new /canvases page.
+	- Database::Abstraction 0.54, File::Temp 0.2308 and HTML::D3 0.27 are now
 	  required.
-	- A cell holding </script><script>... ran as script in the reader's browser on
-	  /bar, /pie, /stacked and /graph.  HTML::D3 0.27, now required, keeps such text
-	  inside the chart's data.
-	- Filters lt, le, gt and ge counted a blank or a word in a cell as zero, so a
-	  blank cell matched "less than 9", and each one logged a warning.  They now
-	  match numbers only, and read $1,234.56 and (1,234.56) as numbers.
-	- Paging could fail with "Modification of a read-only value" on a backend
-	  that returns a read-only array.  Pages now copy their rows.
-	- The page links on a table opened with no other query were broken:
-	  /view/orders&page=2 where /view/orders?page=2 was meant.
-	- An error opening the left table of /join showed the source file and line.
-	- hypnotoad script/database-bi never served the application: it hung in the
-	  development server.  It now starts the preforking server, as documented.
-	- On a device set to dark, a few parts of some pages went dark on an otherwise
-	  light page.  The whole page now follows the setting.
-	- /export with sort= gave a 500 on a SQLite source the first time it was read,
-	  because the rows were sorted in place in the backend's read-only array.
-	- A data directory that could not be read gave a 500 on the home page and on
-	  /view; it is now logged, and shows as having no tables.
-	- A staging directory that refused access gave an exception page from /upload
-	  and /uploads/clear instead of their JSON errors; both are now logged too.
-	- /export?format=sqlite without a usable driver gave an exception page; it now
-	  answers 500 with a message, and logs the reason.
-	- A JSON URL answering with anything but rows, such as [1,2,3], gave a 500 from
-	  /import and every chart; it is now reported as a source that cannot be read.
-	- A map renderer that failed part way gave a 500; the page now says the map
-	  could not be drawn.
-	- models.json or analyses.json that could not be parsed read as empty, and the
-	  next save replaced it, losing everything in it.  It is now kept beside the
-	  store as <file>.corrupt.<time>, and the log says so.
-	- Errors from /import, /export and the canvas routes showed readers Perl source
-	  paths and line numbers, and a missing module's error listed @INC.  A canvas
-	  document that was valid JSON but not an object gave no reason at all.
-	- A file with no header row split a quoted field on the separator inside it,
-	  so "1,234.56" became two columns and every later value moved along one.  It
-	  also dropped an empty field, which did the same.  Such a file is now read
-	  by Database::Abstraction, from a temporary copy with a header added.
-	- Sorting did nothing on a file with no header row, XLSX or Berkeley DB.  XLSX
-	  and Berkeley DB are now read by Database::Abstraction too, so they sort, page
-	  and filter as other files do.  A Berkeley DB file's rows are no longer in key
-	  order unless sorted, and an empty XLSX cell is undef rather than ''.
-	- Sorting did nothing on a column whose name is not a safe identifier, such as
-	  "First Name", on any source: Database::Abstraction ignores those.
-	- /api/range ignored j=, jtype= and c=, so on a joined view a date column from
-	  the right-hand table had no range, and a left-hand one counted rows an
-	  inner join had dropped.  It now answers for the view, and the dashboard's
-	  date filter and time-range menu send it the view's joins and combines.
-	- DataSource->updated() gave undef for a file not read yet, and after a read
-	  went on giving the time of that read.  It now gives the file's mtime, so a
-	  canvas can tell its data has changed.
-	- DataSource->new without a table croaks error_table_required, not the
-	  validator's text.
-	- /map with only one of lat= and lon= now says so, rather than asking for a
-	  source.
-	- Calc, Extract and DataSource no longer overwrite the caller's $@ and $!.
-	- /embed/:id drew no charts at all, so an embedded canvas was empty.
-	- Writes to analyses.json reported success even when nothing was saved.  They
-	  now answer 503, as the documentation says.
-	- Named groups saved from the panel were stored as one long value holding
-	  every line, so no row ever matched them.
-	- PUT, PATCH and import now drop unknown top-level keys, as POST did.
-	- /export and /folder with a bad span= or calculated field never replied:
-	  the connection hung until it timed out.  They now answer 400.
+	[ Bug Fixes ]
 	- Security: error replies that repeat a parameter were sent as HTML, so a
-	  crafted link such as /bar?range=<script> ran script on this site.  They
-	  are now plain text.  scheme= (and a saved card's scheme) reached a chart's
-	  script unchecked; only known palettes are used now.
-	- A canvas card's CSV download (/a/:id/visual/:n/csv) always failed: it was
-	  a 500, or a 422 without l=.  It now uses the canvas's own data, and l=
-	  cannot point it at anything else.
-	- A saved canvas of the wrong shape, hand-edited or otherwise, was a 500 on
-	  its page, its share link, the catalog and /api/analyses.  The bad part is
-	  now treated as absent.  POST, PUT and PATCH refuse such a document, and
-	  PATCH now checks all the keys it is given.
-	- models.json with a section of the wrong shape was a 500 on every page.
-	- An unknown scheme= on a heatmap was a 500; it now draws the default.
-	- A save of analyses.json that failed left a temp file behind and went
-	  unreported.
+	  crafted link such as /bar?range=<script> ran script on this site.
+	  scheme= reached a chart's script unchecked.  A cell holding
+	  </script><script> ran on /bar, /pie, /stacked and /graph.
+	- Saved definitions for a path: dataset reached through a symlink were not
+	  found by its /open page.
+	- A saved definition that could no longer be applied made every page of its
+	  dataset a 400, so the panel that mends it could not be reached.  The table
+	  page is now drawn without it, with a note saying what is wrong.
+	- A saved group's column was missing from the table page and canvas cards,
+	  and groups saved from the panel never matched a row.
+	- The map panel's Remember columns added to the saved columns rather than
+	  replacing them.
+	- A panel reopened after a save could list what was there before.
+	- A SQLite .db file holding a table named after the file was read as text.
+	- A SQLite file could not be opened when its first table's name had
+	  characters other than letters, digits and underscores.
+	- /open, /join and /combine left out calculated fields and span= time
+	  buckets.  cs= on the table page could not read them.
+	- A filter on a cross-row column, a calculated column or a time bucket found
+	  no rows.
+	- lt, le, gt and ge treated a blank or a word as zero; they now compare
+	  numbers only, and read $1,234.56 and (1,234.56).
+	- A column of codes (SKU123) or dates was read as numbers; 1e3 was read as 13.
+	- Merge hung on BSDs with the File::Temp that Perl 5.28 ships.
+	- hypnotoad script/database-bi never served the application.
+	- Page links on a table opened with no other query were broken.
+	- A file with no header row split quoted fields and dropped empty ones.
+	  Sorting did nothing on such files, on XLSX and Berkeley DB, and on columns
+	  such as "First Name".  XLSX and Berkeley DB are now read by
+	  Database::Abstraction.
+	- /api/range ignored joins and combines.
+	- DataSource->updated() now gives the file's mtime.
+	- /embed/:id drew no charts.  A canvas card's CSV download always failed.
+	- Writes to analyses.json reported success when nothing was saved; they now
+	  answer 503.  A store that could not be parsed was replaced by the next
+	  save; it is now kept as <file>.corrupt.<time>.
+	- A canvas or models.json of the wrong shape was a 500.  PUT, PATCH and
+	  import now refuse or drop what POST does.
+	- /export and /folder hung on a bad span= or calculated field.
+	- 500s and exception pages now give a message instead: an unreadable data
+	  or staging directory, SQLite export without a driver, a JSON URL that
+	  holds no rows, a failing map renderer, a sorted export or a page on a
+	  read-only backend, an unknown heatmap scheme.
+	- Errors no longer show readers Perl source paths, line numbers or @INC.
 	- An absolute data_dir defeated the check that keeps analyses.json out of it.
-	- page=, per_page=, topn= and bins= that are not numbers no longer warn, or
-	  turn into one row or an infinite offset.
-	- A column of codes (SKU123, AB-100) or dates was read as numbers, and so
-	  was offered and totalled as a measure; 1e3 was read as 13.  A number with
-	  a currency code (USD 100) is still a number.
-	- Insights: Q3 was wrong for an odd number of values, and an en dash in a
-	  detail line printed as the text \x2013.
-	- Calculated fields: month, day and quarter accepted impossible dates (month
-	  00 was December); round() with negative or huge places; a date pattern
-	  produced dates that do not exist; deep unary chains passed the depth limit.
-	- Summary: the cache key left out the detail, so stale figures could be
-	  shown; column names with non-ASCII characters crashed it.
-	- Ask: a reply with non-ASCII text, or with a brace inside a string, was
-	  refused.
-	- Extracts: an empty model_dir was accepted, and evict failed on a path with
-	  spaces or brackets.
-	- Links built from non-ASCII text were wrong (U+263A as %263A), and an error
-	  could show the server's paths when they contained spaces.
-	- Map: a limit too long to be a real number is ignored; a stored geocode cache
-	  of the wrong shape no longer crashes.
-	- Line chart: rotated x-axis labels were cut off at the bottom of Export
-	  SVG, PNG and PDF, and spilled out of the chart's frame on the page.  The
-	  chart now grows to fit them, and exports leave out the page's frame.
-	- Saved charts: axis titles and other text styled by the page came out in
-	  the browser's default serif font, too big.  SVG, PNG and PDF now keep the
-	  fonts the chart has on screen.
-	- SQLite: a file was refused outright when the first table, alphabetically,
-	  had a name with characters other than letters, digits and underscores
-	  (such as chi_CGI::Info in a CHI cache).  The file now opens with the first
-	  table it can use, and the table list marks the others, saying why and how
-	  to rename them.  When no table can be used, or one is asked for by name,
-	  the error says what is wrong and what to do.  Errors opening a file or
-	  table no longer end in "at FILE line N"; .sqlite and .sqlite3 files now get
-	  the SQLite hint too.
-	- Canvas: a saved pie card had no legend, so no way to tell its slices
-	  apart.  SVG, PNG and PDF now draw it beside the pie.
-	- Canvas: after a card was edited, its download button saved one file per
-	  edit, and a map card offered to save its marker layer.
-	- Tutorial: new chapters on finding your way (navigation, breadcrumbs,
-	  the Drawn from: strip, missing pages), Ask, bi-geocode and the settings
-	  file.  The map chapter covers Remember columns, the heatmap layer,
-	  initial zoom, colour rules, size= and series=; insights covers
-	  Summarize; canvases cover the Time range bar; combine covers merging
-	  too; de-duplication says charts follow it.  New glossary terms and a
-	  Page not found question.  The bi-alert chapter now says what --dry-run
-	  really does (it still runs the check).
+	- Non-numeric page=, per_page=, topn= and bins= are ignored.
+	- Line chart exports cut off rotated labels, and saved charts lost their
+	  fonts.
+	- Smaller fixes in Insights, calculated fields, Summary, Ask, the map and
+	  links built from non-ASCII text.
+	- Tutorial: new chapters on navigation, Ask, bi-geocode and the settings
+	  file, and the existing ones brought up to date.
 
 0.018.0	Wed Oct 28 08:41:28 PM EDT 2026
 	[ Enhancements ]
