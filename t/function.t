@@ -6395,7 +6395,12 @@ sub croak_rethrow {
 		my ($code) = @_;
 		my $saved = $ENV{TZ};
 		$ENV{TZ} = 'UTC';
-		POSIX::tzset();
+		# Windows perls croak "not implemented on this architecture", and
+		# without tzset a change to TZ need not take effect.
+		unless (eval { POSIX::tzset(); 1 }) {
+			if (defined $saved) { $ENV{TZ} = $saved } else { delete $ENV{TZ} }
+			plan skip_all => 'POSIX::tzset is not available here';
+		}
 		my $ok  = eval { $code->(); 1 };
 		my $err = $@;
 		if (defined $saved) { $ENV{TZ} = $saved } else { delete $ENV{TZ} }

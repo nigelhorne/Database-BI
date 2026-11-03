@@ -293,7 +293,8 @@ Readonly my %MESSAGE_FILES => (
 );
 my %DICTIONARY;
 for my $module (sort keys %MESSAGE_FILES) {
-	my $source = Mojo::File->new($MESSAGE_FILES{$module})->slurp;
+	# A Windows checkout has CRLF line ends, which would leave the POD in below.
+	(my $source = Mojo::File->new($MESSAGE_FILES{$module})->slurp) =~ s/\r\n/\n/g;
 	my ($block) = $source =~ /%MESSAGES => \((.*?)^\);/ms or BAIL_OUT("no %MESSAGES in $module");
 	my %messages = eval "($block)";	## no critic (ProhibitStringyEval): the module's own constant data
 	$source =~ s/%MESSAGES => \(.*?^\);//ms;

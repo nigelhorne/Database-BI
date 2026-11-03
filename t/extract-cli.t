@@ -134,7 +134,7 @@ subtest 'what cannot be accelerated' => sub {
 subtest 'an accelerated dataset reads its extract, and answers the same' => sub {
 	my ($code, $out, $err) = _cli(@DIRS, '--spec', 'table:sales');
 	is $code, 0, 'bi-extract builds it' or diag $err;
-	like $out, qr{\Atable:sales: 4 rows, 4 columns -> \S+/extracts/[0-9a-f]{32}\.db \(built \d{4}-\d\d-\d\d \d\d:\d\d\)\n\z},
+	like $out, qr{\Atable:sales: 4 rows, 4 columns -> \S+[\\/]extracts[\\/][0-9a-f]{32}\.db \(built \d{4}-\d\d-\d\d \d\d:\d\d\)\n\z},
 		'and prints what it built';
 	my ($code2, $list) = _cli(@DIRS, '--list');
 	is $list, "table:sales\n", '--list names it';
