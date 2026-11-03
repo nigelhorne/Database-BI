@@ -4099,15 +4099,18 @@ sub _canonical_path {
 	my ($path) = @_;
 
 	my $abs = eval { $path->to_abs } // $path;
+	# Cwd::realpath on Windows does not follow symlinks: it gives undef for a
+	# path through one, which would send the loop below to the link's parent
+	# and keep the link's own name.  So the links are followed first.
+	if ($^O eq 'MSWin32') {
+		my $followed = _follow_links($abs->to_string);
+		$abs = Mojo::File->new($followed) if defined $followed;
+	}
 	my @tail;
 	my $probe = $abs;
 	while (1) {
 		my $string = $probe->to_string;
 		my $real   = -e $string ? realpath($string) : undef;
-		# Cwd::realpath on Windows does not follow symlinks (GetFullPathName
-		# only tidies the name), so a link in data_dir could point the
-		# guard's comparison anywhere.
-		$real = _follow_links($real) if defined $real && length $real && $^O eq 'MSWin32';
 		if (defined $real && length $real) {
 			return File::Spec->canonpath(
 				@tail ? Mojo::File->new($real, @tail)->to_string : $real
@@ -4147,6 +4150,9 @@ sub _follow_links {
 			return undef if ++$hops > 40;
 			my $target = readlink $here;
 			return undef unless defined $target && length $target;
+			# Windows perls can give the NT form of an absolute target,
+			# \??\C:\dir, or the long-path form \\?\C:\dir.
+			$target =~ s{\A(?:\\\?\?\\|\\\\\?\\)}{};
 			my ($tvol, $tdirs, $tfile) = File::Spec->splitpath($target);
 			if (File::Spec->file_name_is_absolute($target)) {
 				$vol  = $tvol if length $tvol;

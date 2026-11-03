@@ -7860,7 +7860,6 @@ sub croak_rethrow {
 	# there with _follow_links.  It is written for any platform, so it is
 	# checked here against realpath wherever there are symlinks.
 	subtest 'Dashboard::_follow_links -- agrees with realpath' => sub {
-		require Cwd;
 		my $fn   = \&Database::BI::Controller::Dashboard::_follow_links;
 		my $base = Mojo::File->new(tempdir(CLEANUP => 1))->realpath;
 		$base->child('real', 'deep')->make_path;
@@ -7870,22 +7869,47 @@ sub croak_rethrow {
 		symlink('real/deep', $base->child('rel')->to_string);           # relative
 		symlink('../rel', $base->child('real', 'up')->to_string);        # .. in the target
 		symlink('abs', $base->child('chain')->to_string);                # a link to a link
+		# The NT form some Windows perls' readlink gives; here just a name.
+		symlink('\\??\\' . $base->child('real')->to_string, $base->child('nt')->to_string);
 		symlink('loop2', $base->child('loop1')->to_string);
 		symlink('loop1', $base->child('loop2')->to_string);
 
-		for my $p ('abs', 'abs/deep/f.csv', 'rel', 'rel/f.csv', 'real/up', 'real/up/f.csv',
-			'chain/deep', 'real/deep/../deep/f.csv', 'real') {
-			my $path = $base->child(split m{/}, $p)->to_string;
-			is $fn->($path), Cwd::realpath($path), "$p";
+		# Not compared with realpath: on Windows that gives undef for a path
+		# through a link, which is why this function exists.
+		my %where = (
+			'abs'                     => 'real',
+			'abs/deep/f.csv'          => 'real/deep/f.csv',
+			'rel'                     => 'real/deep',
+			'rel/f.csv'               => 'real/deep/f.csv',
+			'real/up'                 => 'real/deep',
+			'real/up/f.csv'           => 'real/deep/f.csv',
+			'chain/deep'              => 'real/deep',
+			'real/deep/../deep/f.csv' => 'real/deep/f.csv',
+			'real'                    => 'real',
+			'abs/not/yet'             => 'real/not/yet',
+			'nt/deep'                 => 'real/deep',
+		);
+		for my $p (sort keys %where) {
+			my $got = $fn->($base->child(split m{/}, $p)->to_string);
+			is(defined $got ? File::Spec->canonpath($got) : undef,
+				File::Spec->canonpath($base->child(split m{/}, $where{$p})->to_string), $p);
 		}
 		is $fn->($base->child('loop1')->to_string), undef, 'a loop gives up';
 
-		# As on Windows: realpath only tidies the name.  _canonical_path, and so
-		# every data_dir guard, must still see where the link goes.
+		# As on Windows: realpath gives undef for a path through a link, and
+		# tidies any other.  _canonical_path, and so every data_dir guard, must
+		# still see where the link goes.
 		{
 			no warnings 'redefine';
 			local $^O = 'MSWin32';
-			local *Database::BI::Controller::Dashboard::realpath = sub { File::Spec->rel2abs($_[0]) };
+			local *Database::BI::Controller::Dashboard::realpath = sub {
+				my $abs = File::Spec->rel2abs($_[0]);
+				my @parts = File::Spec->splitdir($abs);
+				for my $i (1 .. $#parts) {
+					return undef if -l File::Spec->catdir(@parts[0 .. $i]);
+				}
+				return $abs;
+			};
 			is $F{_canonical_path}->($base->child('abs', 'deep')), $base->child('real', 'deep')->to_string,
 				'_canonical_path follows a link where realpath does not';
 			is $F{_canonical_path}->($base->child('rel', 'new')), $base->child('real', 'deep', 'new')->to_string,
