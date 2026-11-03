@@ -5685,12 +5685,21 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		return { error => "Column not found: $x_col" } unless $col_set{$x_col};
 		return { error => "Column not found: $y_col" } unless $col_set{$y_col};
 
+		# encode.series is what /graph's "Add to canvas" saves from series=: one
+		# line per value of that column, as on the page.  Without it every row
+		# is one line, which runs through all the groups' points in turn.
+		my $series_col = $encode->{series} // '';
+		$series_col = '' if ref $series_col;
+		return { error => "Column not found: $series_col" }
+			if length $series_col && !$col_set{$series_col};
+
 		# A card whose spec names a measure plots one point per x value rather
 		# than one per row: the shape /graph?agg= draws, and the only shape that
 		# makes sense when the x axis is a bucket.  The fold writes its result
 		# back under the y column's own name, so the loop below is the same one
 		# an unaggregated card runs, and the groups arrive in label order, which
-		# for an ISO bucket is chronological order.
+		# for an ISO bucket is chronological order.  With a series the fold is
+		# per x value and series value, so each line has its own totals.
 		my $rows = $vis_recs;
 		my $m;
 		if (defined $agg_fn) {
@@ -5698,22 +5707,49 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			return { error => $m->{error} } if $m->{error};
 			my $agg = $self->_grouped_totals(
 				{ source => undef, records => $vis_recs },
-				{ by => [$x_col], fn => $m->{fn}, val => $m->{val}, as => 'value' },
+				{ by  => [ $x_col, (length $series_col ? $series_col : ()) ],
+				  fn  => $m->{fn}, val => $m->{val}, as => 'value' },
 			);
 			$rows = [ map { { %$_, $y_col => $_->{value} } } @$agg ];
 		}
 
-		my @pairs;
-		for my $row (@$rows) {
-			my $xv = $row->{$x_col} // ''; next unless length $xv;
-			my $yn = _numeric_cell($row->{$y_col} // ''); next unless defined $yn;
-			push @pairs, [_decode_cell($xv), $yn];
-		}
-		return { error => 'No plottable data' } unless @pairs;
+		my $sn;
+		if (length $series_col) {
+			# The order /graph draws, so each line has the page's colour:
+			# aggregated, lines by name and points by label; unaggregated, lines
+			# as first met and each keeping its rows' order.
+			my (%points_of, @names);
+			for my $row (@$rows) {
+				my $xv   = $row->{$x_col}      // ''; next unless length $xv;
+				my $name = $row->{$series_col} // ''; next unless length $name;
+				my $yn   = _numeric_cell($row->{$y_col} // ''); next unless defined $yn;
+				$name = _decode_cell($name);
+				push @names, $name unless $points_of{$name};
+				push @{ $points_of{$name} }, { label => _decode_cell($xv), value => $yn };
+			}
+			return { error => 'No plottable data' } unless @names;
+			my @series_data = map {
+				my $points = $points_of{$_};
+				$points = [ sort { $a->{label} cmp $b->{label} } @$points ] if $m;
+				{ name => $_, data => $points };
+			} ($m ? sort @names : @names);
 
-		$title ||= $m ? "$m->{label} by $x_col" : "$y_col vs $x_col";
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
-			->render_zoomable_line_chart_snippet(\@pairs, { id => $svg_id });
+			$title ||= $m ? "$m->{label} by $x_col and $series_col" : "$y_col vs $x_col by $series_col";
+			$sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+				->render_multi_series_line_chart_snippet(\@series_data, { id => $svg_id });
+		} else {
+			my @pairs;
+			for my $row (@$rows) {
+				my $xv = $row->{$x_col} // ''; next unless length $xv;
+				my $yn = _numeric_cell($row->{$y_col} // ''); next unless defined $yn;
+				push @pairs, [_decode_cell($xv), $yn];
+			}
+			return { error => 'No plottable data' } unless @pairs;
+
+			$title ||= $m ? "$m->{label} by $x_col" : "$y_col vs $x_col";
+			$sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+				->render_zoomable_line_chart_snippet(\@pairs, { id => $svg_id });
+		}
 		my $html = $sn->{html};
 		utf8::decode($html) unless utf8::is_utf8($html);
 		return { html => $html, title => $title };

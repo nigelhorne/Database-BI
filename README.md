@@ -703,7 +703,8 @@ perl Makefile.PL
     rank words with one function.  A `scatter` card's `encode` names `x`
     and `y`, and optionally `series` (colour by value) and `size` (bubble size); its
     `options` take `scheme`, `min_r` and `max_r` as `GET /scatter` does,
-    except that an unknown `scheme` draws the default colours.
+    except that an unknown `scheme` draws the default colours.  A `line`
+    or `graph` card's `encode` takes an optional `series`, one line per value.
     The optional `query` is the canvas page's
     query string: `cf` (cross-filter), `c` (calculated columns) and
     `p.<name>` (bound parameter values) are read from it, so a card added
@@ -1009,7 +1010,8 @@ GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum&series=region
 ```
 
 The chart and pivot panels carry a `Time bucket` menu for it, and the line
-graph panel an `Aggregate` menu beside it.
+graph panel an `Aggregate` menu beside it and a `Lines by` menu, which
+sends `series=`.
 
 `span=` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`
 or `y` -- `15m`, `6h`, `2d`, `3mon`, `1q` -- and is refused, naming the

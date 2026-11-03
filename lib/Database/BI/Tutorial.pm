@@ -415,6 +415,7 @@ my @CHAPTERS = (
 			'Open the table and click Line graph...',
 			'Choose the X axis. A date column or a number column works well.',
 			'Choose the Y axis. This must be a number column.',
+			'Optional: choose Lines by to draw one line for each value of a column, such as one per region.',
 			'For a total per period, set Time bucket and then set Aggregate to Sum.',
 			'Click Plot.',
 		],

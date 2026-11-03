@@ -747,7 +747,8 @@ C<minlen> and C<stop> the C<GET /wordcloud> page takes, so the two count and
 rank words with one function.  A C<scatter> card's C<encode> names C<x>
 and C<y>, and optionally C<series> (colour by value) and C<size> (bubble size); its
 C<options> take C<scheme>, C<min_r> and C<max_r> as C<GET /scatter> does,
-except that an unknown C<scheme> draws the default colours.
+except that an unknown C<scheme> draws the default colours.  A C<line>
+or C<graph> card's C<encode> takes an optional C<series>, one line per value.
 The optional C<query> is the canvas page's
 query string: C<cf> (cross-filter), C<c> (calculated columns) and
 C<p.E<lt>nameE<gt>> (bound parameter values) are read from it, so a card added
@@ -1049,7 +1050,8 @@ The aggregating routes bucket the dimension they already take:
     GET /graph?l=table:sales&x=at&y=amount&span=1h&agg=sum&series=region
 
 The chart and pivot panels carry a C<Time bucket> menu for it, and the line
-graph panel an C<Aggregate> menu beside it.
+graph panel an C<Aggregate> menu beside it and a C<Lines by> menu, which
+sends C<series=>.
 
 C<span=> takes a count and one of C<s>, C<m>, C<h>, C<d>, C<w>, C<mon>, C<q>
 or C<y> -- C<15m>, C<6h>, C<2d>, C<3mon>, C<1q> -- and is refused, naming the

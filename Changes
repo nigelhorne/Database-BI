@@ -2,6 +2,9 @@ Revision history for Database-BI
 
 0.020.0	Tue Nov  3 11:59:26 AM EST 2026
 	[ Enhancements ]
+	- The line graph panel has Lines by, which draws one line for each value of a
+	  column (series=).  It was reachable only by writing the URL.
+	- Canvas: Add current view offers Lines by for a line card.
 	- Canvas: Add current view offers Colour by, Colour scheme, Bubble size and
 	  the radii for a scatter card, as the scatter panel does.
 	[ Bug fixes ]
@@ -10,9 +13,13 @@ Revision history for Database-BI
 	- A scatter added to a canvas from /scatter kept only x and y: the card now
 	  colours by series and sizes bubbles as the page does, and the page saves
 	  min_r= and max_r= with it.  A bad saved scheme draws the default colours.
+	- A line chart added to a canvas from /graph?series= drew every row as one
+	  line through all the groups.  The card now draws one line per value.
 	[ Tests ]
 	- t/scatter.t: series=, scheme=, size=, min_r= and max_r= on /scatter and
 	  on a canvas scatter card, and the scatter fields of both panels.
+	- t/graph-series.t: series= on /graph, on a canvas line card and in both
+	  panels.
 
 0.019.0	Tue Nov  3 11:46:08 AM EST 2026
 	[ Enhancements ]

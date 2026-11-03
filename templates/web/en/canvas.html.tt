@@ -947,6 +947,10 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 				<label class="ac-field" data-for="line scatter heatmap" data-label="Y column">Y column
 					<select id="ac-y"></select>
 				</label>
+				<label class="ac-field" data-for="line" data-label="Lines by (optional)">Lines by (optional)
+					<select id="ac-line-series"></select>
+					<span class="ac-note">One line for each value of this column.</span>
+				</label>
 				[%- # The scatter options GET /scatter takes: colour by the values of a
 				    # column, and size the bubbles by a number column.  The scheme and the
 				    # radii mean nothing without them, so the script disables them until
@@ -2918,6 +2922,7 @@ menu, so it reads without the menu being opened.</p>
 		var mapLatSel = document.getElementById('ac-map-lat');
 		var mapLonSel = document.getElementById('ac-map-lon');
 		var binsInp  = document.getElementById('ac-bins');
+		var lineSeriesSel = document.getElementById('ac-line-series');
 		var scSeriesSel = document.getElementById('ac-sc-series');
 		var scSchemeSel = document.getElementById('ac-sc-scheme');
 		var scSizeSel   = document.getElementById('ac-sc-size');
@@ -2973,7 +2978,8 @@ menu, so it reads without the menu being opened.</p>
 		fill(mapLocSel, choose.concat(allCols));
 		fill(mapLatSel, choose.concat(numCols));
 		fill(mapLonSel, choose.concat(numCols));
-		/* Both scatter columns are optional, so they say "none" first. */
+		/* Optional columns, so each says "none" first. */
+		fill(lineSeriesSel, [{ value: '', label: '\u2014 none \u2014' }].concat(allCols));
 		fill(scSeriesSel, [{ value: '', label: '\u2014 none \u2014' }].concat(allCols));
 		fill(scSizeSel,   [{ value: '', label: '\u2014 none \u2014' }].concat(numCols));
 
@@ -4999,6 +5005,8 @@ menu, so it reads without the menu being opened.</p>
 			} else if (kind === 'line') {
 				encode.x = picked(xSel, 'X column'); if (!encode.x) return;
 				encode.y = picked(ySel, 'Y column'); if (!encode.y) return;
+				/* What /graph saves from series=. */
+				if (lineSeriesSel && lineSeriesSel.value) encode.series = lineSeriesSel.value;
 			} else if (kind === 'scatter') {
 				encode.x = picked(xSel, 'X column'); if (!encode.x) return;
 				encode.y = picked(ySel, 'Y column'); if (!encode.y) return;

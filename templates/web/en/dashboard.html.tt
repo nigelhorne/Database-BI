@@ -628,6 +628,15 @@
         <input type="text" id="graph-y-text" readonly hidden tabindex="-1">
       </div>
       <div class="join-field">
+        <label for="graph-series-sel" title="Draw one line for each value of this column">Lines by (optional)</label>
+        <select id="graph-series-sel" name="series">
+          <option value="">&#x2014; none &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="join-field">
         <label for="graph-span-sel" title="Group the X axis by the hour, day, month or year it falls in">Time bucket</label>
         <select id="graph-span-sel" name="span">
           <option value="">None</option>
