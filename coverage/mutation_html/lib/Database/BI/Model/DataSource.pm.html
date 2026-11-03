@@ -353,7 +353,7 @@ Approximate LCSAJ segments: 175<br>
 </span><span class="">   12: use Params::Validate::Strict qw(validate_strict);
 </span><span class="">   13: use Params::Get		();
 </span><span class="">   14: 
-</span><span class="">   15: our $VERSION = &#39;0.018.0&#39;;
+</span><span class="">   15: our $VERSION = &#39;0.020.0&#39;;
 </span><span class="">   16: 
 </span><span class="">   17: =head1 NAME
 </span><span class="">   18: 
@@ -1321,7 +1321,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 				<li><b>COND_INV_927_3: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
 <span class="">  928: 			return { _file_is_empty =&gt; 1, file_size =&gt; -s $path };
-</span><span class="survived-2 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  929: 		}
+</span><span class="survived-2 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Mutation survived. Add targeted tests to validate this branch.">  929: 		}
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1355,7 +1355,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 				<li><b>COND_INV_935_5: Invert condition if to unless</b><br>MEDIUM: Add tests asserting both true and false outcomes
 </li></ul></details>
 <span class="">  936: 		#
-</span><span class="survived-2 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Mutation survived. Add targeted tests to validate this branch.">  937: 		# Strategy: read the first non-empty data row and find the first safe
+</span><span class="survived-2 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  937: 		# Strategy: read the first non-empty data row and find the first safe
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2102,7 +2102,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1580: 			defined($info-&gt;{sep_char})  ? (sep_char       =&gt; $info-&gt;{sep_char})  : (),
 </span><span class=""> 1581: 			# Force the Text::xSV::Slurp path for CSV/TSV/PSV files: D::A&#39;s default
 </span><span class=""> 1582: 			# slurp threshold is 16 KB; larger files fall back to DBD::CSV, which
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1583: 			# sanitizes column names (lowercases and replaces spaces with
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1583: 			# sanitizes column names (lowercases and replaces spaces with
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2191,7 +2191,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 								</div>
 							</li></ul></details>
 <span class=""> 1587: 			defined($info-&gt;{file_size}) ? (max_slurp_size =&gt; $info-&gt;{file_size}) : (),
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1588: 		});
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1588: 		});
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2681,7 +2681,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2024: =head4 OUTPUT
+<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 2024: =head4 OUTPUT
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
