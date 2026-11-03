@@ -4294,4 +4294,28 @@ subtest 'A stream of failures leaves nothing behind' => sub {
 	$tm->get_ok('/api/analyses')->status_is(200)->json_is('/analyses', [], 'no store was touched');
 };
 
+# Export > SQLite names its table "data", and Database::Abstraction before 0.54
+# kept the DBI handle in the object under the table's name -- the slot its
+# slurped rows use -- so no file this application exported could be opened by it.
+subtest 'A SQLite export opens again' => sub {
+	plan skip_all => 'DBD::SQLite is not available' unless eval { require DBD::SQLite; 1 };
+	plan skip_all => 'needs Database::Abstraction 0.54, which reads a table named "data"'
+		unless eval { Database::Abstraction->VERSION(0.54); 1 };
+	my $tm  = _isolated_app();
+	my $dir = File::Temp::tempdir(CLEANUP => 1);
+	$tm->get_ok('/export?l=table:sales&format=sqlite')->status_is(200);
+	my $file = File::Spec->catfile($dir, 'round.db');
+	Mojo::File->new($file)->spew($tm->tx->res->body);
+	$tm->get_ok('/open?path=' . url_escape($file))->status_is(200);
+	my @cells = map { $_->text } @{ Mojo::DOM->new($tm->tx->res->body)->find('#bi-table tbody td')->to_array };
+	ok(scalar(@cells), 'the table has rows');
+	# As records: a SQLite source lists its columns alphabetically, so the
+	# columns come back in another order.
+	my $rows = sub {
+		$tm->get_ok("/export?l=$_[0]&format=json")->status_is(200);
+		return [ sort { $a->{id} <=> $b->{id} } @{ $tm->tx->res->json } ];
+	};
+	is_deeply($rows->(url_escape("path:$file")), $rows->('table:sales'), 'and the same rows as the table it came from');
+};
+
 done_testing();

@@ -121,6 +121,53 @@
 </script>
 
 <div id="bi-canvases"></div>
+<p class="cv-import" id="cv-import">
+  <label class="cv-import-btn" title="Make a canvas from a file that a canvas's Share &gt; Download as JSON saved">&#x1F4E5; Import canvas&hellip;
+    <input type="file" id="cv-import-file" accept=".json,application/json" hidden>
+  </label>
+  <span class="cv-import-msg" id="cv-import-msg" role="status"></span>
+</p>
+<style>
+.cv-import { margin: 0.25rem 0 1rem; font-size: 0.85rem; }
+.cv-import-btn {
+  display: inline-block;
+  padding: 0.25rem 0.7rem;
+  border: 1px solid var(--border, #d0d8f0);
+  border-radius: 4px;
+  cursor: pointer;
+  background: var(--card-bg, #fff);
+}
+.cv-import-btn:focus-within { outline: 2px solid var(--link, #1a5fb4); }
+.cv-import-msg { margin-left: 0.5rem; }
+.cv-import-msg.is-error { color: var(--danger-fg, #c0392b); }
+</style>
+<script>
+(function () {
+  var inp = document.getElementById('cv-import-file');
+  var msg = document.getElementById('cv-import-msg');
+  if (!inp || !msg) return;
+  inp.addEventListener('change', function () {
+    var file = inp.files && inp.files[0];
+    if (!file) return;
+    var fd = new FormData();
+    fd.append('file', file);
+    msg.className = 'cv-import-msg';
+    msg.textContent = 'Importing\u2026';
+    fetch('/api/analyses/import', { method: 'POST', body: fd })
+      .then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+      .then(function (res) {
+        if (res.ok && res.j.id) { location.href = '/a/' + encodeURIComponent(res.j.id); return; }
+        msg.className = 'cv-import-msg is-error';
+        msg.textContent = 'Not imported: ' + ((res.j && res.j.error) || 'unknown error');
+      })
+      .catch(function () {
+        msg.className = 'cv-import-msg is-error';
+        msg.textContent = 'Not imported: the file is not a canvas, or the server could not be reached.';
+      });
+    inp.value = '';
+  });
+}());
+</script>
 <div id="bi-recent"></div>
 <div id="bi-saved"></div>
 

@@ -757,7 +757,10 @@ perl Makefile.PL
 
     Creates an analysis from an uploaded `.json` file (multipart `file`
     field) or a raw JSON request body.  Caller-supplied `id`, `created`,
-    and `updated` are stripped.
+    and `updated` are stripped.  The home page's "Import canvas" sends the file
+    that a canvas's Share panel downloads; that panel also makes the read-only
+    `/share/:id` link (`POST /api/analyses/:id/share`) and its `/embed/:id`
+    code.
 
 - `GET /calc/list`
 
@@ -783,7 +786,9 @@ perl Makefile.PL
 - `POST /groups/save`
 
     Saves a named value group.  Body: `l=&col=&group=&values=` (values
-    is a newline-separated list of raw cell values).
+    is a newline-separated list of raw cell values).  The group column,
+    `<col>_group`, appears in the table page as well as in its charts and
+    exports.
 
 - `POST /groups/delete`
 
@@ -854,7 +859,11 @@ perl Makefile.PL
 - `POST /geo/save`
 
     Saves a coordinate-column preference.  Body: `l=&col=&kind=`,
-    where `kind` is `lat`, `lon`, or `location`.
+    where `kind` is `lat`, `lon`, or `location`.  `col=` and `kind=` may
+    repeat in pairs, so a latitude and a longitude are saved in one request, and
+    `replace=1` forgets the spec's saved columns first.  The map panel's
+    "Remember columns" sends both, so a new choice replaces the old one; its
+    "Forget remembered columns" calls `/geo/delete`.
 
 - `POST /geo/delete`
 
@@ -902,6 +911,24 @@ An address that matches no route, a missing table (`/view/:table`) and a
 missing canvas (`/a/:id`) answer `404` with an HTML page that keeps the
 breadcrumb and the site navigation.  The JSON API (`/api/...`) still answers
 a `404` with a JSON body.
+
+A request that is refused -- a chart of a column the view does not have, a
+calculated field that does not compile -- answers `400` with the reason as
+plain text.  When a browser asked for the page (a `GET` whose `Accept` names
+`text/html`), the reason is shown on the same page as a missing one instead,
+with the breadcrumb back to the table and a Back button.  Scripts, `fetch()`
+and `/api/...` routes still get plain text or JSON.
+
+### Saved Columns That Cannot Be Applied
+
+Calculated fields, lookups and extractions are saved for a dataset and applied
+to every page of it.  When the file changes under one -- a lookup file is
+deleted, a column an extraction reads is dropped -- its charts and exports
+refuse with the reason.  The table page (`/view`, `/open`, `/join`,
+`/combine`) is still drawn: without that dataset's saved calculated fields,
+lookups and extractions, with a note that names the one at fault and buttons
+that open the panels to correct or delete it.  A mistake in the request's own
+`c=` is still a `400`.
 
 ### Relative Time Ranges
 
@@ -1044,8 +1071,10 @@ A field keeps its own name unless the dataset already has a column of that
 name; it is then called `<name>_<field>` (`shops_region`).  A
 source column is never overwritten.
 
-Stored lookups apply on every route, a canvas and `/export`, before
-calculated fields and filters, so either can read the new columns.  A total
+The table page's Lookups panel saves, lists and deletes them, and can skip one
+in the current view.  Stored lookups apply on every route, a canvas and
+`/export`, before calculated fields and filters, so either can read the new
+columns.  A total
 grouped or filtered by one is worked out in Perl, never sent to SQL.  For one request,
 `nolk=<name>` skips a stored lookup, and `lk=<name>` applies
 a lookup stored for another dataset.  Both repeat, and the panels carry them on.
@@ -1089,7 +1118,8 @@ POST /extract/save  l=table:invoices&name=parts&col=ref
                     &pattern=^(?<country>[A-Z]{2})-(?<year>\d{4})-
 ```
 
-`fields=country` keeps only the groups it names.  Stored extractions apply on
+`fields=country` keeps only the groups it names.  The table page's Extract
+fields panel saves, lists and deletes them.  Stored extractions apply on
 every route, a canvas and `/export`, after the lookups and before calculated
 fields and filters, so either can read the new columns.  A row the pattern does
 not match gets `(unparseable)` in each column, as a calculated field's row
@@ -1174,7 +1204,9 @@ creates its own tables and drops them.
 Every response goes through [Mojolicious::Plugin::Buffer](https://metacpan.org/pod/Mojolicious%3A%3APlugin%3A%3ABuffer): it is compressed
 (gzip or Brotli, as the browser accepts), HTML whitespace is minified (inline
 scripts and styles are left alone), and a `200` to `GET` or `HEAD` carries
-an `ETag`, so a repeat request can be answered `304 Not Modified`.  File
+an `ETag`, so a repeat request can be answered `304 Not Modified`.  There
+is no `Last-Modified`: the plugin would date a page by the code, not the data,
+which lets a browser reuse a stale reply without asking.  File
 downloads (`/export` as CSV, SQLite or JSON, the pivot as XLSX, and a canvas
 card's data from `/a/:id/visual/:n/:fmt`) opt out and are sent as they are.
 

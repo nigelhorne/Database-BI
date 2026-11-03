@@ -51,7 +51,40 @@ Revision history for Database-BI
 	  (the default), light or dark.  The choice is kept in the browser's local
 	  storage and applies at once to every open page.  Charts and tables follow
 	  it.  Saved charts, printed pages and embedded canvases stay light.
+	- Every feature can now be reached from the pages.  The table page has
+	  Lookups and Extract fields panels beside Calc fields, Group values and
+	  Date format: each saves, lists and deletes, and a lookup can be skipped in
+	  one view.  A canvas has a Share panel that makes the read-only link, gives
+	  its embed code and downloads the canvas as JSON; Import canvas on the home
+	  page reads that file back.  The map panel can forget the columns it
+	  remembered.  t/ui-reach.t fails when a route is named by no page.
+	- A refused request in a browser (a chart of a column the view does not
+	  have, say) shows the reason on a page with the breadcrumb and a Back button,
+	  rather than a line of plain text.  Scripts, fetch() and /api/ routes still
+	  get plain text or JSON.
+	- POST /geo/save takes col= and kind= in repeated pairs, and replace=1.
 	[ Bug Fixes ]
+	- A saved definition that could no longer be applied -- a lookup file that
+	  was deleted, a column an extraction or calculated field reads that the file
+	  dropped -- made every page of that dataset a 400, the table page included,
+	  so the panels that mend it could not be reached.  The table page is now
+	  drawn without the saved columns, with a note naming the one at fault and
+	  buttons that open its panel.  Charts and exports still refuse, with the
+	  reason.
+	- A saved group's <col>_group column was in the charts and the export but not
+	  in the table page (/view, /open) or a canvas card, which looked the groups
+	  up by l= and so found none.
+	- The map panel's Remember columns added to the saved columns rather than
+	  replacing them, so a place-name column remembered earlier kept the panel in
+	  place-name mode after a latitude and longitude were chosen.  It also sent a
+	  request per column as the page left, which could be lost.
+	- A panel reopened after a save could list what was there before it: replies
+	  carried a Last-Modified dated by the code, not the data, and no
+	  Cache-Control, so a browser could reuse one without asking.  The header is
+	  gone; the ETag makes every reuse a revalidation.
+	- The tutorial's canvas-sharing chapter described a Share button that did not
+	  exist, and the website said /embed/ could be framed by another site; it
+	  sends X-Frame-Options: SAMEORIGIN.
 	- A SQLite file ending .db could not be opened when it held a table named after
 	  the file, such as a table called orders in orders.db: it was read as text.
 	  Charts and exports answered 404, and the table page reported a parse error.

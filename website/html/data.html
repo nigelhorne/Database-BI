@@ -234,7 +234,8 @@ this_year, last_year</code></pre>
 	<code>%d-%b-%Y</code> &mdash; and, with a time part, normalises the column to
 	a timestamp that <code>epoch()</code>, <code>span()</code> and
 	<code>last_24_hours</code> can read. Both are stored per dataset in
-	<code>models.json</code> and managed from panels on the data pages.
+	<code>models.json</code> and managed from panels on the data pages. The
+	group column appears in the table as well as in its charts and exports.
 </p>
 
 <h2 id="lookups">Stored lookups</h2>
@@ -261,6 +262,8 @@ this_year, last_year</code></pre>
 	<code>nolk=&lt;name&gt;</code> skips a stored lookup for one request, and
 	<code>lk=&lt;name&gt;</code> applies one stored for another dataset. A lookup
 	is not a join: for more than one key, or a row that matches many rows, use Merge.
+	The table page's <b>Lookups</b> panel saves, lists and deletes them, and its
+	<b>Skip in this view</b> adds the <code>nolk=</code>.
 </p>
 
 <h2 id="extract">Field extraction</h2>
@@ -279,7 +282,25 @@ this_year, last_year</code></pre>
 	one using <code>(?{</code>, <code>(??{</code>, <code>(?p</code> or
 	<code>(*</code> are refused. That is not a sandbox: regular expressions have
 	no timeout, so a pathological pattern stalls its own request. Patterns are
-	entered by whoever runs the server.
+	entered by whoever runs the server. The table page's <b>Extract fields</b>
+	panel saves, lists and deletes them.
+</p>
+
+<h2 id="stored-faults">When a saved column cannot be worked out</h2>
+<p>
+	A file can change under the definitions saved for it: a lookup file is
+	deleted, or a column an extraction or a calculated field reads is dropped.
+	The charts and exports of that dataset then refuse, with the reason. The
+	table page is still drawn, without the dataset's saved calculated fields,
+	lookups and extractions, and with a note that names the one at fault and
+	opens the panel that corrects or deletes it. A mistake in the request's own
+	<code>c=</code> is still a 400.
+</p>
+<p>
+	A refused request is answered with a 400 and the reason in plain text. When a
+	browser asked for the page, the reason is shown on a page with the breadcrumb
+	back to the table and a Back button instead; scripts and the JSON API still
+	get plain text or JSON.
 </p>
 
 <h2 id="cross-row">Cross-row columns</h2>

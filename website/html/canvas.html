@@ -240,9 +240,9 @@
 	<dt><code>/a/:id</code></dt>
 	<dd>The canvas itself, with cross-filter, drill, parameter and range parameters.</dd>
 	<dt><code>/share/:id</code></dt>
-	<dd>A share link, signed with an HMAC-SHA256 token, for handing a canvas to someone who should not need an account.</dd>
+	<dd>A share link, signed with an HMAC-SHA256 token, for handing a canvas to someone who should not need an account. The canvas toolbar's <b>Share&hellip;</b> panel makes one, valid for 30 days.</dd>
 	<dt><code>/embed/:id</code></dt>
-	<dd>A page with no navigation, for putting the canvas inside another site. Each card is drawn through its own failure: one card that cannot be drawn says so and leaves the others. It stays in the light colours, because it sits on a page whose colours it cannot know.</dd>
+	<dd>A page with no navigation, for putting the canvas inside another page; the Share panel gives its <code>&lt;iframe&gt;</code> code. It is sent with <code>X-Frame-Options: SAMEORIGIN</code>, so only pages served from the same site can frame it. Each card is drawn through its own failure: one card that cannot be drawn says so and leaves the others. It stays in the light colours, because it sits on a page whose colours it cannot know.</dd>
 	<dt><code>/catalog</code></dt>
 	<dd>Every saved canvas in one place, as cards that open.</dd>
 </dl>
@@ -257,6 +257,11 @@
 	other source. The whole canvas prints to paper or PDF. Saved cards and printed
 	canvases use the light colours, whichever <a href="index.html#preferences">theme</a>
 	the reader has chosen.
+</p>
+<p>
+	The canvas itself can be kept as a file: the Share panel's <b>Download as
+	JSON</b> saves it, and <b>Import canvas</b> on the home page makes a new canvas
+	from that file, on this server or another.
 </p>
 
 <div class="note">

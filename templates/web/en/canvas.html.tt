@@ -1198,7 +1198,31 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	<a href="[% canvas_data_url | html %]" class="btn-add-visual" id="btn-add-visual"
 	   title="Go to the data source to add another chart to this canvas">&#x2295; Add visual&hellip;</a>
 	[% END %]
-	<button id="btn-copy-link" type="button" title="Copy a shareable link to this canvas view">&#x1F517; Copy link</button>
+	<button id="btn-copy-link" type="button" title="Copy the address of this canvas view, for people who use this application">&#x1F517; Copy link</button>
+	[% IF canvas_id.length && !sharing_mode %]
+	<button id="btn-share" type="button"
+	        aria-haspopup="dialog" aria-expanded="false" aria-controls="share-panel"
+	        title="A read-only link or an embed code for people who do not use this application, or the canvas as a file">&#x1F4E4; Share&hellip;</button>
+	<div class="ac-panel" id="share-panel" role="dialog" aria-labelledby="share-heading" hidden>
+		<h3 id="share-heading">Share this canvas</h3>
+		<p class="ac-help">Anyone with the read-only link can see the canvas, but not change it, until the link expires. The embed code shows it inside another page of this site.</p>
+		<label class="ac-field">Read-only link
+			<input type="text" id="share-url" readonly placeholder="Make a link first">
+		</label>
+		<label class="ac-field">Embed code
+			<textarea id="share-embed" rows="3" readonly placeholder="Make a link first"></textarea>
+		</label>
+		<p class="ac-help" id="share-expires" hidden></p>
+		<p class="ac-error" id="share-error" role="alert" hidden></p>
+		<div class="ac-actions">
+			<button type="button" class="ac-submit" id="share-make">Make a link</button>
+			<button type="button" id="share-copy" disabled>Copy link</button>
+			<button type="button" id="share-copy-embed" disabled>Copy embed code</button>
+		</div>
+		<p class="ac-help" style="margin-top:0.6rem">Or keep the canvas as a file, which <a href="/#cv-import">Import canvas</a> on the home page reads back: <a id="share-export" href="/api/analyses/[% canvas_id | uri %]/export" download>Download as JSON</a>.</p>
+		<div class="ac-actions"><button type="button" id="share-close">Close</button></div>
+	</div>
+	[% END %]
 	<button id="btn-print" type="button" title="Print or save as PDF (Ctrl+P)">&#x1F5A8; Print</button>
 	[% IF canvas_id.length %]
 	<button id="btn-delete-canvas" type="button"
@@ -2409,6 +2433,75 @@ menu, so it reads without the menu being opened.</p>
 				.catch(function () {});
 		});
 	}
+
+	/* ---- share panel: a signed read-only link, its embed code, the JSON ---- */
+	(function () {
+		var btn   = document.getElementById('btn-share');
+		var panel = document.getElementById('share-panel');
+		if (!btn || !panel) return;
+		var urlInp   = document.getElementById('share-url');
+		var embedInp = document.getElementById('share-embed');
+		var expEl    = document.getElementById('share-expires');
+		var errEl    = document.getElementById('share-error');
+		var makeBtn  = document.getElementById('share-make');
+		var copyBtn  = document.getElementById('share-copy');
+		var copyEmb  = document.getElementById('share-copy-embed');
+
+		function place() {
+			var r = btn.getBoundingClientRect();
+			var w = panel.offsetWidth;
+			panel.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+			panel.style.top  = (r.bottom + 4) + 'px';
+			panel.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 12) + 'px';
+		}
+		function open()  { panel.hidden = false; btn.setAttribute('aria-expanded', 'true'); place(); makeBtn.focus(); }
+		function close(f) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (f) btn.focus(); }
+		btn.addEventListener('click', function () { if (panel.hidden) open(); else close(1); });
+		document.getElementById('share-close').addEventListener('click', function () { close(1); });
+		panel.addEventListener('keydown', function (e) {
+			if (e.key === 'Escape') { e.preventDefault(); close(1); }
+		});
+		window.addEventListener('resize', function () { if (!panel.hidden) place(); });
+
+		function copy(text, b) {
+			navigator.clipboard.writeText(text).then(function () {
+				var orig = b.textContent;
+				b.textContent = 'Copied!';
+				setTimeout(function () { b.textContent = orig; }, 1500);
+			}).catch(function () {});
+		}
+		makeBtn.addEventListener('click', function () {
+			errEl.hidden = true;
+			makeBtn.disabled = true;
+			fetch('/api/analyses/[% canvas_id | uri %]/share', { method: 'POST' })
+				.then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+				.then(function (res) {
+					makeBtn.disabled = false;
+					if (!res.ok || !res.j.url) {
+						errEl.textContent = 'No link was made: ' + ((res.j && res.j.error) || 'unknown error');
+						errEl.hidden = false;
+						return;
+					}
+					var embed = res.j.url.replace('/share/', '/embed/');
+					urlInp.value   = res.j.url;
+					embedInp.value = '<iframe src="' + embed.replace(/&/g, '&amp;').replace(/"/g, '&quot;')
+						+ '" width="100%" height="600" style="border:0"></iframe>';
+					expEl.textContent = 'The link works until '
+						+ new Date(res.j.expires * 1000).toLocaleDateString() + '.';
+					expEl.hidden = false;
+					copyBtn.disabled = copyEmb.disabled = false;
+					makeBtn.textContent = 'Make a new link';
+					urlInp.select();
+				})
+				.catch(function () {
+					makeBtn.disabled = false;
+					errEl.textContent = 'No link was made: the server could not be reached.';
+					errEl.hidden = false;
+				});
+		});
+		copyBtn.addEventListener('click', function () { copy(urlInp.value, copyBtn); });
+		copyEmb.addEventListener('click', function () { copy(embedInp.value, copyEmb); });
+	}());
 
 	/* ---- print button (3.7) ---- */
 	var btnPrint = document.getElementById('btn-print');

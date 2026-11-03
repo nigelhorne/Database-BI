@@ -2977,7 +2977,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 			return ();
 		}
 		my ($r, $c) = eval {
-			$self->_apply_calc_fields($all, \@before, {
+			$self->_calc_for_page($all, \@before, {
 				spec_key => $params->{calc_spec_key},
 				($span ? (calc => $span->{calc}) : ()),
 			})
@@ -3854,7 +3854,7 @@ sub _page_columns :Protected ($self, $source, $records, $spec_key) {
 	}
 
 	my ($calc_records, $calc_columns) = eval {
-		$self->_apply_calc_fields($records, \@columns, {
+		$self->_calc_for_page($records, \@columns, {
 			spec_key => $spec_key,
 			($span ? (calc => $span->{calc}) : ()),
 		})
@@ -3865,6 +3865,60 @@ sub _page_columns :Protected ($self, $source, $records, $spec_key) {
 		return ();
 	}
 	return ($calc_records, $calc_columns);
+}
+
+# _calc_for_page($self, $records, \@columns, \%extra) -> ($records, \@columns)
+#
+# Purpose: _apply_calc_fields for a table page, which must still be drawn when a
+#          definition saved for its data cannot be applied -- a lookup file that
+#          is gone, a column an extraction or a field reads that the file no
+#          longer has.  Every chart and export of that data refuses with the
+#          reason, and the panels that mend a definition are on the table page,
+#          so a page that refused too would leave the reader no way back.
+# Entry:   As _apply_calc_fields; $extra->{spec_key} files the definitions.
+# Exit:    As _apply_calc_fields.  When the first pass croaks and a second one
+#          without the saved fields, lookups and extractions succeeds, returns
+#          that, with stash stored_error holding the first pass's reason and
+#          _skip_stored set for the rest of the request.  Otherwise croaks with
+#          the first pass's error, so a mistake in the request's own c= is the
+#          400 it always was.
+# Side Effects: The first pass runs on a copy of the rows when anything is
+#          saved, so a pass that failed half way leaves nothing on them.
+sub _calc_for_page :Protected ($self, $records, $columns, $extra) {
+	my $stored = !$self->stash('_skip_stored') && $self->_has_stored_columns($extra->{spec_key});
+	my $rows   = $stored ? [ map { ref $_ eq 'HASH' ? { %$_ } : $_ } @$records ] : $records;
+	my @got    = eval { $self->_apply_calc_fields($rows, $columns, $extra) };
+	return @got if @got && $got[0];
+	my $error = $@;
+	croak $error unless $stored;
+
+	$self->stash('_skip_stored' => 1);
+	@got = eval { $self->_apply_calc_fields($records, $columns, $extra) };
+	unless (@got && $got[0]) {
+		$self->stash('_skip_stored' => 0);
+		croak $error;
+	}
+	$self->stash(stored_error => _tidy_error($error));
+	return @got;
+}
+
+# _has_stored_columns($self, $spec_key) -> $bool
+#
+# Purpose: Whether anything saved for $spec_key adds columns that can fail: a
+#          calculated field, a lookup (its own, or another's through lk=) or an
+#          extraction.
+# Entry:   $spec_key may be undef, when the request's l= is the key.
+# Exit:    True or false.
+sub _has_stored_columns :Protected ($self, $spec_key) {
+	$spec_key //= $self->param('l') // '';
+	return 1 if @{ $self->every_param('lk') // [] };
+	return 0 unless length $spec_key;
+	my $models = $self->_read_models;
+	for my $kind (qw(fields lookups extractions)) {
+		my $set = $models->{$kind}{$spec_key};
+		return 1 if ref $set eq 'HASH' && %$set;
+	}
+	return 0;
 }
 
 # _apply_calc_fields($self, $records, \@columns, \%extra) -> ($records, \@columns)
@@ -3905,9 +3959,14 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 
 	# Stage 3: the stored lookups, so that a field, a filter, a bucket or a window
 	# can read a looked-up column.  They join the column list from here on.
+	# _skip_stored is set by _calc_for_page when one of them cannot be applied:
+	# the table page is drawn without them, so its panels can mend them.
+	my $skip_stored = $self->stash('_skip_stored');
 	my @cols = @{$columns};
-	$self->_apply_lookups($records, \@cols, $date_spec);
-	$self->_apply_extractions($records, \@cols, $date_spec);
+	unless ($skip_stored) {
+		$self->_apply_lookups($records, \@cols, $date_spec);
+		$self->_apply_extractions($records, \@cols, $date_spec);
+	}
 
 	# Build calc spec list: stored fields from models.json first (lower priority),
 	# then URL ?c= params (higher priority -- they override stored fields of the
@@ -3916,7 +3975,7 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	{
 		my $sk = defined $spec_key_override
 			? $spec_key_override : ($self->param('l') // '');
-		if (length $sk) {
+		if (length $sk && !$skip_stored) {
 			my $stored = ($self->_read_models)->{fields}{$sk} // {};
 			for my $n (sort keys %{$stored}) {
 				push @calc_specs, { name => $n, expr => $stored->{$n} };
@@ -3975,8 +4034,10 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	# For each source column that has groups registered under the current l=
 	# spec, add a virtual "${col}_group" column to every row.  Each row's value
 	# is mapped to its group label; values not in any group become '(other)'.
+	# The spec is the one the stored fields use, so a table page, which names
+	# its spec rather than taking l=, shows the column its charts can draw.
 	{
-		my $spec_key = $self->param('l') // '';
+		my $spec_key = $date_spec;
 		if (length $spec_key) {
 			my $models = $self->_read_models;
 			my $grps   = $models->{groups}{$spec_key};
@@ -10744,21 +10805,26 @@ sub extract_list ($self) {
 # geo.<spec>.places and is written by _map_data independently.
 # ---------------------------------------------------------------------------
 
-# geo_save: POST /geo/save?l=<spec>&col=<col>&kind=lat|lon|location
+# geo_save: POST /geo/save?l=<spec>&col=<col>&kind=lat|lon|location[&replace=1]
+# col= and kind= may repeat, in pairs, so a latitude and a longitude are saved
+# in one request.  replace=1 forgets the spec's saved columns first: the map
+# panel's "Remember" sends it, so a new choice replaces the old one rather than
+# leaving, say, a place-name column beside the latitude chosen after it.
 sub geo_save ($self) {
-	my $spec = $self->param('l')    // '';
-	my $col  = $self->param('col')  // '';
-	my $kind = $self->param('kind') // '';
+	my $spec  = $self->param('l') // '';
+	my @cols  = @{ $self->every_param('col')  // [] };
+	my @kinds = @{ $self->every_param('kind') // [] };
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 	return $self->render(json => { error => 'col= required' }, status => 400)
-		unless length $col;
+		unless @cols && !grep { !length } @cols;
 	return $self->render(json => { error => 'kind must be lat, lon, or location' }, status => 400)
-		unless $kind =~ /\A(?:lat|lon|location)\z/;
+		unless @kinds == @cols && !grep { !/\A(?:lat|lon|location)\z/ } @kinds;
 
 	my $models = $self->_read_models;
-	$models->{geo}{$spec}{columns}{$col} = { kind => $kind };
+	delete $models->{geo}{$spec}{columns} if $self->param('replace');
+	$models->{geo}{$spec}{columns}{ $cols[$_] } = { kind => $kinds[$_] } for 0 .. $#cols;
 	$self->_write_models($models);
 	$self->render(json => { ok => 1 });
 }

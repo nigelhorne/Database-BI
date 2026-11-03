@@ -801,7 +801,10 @@ Downloads the analysis document as a C<.json> file.
 
 Creates an analysis from an uploaded C<.json> file (multipart C<file>
 field) or a raw JSON request body.  Caller-supplied C<id>, C<created>,
-and C<updated> are stripped.
+and C<updated> are stripped.  The home page's "Import canvas" sends the file
+that a canvas's Share panel downloads; that panel also makes the read-only
+C</share/:id> link (C<POST /api/analyses/:id/share>) and its C</embed/:id>
+code.
 
 =item C<GET /calc/list>
 
@@ -827,7 +830,9 @@ a column.  Accepts C<?l=E<lt>specE<gt>&col=E<lt>colE<gt>>.
 =item C<POST /groups/save>
 
 Saves a named value group.  Body: C<l=&col=&group=&values=> (values
-is a newline-separated list of raw cell values).
+is a newline-separated list of raw cell values).  The group column,
+C<E<lt>colE<gt>_group>, appears in the table page as well as in its charts and
+exports.
 
 =item C<POST /groups/delete>
 
@@ -898,7 +903,11 @@ saved coordinate-column preferences of the given C<l=> spec.
 =item C<POST /geo/save>
 
 Saves a coordinate-column preference.  Body: C<l=&col=&kind=>,
-where C<kind> is C<lat>, C<lon>, or C<location>.
+where C<kind> is C<lat>, C<lon>, or C<location>.  C<col=> and C<kind=> may
+repeat in pairs, so a latitude and a longitude are saved in one request, and
+C<replace=1> forgets the spec's saved columns first.  The map panel's
+"Remember columns" sends both, so a new choice replaces the old one; its
+"Forget remembered columns" calls C</geo/delete>.
 
 =item C<POST /geo/delete>
 
@@ -948,6 +957,24 @@ An address that matches no route, a missing table (C</view/:table>) and a
 missing canvas (C</a/:id>) answer C<404> with an HTML page that keeps the
 breadcrumb and the site navigation.  The JSON API (C</api/...>) still answers
 a C<404> with a JSON body.
+
+A request that is refused -- a chart of a column the view does not have, a
+calculated field that does not compile -- answers C<400> with the reason as
+plain text.  When a browser asked for the page (a C<GET> whose C<Accept> names
+C<text/html>), the reason is shown on the same page as a missing one instead,
+with the breadcrumb back to the table and a Back button.  Scripts, C<fetch()>
+and C</api/...> routes still get plain text or JSON.
+
+=head2 Saved columns that cannot be applied
+
+Calculated fields, lookups and extractions are saved for a dataset and applied
+to every page of it.  When the file changes under one -- a lookup file is
+deleted, a column an extraction reads is dropped -- its charts and exports
+refuse with the reason.  The table page (C</view>, C</open>, C</join>,
+C</combine>) is still drawn: without that dataset's saved calculated fields,
+lookups and extractions, with a note that names the one at fault and buttons
+that open the panels to correct or delete it.  A mistake in the request's own
+C<c=> is still a C<400>.
 
 =head2 Relative time ranges
 
@@ -1080,8 +1107,10 @@ A field keeps its own name unless the dataset already has a column of that
 name; it is then called C<E<lt>nameE<gt>_E<lt>fieldE<gt>> (C<shops_region>).  A
 source column is never overwritten.
 
-Stored lookups apply on every route, a canvas and C</export>, before
-calculated fields and filters, so either can read the new columns.  A total
+The table page's Lookups panel saves, lists and deletes them, and can skip one
+in the current view.  Stored lookups apply on every route, a canvas and
+C</export>, before calculated fields and filters, so either can read the new
+columns.  A total
 grouped or filtered by one is worked out in Perl, never sent to SQL.  For one request,
 C<nolk=E<lt>nameE<gt>> skips a stored lookup, and C<lk=E<lt>nameE<gt>> applies
 a lookup stored for another dataset.  Both repeat, and the panels carry them on.
@@ -1121,7 +1150,8 @@ group, C<(?E<lt>nameE<gt>...)>, becomes a column:
   POST /extract/save  l=table:invoices&name=parts&col=ref
                       &pattern=^(?<country>[A-Z]{2})-(?<year>\d{4})-
 
-C<fields=country> keeps only the groups it names.  Stored extractions apply on
+C<fields=country> keeps only the groups it names.  The table page's Extract
+fields panel saves, lists and deletes them.  Stored extractions apply on
 every route, a canvas and C</export>, after the lookups and before calculated
 fields and filters, so either can read the new columns.  A row the pattern does
 not match gets C<(unparseable)> in each column, as a calculated field's row
@@ -1200,7 +1230,9 @@ creates its own tables and drops them.
 Every response goes through L<Mojolicious::Plugin::Buffer>: it is compressed
 (gzip or Brotli, as the browser accepts), HTML whitespace is minified (inline
 scripts and styles are left alone), and a C<200> to C<GET> or C<HEAD> carries
-an C<ETag>, so a repeat request can be answered C<304 Not Modified>.  File
+an C<ETag>, so a repeat request can be answered C<304 Not Modified>.  There
+is no C<Last-Modified>: the plugin would date a page by the code, not the data,
+which lets a browser reuse a stale reply without asking.  File
 downloads (C</export> as CSV, SQLite or JSON, the pivot as XLSX, and a canvas
 card's data from C</a/:id/visual/:n/:fmt>) opt out and are sent as they are.
 
@@ -1765,8 +1797,13 @@ sub startup ($self) {
 			namespace => 'Database::BI::Pages',
 		);
 	}
+	# No Last-Modified: the plugin's date is that of the code and templates, not
+	# of the data, and with it and no Cache-Control a browser may reuse a reply
+	# without asking.  A panel that reopened after a save then listed what was
+	# saved before it.  The ETag alone makes every reuse a revalidation.
 	$self->plugin('Buffer', {
 		optimise_content => 1,
+		last_modified    => 0,
 		vary_by          => ['accept-language'],
 		($page_chi ? (
 			cache          => $page_chi,
@@ -1830,6 +1867,40 @@ sub startup ($self) {
 	$self->hook(before_render => sub {
 		my ($c, $args) = @_;
 
+		# The language is the one the action already chose, if it got that far
+		# (_resolve_template is protected, so it cannot be asked from here).
+		my $page_template = sub {
+			my ($name) = @_;
+			my $conf     = $c->app->config;
+			my $platform = $conf->{platform} // 'web';
+			my $language = $c->stash('language') // '';
+			$language = $conf->{language} // 'en'
+				unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/
+					&& -d $c->app->home->child("templates/$platform/$language");
+			$c->stash(language => $language);
+			return "$platform/$language/$name";
+		};
+
+		# A request refused in plain text is a dead end in a browser: no
+		# navigation, and no way back but the Back button.  A page the browser
+		# navigated to -- a GET whose Accept names text/html, which fetch() and
+		# scripts do not send -- gets the error page instead: the trail back to
+		# the table, and the reason, escaped by the template.  Everything else
+		# keeps the plain text below.
+		if (defined $args->{text} && ($args->{status} // 0) == 400
+			&& $c->req->method eq 'GET'
+			&& ($c->req->headers->accept // '') =~ m{\btext/html\b}
+			&& $c->req->url->path->to_string !~ m{\A/api/}) {
+			$c->stash(
+				title     => 'This page cannot be drawn',
+				error_msg => delete $args->{text},
+				error_400 => 1,
+			);
+			$args->{template} = $page_template->('not_found');
+			$args->{handler}  = 'tt';
+			$args->{format}   = 'html';
+		}
+
 		# Mojolicious sends render(text => ...) as text/html.  The error replies
 		# that use it repeat what was asked for (a column, a range), so as HTML a
 		# crafted link would run script on this site.  A template or JSON escapes
@@ -1853,19 +1924,11 @@ sub startup ($self) {
 		# HTML one is drawn from our not_found template instead.  Its first
 		# try is "not_found.<mode>", so that is the one replaced.  JSON
 		# replies and exceptions keep the defaults.
-		# The language is the one the action already chose, if it got that far
-		# (_resolve_template is protected, so it cannot be asked from here).
 		if (($args->{template} // '') =~ /\Anot_found\.\w+\z/
 			&& ($args->{format} // $c->stash('format') // 'html') eq 'html') {
-			my $conf     = $c->app->config;
-			my $platform = $conf->{platform} // 'web';
-			my $language = $c->stash('language') // '';
-			$language = $conf->{language} // 'en'
-				unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/
-					&& -d $c->app->home->child("templates/$platform/$language");
-			$args->{template} = "$platform/$language/not_found";
+			$args->{template} = $page_template->('not_found');
 			$args->{handler}  = 'tt';
-			$c->stash(title => 'Page not found', language => $language);
+			$c->stash(title => 'Page not found');
 		}
 
 		# The breadcrumb trail (layouts/breadcrumb.html.tt), worked out from the
