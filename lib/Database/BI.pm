@@ -677,6 +677,14 @@ renderer; an older optional install still returns the page with a warning.
 
 Alias for C<GET /graph>.  All C</graph> parameters accepted.
 
+=item C<GET /canvases>
+
+Lists the saved canvases, as cards that open them, with Import canvas.  It is
+the main navigation's Canvases link; the home page shows the same list,
+without Import canvas.  With
+no canvases, the page says how to make one.  A canvas's breadcrumb leads back
+here unless its C<back=> names another page.
+
 =item C<GET /a/:id>
 
 Renders a saved canvas (analysis) as a full multi-visual page.  Accepts
@@ -801,7 +809,7 @@ Downloads the analysis document as a C<.json> file.
 
 Creates an analysis from an uploaded C<.json> file (multipart C<file>
 field) or a raw JSON request body.  Caller-supplied C<id>, C<created>,
-and C<updated> are stripped.  The home page's "Import canvas" sends the file
+and C<updated> are stripped.  "Import canvas", on C</canvases>, sends the file
 that a canvas's Share panel downloads; that panel also makes the read-only
 C</share/:id> link (C<POST /api/analyses/:id/share>) and its C</embed/:id>
 code.
@@ -2096,6 +2104,7 @@ sub startup ($self) {
 	$r->get('/api/analyses/:id/export') ->to('Dashboard#analyses_export');
 
 	# extracts, catalog, sharing, embedding, per-visual downloads
+	$r->get('/canvases')                      ->to('Dashboard#canvases_view');
 	$r->get('/catalog')                       ->to('Dashboard#catalog_view');
 	$r->get('/share/:id')                     ->to('Dashboard#share_view');
 	$r->get('/embed/:id')                     ->to('Dashboard#embed_view');

@@ -25,7 +25,7 @@ WriteMakefile(
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',
-		'Database::Abstraction'	=> '0.51',	# 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+		'Database::Abstraction'	=> '0.54',	# 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
 		'Database::Join' => '0.009.0',	# 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
 		'DBI'		=> 0,
 		'Net::SFTP::Foreign' => 0,

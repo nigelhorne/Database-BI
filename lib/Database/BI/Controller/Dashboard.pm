@@ -653,8 +653,9 @@ sub _crumb_parent :Protected ($self, $url) {
 		return undef unless $spec =~ /\Apath:(.+)\z/;
 		return Mojo::URL->new('/browse?path=' . url_escape(Mojo::File->new($1)->dirname->to_string));
 	}
+	# A canvas came from where its back= says, else from the list of canvases.
 	if ($path =~ m{\A/a/}) {
-		return $self->_crumb_local($q->param('back'));
+		return $self->_crumb_local($q->param('back')) // Mojo::URL->new('/canvases');
 	}
 	return undef;
 }
@@ -703,6 +704,7 @@ sub _crumb_label :Protected ($self, $url) {
 		return length $dir ? 'Files: ' . Mojo::File->new($dir)->basename : 'Files';
 	}
 	return 'Catalog'  if $path eq '/catalog';
+	return 'Canvases' if $path eq '/canvases';
 	return 'Tutorial' if $path eq '/tutorial';
 	return 'Preferences' if $path eq '/preferences';
 	if ($path =~ m{\A/a/([A-Za-z0-9_-]+)}) {
@@ -3144,7 +3146,8 @@ sub _list_dir :Protected ($self, $dir, $want_files) {
 #          and export_write (filesystem write) to eliminate code duplication.
 # Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names;
 #          $table names the table, "data" unless given.  An extract passes
-#          "extract": Database::Abstraction cannot read a table called "data".
+#          "extract", which Database::Abstraction before 0.54 needed (it could
+#          not read a table called "data"); extracts already built use it.
 # Exit:    Returns scalar binary string.  Croaks on any DBI error.
 # Side Effects: Creates and unlinks one temporary file under system tmpdir.
 sub _write_sqlite_db :Protected ($self, $records, $columns, $table = 'data') {
@@ -12673,6 +12676,38 @@ sub catalog_view ($self) {
 		format         => 'html',
 		title          => 'Dataset catalog',
 		catalog_entries => \@entries,
+		language       => $language,
+	);
+}
+
+=head2 canvases_view
+
+C<GET /canvases> -- The saved canvases, as cards that open, select and delete,
+with Import canvas.  The main navigation's Canvases link.  The list is the one
+the home page shows (C<layouts/canvas_list.html.tt>); here it also says when
+there are none, and how to make one.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+C<200> with the HTML page.  The cards are drawn by the page from
+C<GET /api/analyses>.
+
+=cut
+
+sub canvases_view ($self) {
+	my ($platform, $language) = $self->_resolve_template;
+	$self->render(
+		handler        => 'tt',
+		template       => "$platform/$language/canvases",
+		format         => 'html',
+		title          => 'Canvases',
+		canvases_empty => 'There are no saved canvases yet. To make one, open a table and click New canvas..., or import a canvas from a file.',
 		language       => $language,
 	);
 }

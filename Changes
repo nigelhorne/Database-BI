@@ -55,14 +55,22 @@ Revision history for Database-BI
 	  Lookups and Extract fields panels beside Calc fields, Group values and
 	  Date format: each saves, lists and deletes, and a lookup can be skipped in
 	  one view.  A canvas has a Share panel that makes the read-only link, gives
-	  its embed code and downloads the canvas as JSON; Import canvas on the home
-	  page reads that file back.  The map panel can forget the columns it
+	  its embed code and downloads the canvas as JSON; Import canvas on the
+	  Canvases page reads that file back.  The map panel can forget the columns it
 	  remembered.  t/ui-reach.t fails when a route is named by no page.
 	- A refused request in a browser (a chart of a column the view does not
 	  have, say) shows the reason on a page with the breadcrumb and a Back button,
 	  rather than a line of plain text.  Scripts, fetch() and /api/ routes still
 	  get plain text or JSON.
 	- POST /geo/save takes col= and kind= in repeated pairs, and replace=1.
+	- Canvases in the main navigation opens /canvases, a page listing the saved
+	  canvases with Import canvas, which says how to make one when there are
+	  none.  It used to scroll the home page to a list that was filled in only
+	  after the page loaded, and was empty without canvases.  A canvas's
+	  breadcrumb is now Home > Canvases > its name.
+	- Database::Abstraction 0.54 is now required.  Earlier versions could not
+	  read a SQLite table named data, which is the table Export > SQLite writes,
+	  so an exported file could not be opened again.
 	[ Bug Fixes ]
 	- A saved definition that could no longer be applied -- a lookup file that
 	  was deleted, a column an extraction or calculated field reads that the file

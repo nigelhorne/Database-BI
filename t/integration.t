@@ -4297,10 +4297,9 @@ subtest 'A stream of failures leaves nothing behind' => sub {
 # Export > SQLite names its table "data", and Database::Abstraction before 0.54
 # kept the DBI handle in the object under the table's name -- the slot its
 # slurped rows use -- so no file this application exported could be opened by it.
+# 0.54 is the minimum now, so this always runs.
 subtest 'A SQLite export opens again' => sub {
 	plan skip_all => 'DBD::SQLite is not available' unless eval { require DBD::SQLite; 1 };
-	plan skip_all => 'needs Database::Abstraction 0.54, which reads a table named "data"'
-		unless eval { Database::Abstraction->VERSION(0.54); 1 };
 	my $tm  = _isolated_app();
 	my $dir = File::Temp::tempdir(CLEANUP => 1);
 	$tm->get_ok('/export?l=table:sales&format=sqlite')->status_is(200);

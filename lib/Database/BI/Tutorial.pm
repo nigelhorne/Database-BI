@@ -780,7 +780,7 @@ my @CHAPTERS = (
 			'To show only a recent window on every card, choose a Time range and its column above the cards. Then click Apply range.',
 			'Click Edit cross-row in a card header to see that card\'s cross-row columns, and to change or remove one.',
 		],
-		tip   => 'The home page lists your saved canvases under Saved canvases. A banner appears if a data file has changed since the canvas was saved.',
+		tip   => 'Click Canvases at the top of any page to see all your saved canvases. The home page lists them too. A banner appears if a data file has changed since the canvas was saved.',
 		walkthrough => {
 			title => 'Walk through: arrange and filter a canvas',
 			intro => 'This example starts from a canvas with at least two visuals. Open one from the home page.',
@@ -795,7 +795,7 @@ my @CHAPTERS = (
 			],
 			result => 'You filtered and arranged one dashboard, and saved a named view without changing any data file.',
 		},
-		routes => [ '/a/:id' ],
+		routes => [ '/a/:id', '/canvases' ],
 	},
 	{
 		id    => 'canvas-text',
@@ -869,7 +869,7 @@ my @CHAPTERS = (
 			'To show the canvas inside another page of this site, click Copy embed code instead.',
 			'The link stops working after 30 days. Click Make a new link to create another.',
 		],
-		tip   => 'The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the home page reads it back.',
+		tip   => 'The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the Canvases page reads it back.',
 		routes => [],
 	},
 
@@ -1143,6 +1143,7 @@ my %ACTION_CHAPTERS = (
 	map_view       => 'map-chart',
 	canvas_render  => 'canvas',
 	catalog_view   => 'catalog',
+	canvases_view  => 'canvas',
 	preferences    => 'preferences',
 );
 

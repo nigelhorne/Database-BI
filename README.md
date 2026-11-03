@@ -633,6 +633,14 @@ perl Makefile.PL
 
     Alias for `GET /graph`.  All `/graph` parameters accepted.
 
+- `GET /canvases`
+
+    Lists the saved canvases, as cards that open them, with Import canvas.  It is
+    the main navigation's Canvases link; the home page shows the same list,
+    without Import canvas.  With
+    no canvases, the page says how to make one.  A canvas's breadcrumb leads back
+    here unless its `back=` names another page.
+
 - `GET /a/:id`
 
     Renders a saved canvas (analysis) as a full multi-visual page.  Accepts
@@ -757,7 +765,7 @@ perl Makefile.PL
 
     Creates an analysis from an uploaded `.json` file (multipart `file`
     field) or a raw JSON request body.  Caller-supplied `id`, `created`,
-    and `updated` are stripped.  The home page's "Import canvas" sends the file
+    and `updated` are stripped.  "Import canvas", on `/canvases`, sends the file
     that a canvas's Share panel downloads; that panel also makes the read-only
     `/share/:id` link (`POST /api/analyses/:id/share`) and its `/embed/:id`
     code.

@@ -16,6 +16,8 @@ use warnings;
 #   * a canvas can be shared, embedded, saved as a file and imported again;
 #   * "Remember columns" on the map panel replaces the old choice, and can be
 #     forgotten;
+#   * Canvases in the main navigation opens a page, not a scroll of the home
+#     page;
 #   * a panel reopened after a save lists what was saved, not a reply the
 #     browser kept from before it.
 #
@@ -231,8 +233,8 @@ subtest 'a canvas can be shared, embedded, saved and imported' => sub {
 	$t->get_ok($embed)->status_is(200, 'the embed code the panel builds from it opens too');
 
 	my $json = $t->get_ok("/api/analyses/$id/export")->status_is(200)->tx->res->body;
-	$dom = Mojo::DOM->new($t->get_ok('/')->status_is(200)->tx->res->body);
-	ok($dom->at('#cv-import-file[type="file"]'), 'the home page can import a canvas');
+	$dom = Mojo::DOM->new($t->get_ok('/canvases')->status_is(200)->tx->res->body);
+	ok($dom->at('#cv-import-file[type="file"]'), 'the Canvases page can import a canvas');
 	like($t->tx->res->body, qr{fetch\('/api/analyses/import', \{ method: 'POST', body: fd \}\)},
 		'by posting the file');
 	my $new = $t->post_ok('/api/analyses/import' => form => {
@@ -240,6 +242,22 @@ subtest 'a canvas can be shared, embedded, saved and imported' => sub {
 	})->status_is(201)->tx->res->json->{id};
 	isnt($new, $id, 'the file makes a new canvas');
 	$t->get_ok("/a/$new")->status_is(200)->content_like(qr/Shared/, 'which opens');
+};
+
+subtest 'Canvases in the main navigation opens a page of its own' => sub {
+	# It used to be /#bi-canvases: the home page, scrolled to a list that is
+	# filled in after the page loads, and empty when there are no canvases.
+	my $dom = Mojo::DOM->new($t->get_ok('/view/sales')->status_is(200)->tx->res->body);
+	is($dom->at('#site-nav-canvases')->attr('href'), '/canvases', 'the link is /canvases');
+	$dom = Mojo::DOM->new($t->get_ok('/canvases')->status_is(200)->tx->res->body);
+	ok($dom->at('#bi-canvases[data-empty]'), 'which lists the canvases, and says when there are none');
+	like($dom->at('#bi-canvases')->attr('data-empty'), qr/New canvas/, 'and how to make one');
+	ok($dom->at('#cv-import-file'), 'with Import canvas');
+	like($t->tx->res->body, qr{fetch\('/api/analyses'\)}, 'drawn from the list of canvases');
+	$dom = Mojo::DOM->new($t->get_ok('/')->status_is(200)->tx->res->body);
+	ok($dom->at('#bi-canvases'), 'the home page still lists them');
+	ok(!$dom->at('#bi-canvases[data-empty]'), 'and says nothing when there are none');
+	ok(!$dom->at('#cv-import-file'), 'Import canvas is on the Canvases page only');
 };
 
 subtest 'a panel reopened after a save lists what was saved' => sub {

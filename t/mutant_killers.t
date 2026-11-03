@@ -1236,14 +1236,12 @@ subtest 'DataSource: messages' => sub {
 # ===========================================================================
 
 subtest 'DataSource: a table may be called data' => sub {
-	# Found while writing the remote test below.  Database::Abstraction keeps its
-	# handle in $self->{$table}, the same hash as its own fields, so a table called
-	# data overwrites its rows, and fetch_all dies with "Not an ARRAY reference".
-	# The same goes for id, table, messages, directory and others.  The app's own
-	# SQLite export names its table "data", so an export cannot be opened again.
-	#
-	# The fix belongs in Database::Abstraction.  When it is released these pass, and
-	# the TODO must go.
+	# Found while writing the remote test below.  Database::Abstraction before 0.54
+	# kept its handle in $self->{$table}, the same hash as its own fields, so a
+	# table called data overwrote its rows, and fetch_all died with "Not an ARRAY
+	# reference".  The same went for id, directory and others.  The app's own
+	# SQLite export names its table "data", so an export could not be opened again.
+	# 0.54 keeps handles in $self->{_dbh}{$table}, and is the minimum.
 	my $dir = tempdir(CLEANUP => 1);
 	_write_file($dir, 'data.csv', "name,value\nA,1\n");
 
@@ -1255,7 +1253,6 @@ subtest 'DataSource: a table may be called data' => sub {
 	$dbh->do(q{INSERT INTO "data" VALUES ('A', '1')});
 	$dbh->disconnect;
 
-	local $TODO = 'Database::Abstraction stores its handle in $self->{$table}';
 	for my $case ([ $dir, 'data', 'a file called data.csv' ], [ $export_dir, 'export', 'a SQLite export' ]) {
 		my ($from, $table, $what) = @{$case};
 		my $rows = eval { $DS->new(directory => $from, table => $table)->fetch_all };

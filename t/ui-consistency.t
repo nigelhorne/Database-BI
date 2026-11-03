@@ -217,7 +217,7 @@ subtest 'every dropdown and text field shares one colour' => sub {
 subtest 'the main navigation reaches canvases, the catalog and the browser' => sub {
 	for my $page ('/', '/view/sales', '/bar?l=table:sales&cat=region&val=amount', '/catalog') {
 		my $dom = Mojo::DOM->new($t->get_ok($page)->status_is(200)->tx->res->body);
-		for my $href ('/#bi-canvases', '/catalog', '/browse') {
+		for my $href ('/canvases', '/catalog', '/browse') {
 			ok($dom->at(qq{nav.site-nav a[href="$href"]}), "$page links to $href");
 		}
 	}
