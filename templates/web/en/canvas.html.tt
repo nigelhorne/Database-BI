@@ -983,11 +983,58 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 				<label class="ac-field" data-for="combo" data-label="Line value">Line value
 					<select id="ac-line-value"></select>
 				</label>
+				<label class="ac-field" data-for="combo" data-label="Colours">Colours
+					<select id="ac-combo-scheme">
+						<option value="">Default (blue and red)</option>
+						<option value="tableau10">Tableau 10</option>
+						<option value="category10">Category 10</option>
+						<option value="set2">Set 2</option>
+						<option value="set3">Set 3</option>
+						<option value="paired">Paired</option>
+					</select>
+					<span class="ac-note">The bars take the first colour, the line the second.</span>
+				</label>
+				[%- # A treemap may shade its tiles by a second column, as GET /treemap's
+				    # color= does.  How it is folded and the scale wait for the column.
+				-%]
+				<label class="ac-field" data-for="treemap" data-label="Colour by (optional)">Colour by (optional)
+					<select id="ac-tm-color"></select>
+				</label>
+				<label class="ac-field" data-for="treemap" data-label="Colour from">Colour from
+					<select id="ac-tm-color-agg" disabled>
+						<option value="avg">Average</option>
+						<option value="sum">Sum</option>
+						<option value="min">Min</option>
+						<option value="max">Max</option>
+						<option value="median">Median</option>
+					</select>
+				</label>
+				<label class="ac-field" data-for="treemap" data-label="Colour scale">Colour scale
+					<select id="ac-tm-color-scheme" disabled>
+						<option value="YlOrRd">Yellow&#x2013;Red</option>
+						<option value="Blues">Blues</option>
+						<option value="Greens">Greens</option>
+						<option value="Purples">Purples</option>
+						<option value="RdPu">Red&#x2013;Purple</option>
+						<option value="YlGnBu">Yellow&#x2013;Blue</option>
+					</select>
+				</label>
 				<label class="ac-field" data-for="histogram" data-label="Column">Column
 					<select id="ac-hist-col"></select>
 				</label>
 				<label class="ac-field" data-for="histogram" data-label="Bins">Bins
 					<input id="ac-bins" type="number" min="1" max="200" value="10">
+				</label>
+				<label class="ac-field" data-for="histogram" data-label="Bar colour">Bar colour
+					<select id="ac-hist-scheme">
+						<option value="">Default (steel blue)</option>
+						<option value="tableau10">Tableau 10</option>
+						<option value="category10">Category 10</option>
+						<option value="set2">Set 2</option>
+						<option value="set3">Set 3</option>
+						<option value="paired">Paired</option>
+					</select>
+					<span class="ac-note">The bars take the first colour of the scheme.</span>
 				</label>
 				<label class="ac-field" data-for="wordcloud" data-label="Text column">Text column
 					<select id="ac-wc-col"></select>
@@ -2923,6 +2970,11 @@ menu, so it reads without the menu being opened.</p>
 		var mapLonSel = document.getElementById('ac-map-lon');
 		var binsInp  = document.getElementById('ac-bins');
 		var lineSeriesSel = document.getElementById('ac-line-series');
+		var histSchemeSel = document.getElementById('ac-hist-scheme');
+		var comboSchemeSel = document.getElementById('ac-combo-scheme');
+		var tmColorSel     = document.getElementById('ac-tm-color');
+		var tmColorAggSel  = document.getElementById('ac-tm-color-agg');
+		var tmColorSchemeSel = document.getElementById('ac-tm-color-scheme');
 		var scSeriesSel = document.getElementById('ac-sc-series');
 		var scSchemeSel = document.getElementById('ac-sc-scheme');
 		var scSizeSel   = document.getElementById('ac-sc-size');
@@ -2993,6 +3045,15 @@ menu, so it reads without the menu being opened.</p>
 		}
 		if (scSeriesSel) scSeriesSel.addEventListener('change', syncScatter);
 		if (scSizeSel)   scSizeSel.addEventListener('change', syncScatter);
+
+		/* A treemap's colour aggregate and scale wait for its colour column. */
+		fill(tmColorSel, [{ value: '', label: '\u2014 none \u2014' }].concat(allCols));
+		function syncTreemapColour() {
+			var on = !!(tmColorSel && tmColorSel.value);
+			if (tmColorAggSel)    tmColorAggSel.disabled = !on;
+			if (tmColorSchemeSel) tmColorSchemeSel.disabled = !on;
+		}
+		if (tmColorSel) tmColorSel.addEventListener('change', syncTreemapColour);
 
 		/* A radius as the server takes it: a whole number from 1 to 40. */
 		function scRadius(inp, dflt) {
@@ -5033,12 +5094,22 @@ menu, so it reads without the menu being opened.</p>
 				encode.cat      = picked(xSel, 'X column'); if (!encode.cat) return;
 				encode.bar_val  = picked(barSel, 'bar value'); if (!encode.bar_val) return;
 				encode.line_val = picked(lineSel, 'line value'); if (!encode.line_val) return;
+				/* What /combo saves from scheme=; none keeps blue and red. */
+				if (comboSchemeSel && comboSchemeSel.value) options.scheme = comboSchemeSel.value;
 			} else if (kind === 'treemap') {
 				encode.group = picked(catSel, 'category'); if (!encode.group) return;
 				encode.value = valueSel.value || '__count__';
+				/* What /treemap saves from color=, color_agg= and color_scheme=. */
+				if (tmColorSel && tmColorSel.value) {
+					encode.color         = tmColorSel.value;
+					options.color_agg    = tmColorAggSel.value;
+					options.color_scheme = tmColorSchemeSel.value;
+				}
 			} else if (kind === 'histogram') {
 				encode.value = picked(histSel, 'column'); if (!encode.value) return;
 				options.bins = parseInt(binsInp.value, 10) || 10;
+				/* What /histogram saves from scheme=; none keeps steel blue. */
+				if (histSchemeSel && histSchemeSel.value) options.scheme = histSchemeSel.value;
 			} else if (kind === 'wordcloud') {
 				encode.col = picked(wcColSel, 'text column'); if (!encode.col) return;
 				/* The two counts the route takes, clamped here so the panel cannot
@@ -5101,6 +5172,7 @@ menu, so it reads without the menu being opened.</p>
 				 * scheme and radii are disabled again. */
 				syncFields();
 				syncScatter();
+				syncTreemapColour();
 				csAliasTouched = false;
 				csSpecs = [];
 				renderCsList();

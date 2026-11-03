@@ -91,18 +91,18 @@
 		</tr>
 		<tr>
 			<td><code>/combo</code></td>
-			<td>Bars and a line on one pair of axes, each with its own measure column.</td>
-			<td><code>cat</code>, <code>bar_val</code>, <code>line_val</code></td>
+			<td>Bars and a line on one pair of axes, each with its own measure column; a scheme gives the bars its first colour and the line its second.</td>
+			<td><code>cat</code>, <code>bar_val</code>, <code>line_val</code>, <code>scheme</code></td>
 		</tr>
 		<tr>
 			<td><code>/treemap</code></td>
-			<td>Tiles sized by a measure, grouped by a label column, with a top-N tail merged.</td>
-			<td><code>group</code>, <code>size</code>, <code>topn</code>, <code>scheme</code></td>
+			<td>Tiles sized by a measure, grouped by a label column, with a top-N tail merged. Tiles can instead be shaded by a second measure &mdash; size for sales, colour for margin &mdash; with a legend for the scale.</td>
+			<td><code>group</code>, <code>size</code>, <code>topn</code>, <code>scheme</code>, <code>color</code>, <code>color_agg</code> (default avg), <code>color_scheme</code></td>
 		</tr>
 		<tr>
 			<td><code>/histogram</code></td>
 			<td>Histogram with server-side binning, so the counts are the data's counts rather than a client's sample.</td>
-			<td><code>col</code>, <code>bins</code> (1&ndash;200, default 10)</td>
+			<td><code>col</code>, <code>bins</code> (1&ndash;200, default 10), <code>scheme</code> (bar colour)</td>
 		</tr>
 		<tr>
 			<td><code>/wordcloud</code></td>

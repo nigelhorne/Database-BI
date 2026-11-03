@@ -1080,6 +1080,17 @@
         </select>
       </div>
       <div class="join-field">
+        <label for="combo-scheme-sel" title="The bars take the first colour of the scheme and the line the second">Colours</label>
+        <select id="combo-scheme-sel" name="scheme">
+          <option value="">Default (blue and red)</option>
+          <option value="tableau10">Tableau 10</option>
+          <option value="category10">Category 10</option>
+          <option value="set2">Set 2</option>
+          <option value="set3">Set 3</option>
+          <option value="paired">Paired</option>
+        </select>
+      </div>
+      <div class="join-field">
         <label for="combo-span-sel" title="Group the X axis by the hour, day, month or year it falls in">Time bucket</label>
         <select id="combo-span-sel" name="span">
           <option value="">None</option>
@@ -1135,6 +1146,36 @@
         </select>
       </div>
       <div class="join-field">
+        <label for="treemap-color-sel" title="Shade each tile by a second number, such as a margin or a rating">Colour by (optional)</label>
+        <select id="treemap-color-sel" name="color">
+          <option value="">&#x2014; none &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="treemap-color-agg-sel" title="How the colour column is folded into one number per tile">Colour from</label>
+        <select id="treemap-color-agg-sel" name="color_agg" disabled>
+          <option value="avg">Average</option>
+          <option value="sum">Sum</option>
+          <option value="min">Min</option>
+          <option value="max">Max</option>
+          <option value="median">Median</option>
+        </select>
+      </div>
+      <div class="join-field">
+        <label for="treemap-color-scheme-sel">Colour scale</label>
+        <select id="treemap-color-scheme-sel" name="color_scheme" disabled>
+          <option value="YlOrRd">Yellow&#x2013;Red</option>
+          <option value="Blues">Blues</option>
+          <option value="Greens">Greens</option>
+          <option value="Purples">Purples</option>
+          <option value="RdPu">Red&#x2013;Purple</option>
+          <option value="YlGnBu">Yellow&#x2013;Blue</option>
+        </select>
+      </div>
+      <div class="join-field">
         <label for="treemap-topn-inp" title="Show only the top N tiles; the rest are aggregated into an Other tile">Top N tiles</label>
         <input type="number" id="treemap-topn-inp" name="topn" min="1" placeholder="all"
                style="width:5rem" title="Show only the top N tiles; the rest become Other">
@@ -1186,6 +1227,17 @@
         <label for="histogram-bins-inp">Number of bins</label>
         <input type="number" id="histogram-bins-inp" name="bins" min="1" max="200" value="10"
                style="width:5rem">
+      </div>
+      <div class="join-field">
+        <label for="histogram-scheme-sel" title="The bars take the first colour of the scheme">Bar colour</label>
+        <select id="histogram-scheme-sel" name="scheme">
+          <option value="">Default (steel blue)</option>
+          <option value="tableau10">Tableau 10</option>
+          <option value="category10">Category 10</option>
+          <option value="set2">Set 2</option>
+          <option value="set3">Set 3</option>
+          <option value="paired">Paired</option>
+        </select>
       </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
@@ -3817,6 +3869,19 @@ function biDetectColType(colName) {
   function checkTreemap() {
     btnDo.disabled = !catSel.value;
   }
+
+  // How the colour is folded and its scale mean nothing without a colour
+  // column, and a disabled field is not sent.
+  var colorSel       = document.getElementById('treemap-color-sel');
+  var colorAggSel    = document.getElementById('treemap-color-agg-sel');
+  var colorSchemeSel = document.getElementById('treemap-color-scheme-sel');
+  function syncTreemapColour() {
+    var on = !!(colorSel && colorSel.value);
+    if (colorAggSel)    colorAggSel.disabled    = !on;
+    if (colorSchemeSel) colorSchemeSel.disabled = !on;
+  }
+  if (colorSel) colorSel.addEventListener('change', syncTreemapColour);
+  syncTreemapColour();
 
   btnOpen.addEventListener('click', function () {
     biClosePanels(panel);

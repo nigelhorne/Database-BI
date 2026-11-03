@@ -3326,13 +3326,13 @@ subtest 'treemap_view -- missing group= returns 400' => sub {
 		'missing group= yields 400');
 };
 
-subtest 'treemap_view -- ?color= returns 400 (not yet implemented)' => sub {
+subtest 'treemap_view -- ?color= naming no column returns 400' => sub {
 	SKIP: {
 		skip 'data/sales.csv not found', 2 unless -f 'data/sales.csv';
-		$t->get_ok("/treemap?l=$SALES_SPEC&group=region&color=amount")
+		$t->get_ok("/treemap?l=$SALES_SPEC&group=region&color=no_such_col")
 		  ->status_is(400)
-		  ->content_like(qr/color.*not.*supported|not.*supported.*color/i,
-			'?color= parameter yields 400 (use ?scheme= instead)');
+		  ->content_like(qr/Column not found/i,
+			'?color= naming no column yields 400');
 	}
 };
 

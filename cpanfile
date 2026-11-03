@@ -17,7 +17,7 @@ requires 'Excel::Writer::XLSX', '1.07';
 requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime
 requires 'File::Spec', '3.40';
 requires 'File::Temp', '0.2308';   # Before this, on a BSD, a new temporary file was held under an exclusive lock, so Database::Join's SQLite spill hung and failed with "database is locked"
-requires 'HTML::D3', '0.27';   # 0.27 stops a label ending the script it is written into; 0.20 added radius_range support for render_scatter_chart_snippet; 0.19 added scatter/stacked/combo/treemap/histogram snippets
+requires 'HTML::D3', '0.29';   # 0.29 colours treemap tiles by a measure, takes a combo scheme and escapes tooltip text; 0.27 stops a label ending the script it is written into; 0.20 added radius_range support for render_scatter_chart_snippet; 0.19 added scatter/stacked/combo/treemap/histogram snippets
 requires 'HTML::TableExtract';
 requires 'HTML::TagCloud', '0.38';   # word cloud page (/wordcloud)
 requires 'HTTP::Request';   # Used by Ask.pm and Summary.pm for LLM API calls (ships with libwww-perl but not core)
@@ -42,7 +42,7 @@ requires 'Spreadsheet::ParseXLSX';
 requires 'Sub::Protected', '0.03';
 requires 'Text::CSV';   # Files with no header row; script/bi-alert's fallback reader when Database::Abstraction cannot open the file
 requires 'version', '0.77';
-recommends 'DBD::MariaDB';   # the mariadb: data source; DBD::mysql serves in its place
+recommends 'DBD::MariaDB';
 recommends 'Geo::Coder::Free', '0.48';
 recommends 'HTML::OSM', '0.12';
 
@@ -61,7 +61,7 @@ on 'test' => sub {
 	requires 'Test::Without::Module';
 	requires 'Text::xSV::Slurp';
 	requires 'XML::Simple';
-	recommends 'DBD::MariaDB';   # t/mariadb.t and t/mariadb_live.t skip without it or DBD::mysql
+	recommends 'DBD::MariaDB';
 	recommends 'Redis';
 };
 

@@ -430,6 +430,19 @@ sub _sequential_scheme {
 	return (defined($name) && !ref($name) && $SEQUENTIAL_SCHEMES{$name}) ? $name : $DEFAULT_SEQUENTIAL_SCHEME;
 }
 
+# _optional_scheme($name) -> $name | undef
+#
+# A categorical scheme for a chart that draws its own colours without one:
+# a histogram's bars are steelblue, a combo's bars and line steelblue and red,
+# and a scheme replaces them with its first colours.  Unlike
+# _categorical_scheme there is no scheme by default, so a name that is not one
+# of the five is undef and the chart keeps the colours it had before scheme=
+# existed.  /histogram, /combo and their canvas cards all read it here.
+sub _optional_scheme {
+	my $name = $_[0];
+	return (defined($name) && !ref($name) && $SCATTER_SCHEMES{$name}) ? $name : undef;
+}
+
 # _scatter_radii($min, $max) -> ($min, $max)
 #
 # A scatter's bubble radius range in pixels: each value a whole number clamped
@@ -5967,6 +5980,9 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 				bar_label  => $bar_col,
 				line_label => $line_col,
 				id         => $svg_id,
+				# What /combo saves from scheme=, checked again: a canvas stores it
+				# unchecked.
+				(_optional_scheme($options->{scheme}) ? (scheme => $options->{scheme}) : ()),
 			});
 		my $html = $sn->{html};
 		utf8::decode($html) unless utf8::is_utf8($html);
@@ -5986,6 +6002,19 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		my $m = _visual_measure($agg_fn, $val_col);
 		return { error => $m->{error} } if $m->{error};
 
+		# encode.color and options.color_agg / color_scheme are what /treemap
+		# saves from color=, color_agg= and color_scheme=.  The function is
+		# checked by _tile_colour_measure, as the page's is; the scheme falls back as the
+		# heatmap's does, since HTML::D3 refuses a name it does not know.
+		my $color_col = $encode->{color} // '';
+		$color_col = '' if ref $color_col;
+		my $color_m;
+		if (length $color_col) {
+			return { error => "Column not found: $color_col" } unless $col_set{$color_col};
+			$color_m = $self->_tile_colour_measure($options->{color_agg}, $color_col);
+			return { error => $color_m->{error} } if $color_m->{error};
+		}
+
 		my $agg = $self->_grouped_totals(
 			{ source => $agg_src, records => $vis_recs },
 			{ by  => [$cat_col],
@@ -5994,16 +6023,28 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			  as  => 'value' },
 		);
 		return { error => 'No plottable data' } unless @$agg;
+		my $colour_of = $color_m
+			? $self->_tile_colours($agg_src, $vis_recs, $cat_col, $color_m)
+			: {};
 
-		$title ||= "$m->{label} by $cat_col";
+		$title ||= "$m->{label} by $cat_col" . ($color_m ? " coloured by $color_m->{label}" : q{});
 		my $scheme = _categorical_scheme($options->{scheme});
 		# The snippet takes one row per tile as { path, value }, the shape the
 		# treemap page builds; a [label, value] pair is not a path and croaks.
 		my @tiles = map {
-			{ path => 'Root/' . _decode_cell($_->{$cat_col}), value => $_->{value} }
+			my $cv = $colour_of->{ $_->{$cat_col} // '' };
+			+{ path => 'Root/' . _decode_cell($_->{$cat_col}), value => $_->{value},
+			   (defined $cv ? (color_value => $cv) : ()) }
 		} @$agg;
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
-			->render_treemap_snippet(\@tiles, { scheme => $scheme, id => $svg_id });
+			->render_treemap_snippet(\@tiles, {
+				scheme => $scheme,
+				id     => $svg_id,
+				($color_m
+					? (color_scheme => _sequential_scheme($options->{color_scheme}),
+					   color_label  => $color_m->{label})
+					: ()),
+			});
 		my $html = $sn->{html};
 		utf8::decode($html) unless utf8::is_utf8($html);
 		return { html => $html, title => $title };
@@ -6062,7 +6103,14 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 
 		$title ||= "Distribution of $col";
 		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
-			->render_histogram_snippet(\@bin_data, { binned => 1, x_label => $col, id => $svg_id });
+			->render_histogram_snippet(\@bin_data, {
+				binned  => 1,
+				x_label => $col,
+				id      => $svg_id,
+				# What /histogram saves from scheme=.  Stored unchecked, so it
+				# goes through the same check as the page's.
+				(_optional_scheme($options->{scheme}) ? (scheme => $options->{scheme}) : ()),
+			});
 		my $html = $sn->{html};
 		utf8::decode($html) unless utf8::is_utf8($html);
 		return { html => $html, title => $title };
@@ -11270,6 +11318,7 @@ sub combo_view ($self) {
 	my $line_col   = $self->param('line_val') // $self->param('line') // '';
 	my $bar_label  = $self->param('bar_label')   // '';
 	my $line_label = $self->param('line_label')  // '';
+	my $scheme     = _optional_scheme($self->param('scheme'));
 	my $back       = _safe_back_url($self->param('back')) // '/';
 	my $back2      = _safe_back_url($self->param('back2'));
 	my $back2_lbl  = $self->param('back2_label') // '';
@@ -11345,6 +11394,7 @@ sub combo_view ($self) {
 		->render_combo_snippet(\@data, {
 			bar_label  => $eff_bar_lbl,
 			line_label => $eff_line_lbl,
+			($scheme ? (scheme => $scheme) : ()),
 		});
 
 	my $chart_html = $snippet->{html};
@@ -11354,6 +11404,7 @@ sub combo_view ($self) {
 		kind   => 'combo',
 		title  => $title,
 		encode => { x => $x_col, bar => $bar_col, line => $line_col },
+		($scheme ? (options => { scheme => $scheme }) : ()),
 	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
@@ -11378,6 +11429,45 @@ sub combo_view ($self) {
 # Treemap  (GET /treemap)
 # ---------------------------------------------------------------------------
 
+# _tile_colour_measure($self, $fn, $col) -> \%measure | { error => $text }
+#
+# The measure a treemap's tiles are coloured by: $fn (color_agg=, or a card's
+# options.color_agg) of $col, average when $fn is absent or empty, since a
+# margin or a rating is read as an average rather than a total.  A name that
+# is not an aggregate function comes back as { error }, worded as the
+# function check elsewhere words it.  /treemap and a canvas treemap card both
+# ask here, so they accept and refuse the same names.
+sub _tile_colour_measure :Protected ($self, $fn, $col) {
+	$fn = (defined $fn && !ref $fn) ? lc $fn : '';
+	$fn = 'avg' unless length $fn;
+	return { error => $self->_i18n('error_agg_fn', $fn, join(' ', @MEASURE_FNS)) }
+		unless _measure_fn_ok($fn);
+	return _visual_measure($fn, $col);
+}
+
+# _tile_colours($self, $source, \@records, $cat_col, \%measure) -> \%colour_of
+#
+# The number each treemap tile is coloured by: the measure (from
+# _visual_measure) folded per value of $cat_col, keyed by the raw value.  With
+# $cat_col undef it is one total over every row, under the key ''.  A group
+# whose result is not a finite number has no entry, and its tile is drawn
+# grey.  /treemap and a canvas treemap card both fold here, so a card saved
+# from the page is coloured by the same numbers.
+sub _tile_colours :Protected ($self, $source, $records, $cat_col, $m) {
+	my $rows = $self->_grouped_totals(
+		{ source => $source, records => $records },
+		{ by  => [ defined $cat_col ? ($cat_col) : () ],
+		  fn  => $m->{fn}, val => $m->{val}, as => 'colour' },
+	);
+	my %colour_of;
+	for my $r (@$rows) {
+		my $v = $r->{colour};
+		next unless defined $v && Scalar::Util::looks_like_number($v) && $v !~ /\A\s*[-+]?(?:nan|inf)/i;
+		$colour_of{ defined $cat_col ? ($r->{$cat_col} // '') : '' } = $v + 0;
+	}
+	return \%colour_of;
+}
+
 sub treemap_view ($self) {
 	# ?group= is the canonical spec name; ?cat= is the legacy alias (keep both).
 	my $cat_col   = $self->param('group') // $self->param('cat') // '';
@@ -11388,10 +11478,17 @@ sub treemap_view ($self) {
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
 
+	# ?color= shades each tile by a second column, folded per tile with
+	# ?color_agg= (default avg: a margin or a rating is read as an average, not
+	# a total) on the sequential ?color_scheme=, as the heatmap's cells are.
+	my $color_col    = $self->param('color') // '';
+	my $color_m      = length $color_col
+		? $self->_tile_colour_measure($self->param('color_agg'), $color_col)
+		: undef;
+	my $color_scheme = _sequential_scheme($self->param('color_scheme'));
+
 	return $self->render(text => 'Missing group= parameter', status => 400) unless length $cat_col;
-	# ?color= (colour-by-measure) is not yet implemented; reject it explicitly.
-	return $self->render(text => '?color= is not yet supported for /treemap', status => 400)
-		if defined $self->param('color');
+	return $self->render(text => $color_m->{error}, status => 400) if $color_m && $color_m->{error};
 
 	my ($src, $records, $columns) = $self->_run_pipeline_source;
 	return $self->render(text => 'Could not open data source', status => 404) unless defined $records;
@@ -11411,6 +11508,8 @@ sub treemap_view ($self) {
 	my $count_mode = (!length $val_col || $val_col eq '__count__');
 	return $self->render(text => "Column not found: $val_col", status => 400)
 		unless $count_mode || $col_set{$val_col};
+	return $self->render(text => "Column not found: $color_col", status => 400)
+		if length $color_col && !$col_set{$color_col};
 
 	$cat_col = $span->{col} if $span;
 
@@ -11423,6 +11522,10 @@ sub treemap_view ($self) {
 			as  => 'value',
 		},
 	);
+
+	my $colour_of = $color_m
+		? $self->_tile_colours($src, $records, $cat_col, $color_m)
+		: {};
 
 	# Top-N: keep the highest-N tiles, aggregate the rest as "Other".
 	my $topn_n = _whole_number($self->param('topn')) // 0;
@@ -11439,8 +11542,14 @@ sub treemap_view ($self) {
 				{ by  => [], fn  => ($count_mode ? 'count' : 'sum'),
 				  val => ($count_mode ? undef : $val_col), as => 'value' },
 			);
-			push @top_agg, { $cat_col => 'Other', value => $other->[0]{value} }
-				if @$other && defined $other->[0]{value};
+			if (@$other && defined $other->[0]{value}) {
+				push @top_agg, { $cat_col => 'Other', value => $other->[0]{value} };
+				# Other's colour is its own rows', not an average of averages.
+				# The key is the tile, so a category itself named Other is
+				# drawn with this one, as its area already is.
+				$colour_of->{Other} = $self->_tile_colours(undef, $other_rec, undef, $color_m)->{''}
+					if $color_m;
+			}
 		}
 		$agg_rows = \@top_agg;
 	}
@@ -11451,16 +11560,20 @@ sub treemap_view ($self) {
 	) unless @$agg_rows;
 
 	my @data = map {
-		{ path => 'Root/' . _decode_cell($_->{$cat_col}), value => $_->{value} }
+		my $cv = $colour_of->{ $_->{$cat_col} // '' };
+		+{ path => 'Root/' . _decode_cell($_->{$cat_col}), value => $_->{value},
+		   (defined $cv ? (color_value => $cv) : ()) }
 	} @$agg_rows;
 
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
 	require HTML::D3;
 	my $title   = $count_mode ? "Treemap of $cat_col by count" : "Treemap of $cat_col by $val_col";
+	$title     .= " coloured by $color_m->{label}" if $color_m;
 	my $snippet = HTML::D3->new(title => $title, width => 800, height => 500)
 		->render_treemap_snippet(\@data, {
 			scheme => $scheme,
+			($color_m ? (color_scheme => $color_scheme, color_label => $color_m->{label}) : ()),
 		});
 
 	my $chart_html = $snippet->{html};
@@ -11469,8 +11582,10 @@ sub treemap_view ($self) {
 	my %chart_spec = (
 		kind    => 'treemap',
 		title   => $title,
-		encode  => { cat => $cat_col, value => $val_col },
-		options => { scheme => $scheme },
+		encode  => { cat => $cat_col, value => $val_col,
+			($color_m ? (color => $color_col) : ()) },
+		options => { scheme => $scheme,
+			($color_m ? (color_agg => $color_m->{fn}, color_scheme => $color_scheme) : ()) },
 	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
@@ -11501,6 +11616,7 @@ sub histogram_view ($self) {
 	my $col       = $self->param('col')   // '';
 	my $_bins_raw = $self->param('bins');
 	my $bins      = (defined $_bins_raw && length $_bins_raw) ? $_bins_raw : 10;
+	my $scheme    = _optional_scheme($self->param('scheme'));
 	my $back      = _safe_back_url($self->param('back')) // '/';
 	my $back2     = _safe_back_url($self->param('back2'));
 	my $back2_lbl = $self->param('back2_label') // '';
@@ -11584,6 +11700,7 @@ sub histogram_view ($self) {
 		->render_histogram_snippet(\@bin_data, {
 			binned  => 1,
 			x_label => $col,
+			($scheme ? (scheme => $scheme) : ()),
 		});
 
 	my $chart_html = $snippet->{html};
@@ -11593,7 +11710,7 @@ sub histogram_view ($self) {
 		kind    => 'histogram',
 		title   => $title,
 		encode  => { value => $col },
-		options => { bins => $bins },
+		options => { bins => $bins, ($scheme ? (scheme => $scheme) : ()) },
 	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(
@@ -13694,6 +13811,9 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
   cat=<col>       X-axis category column (required; x= is a backwards-compat alias)
   bar_val=<col>   Numeric column plotted as bars (required; bar= is a backwards-compat alias)
   line_val=<col>  Numeric column plotted as a line (required; line= is a backwards-compat alias)
+  scheme=<name>   Take the bar colour and the line colour from the first two
+                  colours of a categorical scheme: tableau10, category10, set2,
+                  set3 or paired.  Any other name keeps steel blue and red.
   back=<url>      URL for the "Back to table" breadcrumb link
 
 =head3 API SPECIFICATION
@@ -13704,6 +13824,8 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
   cat       string  Required.  X-axis categorical column name (x= also accepted).
   bar_val   string  Required.  Numeric bar-measure column (bar= also accepted).
   line_val  string  Required.  Numeric line-measure column (line= also accepted).
+  scheme    string  Optional.  Categorical scheme name; ignored unless one of
+                               the five.  Saved in data-chart when used.
   back      url     Optional.  Safe back-link URL.
 
 =head4 OUTPUT
@@ -13725,6 +13847,9 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
   GET /combo?l=table:sales&cat=month&bar_val=revenue&line_val=units
     -> 200 HTML page containing D3 combo bar+line chart SVG
 
+  GET /combo?l=table:sales&cat=month&bar_val=revenue&line_val=units&scheme=set2
+    -> the same chart, bars #66c2a5 and line #fc8d62
+
 =cut
 
 =head2 treemap_view
@@ -13733,11 +13858,18 @@ C<GET /treemap> -- Render a D3.js treemap where tile area encodes a numeric colu
 
 Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 
-  group=<col>  Tile-label categorical column (required; cat= is a backwards-compat alias)
-  size=<col>   Tile-area numeric column (required; val= is a backwards-compat alias)
-  topn=N       Keep only the top-N tiles by size; remainder collapsed into "Other"
-  scheme=<name> D3 colour scheme (default tableau10)
-  back=<url>   URL for the "Back to table" breadcrumb link
+  group=<col>   Tile-label categorical column (required; cat= is a backwards-compat alias)
+  size=<col>    Tile-area numeric column, summed (val= is a backwards-compat
+                alias); absent, each tile is its count of rows
+  topn=N        Keep only the top-N tiles by size; remainder collapsed into "Other"
+  scheme=<name> D3 categorical colour scheme (default tableau10)
+  color=<col>   Shade each tile by a second column instead, folded over the
+                tile's rows; the Other tile is folded over the rows it holds
+  color_agg=<fn>    How color= is folded: avg (the default), sum, min, max,
+                    median, count, ... (any aggregate function)
+  color_scheme=<name> Sequential scale for color=: YlOrRd (the default), Blues,
+                    Greens, Purples, RdPu or YlGnBu
+  back=<url>    URL for the "Back to table" breadcrumb link
 
 =head3 API SPECIFICATION
 
@@ -13745,17 +13877,22 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
 
   l       spec    Required.  Left table spec.
   group   string  Required.  Tile-label categorical column (cat= also accepted).
-  size    string  Required.  Tile-area numeric column (val= also accepted).
+  size    string  Optional.  Tile-area numeric column (val= also accepted);
+                             absent or __count__ counts rows.
   topn    int     Optional.  Keep top-N tiles; 0 or absent means no limit.
-  scheme  string  Optional.  D3 colour scheme name.
+  scheme  string  Optional.  D3 categorical scheme name; any other is tableau10.
+  color   string  Optional.  Column each tile is shaded by.
+  color_agg    string  Optional.  Aggregate function for color=; default avg,
+                                  case-insensitive.  Ignored without color=.
+  color_scheme string  Optional.  Sequential scale; any other name is YlOrRd.
   back    url     Optional.  Safe back-link URL.
 
 =head4 OUTPUT
 
   200 text/html    Rendered treemap page.
-  400 text/plain   Missing group= or size= parameter.
-  400 text/plain   Unrecognised scheme= parameter (?color= returns 400).
-  400 text/plain   Column not found: <col>.
+  400 text/plain   Missing group= parameter.
+  400 text/plain   Unknown aggregate function "<fn>"... (color_agg=, with color=).
+  400 text/plain   Column not found: <col> (group=, size= or color=).
   404 text/plain   "Could not open data source".
 
 =head3 FORMAL SPECIFICATION
@@ -13763,15 +13900,20 @@ Accepts the same C<l=>, C<j=>, C<f=> pipeline params as C</join>, plus:
   treemap_view == lambda self .
     pre  length(group_col) > 0 /\ length(size_col) > 0
          /\ group_col in columns /\ size_col in columns
-         /\ color param absent (scheme= is the correct param name)
+         /\ (color_col = '' \/ (color_col in columns /\ color_fn in MEASURE_FNS))
     let tiles = _grouped_totals(records, group_col, [], size_sum) in
     let top   = topn > 0 ? top_n(tiles, topn) : tiles in
-    post render(treemap, top)
+    let shade = color_col = '' ? {} :
+                { t -> color_fn(rows_of(t), color_col) | t in top } in
+    post render(treemap, top, shade, color_scheme)
 
 =head3 EXAMPLE
 
   GET /treemap?l=table:sales&group=product&size=amount&topn=10
     -> 200 HTML page containing D3 treemap SVG
+
+  GET /treemap?l=table:sales&group=region&size=amount&color=amount&color_agg=max&color_scheme=Blues
+    -> tiles sized by total amount, shaded by the largest sale, on a blue scale
 
 =cut
 

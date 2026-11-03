@@ -5,8 +5,20 @@ Revision history for Database-BI
 	- The line graph panel has Lines by, which draws one line for each value of a
 	  column (series=).  It was reachable only by writing the URL.
 	- Canvas: Add current view offers Lines by for a line card.
+	- /histogram takes scheme=, which fills the bars with the first colour of a
+	  categorical scheme.  The histogram panel and Add current view offer it as
+	  Bar colour, and a canvas histogram card keeps it.
 	- Canvas: Add current view offers Colour by, Colour scheme, Bubble size and
 	  the radii for a scatter card, as the scatter panel does.
+	- /treemap takes color=, which shades each tile by a second column, with
+	  color_agg= (default avg) and color_scheme= (sequential, default YlOrRd).
+	  A legend shows the scale.  The treemap panel, Add current view and a
+	  canvas treemap card all offer it.  It was a 400 before.
+	- /combo takes scheme=: the bars take its first colour and the line its
+	  second.  The combo panel, Add current view and the card offer it.
+	- HTML::D3 0.29 is now required.  Besides the two above, it escapes the
+	  text in the stacked, combo and treemap tooltips, where a label holding
+	  markup ran when the chart was hovered.
 	[ Bug fixes ]
 	- /scatter no longer saves scheme= in the chart it hands to a canvas when
 	  series= is absent, where the scheme is ignored and unchecked.
@@ -20,6 +32,11 @@ Revision history for Database-BI
 	  on a canvas scatter card, and the scatter fields of both panels.
 	- t/graph-series.t: series= on /graph, on a canvas line card and in both
 	  panels.
+	- t/histogram-scheme.t: scheme= on /histogram, on a canvas card and in both
+	  panels.
+	- t/treemap-combo-colour.t: color=, color_agg= and color_scheme= on
+	  /treemap, including the Other tile; scheme= on /combo; both canvas cards
+	  and all four panels.
 
 0.019.0	Tue Nov  3 11:46:08 AM EST 2026
 	[ Enhancements ]

@@ -3704,6 +3704,38 @@ subtest 'A cell holding a script tag cannot end the script of a chart' => sub {
 	}
 };
 
+# A tooltip is set with .html(), so the text put into it is markup.  Before
+# HTML::D3 0.29 the stacked, combo and treemap tooltips put labels in as they
+# were, and a cell holding <img onerror=...> ran when its bar or tile was
+# hovered.  The browser is not run here: each page must define esc() and must
+# not hold the unescaped forms 0.28 wrote.
+subtest 'A cell holding markup is escaped in a chart tooltip' => sub {
+	Readonly my $FLOOR  => '0.29';
+	Readonly my $ATTACK => '<img src=x onerror=alert(2)>';
+
+	for my $file (qw(Makefile.PL cpanfile)) {
+		next unless -r $file;
+		my ($declared) = Mojo::File->new($file)->slurp =~ /'HTML::D3'\s*(?:=>|,)\s*'([\d.]+)'/;
+		cmp_ok($declared // 0, '>=', $FLOOR, "$file asks for an HTML::D3 that escapes its tooltips");
+	}
+
+	my $csv = _csv_file(tempdir(CLEANUP => 1), 'tips.csv', 'id,label,seg,amount', "1,$ATTACK,$ATTACK,5", '2,Plain,Other,7');
+	my $source = 'l=' . url_escape("path:$csv");
+	my %raw = (
+		stacked => [ qr/"<b>"\+d\.data\.cat\+/, qr/\+seg\+": "/ ],
+		combo   => [ qr/"<b>"\+d\.x\+/, qr/\+barLabel\+/ ],
+		treemap => [ qr/"<b>"\+name\+/ ],
+	);
+	for my $query ('stacked?cat=label&seg=seg&val=amount', 'combo?cat=label&bar_val=amount&line_val=amount',
+	               'treemap?group=label&size=amount') {
+		my ($kind) = $query =~ /^(\w+)/;
+		$t->get_ok("/$query&$source")->status_is(200)
+		  ->content_like(qr/onerror=alert\(2\)/, "$kind draws the cell")
+		  ->content_like(qr/function esc\(s\)/, "$kind escapes its tooltip text");
+		$t->content_unlike($_, "$kind never sets a label raw: $_") for @{ $raw{$kind} };
+	}
+};
+
 # Database::Abstraction reads any .db file as CSV, so DataSource shows it a SQLite
 # one under a .sql name.  That used to happen only when the table was named after
 # something other than the file, so orders.db holding a table called orders was

@@ -541,6 +541,9 @@ perl Makefile.PL
     cat=<col>      X-axis categories (required; x= is a backwards-compatible alias)
     bar_val=<col>  bar measure column (required)
     line_val=<col> line measure column (required)
+    scheme=<name>  bar and line colours: the first two of tableau10,
+                   category10, set2, set3 or paired (optional; steel blue and
+                   red without it, and for any other name)
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=             result filters (repeatable)
     ```
@@ -552,9 +555,16 @@ perl Makefile.PL
     ```
     l=<spec>      left table (required)
     group=<col>   tile label column (required; cat= is a backwards-compatible alias)
-    size=<col>    tile area column (required; val= is a backwards-compatible alias)
+    size=<col>    tile area column, summed (optional, counting rows without it;
+                  val= is a backwards-compatible alias)
     topn=N        keep only the top-N tiles; remainder merged into "Other"
     scheme=<name> colour scheme (optional)
+    color=<col>   shade each tile by this column instead (optional), folded
+                  over the tile's rows; "Other" is folded over the rows it holds
+    color_agg=F   how color= is folded: avg (default), sum, min, max, median or
+                  any other aggregate function; an unknown one is a 400
+    color_scheme=S  scale for color=: YlOrRd (default), Blues, Greens, Purples,
+                  RdPu or YlGnBu; any other name is YlOrRd
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=            result filters (repeatable)
     ```
@@ -567,6 +577,9 @@ perl Makefile.PL
     l=<spec>   left table (required)
     col=<col>  numeric column to bin (required)
     bins=N     bin count (default 10; clamped to range 1--200)
+    scheme=S   bar colour: the first colour of tableau10, category10, set2,
+               set3 or paired (optional; steelblue without it, and for any
+               other name)
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=         result filters (repeatable)
     ```
@@ -705,6 +718,11 @@ perl Makefile.PL
     `options` take `scheme`, `min_r` and `max_r` as `GET /scatter` does,
     except that an unknown `scheme` draws the default colours.  A `line`
     or `graph` card's `encode` takes an optional `series`, one line per value.
+    A `histogram` card's `options` take `bins` and `scheme` as `GET /histogram`
+    does.  A `treemap` card's `encode` takes an optional `color`, with
+    `options` `color_agg` and `color_scheme` as `GET /treemap`'s `color=`,
+    `color_agg=` and `color_scheme=`; an unknown function is the card's error.
+    A `combo` card's `options` take `scheme` as `GET /combo` does.
     The optional `query` is the canvas page's
     query string: `cf` (cross-filter), `c` (calculated columns) and
     `p.<name>` (bound parameter values) are read from it, so a card added

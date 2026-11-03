@@ -594,6 +594,9 @@ D3.js v7 combo bar+line chart.  Parameters:
   cat=<col>      X-axis categories (required; x= is a backwards-compatible alias)
   bar_val=<col>  bar measure column (required)
   line_val=<col> line measure column (required)
+  scheme=<name>  bar and line colours: the first two of tableau10,
+                 category10, set2, set3 or paired (optional; steel blue and
+                 red without it, and for any other name)
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=             result filters (repeatable)
 
@@ -603,9 +606,16 @@ D3.js v7 treemap.  Parameters:
 
   l=<spec>      left table (required)
   group=<col>   tile label column (required; cat= is a backwards-compatible alias)
-  size=<col>    tile area column (required; val= is a backwards-compatible alias)
+  size=<col>    tile area column, summed (optional, counting rows without it;
+                val= is a backwards-compatible alias)
   topn=N        keep only the top-N tiles; remainder merged into "Other"
   scheme=<name> colour scheme (optional)
+  color=<col>   shade each tile by this column instead (optional), folded
+                over the tile's rows; "Other" is folded over the rows it holds
+  color_agg=F   how color= is folded: avg (default), sum, min, max, median or
+                any other aggregate function; an unknown one is a 400
+  color_scheme=S  scale for color=: YlOrRd (default), Blues, Greens, Purples,
+                RdPu or YlGnBu; any other name is YlOrRd
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=            result filters (repeatable)
 
@@ -616,6 +626,9 @@ D3.js v7 histogram with server-side binning.  Parameters:
   l=<spec>   left table (required)
   col=<col>  numeric column to bin (required)
   bins=N     bin count (default 10; clamped to range 1--200)
+  scheme=S   bar colour: the first colour of tableau10, category10, set2,
+             set3 or paired (optional; steelblue without it, and for any
+             other name)
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=         result filters (repeatable)
 
@@ -749,6 +762,11 @@ and C<y>, and optionally C<series> (colour by value) and C<size> (bubble size); 
 C<options> take C<scheme>, C<min_r> and C<max_r> as C<GET /scatter> does,
 except that an unknown C<scheme> draws the default colours.  A C<line>
 or C<graph> card's C<encode> takes an optional C<series>, one line per value.
+A C<histogram> card's C<options> take C<bins> and C<scheme> as C<GET /histogram>
+does.  A C<treemap> card's C<encode> takes an optional C<color>, with
+C<options> C<color_agg> and C<color_scheme> as C<GET /treemap>'s C<color=>,
+C<color_agg=> and C<color_scheme=>; an unknown function is the card's error.
+A C<combo> card's C<options> take C<scheme> as C<GET /combo> does.
 The optional C<query> is the canvas page's
 query string: C<cf> (cross-filter), C<c> (calculated columns) and
 C<p.E<lt>nameE<gt>> (bound parameter values) are read from it, so a card added
