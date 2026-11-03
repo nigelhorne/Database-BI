@@ -947,6 +947,32 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 				<label class="ac-field" data-for="line scatter heatmap" data-label="Y column">Y column
 					<select id="ac-y"></select>
 				</label>
+				[%- # The scatter options GET /scatter takes: colour by the values of a
+				    # column, and size the bubbles by a number column.  The scheme and the
+				    # radii mean nothing without them, so the script disables them until
+				    # the column they belong to is chosen.
+				-%]
+				<label class="ac-field" data-for="scatter" data-label="Colour by (optional)">Colour by (optional)
+					<select id="ac-sc-series"></select>
+				</label>
+				<label class="ac-field" data-for="scatter" data-label="Colour scheme">Colour scheme
+					<select id="ac-sc-scheme" disabled>
+						<option value="tableau10">Tableau 10</option>
+						<option value="category10">Category 10</option>
+						<option value="set2">Set 2</option>
+						<option value="set3">Set 3</option>
+						<option value="paired">Paired</option>
+					</select>
+				</label>
+				<label class="ac-field" data-for="scatter" data-label="Bubble size (optional)">Bubble size (optional)
+					<select id="ac-sc-size"></select>
+				</label>
+				<label class="ac-field" data-for="scatter" data-label="Min radius">Min radius (1&#x2013;40)
+					<input id="ac-sc-min-r" type="number" min="1" max="40" step="1" value="3" disabled>
+				</label>
+				<label class="ac-field" data-for="scatter" data-label="Max radius">Max radius (1&#x2013;40)
+					<input id="ac-sc-max-r" type="number" min="1" max="40" step="1" value="15" disabled>
+				</label>
 				<label class="ac-field" data-for="combo" data-label="Bar value">Bar value
 					<select id="ac-bar-value"></select>
 				</label>
@@ -2892,6 +2918,11 @@ menu, so it reads without the menu being opened.</p>
 		var mapLatSel = document.getElementById('ac-map-lat');
 		var mapLonSel = document.getElementById('ac-map-lon');
 		var binsInp  = document.getElementById('ac-bins');
+		var scSeriesSel = document.getElementById('ac-sc-series');
+		var scSchemeSel = document.getElementById('ac-sc-scheme');
+		var scSizeSel   = document.getElementById('ac-sc-size');
+		var scMinRInp   = document.getElementById('ac-sc-min-r');
+		var scMaxRInp   = document.getElementById('ac-sc-max-r');
 		var titleInp = document.getElementById('ac-title-inp');
 		var errorEl  = document.getElementById('ac-error');
 		var addBtn   = document.getElementById('ac-add-btn');
@@ -2942,6 +2973,27 @@ menu, so it reads without the menu being opened.</p>
 		fill(mapLocSel, choose.concat(allCols));
 		fill(mapLatSel, choose.concat(numCols));
 		fill(mapLonSel, choose.concat(numCols));
+		/* Both scatter columns are optional, so they say "none" first. */
+		fill(scSeriesSel, [{ value: '', label: '\u2014 none \u2014' }].concat(allCols));
+		fill(scSizeSel,   [{ value: '', label: '\u2014 none \u2014' }].concat(numCols));
+
+		/* The scheme colours series values and the radii size bubbles, so each
+		 * waits for its column, as on the table page's scatter panel. */
+		function syncScatter() {
+			if (scSchemeSel) scSchemeSel.disabled = !(scSeriesSel && scSeriesSel.value);
+			var hasSize = !!(scSizeSel && scSizeSel.value);
+			if (scMinRInp) scMinRInp.disabled = !hasSize;
+			if (scMaxRInp) scMaxRInp.disabled = !hasSize;
+		}
+		if (scSeriesSel) scSeriesSel.addEventListener('change', syncScatter);
+		if (scSizeSel)   scSizeSel.addEventListener('change', syncScatter);
+
+		/* A radius as the server takes it: a whole number from 1 to 40. */
+		function scRadius(inp, dflt) {
+			var n = parseInt(inp.value, 10);
+			if (isNaN(n)) n = dflt;
+			return Math.min(40, Math.max(1, n));
+		}
 
 		/* The views whose value column is aggregated, and so the only ones that
 		 * can use an aggregate function of their own. */
@@ -4950,6 +5002,17 @@ menu, so it reads without the menu being opened.</p>
 			} else if (kind === 'scatter') {
 				encode.x = picked(xSel, 'X column'); if (!encode.x) return;
 				encode.y = picked(ySel, 'Y column'); if (!encode.y) return;
+				/* What /scatter saves from series=, size=, scheme=, min_r= and
+				 * max_r=, so a card made here and one saved from the page agree. */
+				if (scSeriesSel && scSeriesSel.value) {
+					encode.series  = scSeriesSel.value;
+					options.scheme = scSchemeSel.value;
+				}
+				if (scSizeSel && scSizeSel.value) {
+					encode.size   = scSizeSel.value;
+					options.min_r = scRadius(scMinRInp, 3);
+					options.max_r = scRadius(scMaxRInp, 15);
+				}
 			} else if (kind === 'heatmap') {
 				encode.x = picked(xSel, 'X column'); if (!encode.x) return;
 				encode.y = picked(ySel, 'Y column'); if (!encode.y) return;
@@ -5026,8 +5089,10 @@ menu, so it reads without the menu being opened.</p>
 				form.reset();
 				/* The reset returns the aggregate to Sum and the cross-row section
 				 * to "inherit", so the boxes and the chips they were showing have to
-				 * go with them. */
+				 * go with them.  The scatter's columns go back to none, so their
+				 * scheme and radii are disabled again. */
 				syncFields();
+				syncScatter();
 				csAliasTouched = false;
 				csSpecs = [];
 				renderCsList();

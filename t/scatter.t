@@ -25,6 +25,7 @@ use warnings;
 use Test::Most;
 use Test::Mojo;
 use File::Temp qw(tempdir);
+use Mojo::DOM ();
 use Mojo::JSON qw(decode_json);
 use Mojo::Util qw(url_escape html_unescape);
 
@@ -268,6 +269,46 @@ subtest 'a bad saved scheme or radius is tidied, not drawn' => sub {
 		options => { scheme => 'Blues', min_r => 9 },
 	});
 	unlike $body, qr/scaleOrdinal|scaleSqrt/, 'scheme and radii mean nothing without series and size';
+};
+
+subtest 'the canvas add-view panel offers the scatter options' => sub {
+	my $body = canvas_body('Panel', { kind => 'scatter', encode => { x => 'id', y => 'amount' } });
+	my $dom  = Mojo::DOM->new($body);
+	my @fields = $dom->find('#ac-form .ac-field[data-for="scatter"]')->each;
+	is scalar @fields, 5, 'five fields shown only for a scatter';
+	for my $id (qw(ac-sc-series ac-sc-scheme ac-sc-size ac-sc-min-r ac-sc-max-r)) {
+		ok $dom->at("#ac-form [data-for=\"scatter\"] #$id"), "#$id is a scatter field";
+	}
+	is_deeply [ map { $_->attr('value') } $dom->find('#ac-sc-scheme option')->each ],
+		[qw(tableau10 category10 set2 set3 paired)],
+		'scheme offers exactly the five categorical names';
+	for my $id (qw(ac-sc-scheme ac-sc-min-r ac-sc-max-r)) {
+		ok exists $dom->at("#$id")->attr->{disabled}, "#$id starts disabled";
+	}
+	is $dom->at('#ac-sc-min-r')->attr('value'), 3,  'min radius defaults to 3';
+	is $dom->at('#ac-sc-max-r')->attr('value'), 15, 'max radius defaults to 15';
+
+	# The script sends what the card renderer reads.
+	like $body, qr/encode\.series\s*=\s*scSeriesSel\.value/, 'series sent as encode.series';
+	like $body, qr/encode\.size\s*=\s*scSizeSel\.value/,     'size sent as encode.size';
+	like $body, qr/options\.scheme\s*=\s*scSchemeSel\.value/, 'scheme sent in options';
+	like $body, qr/options\.min_r\s*=/, 'min_r sent in options';
+	like $body, qr/options\.max_r\s*=/, 'max_r sent in options';
+};
+
+subtest 'a card posted as the panel sends it draws colours and bubbles' => sub {
+	$t->post_ok('/api/analyses' => json => {
+		name => 'Panel post', datasets => [ { spec => 'table:sales' } ], visuals => [],
+	})->status_is(201);
+	my $id = $t->tx->res->json->{id};
+	$t->post_ok("/api/analyses/$id/visuals" => json => {
+		kind    => 'scatter',
+		encode  => { x => 'id', y => 'amount', series => 'region', size => 'amount' },
+		options => { scheme => 'paired', min_r => 4, max_r => 30 },
+	})->status_is(201);
+	my $html = $t->tx->res->json->{html} // '';
+	like $html, qr/d3\.scaleOrdinal\(\[\s*'\Q$FIRST_COLOUR{paired}\E'/, 'paired palette';
+	like $html, qr/\.range\(\[4,\s*30\]\)/, 'radius range';
 };
 
 subtest 'an unknown series or size column is that card\'s error' => sub {

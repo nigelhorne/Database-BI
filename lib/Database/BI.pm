@@ -186,7 +186,9 @@ to remove the card.  B<Add current view> in the toolbar appends another
 table, chart or map without leaving the canvas, and a status region announces
 the card and the new visual count; when the card's script has drawn it, the
 region says the chart or map has finished drawing, and if D3 or Leaflet could
-not be loaded it names the missing library instead.  A card that shows an
+not be loaded it names the missing library instead.  A scatter card can be
+coloured by a column and its bubbles sized by a number there, with the same
+choices as the scatter page.  A card that shows an
 aggregated value picks its own function in that panel, from the vocabulary the
 pivot uses and with the same names: Sum, Average, Min, Max, Count distinct,
 Median, Std dev, First, Last, Range or a Percentile with its level, so a card

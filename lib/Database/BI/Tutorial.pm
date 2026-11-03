@@ -522,7 +522,7 @@ my @CHAPTERS = (
 			'Optional: choose Colour by to colour the points by a group. Use Bubble size to size them by a number.',
 			'Click Plot.',
 		],
-		tip   => 'If a column is not numeric, it does not appear in the axis lists.',
+		tip   => 'If a column is not numeric, it does not appear in the axis lists. A scatter card on a canvas keeps its colours and bubbles. In Add current view, choose Scatter chart to set Colour by and Bubble size there too.',
 		walkthrough => {
 			title => 'Walk through: county location and size',
 			intro => 'This example uses the virginia_counties table in the data folder.',
