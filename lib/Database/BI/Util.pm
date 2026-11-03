@@ -3,7 +3,7 @@ package Database::BI::Util;
 use strict;
 use warnings;
 
-our $VERSION = '0.018.0';
+our $VERSION = '0.019.0';
 
 use Exporter qw(import);
 use Readonly;

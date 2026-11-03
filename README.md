@@ -4,7 +4,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 ## Version
 
-0.018.0
+0.019.0
 
 ## Description
 
@@ -1605,7 +1605,7 @@ works correctly in production without any special workarounds.
 
 ## Roadmap
 
-Features planned for future releases (post-0.018.0).  Items are ordered by
+Features planned for future releases (post-0.019.0).  Items are ordered by
 priority.  Items shipped before this release (XLSX export, the copy-link
 button, the column statistics panel, folder filter/join propagation and the
 aggregate/measure layer) are no longer listed.

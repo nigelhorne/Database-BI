@@ -37,7 +37,7 @@ use Scalar::Util		qw(blessed);
 use Params::Get			();
 use Params::Validate::Strict	qw(validate_strict);
 
-our $VERSION = '0.018.0';
+our $VERSION = '0.019.0';
 
 # The version of Geo::Coder::Free this module asks for: 0.46 added valid_location()
 # and on_error => 'undef', 0.47 added geocode_many(), and 0.48 added the
@@ -1424,7 +1424,7 @@ method to your stub.
     Geocode: option "max" must be a positive integer, not "%s"
 
 The C<max> option was supplied but is not a positive integer string.  Passing
-C<max => 0> and C<max => 'all'> both trigger this error.
+C<< max => 0 >> and C<< max => 'all' >> both trigger this error.
 
 =item C<error_values_arrayref>
 
@@ -1469,7 +1469,7 @@ in the cache, so the next request picks them up.
 The geocoder was loaded successfully but C<OPENADDR_HOME> is not set and
 C<openaddr> was not passed to C<new()>.  Resolution will succeed for broad
 place names (cities, countries) but will fail for street-level addresses.
-Set the environment variable or pass C<openaddr => $path> to C<new()>.
+Set the environment variable or pass C<< openaddr => $path >> to C<new()>.
 
 =back
 

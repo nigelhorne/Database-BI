@@ -13,7 +13,7 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
-use version; our $VERSION = version->declare('0.018.0');
+use version; our $VERSION = version->declare('0.019.0');
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -40,7 +40,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.018.0
+0.019.0
 
 =head1 DESCRIPTION
 
@@ -1644,7 +1644,7 @@ works correctly in production without any special workarounds.
 
 =head1 ROADMAP
 
-Features planned for future releases (post-0.018.0).  Items are ordered by
+Features planned for future releases (post-0.019.0).  Items are ordered by
 priority.  Items shipped before this release (XLSX export, the copy-link
 button, the column statistics panel, folder filter/join propagation and the
 aggregate/measure layer) are no longer listed.
