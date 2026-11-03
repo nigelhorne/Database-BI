@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.019.0';
+our $VERSION = '0.020.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -11043,7 +11043,9 @@ sub scatter_view ($self) {
 			(length $series_col ? (series => $series_col) : ()),
 			(length $size_col   ? (size   => $size_col)   : ()),
 		},
-		options => { scheme => $scheme },
+		# scheme= means nothing without series=, and is unchecked then, so it
+		# is not saved: a canvas copy would otherwise carry ?scheme=Blues.
+		options => { (length $series_col ? (scheme => $scheme) : ()) },
 	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(

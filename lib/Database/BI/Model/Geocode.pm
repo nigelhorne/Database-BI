@@ -37,7 +37,7 @@ use Scalar::Util		qw(blessed);
 use Params::Get			();
 use Params::Validate::Strict	qw(validate_strict);
 
-our $VERSION = '0.019.0';
+our $VERSION = '0.020.0';
 
 # The version of Geo::Coder::Free this module asks for: 0.46 added valid_location()
 # and on_error => 'undef', 0.47 added geocode_many(), and 0.48 added the

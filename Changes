@@ -1,5 +1,13 @@
 Revision history for Database-BI
 
+0.020.0	Tue Nov  3 11:59:26 AM EST 2026
+	[ Bug fixes ]
+	- /scatter no longer saves scheme= in the chart it hands to a canvas when
+	  series= is absent, where the scheme is ignored and unchecked.
+	[ Tests ]
+	- t/scatter.t: series=, scheme=, size=, min_r= and max_r= on /scatter, and
+	  the scatter panel's inputs.
+
 0.019.0	Tue Nov  3 11:46:08 AM EST 2026
 	[ Enhancements ]
 	- Stored lookups: POST /lookups/save adds the columns of another file under
