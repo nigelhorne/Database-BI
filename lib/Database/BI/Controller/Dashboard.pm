@@ -1129,7 +1129,9 @@ sub _is_sqlite_file {
 sub accelerate {
 	my ($c, $spec) = @_;
 	croak 'accelerate() needs a controller and a spec' unless ref $c && defined $spec;
-	$spec = canonical_spec($spec);
+	# Filed under the resolved spec, which is what the file's page asks for;
+	# messages name the spec as the caller wrote it.
+	my $key = canonical_spec($spec);
 	my $file = $c->_accel_file($spec)
 		// croak $c->_i18n('error_accel_spec', $spec);
 	croak $c->_i18n('error_accel_sqlite', $spec) if $file =~ /\.(?:sql|sqlite3?)\z/i || _is_sqlite_file($file);
@@ -1152,20 +1154,20 @@ sub accelerate {
 
 	require Database::BI::Extract;
 	my $cache = Database::BI::Extract->new(model_dir => _model_dir_of($c->app)->to_string);
-	my $path  = eval { $cache->put($spec, $st[9], $st[7], $bytes) };
+	my $path  = eval { $cache->put($key, $st[9], $st[7], $bytes) };
 	croak $c->_i18n('error_accel_build', $spec, _tidy_error($@)) unless defined $path;
 
 	my $models = $c->_read_models;
-	my $old    = $models->{accelerated}{$spec};
+	my $old    = $models->{accelerated}{$key};
 	my $name   = Mojo::File->new($path)->basename;
 	if (ref $old eq 'HASH' && defined $old->{file} && $old->{file} ne $name && $old->{file} =~ /\A[0-9a-f]{32}\.db\z/) {
 		unlink Mojo::File->new($path)->dirname->child($old->{file})->to_string;
 	}
 	my $built = time;
 	# The file's own column order: the extract would list its columns alphabetically.
-	$models->{accelerated}{$spec} = { built => $built, file => $name, rows => scalar(@$records), columns => \@columns };
+	$models->{accelerated}{$key} = { built => $built, file => $name, rows => scalar(@$records), columns => \@columns };
 	$c->_write_models($models) or croak $c->_i18n('error_accel_store', $spec);
-	return { spec => $spec, path => $path, rows => scalar(@$records), columns => scalar(@columns), built => $built };
+	return { spec => $key, path => $path, rows => scalar(@$records), columns => scalar(@columns), built => $built };
 }
 
 # unaccelerate($c, $spec) -> $bool
@@ -1175,7 +1177,7 @@ sub accelerate {
 sub unaccelerate {
 	my ($c, $spec) = @_;
 	croak 'unaccelerate() needs a controller and a spec' unless ref $c && defined $spec;
-	$spec = canonical_spec($spec);
+	$spec = canonical_spec($spec);	# unaccelerate names no spec in a message
 	my $models = $c->_read_models;
 	my $entry  = delete $models->{accelerated}{$spec};
 	return 0 unless ref $entry eq 'HASH';
@@ -3298,7 +3300,7 @@ sub _run_pipeline_source :Protected ($self) {
 #          addressed by, which names its spec explicitly because it has no l=.
 sub _calc_spec_key :Protected ($self) {
 	my $l = $self->param('l') // '';
-	return $l if length $l;
+	return canonical_spec($l) if length $l;
 	my $table = $self->stash('table');
 	return (defined $table && $table =~ /$TABLE_NAME_RE/) ? "table:$table" : '';
 }
@@ -3916,7 +3918,7 @@ sub _calc_for_page :Protected ($self, $records, $columns, $extra) {
 # Entry:   $spec_key may be undef, when the request's l= is the key.
 # Exit:    True or false.
 sub _has_stored_columns :Protected ($self, $spec_key) {
-	$spec_key //= $self->param('l') // '';
+	$spec_key = canonical_spec($spec_key // $self->param('l') // '');
 	return 1 if @{ $self->every_param('lk') // [] };
 	return 0 unless length $spec_key;
 	my $models = $self->_read_models;
@@ -3982,8 +3984,7 @@ sub _apply_calc_fields :Protected ($self, $records, $columns, $extra = undef) {
 	# same name so the user can test a new expression without permanently saving).
 	my (@calc_specs, %seen_calc);
 	{
-		my $sk = defined $spec_key_override
-			? $spec_key_override : ($self->param('l') // '');
+		my $sk = $date_spec;
 		if (length $sk && !$skip_stored) {
 			my $stored = ($self->_read_models)->{fields}{$sk} // {};
 			for my $n (sort keys %{$stored}) {
@@ -4138,36 +4139,6 @@ sub canonical_spec {
 	return (defined $real && length $real) ? "path:$real" : $spec;
 }
 
-# _canonical_request_specs($c) -> 1
-#
-# Purpose: Rewrite the path: specs a request carries -- l=, the source of each
-#          j=, and each c= -- through canonical_spec, so every route, every
-#          model-store reader and writer, and every link a page builds from
-#          them agree with /open.  Registered as a before_dispatch hook in
-#          Database::BI::startup.
-# Side Effects: Edits the query and form parameters in place and drops the
-#          request's merged parameter cache, so param() sees the new values.
-sub _canonical_request_specs ($c) {
-	my $req     = $c->req;
-	my $changed = 0;
-	for my $params ($req->url->query, $req->body_params) {
-		for my $name (qw(l j c)) {
-			my $old = $params->every_param($name);
-			next unless grep { /\Apath:/ } @$old;
-			my @new = map {
-				$name eq 'j'
-					? do { my ($s, $rest) = split /\|/, $_, 2; join '|', canonical_spec($s), (defined $rest ? $rest : ()) }
-					: canonical_spec($_)
-			} @$old;
-			next unless join("\0", @new) ne join("\0", @$old);
-			$params->param($name => \@new);
-			$changed = 1;
-		}
-	}
-	delete $req->{params} if $changed;
-	return 1;
-}
-
 # _inside_dir($path, $dir) -> $bool
 #
 # True when $path names $dir itself or something below it.  abs2rel asks the
@@ -4233,7 +4204,30 @@ sub _read_models :Protected ($self) {
 		my $by_spec = $data->{$section};
 		delete @{$by_spec}{ grep { ref $by_spec->{$_} ne 'HASH' } keys %$by_spec };
 	}
+	_canonical_store_keys($data->{$_}) for grep { ref $data->{$_} eq 'HASH' }
+		qw(fields groups date_patterns lookups extractions accelerated geo);
 	return $data;
+}
+
+# _canonical_store_keys(\%by_spec) -> void
+#
+# Purpose: File every path: entry of one section of the model store under
+#          canonical_spec of its key, so that a reader asking with the resolved
+#          spec finds an entry written under a symlinked spelling, by a version
+#          before specs were resolved or by hand.  The next write persists it.
+# Notes:   A geo key is <spec>|loc=<column>; only the spec part is resolved.
+#          When both spellings are present the resolved one's names win.
+sub _canonical_store_keys {
+	my ($by_spec) = @_;
+	for my $key (grep { /\Apath:/ } keys %$by_spec) {
+		my ($spec, $rest) = split /\|/, $key, 2;
+		my $new = canonical_spec($spec) . (defined $rest ? "|$rest" : '');
+		next if $new eq $key;
+		my $old = delete $by_spec->{$key};
+		my $cur = $by_spec->{$new};
+		$by_spec->{$new} = (ref $cur eq 'HASH' && ref $old eq 'HASH') ? { %$old, %$cur } : ($cur // $old);
+	}
+	return;
 }
 
 # _write_models($self, \%models) -> $bool
@@ -10540,7 +10534,7 @@ sub stats_view ($self) {
 # ---------------------------------------------------------------------------
 
 sub calc_save ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	my $name = $self->param('name') // '';
 	my $expr = $self->param('expr') // '';
 
@@ -10560,7 +10554,7 @@ sub calc_save ($self) {
 }
 
 sub calc_delete ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	my $name = $self->param('name') // '';
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
@@ -10573,7 +10567,7 @@ sub calc_delete ($self) {
 }
 
 sub calc_list ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
@@ -10586,7 +10580,7 @@ sub calc_list ($self) {
 # ---------------------------------------------------------------------------
 
 sub groups_save ($self) {
-	my $spec       = $self->param('l')     // '';
+	my $spec       = canonical_spec($self->param('l')     // '');
 	my $col        = $self->param('col')   // '';
 	my $group_name = $self->param('group') // '';
 
@@ -10608,7 +10602,7 @@ sub groups_save ($self) {
 }
 
 sub groups_delete ($self) {
-	my $spec       = $self->param('l')     // '';
+	my $spec       = canonical_spec($self->param('l')     // '');
 	my $col        = $self->param('col')   // '';
 	my $group_name = $self->param('group') // '';
 
@@ -10628,7 +10622,7 @@ sub groups_delete ($self) {
 }
 
 sub groups_list ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
@@ -10652,7 +10646,7 @@ sub groups_list ($self) {
 # comparisons already read to the second, so a last_24_hours window filters on
 # a column that has a pattern of this kind.
 sub dates_save ($self) {
-	my $spec    = $self->param('l')       // '';
+	my $spec    = canonical_spec($self->param('l')       // '');
 	my $col     = $self->param('col')     // '';
 	my $pattern = $self->param('pattern') // '';
 	my $time    = $self->param('time')    // '';
@@ -10688,7 +10682,7 @@ sub dates_save ($self) {
 # dates_delete: POST /dates/delete?l=<spec>&col=<col>
 # Removes the pattern for $col (or all patterns for $spec when col is absent).
 sub dates_delete ($self) {
-	my $spec = $self->param('l')   // '';
+	my $spec = canonical_spec($self->param('l')   // '');
 	my $col  = $self->param('col') // '';
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
@@ -10709,7 +10703,7 @@ sub dates_delete ($self) {
 # date-format string it has always been or, for a column that also holds a time,
 # { date =>, time =>, as => }.
 sub dates_list ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
@@ -10728,7 +10722,7 @@ sub dates_list ($self) {
 # have are all 400s here rather than on the next page.  fields= may repeat or
 # hold a comma-separated list; without it every column but the key is added.
 sub lookups_save ($self) {
-	my $spec = $self->param('l')    // '';
+	my $spec = canonical_spec($self->param('l')    // '');
 	my $name = $self->param('name') // '';
 	my $key  = $self->param('key')  // '';
 	my $col  = $self->param('col')  // '';
@@ -10760,7 +10754,7 @@ sub lookups_save ($self) {
 # lookups_delete: POST /lookups/delete?l=<spec>[&name=<ident>]
 # Removes one lookup, or every lookup of $spec when name= is absent.
 sub lookups_delete ($self) {
-	my $spec = $self->param('l')    // '';
+	my $spec = canonical_spec($self->param('l')    // '');
 	my $name = $self->param('name') // '';
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
@@ -10779,7 +10773,7 @@ sub lookups_delete ($self) {
 # lookups_list: GET /lookups/list?l=<spec>
 # Returns { lookups: { name: { file, key, col?, fields?, default? }, ... } }.
 sub lookups_list ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
@@ -10798,7 +10792,7 @@ sub lookups_list ($self) {
 # does not compile or names no group is a 400 here.  fields= picks some of the
 # named groups; without it every named group becomes a column.
 sub extract_save ($self) {
-	my $spec    = $self->param('l')       // '';
+	my $spec    = canonical_spec($self->param('l')       // '');
 	my $name    = $self->param('name')    // '';
 	my $col     = $self->param('col')     // '';
 	my $pattern = $self->param('pattern') // '';
@@ -10828,7 +10822,7 @@ sub extract_save ($self) {
 # extract_delete: POST /extract/delete?l=<spec>[&name=<ident>]
 # Removes one extraction, or every extraction of $spec when name= is absent.
 sub extract_delete ($self) {
-	my $spec = $self->param('l')    // '';
+	my $spec = canonical_spec($self->param('l')    // '');
 	my $name = $self->param('name') // '';
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
@@ -10847,7 +10841,7 @@ sub extract_delete ($self) {
 # extract_list: GET /extract/list?l=<spec>
 # Returns { extractions: { name: { col, pattern, fields }, ... } }.
 sub extract_list ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
@@ -10869,7 +10863,7 @@ sub extract_list ($self) {
 # panel's "Remember" sends it, so a new choice replaces the old one rather than
 # leaving, say, a place-name column beside the latitude chosen after it.
 sub geo_save ($self) {
-	my $spec  = $self->param('l') // '';
+	my $spec  = canonical_spec($self->param('l') // '');
 	my @cols  = @{ $self->every_param('col')  // [] };
 	my @kinds = @{ $self->every_param('kind') // [] };
 
@@ -10890,7 +10884,7 @@ sub geo_save ($self) {
 # geo_delete: POST /geo/delete?l=<spec>&col=<col>
 # Omit col= to clear all column preferences for the spec.
 sub geo_delete ($self) {
-	my $spec = $self->param('l')   // '';
+	my $spec = canonical_spec($self->param('l')   // '');
 	my $col  = $self->param('col') // '';
 
 	return $self->render(json => { error => 'l= required' }, status => 400)
@@ -10909,7 +10903,7 @@ sub geo_delete ($self) {
 # geo_list: GET /geo/list?l=<spec>
 # Returns { columns: { col: { kind: "lat"|"lon"|"location" }, ... } }.
 sub geo_list ($self) {
-	my $spec = $self->param('l') // '';
+	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
@@ -11766,6 +11760,7 @@ sub wordcloud_view ($self) {
 # Leaflet element ids unique when several maps share one page; undef leaves the
 # map page's own ids alone.
 sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_key, $id_suffix) {
+	$spec_key = canonical_spec($spec_key);
 	$encode  //= {};
 	$options //= {};
 
@@ -14241,13 +14236,15 @@ backend lists columns alphabetically.
 
 =head2 canonical_spec
 
-The one spelling of a C<path:> spec: C<path:> followed by the realpath of its
-file, the name C<open_file> gives it.  A C<before_dispatch> hook
-(C<_canonical_request_specs>) passes the request's C<l=>, the source of each
-C<j=> and each C<c=> through it.  C<_apply_calc_fields> also passes a canvas
-dataset's spec through it, as do C<_accelerated_source>, C<accelerate> and
-C<unaccelerate>.  So a definition saved under a path reached through a symlink
-is the one the file's page reads.
+The one spelling of a C<path:> spec in the model store: C<path:> followed by the
+realpath of its file, the name C<open_file> gives it.  The request is left as
+the reader wrote it, so pages, forms and messages show their own spelling; only
+the store key is resolved.  The store routes (C</calc>, C</groups>, C</dates>,
+C</lookups>, C</extract>, C</geo>) and the readers (C<_calc_spec_key>,
+C<_apply_calc_fields>, C<_has_stored_columns>, C<_map_data>,
+C<_accelerated_source>, C<accelerate>, C<unaccelerate>) pass their key through
+it.  C<_read_models> files an entry written under another spelling under the
+resolved one, so an older store is still read.
 
 =head3 API SPECIFICATION
 

@@ -76,9 +76,10 @@ Revision history for Database-BI
 	  definitions.  /open names a file by its real path, but the stores filed a
 	  group, calculated field, lookup, extraction, map column or bi-extract
 	  extract under the path as typed, so the file's page never showed them.
-	  Every path: spec is now resolved first, in requests, canvases and
-	  bi-extract.  Found on macOS, where the temporary directory is under /var,
-	  a symlink to /private/var.
+	  The stores now file a path: dataset under its real path, and read an
+	  entry saved under another spelling as well; pages and messages still show
+	  the path as it was given.  Found on macOS, where the temporary directory is
+	  under /var, a symlink to /private/var.
 	- A saved definition that could no longer be applied -- a lookup file that
 	  was deleted, a column an extraction or calculated field reads that the file
 	  dropped -- made every page of that dataset a 400, the table page included,

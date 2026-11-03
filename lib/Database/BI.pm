@@ -1819,17 +1819,6 @@ sub startup ($self) {
 		) : ()),
 	});
 
-	# A path: spec names its file by its realpath, as /open does, so that a
-	# definition saved or an extract built under a path reached through a
-	# symlink is the one the file's page reads.  First, so every other hook
-	# and every route sees the one spelling.
-	$self->hook(before_dispatch => sub {
-		my $c = shift;
-
-		require Database::BI::Controller::Dashboard;
-		Database::BI::Controller::Dashboard::_canonical_request_specs($c);
-	});
-
 	# A relative time range named in the URL (?range=last_30_days&rcol=when)
 	# becomes the f= filters every data route already applies, so the table
 	# view, every chart, the pivot, stats, insights, the exports and a saved

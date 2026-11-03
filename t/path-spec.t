@@ -8,6 +8,8 @@ use Mojo::File ();
 use File::Temp ();
 use IPC::Open3 qw(open3);
 use Symbol     qw(gensym);
+use Mojo::JSON ();
+use DBI ();
 use Mojo::Util qw(url_escape);
 
 use Database::BI::Controller::Dashboard ();
@@ -100,6 +102,43 @@ subtest 'a canvas dataset named through the link uses it too' => sub {
 	})->status_is(201)->tx->res->json->{id};
 	$t->get_ok("/a/$id")->status_is(200)->content_like(qr/Northern/);
 	$t->post_ok('/groups/delete' => form => { l => "path:$canonical" })->status_is(200);
+};
+
+subtest 'the request keeps the spelling the reader gave' => sub {
+	my $l = "path:$via_link";
+	$t->get_ok('/combine?l=' . url_escape($l) . '&c=' . url_escape($l))->status_is(200);
+	my $form = _dom()->at('form#graph-form');
+	ok($form, 'the graph form is on the page') or return;
+	my %has = map { ($_->{name} // '') => $_->{value} } $form->find('input[type=hidden]')->each;
+	is($has{l}, $l, 'l= as given');
+	is($has{c}, $l, 'c= as given');
+
+	plan skip_all => 'DBD::SQLite is not available' unless eval { require DBD::SQLite; 1 };
+	my $lite = $real->child('lite.sqlite');
+	my $dbh = DBI->connect("dbi:SQLite:dbname=$lite", '', '', { RaiseError => 1, PrintError => 0 });
+	$dbh->do('CREATE TABLE lite (id INTEGER)');
+	$dbh->disconnect;
+	require Mojo::Transaction::HTTP;
+	my $tx = Mojo::Transaction::HTTP->new;
+	my $c  = Database::BI::Controller::Dashboard->new(app => $t->app, tx => $tx);
+	my $spec = 'path:' . $link->child('lite.sqlite');
+	my $ok = eval { Database::BI::Controller::Dashboard::accelerate($c, $spec); 1 };
+	ok(!$ok, 'a SQLite file is refused');
+	like($@, qr/\ACannot accelerate "\Q$spec\E"/, 'and the message names the spec as written');
+	$lite->remove;
+};
+
+subtest 'an entry stored under the symlinked spelling is still read' => sub {
+	my $store = $model_dir->child('models.json');
+	my $models = Mojo::JSON::decode_json($store->slurp);
+	$models->{fields}{"path:$via_link"} = { tripled => 'amount * 3' };
+	$store->spew(Mojo::JSON::encode_json($models));
+	_open();
+	ok(_has('tripled'), '/open shows it');
+	$t->post_ok('/calc/delete' => form => { l => "path:$canonical", name => 'tripled' })->status_is(200);
+	_open();
+	ok(!_has('tripled'), 'and deleting it under the resolved spelling removes it');
+	ok(!exists Mojo::JSON::decode_json($store->slurp)->{fields}{"path:$via_link"}, 'the old key is gone from the file');
 };
 
 subtest 'bi-extract --spec through the link accelerates /open' => sub {
