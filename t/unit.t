@@ -12,6 +12,7 @@ use File::Temp qw(tempdir tempfile);
 use Mojo::File;
 use Mojo::Util qw(url_escape);
 use Test::Permissions qw(skip_unless_can_revoke with_revoked);
+use lib 't/lib';	# BI::Test::Nominatim, for the geocoding chain
 
 # ---------------------------------------------------------------------------
 # Minimal stub geocoder and point, injected through the app config so no
@@ -2589,6 +2590,43 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my $missing = $G->new(min_geocoder_version => '9999');
 		my (undef, $why) = $missing->geocoder_available;
 		message_ok(Geocode => 'error_map_geocoder_missing', ref $why ? $why->{text} : $why, ['9999', undef]);
+
+		message_ok(Geocode => 'error_online_max_invalid', $err->(sub { $G->new(online_max => 0) }), ['0']);
+		message_ok(Geocode => 'error_cache_interface', $err->(sub { $G->new(cache => Unit::GeoBroken->new) }), ['Unit::GeoBroken']);
+		message_ok(Geocode => 'error_cache_dir', $err->(sub { $G->file_cache('/no/such/directory') }), ['/no/such/directory']);
+
+		# The chain's own messages, with the local data and Nominatim stood in
+		# for by t/lib/BI/Test/Nominatim.pm, so nothing reaches the network.
+		SKIP: {
+			skip 'Geo::Coder::List 0.39, Geo::Coder::OSM 0.03 and LWP::UserAgent::Throttled 0.14 or later are needed', 1
+				unless eval {
+					require Geo::Coder::List;          Geo::Coder::List->VERSION(0.39);
+					require Geo::Coder::OSM;           Geo::Coder::OSM->VERSION(0.03);
+					require LWP::UserAgent::Throttled; LWP::UserAgent::Throttled->VERSION(0.14);
+					require Geo::Location::Point;
+					1;
+				};
+			require BI::Test::Nominatim;
+			my $text = sub {
+				my ($result, $key) = @_;
+				my ($m) = grep { $_->{key} eq $key } @{ $result->{messages} };
+				return $m ? $m->{text} : undef;
+			};
+
+			BI::Test::Nominatim::with_chain(hide => ['Geo::Coder::List'], sub {
+				my (undef, $no_list) = $G->new->geocoder_available;
+				message_ok(Geocode => 'error_map_geocoder_list_missing', $no_list, ['it is not installed']);
+			});
+			BI::Test::Nominatim::with_chain(hide => ['Geo::Coder::OSM'], sub {
+				my $r = $G->new->resolve_values(['Nowhere']);
+				message_ok(Geocode => 'warn_map_geocoder_local_only', $text->($r, 'warn_map_geocoder_local_only'));
+			});
+			BI::Test::Nominatim::with_chain(online => { Nowhere => 503 }, sub {
+				my $r = $G->new->resolve_values(['Nowhere']);
+				message_ok(Geocode => 'warn_map_geocoder_online_failed',
+					$text->($r, 'warn_map_geocoder_online_failed'), ['503 Stand-in failure', 1]);
+			});
+		}
 
 		my $messages = sub {
 			my ($result) = @_;

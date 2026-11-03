@@ -19,6 +19,22 @@ Revision history for Database-BI
 	- HTML::D3 0.29 is now required.  Besides the two above, it escapes the
 	  text in the stacked, combo and treemap tooltips, where a label holding
 	  markup ran when the chart was hovered.
+	- Geocoding goes through a Geo::Coder::List chain: Geo::Coder::Free's
+	  local data first, then OpenStreetMap's Nominatim (Geo::Coder::OSM) for
+	  the places it does not know.  Requests are kept to one a second by
+	  LWP::UserAgent::Throttled, from a client named Database-BI.  A map page
+	  asks Nominatim about at most map_geocode_online_max places (default 20)
+	  and leaves the rest for the next visit or script/bi-geocode.
+	  map_geocode_online => 0 keeps every lookup local.  A Nominatim that
+	  fails is not taken to mean the place does not exist: the place is
+	  tried again later.  Geo::Coder::List, Geo::Coder::OSM and
+	  LWP::UserAgent::Throttled are new recommends.
+	- Geo::Coder::List keeps the answers it finds in a cache under
+	  <model_dir>/geocode-cache, shared by /map and script/bi-geocode, so a
+	  place Nominatim found is not asked again for a month.  Nominatim is
+	  asked over https, one request a lookup (Geo::Coder::OSM asked over
+	  http, and was redirected).
+	- script/bi-geocode takes --offline and --online-max.
 	[ Bug fixes ]
 	- /scatter no longer saves scheme= in the chart it hands to a canvas when
 	  series= is absent, where the scheme is ignored and unchecked.
@@ -27,6 +43,9 @@ Revision history for Database-BI
 	  min_r= and max_r= with it.  A bad saved scheme draws the default colours.
 	- A line chart added to a canvas from /graph?series= drew every row as one
 	  line through all the groups.  The card now draws one line per value.
+	- script/bi-geocode died on every run ('option "max" must be a positive
+	  integer, not "0"'), and its summary counted cache hits from a key that
+	  does not exist and compared rows with places.
 	[ Tests ]
 	- t/scatter.t: series=, scheme=, size=, min_r= and max_r= on /scatter and
 	  on a canvas scatter card, and the scatter fields of both panels.
@@ -34,6 +53,8 @@ Revision history for Database-BI
 	  panels.
 	- t/histogram-scheme.t: scheme= on /histogram, on a canvas card and in both
 	  panels.
+	- t/geocode-online.t: the geocoding chain against a stand-in Nominatim
+	  (t/lib/BI/Test/Nominatim.pm), so no test reaches the network.
 	- t/treemap-combo-colour.t: color=, color_agg= and color_scheme= on
 	  /treemap, including the Other tile; scheme= on /combo; both canvas cards
 	  and all four panels.

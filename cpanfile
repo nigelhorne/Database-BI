@@ -44,6 +44,9 @@ requires 'Text::CSV';   # Files with no header row; script/bi-alert's fallback r
 requires 'version', '0.77';
 recommends 'DBD::MariaDB';
 recommends 'Geo::Coder::Free', '0.48';
+recommends 'Geo::Coder::List', '0.39';
+recommends 'Geo::Coder::OSM', '0.03';
+recommends 'LWP::UserAgent::Throttled', '0.14';
 recommends 'HTML::OSM', '0.12';
 
 on 'test' => sub {

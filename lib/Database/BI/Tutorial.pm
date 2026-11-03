@@ -607,7 +607,7 @@ my @CHAPTERS = (
 			'Type a Default colour for the markers that match no rule.',
 			'Click Open map.',
 		],
-		tip   => 'Rows at one place become one marker. Click a marker to see what it stands for. To size each marker by a number, add &size= and a column name to the map address. To give each category its own colour and a legend, add &series= and a column name instead.',
+		tip   => 'Rows at one place become one marker. Click a marker to see what it stands for. To size each marker by a number, add &size= and a column name to the map address. To give each category its own colour and a legend, add &series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. At most 20 places are looked up there each time the map opens. Open the map again to find the rest.',
 		walkthrough => {
 			title => 'Walk through: Virginia counties on a map',
 			intro => 'This example uses the virginia_counties table in the data folder.',
@@ -952,9 +952,10 @@ my @CHAPTERS = (
 			'For example: bi-geocode --spec table:virginia_counties --col county --region US.',
 			'Pass --region with a country code, such as GB or US, when the names could be in several countries.',
 			'Pass --dry-run to look the places up without keeping the result.',
+			'Places the local data does not know are looked up on OpenStreetMap, one each second. Pass --offline to stop that.',
 			'Run it again at any time. Places that it already knows are not looked up twice.',
 		],
-		tip   => 'The map with a Place-name column then opens at once, because no place has to be looked up. The script needs the Geo::Coder::Free module. Exit code 0 means success.',
+		tip   => 'The map with a Place-name column then opens at once, because no place has to be looked up. The script needs Geo::Coder::List 0.39 and Geo::Coder::Free 0.48 or later. OpenStreetMap also needs Geo::Coder::OSM 0.03 or later. Exit code 0 means success.',
 		routes => [],
 	},
 	{

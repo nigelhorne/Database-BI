@@ -146,6 +146,7 @@ subtest 'a dirty column is skipped end to end' => sub {
 		'cached'        => 0,
 		'attempted'     => 2,
 		'lookups'       => 2,
+		'online'        => 0,
 		'resolved'      => 2,
 		'unresolved'    => 0,
 		'not_attempted' => 0,
@@ -357,7 +358,7 @@ subtest 'nothing to plot is not an error' => sub {
 	my $empty = $geocode->resolve_column([], 'place');
 	is_deeply($empty->{'counts'}, {
 		'rows' => 0, 'plotted' => 0, 'unusable' => 0, 'distinct' => 0, 'skipped' => 0,
-		'cached' => 0, 'attempted' => 0, 'lookups' => 0, 'resolved' => 0, 'unresolved' => 0,
+		'cached' => 0, 'attempted' => 0, 'lookups' => 0, 'online' => 0, 'resolved' => 0, 'unresolved' => 0,
 		'not_attempted' => 0,
 	}, 'and a dataset with no rows gives counts of zero rather than a message');
 	is_deeply($empty->{'messages'}, [], 'with nothing to say');

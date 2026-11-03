@@ -123,10 +123,12 @@ as it changes.  All chart pages include Copy-link and Export SVG/PNG/PDF buttons
 =item *
 
 B<Maps> -- C<GET /map> plots the filtered view on an OpenStreetMap map, either
-from latitude and longitude columns or from a place column geocoded locally
-with L<Geo::Coder::Free> (one lookup per distinct place, remembered in the
-model store and shared by every dataset that names it).  Rows sharing a
-position become one marker.
+from latitude and longitude columns or from a place column geocoded by a
+L<Geo::Coder::List> chain: L<Geo::Coder::Free>'s local data first, then
+OpenStreetMap's Nominatim service (L<Geo::Coder::OSM>, at most one request a
+second) for the places the local data does not know.  Each distinct place is
+looked up once, remembered in the model store and shared by every dataset that
+names it.  Rows sharing a position become one marker.
 
 =item *
 
@@ -688,8 +690,11 @@ as it is zoomed in.  Clustering is always on.  Parameters:
 An unknown C<tiles=> or C<scheme=> is a 400, as is an unknown column, C<color=>
 together with C<series=>, or a transposed lat/lon pair.  The page never shows
 the L<HTML::OSM> Nominatim search box (C<search =E<gt> 0> is always passed), so
-nothing typed on the map is sent anywhere.  L<HTML::OSM> 0.12 or later is the
-renderer; an older optional install still returns the page with a warning.
+nothing typed on the map is sent anywhere.  With C<loc=>, a place the local
+data does not know is sent to Nominatim, as the place name alone; set
+C<map_geocode_online> to 0 to keep every lookup local.  L<HTML::OSM> 0.12 or
+later is the renderer; an older optional install still returns the page with a
+warning.
 
 =item C<GET /line>
 
@@ -1310,14 +1315,18 @@ C</>, or a full URL; a path without the leading slash is relative to the page.  
 ones the defaults name: D3 7.9.0, Leaflet 1.9.4, and leaflet.markercluster 1.5.3.
 C<tile_url> points the map layer at a self-hosted tile server instead of
 OpenStreetMap.  It keeps Leaflet's C<{z}>, C<{x}> and C<{y}> placeholders, and
-C<{s}> too if the server uses subdomains.  Set it and every request needed to
-draw a map can stay on the local network.  The OpenStreetMap attribution stays
+C<{s}> too if the server uses subdomains.  Set it, and C<map_geocode_online>
+to 0, and every request needed to draw a map can stay on the local network.  The OpenStreetMap attribution stays
 on the map, since it is the usual credit for OSM-derived tiles.  There is no
 in-page place search: L<HTML::OSM> is always constructed with C<search =E<gt> 0>,
 so nothing typed on a map page is sent anywhere.
 
 Map-specific config keys: C<map_geocode_max> (new geocoder lookups per request,
-default 500), C<map_max_markers> (markers per request, default 2000),
+default 500), C<map_geocode_online> (0 keeps geocoding on this machine: a place
+the local data does not know is not sent to OpenStreetMap's Nominatim; default
+1), C<map_geocode_online_max> (places asked of Nominatim per request, default 20;
+at one a second, the rest are left for the next request or for
+C<script/bi-geocode>), C<map_max_markers> (markers per request, default 2000),
 C<map_region> (a two-letter country hint for ambiguous places), C<map_max_zoom>
 (the default tile-layer maxZoom) and C<tile_sources> (a hashref of named tile
 sources, each C<< { url =E<gt> ... } >>, selected with C<tiles=>).

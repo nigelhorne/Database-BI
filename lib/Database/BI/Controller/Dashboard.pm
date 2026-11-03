@@ -262,6 +262,11 @@ Readonly my $DEFAULT_JOIN_MAX_ROWS => 10_000;
 Readonly my $LOOKUP_MAX_BYTES      => 8 * 1_048_576;	# a bigger file is a join, not a lookup
 Readonly my $LOOKUP_NAME_RE        => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_geocode_max)
+# Places looked up online (OpenStreetMap's Nominatim) per request.  Nominatim
+# allows one request a second, so this is roughly the seconds a page can wait
+# for it: twenty keeps a page well inside hypnotoad's 50-second heartbeat, and
+# script/bi-geocode, which has no page to hold, asks without a limit.
+Readonly my $DEFAULT_MAP_GEOCODE_ONLINE_MAX => 20;   # map_geocode_online_max
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
 Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
 Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
@@ -12048,12 +12053,24 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		# second: a deployment may hand in an object, and a test does exactly
 		# that.  With neither, the model reports the module as unavailable and
 		# the map is still the map.
+		# map_geocode_online => 0 keeps every lookup on this machine: a place
+		# the local data does not know is then not sent to OpenStreetMap.
+		# Geo::Coder::List keeps its answers in files beside models.json, so a
+		# place Nominatim found is not asked again by another request, worker or
+		# restart.  A model_dir that is refused (inside data_dir) gets none, and
+		# the module falls back on a cache in this process's memory.
+		my $models_path = $self->_calc_models_path;
 		my $injected = $cfg->{geocoder};
 		my $geocode  = Database::BI::Model::Geocode->new(
+			(defined($models_path)
+				? (cache => Database::BI::Model::Geocode->file_cache(Mojo::File->new($models_path)->dirname->to_string))
+				: ()),
 			(defined($injected) && ref($injected) && $injected->can('geocode_many')
 				? (geocoder => $injected) : ()),
 			(defined($cfg->{openaddr}) && length($cfg->{openaddr})
 				? (openaddr => $cfg->{openaddr}) : ()),
+			online     => (($cfg->{map_geocode_online} // 1) ? 1 : 0),
+			online_max => _map_limit($cfg->{map_geocode_online_max}, $DEFAULT_MAP_GEOCODE_ONLINE_MAX),
 		);
 
 		# A place name means the same place whichever file's column holds it, so
@@ -14063,11 +14080,14 @@ cycles the chosen palette across distinct values instead, and its legend lists
 categories rather than rules.
 
 Config values: C<map_geocode_max> (new lookups per request, default 500),
+C<map_geocode_online> (0 keeps every lookup local; default 1, which asks
+OpenStreetMap's Nominatim about places the local data does not know),
+C<map_geocode_online_max> (places asked of Nominatim per request, default 20),
 C<map_max_markers> (markers per request, default 2000), C<map_region> (a
 two-letter country hint for ambiguous place names), C<map_max_zoom> (the tile
 layer's default maxZoom), C<tile_sources> (a hashref of named tile sources,
 each C<< { url => ... } >>), C<tile_url> (the single default tile layer) and
-C<geocoder> (an object to use instead of loading L<Geo::Coder::Free>; the seam
+C<geocoder> (an object to use instead of the L<Geo::Coder::List> chain; the seam
 the tests use).  The C<leaflet_*>_url keys point Leaflet, markercluster and the
 heatmap plugin at self-hosted copies for an offline deployment.
 

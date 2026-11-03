@@ -6,6 +6,11 @@
 # models.json.  Subsequent map views for the same dataset serve from the
 # cache without making any geocoder requests.
 #
+# Places are looked up in Geo::Coder::Free's local data first, then on
+# OpenStreetMap (Nominatim) at one a second, with no limit on how many: the
+# map page asks Nominatim for at most map_geocode_online_max places, and this
+# script is how the rest are found.  --offline keeps every lookup local.
+#
 # The script is idempotent: a second run against the same column with a
 # warm cache resolves zero additional places (and says so).
 #
@@ -13,6 +18,7 @@
 #   bi-geocode --spec <l-spec> --col <column>
 #              [--data-dir <dir>] [--model-dir <dir>]
 #              [--openaddr <path>] [--region <CC>]
+#              [--offline] [--online-max <n>]
 #              [--dry-run] [--verbose]
 #
 # Exit codes:  0 = ok
@@ -40,7 +46,8 @@ use POSIX qw(strftime);
 # ---------------------------------------------------------------------------
 
 my ($opt_spec, $opt_col, $opt_data_dir, $opt_model_dir,
-    $opt_openaddr, $opt_region, $opt_dry_run, $opt_verbose, $opt_help);
+    $opt_openaddr, $opt_region, $opt_dry_run, $opt_verbose, $opt_help,
+    $opt_offline, $opt_online_max);
 
 GetOptions(
 	'spec|s=s'       => \$opt_spec,
@@ -49,12 +56,19 @@ GetOptions(
 	'model-dir|m=s'  => \$opt_model_dir,
 	'openaddr|o=s'   => \$opt_openaddr,
 	'region|r=s'     => \$opt_region,
+	'offline'        => \$opt_offline,
+	'online-max=i'   => \$opt_online_max,
 	'dry-run|n'      => \$opt_dry_run,
 	'verbose|v'      => \$opt_verbose,
 	'help|h'         => \$opt_help,
 ) or do { _usage(); exit 2 };
 
 if ($opt_help) { _usage(); exit 0 }
+
+if (defined($opt_online_max) && $opt_online_max < 1) {
+	warn "bi-geocode: --online-max must be a positive whole number\n";
+	exit 2;
+}
 
 unless (defined $opt_spec && length $opt_spec) {
 	warn "bi-geocode: --spec <l-spec> is required\n";
@@ -145,13 +159,23 @@ my $shared  = Database::BI::Model::Geocode->shared_cache_from_models($models);
 my %cache   = (%$legacy, %$shared);
 
 my %args;
-$args{openaddr} = $opt_openaddr if defined $opt_openaddr && length $opt_openaddr;
+$args{openaddr}   = $opt_openaddr if defined $opt_openaddr && length $opt_openaddr;
+# The same Geo::Coder::List cache the map page uses, under the model directory.
+# With --dry-run nothing is kept, the chain's cache included.
+if (!$opt_dry_run) {
+	Mojo::File->new($model_dir)->make_path;
+	$args{cache} = Database::BI::Model::Geocode->file_cache($model_dir);
+}
+$args{online}     = $opt_offline ? 0 : 1;
+$args{online_max} = $opt_online_max if defined $opt_online_max;
 
 my $geocode = Database::BI::Model::Geocode->new(%args);
 
 my %opts;
 $opts{cache} = \%cache;
-$opts{max}   = 0;  # no cap for the warming script
+# No cap for the warming script: every row could name a different place, so
+# the number of rows is a cap nothing reaches.  (Geocode refuses max => 0.)
+$opts{max}   = scalar(@$records) || 1;
 if (defined $opt_region && $opt_region =~ /\A[A-Za-z]{2}\z/) {
 	$opts{region} = $opt_region;
 }
@@ -168,10 +192,10 @@ my $counts   = $result->{counts};
 my $messages = $result->{messages};
 
 _log("Resolved %d/%d distinct places in %ds",
-	$counts->{plotted} // 0, $counts->{distinct} // 0, $elapsed);
-_log("  cache hits: %d  new: %d  unresolved: %d",
-	$counts->{cache_hit} // 0, $counts->{attempted} // 0,
-	($counts->{distinct} // 0) - ($counts->{plotted} // 0));
+	$counts->{resolved} // 0, $counts->{distinct} // 0, $elapsed);
+_log("  cache hits: %d  new: %d  of them online: %d  unresolved: %d  left for later: %d",
+	$counts->{cached} // 0, $counts->{attempted} // 0, $counts->{online} // 0,
+	$counts->{unresolved} // 0, $counts->{not_attempted} // 0);
 
 for my $msg (@$messages) {
 	_log("  [%s] %s", $msg->{key} // 'info', $msg->{text} // '');
@@ -236,6 +260,10 @@ Options:
   --model-dir, -m <dir>   Model store directory (default: .bi)
   --openaddr,  -o <path>  Path to an OpenAddresses data directory for Geo::Coder::Free
   --region,    -r <CC>    ISO 3166-1 alpha-2 region hint (e.g. US, GB)
+  --offline               Look places up in the local data only, never on
+                          OpenStreetMap
+  --online-max <n>        Look up at most <n> places on OpenStreetMap
+                          (default: no limit; it is asked once a second)
   --dry-run,   -n         Resolve but do not write the cache
   --verbose,   -v         Print progress to STDERR
   --help,      -h         Show this message

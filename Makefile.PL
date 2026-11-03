@@ -100,6 +100,15 @@ WriteMakefile(
 					# $MIN_GEOCODER_VERSION and in the messages that quote it;
 					# t/recommended-versions.t holds all three to this entry.
 					'Geo::Coder::Free' => '0.48',
+					# The chain the lookups go through (Geo::Coder::List; 0.39 keeps
+					# the log() that tells a place Nominatim does not know from a
+					# Nominatim that did not answer), and OpenStreetMap's Nominatim for
+					# the places Geo::Coder::Free does not know, kept to one request a
+					# second by LWP::UserAgent::Throttled.  Without the list there is no
+					# geocoding; without the other two it is local only.
+					'Geo::Coder::List' => '0.39',
+					'Geo::Coder::OSM' => '0.03',
+					'LWP::UserAgent::Throttled' => '0.14',
 					# The mariadb: data source, looked for when a server is opened.
 					# DBD::mysql serves in its place.
 					'DBD::MariaDB' => 0,

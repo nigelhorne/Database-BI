@@ -175,8 +175,9 @@
 <p>
 	<code>GET /map</code> plots the filtered view with
 	<code>HTML::OSM</code> and Leaflet. A row's position comes from a place column
-	that is geocoded locally (<code>loc=</code>, one lookup per distinct value,
-	remembered in the model store and shared by every dataset that names it) or
+	that is geocoded (<code>loc=</code>, one lookup per distinct value, in the
+	local data first and then on OpenStreetMap's Nominatim, remembered in the
+	model store and shared by every dataset that names it) or
 	from coordinate columns (<code>lat=</code> and <code>lon=</code>). Rows
 	sharing a position become one marker.
 </p>

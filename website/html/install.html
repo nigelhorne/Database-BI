@@ -90,11 +90,17 @@
 </div>
 
 <p>
-	Two modules are recommended rather than required, so the application installs,
-	starts and tests without them: <strong>HTML::OSM</strong> (0.12 or later) draws
-	maps, and <strong>Geo::Coder::Free</strong> (0.48 or later) turns a place column
-	into coordinates from a local database. Without them the map pages are hidden
-	and the rest of the application is unaffected. <strong>Redis</strong> (or
+	Some modules are recommended rather than required, so the application installs,
+	starts and tests without them. <strong>HTML::OSM</strong> (0.12 or later) draws
+	maps. A place column is turned into coordinates by <strong>Geo::Coder::List</strong>
+	(0.39 or later), which asks <strong>Geo::Coder::Free</strong> (0.48 or later) and
+	its local database first, then OpenStreetMap's Nominatim service through
+	<strong>Geo::Coder::OSM</strong> (0.03 or later) for the places the local data does
+	not know. <strong>LWP::UserAgent::Throttled</strong> (0.14 or later) keeps those
+	requests to Nominatim's limit of one a second. Without Geo::Coder::OSM, or with
+	<code>map_geocode_online =&gt; 0</code>, every lookup stays on this machine.
+	Without HTML::OSM the map pages are hidden, and the rest of the application is
+	unaffected. <strong>Redis</strong> (or
 	<strong>Redis::Fast</strong>) is optional too, and switches on the
 	<code>redis:</code> data source when installed.
 </p>
@@ -220,6 +226,24 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			</td>
 		</tr>
 		<tr>
+			<td><code>map_geocode_online</code></td>
+			<td><code>1</code></td>
+			<td>
+				Ask OpenStreetMap's Nominatim about places the local data does not
+				know. Only the place name is sent. Set it to <code>0</code> to keep
+				every lookup on this machine.
+			</td>
+		</tr>
+		<tr>
+			<td><code>map_geocode_online_max</code></td>
+			<td><code>20</code></td>
+			<td>
+				Places asked of Nominatim each time a map opens. Nominatim allows one
+				request a second, so this is roughly how long a page can wait for it.
+				The rest are asked next time, or by <code>script/bi-geocode</code>.
+			</td>
+		</tr>
+		<tr>
 			<td><code>uploads_dir</code></td>
 			<td><code>.uploads</code></td>
 			<td>
@@ -280,11 +304,16 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 <h3><code>script/bi-geocode</code></h3>
 <p>
 	Warms the shared geocode cache for one column, so later map requests make no
-	lookups:
+	lookups. Places the local data does not know are asked of OpenStreetMap's
+	Nominatim, one a second and with no limit on how many: a map page asks it about
+	at most <code>map_geocode_online_max</code> places, and this is how the rest are
+	found. <code>--offline</code> keeps every lookup local, and
+	<code>--online-max N</code> sets a limit:
 </p>
 <pre><code>./script/bi-geocode --spec table:customers --col city \
                     [--data-dir DIR] [--model-dir DIR] \
-                    [--openaddr PATH] [--region CC] [--dry-run] [--verbose]</code></pre>
+                    [--openaddr PATH] [--region CC] \
+                    [--offline] [--online-max N] [--dry-run] [--verbose]</code></pre>
 <p>
 	It is idempotent: a second run against a warm cache resolves nothing and says
 	so. Exit status is 0 on success, 1 when the column is missing or no rows load,
