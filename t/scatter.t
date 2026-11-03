@@ -199,4 +199,83 @@ subtest 'the scatter panel offers every parameter' => sub {
 	}
 };
 
+# ---------------------------------------------------------------------------
+# The same chart as a canvas card.  "Add to canvas" saves the page's
+# data-chart, so a card made from /scatter?series=&size= must draw the same
+# colours and bubbles.  A canvas stores its visuals unchecked, so a bad saved
+# scheme draws the default colours rather than failing the card.
+# ---------------------------------------------------------------------------
+
+# A canvas over data/sales.csv holding the given visuals; returns the page body.
+sub canvas_body {
+	my ($name, @visuals) = @_;
+	$t->post_ok('/api/analyses' => json => {
+		name     => $name,
+		datasets => [ { spec => 'table:sales' } ],
+		visuals  => \@visuals,
+	})->status_is(201, "$name: canvas created");
+	my $id = $t->tx->res->json->{id};
+	$t->get_ok("/a/$id")->status_is(200, "$name: canvas drawn");
+	return $t->tx->res->body;
+}
+
+subtest 'a card saved from /scatter draws its colours and bubbles' => sub {
+	my $page = body_of('&series=region&size=amount&scheme=set2&min_r=5&max_r=25', 'page');
+	my $spec = chart_spec_of($page);
+	is_deeply $spec->{encode}, { x => 'id', y => 'amount', series => 'region', size => 'amount' },
+		'data-chart encodes series and size';
+	is_deeply $spec->{options}, { scheme => 'set2', min_r => 5, max_r => 25 },
+		'data-chart options carry scheme and radii';
+
+	my $body = canvas_body('From page', $spec);
+	like $body, qr/d3\.scaleOrdinal\(\[\s*'\Q$FIRST_COLOUR{set2}\E'/, 'set2 palette on the card';
+	my ($names) = $body =~ /var seriesNames = (\[[^\]]*\]);/;
+	is_deeply [ sort @{ decode_json($names // '[]') } ], [qw(East North South West)],
+		'one colour per region';
+	like $body, qr/d3\.scaleSqrt\(\)\.domain\(\[725\.25,\s*2100\]\)\.range\(\[5,\s*25\]\)/,
+		'radius scale with the saved range';
+};
+
+subtest 'a plain scatter card is unchanged' => sub {
+	my $body = canvas_body('Plain', { kind => 'scatter', encode => { x => 'id', y => 'amount' } });
+	like $body, qr/id="vis-0"/, 'card drawn';
+	unlike $body, qr/scaleOrdinal/, 'no colour scale';
+	unlike $body, qr/rScale|scaleSqrt/, 'no radius scale';
+};
+
+subtest 'a card defaults the scheme and radii it is not given' => sub {
+	my $body = canvas_body('Defaults',
+		{ kind => 'scatter', encode => { x => 'id', y => 'amount', series => 'region', size => 'amount' } });
+	like $body, qr/d3\.scaleOrdinal\(\[\s*'\Q$FIRST_COLOUR{tableau10}\E'/, 'tableau10 by default';
+	like $body, qr/\.range\(\[3,\s*15\]\)/, 'radius 3..15 by default';
+};
+
+subtest 'a bad saved scheme or radius is tidied, not drawn' => sub {
+	my $evil = q{tableau10'];alert(1)//};
+	my $body = canvas_body('Tidied', {
+		kind    => 'scatter',
+		encode  => { x => 'id', y => 'amount', series => 'region', size => 'amount' },
+		options => { scheme => $evil, min_r => 'abc', max_r => 999 },
+	});
+	like $body, qr/d3\.scaleOrdinal\(\[\s*'\Q$FIRST_COLOUR{tableau10}\E'/,
+		'unknown scheme draws the default colours';
+	unlike $body, qr/alert\(1\)/, 'the saved scheme is not written into the page';
+	like $body, qr/\.range\(\[3,\s*40\]\)/, 'text min_r takes the default, max_r clamps to 40';
+
+	$body = canvas_body('Scheme only', {
+		kind    => 'scatter',
+		encode  => { x => 'id', y => 'amount' },
+		options => { scheme => 'Blues', min_r => 9 },
+	});
+	unlike $body, qr/scaleOrdinal|scaleSqrt/, 'scheme and radii mean nothing without series and size';
+};
+
+subtest 'an unknown series or size column is that card\'s error' => sub {
+	for my $key (qw(series size)) {
+		my $body = canvas_body("Bad $key",
+			{ kind => 'scatter', encode => { x => 'id', y => 'amount', $key => 'no_such' } });
+		like $body, qr/Column not found: no_such/, "unknown $key column reported on the card";
+	}
+};
+
 done_testing();

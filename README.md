@@ -508,7 +508,10 @@ perl Makefile.PL
     y=<col>       Y-axis column (required; numeric)
     series=<col>  categorical colour dimension (optional)
     size=<col>    numeric bubble-radius dimension (optional)
-    scheme=<name> colour scheme when series= is set (optional)
+    scheme=<name> colour scheme when series= is set: tableau10 (default),
+                  category10, set2, set3 or paired; any other is a 400
+    min_r=N       smallest bubble radius in px with size= (1-40, default 3)
+    max_r=N       largest bubble radius in px with size= (1-40, default 15)
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=            result filters (repeatable)
     ```
@@ -695,7 +698,11 @@ perl Makefile.PL
     to geocode) or `lat` and `lon`.  A `wordcloud` card's `encode` names the
     text column to read in `col`, and its `options` take the same `topn`,
     `minlen` and `stop` the `GET /wordcloud` page takes, so the two count and
-    rank words with one function.  The optional `query` is the canvas page's
+    rank words with one function.  A `scatter` card's `encode` names `x`
+    and `y`, and optionally `series` (colour by value) and `size` (bubble size); its
+    `options` take `scheme`, `min_r` and `max_r` as `GET /scatter` does,
+    except that an unknown `scheme` draws the default colours.
+    The optional `query` is the canvas page's
     query string: `cf` (cross-filter), `c` (calculated columns) and
     `p.<name>` (bound parameter values) are read from it, so a card added
     while the canvas is filtered or parameterised is drawn through the same state

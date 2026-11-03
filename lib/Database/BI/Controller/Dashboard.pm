@@ -430,6 +430,23 @@ sub _sequential_scheme {
 	return (defined($name) && !ref($name) && $SEQUENTIAL_SCHEMES{$name}) ? $name : $DEFAULT_SEQUENTIAL_SCHEME;
 }
 
+# _scatter_radii($min, $max) -> ($min, $max)
+#
+# A scatter's bubble radius range in pixels: each value a whole number clamped
+# to 1..40, anything else (absent, empty, 0, text) the default 3 or 15, and the
+# pair put in order rather than refused.  /scatter and a canvas scatter card
+# both read it here, so a card saved from the page draws the same bubbles.
+sub _scatter_radii {
+	my ($min, $max) = map { _whole_number(ref $_ ? undef : $_) } @_[0, 1];
+	$min = 3  unless $min;
+	$max = 15 unless $max;
+	for ($min, $max) {
+		$_ = 1  if $_ < 1;
+		$_ = 40 if $_ > 40;
+	}
+	return $min > $max ? ($max, $min) : ($min, $max);
+}
+
 # _pagination($self) -> ($page, $per_page, $offset)
 #
 # Reads ?page= and ?per_page= from the current request, clamps them to sane
@@ -5711,11 +5728,31 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		return { error => "Column not found: $x_col" } unless $col_set{$x_col};
 		return { error => "Column not found: $y_col" } unless $col_set{$y_col};
 
+		# series and size are what /scatter's "Add to canvas" saves from series=
+		# and size=; scheme, min_r and max_r come with them in options.  A
+		# canvas stores a visual unchecked (PUT, PATCH, import), so the scheme
+		# goes through _categorical_scheme -- HTML::D3 writes it into the script
+		# -- and an unknown one draws the default colours, as on a pie card.
+		my $series_col = $encode->{series} // '';
+		my $size_col   = $encode->{size}   // '';
+		$series_col = '' if ref $series_col;
+		$size_col   = '' if ref $size_col;
+		return { error => "Column not found: $series_col" }
+			if length $series_col && !$col_set{$series_col};
+		return { error => "Column not found: $size_col" }
+			if length $size_col && !$col_set{$size_col};
+
 		my @points;
 		for my $row (@$vis_recs) {
 			my $xv = _numeric_cell($row->{$x_col} // ''); next unless defined $xv;
 			my $yv = _numeric_cell($row->{$y_col} // ''); next unless defined $yv;
-			push @points, [$xv, $yv];
+			my %meta;
+			$meta{series} = _decode_cell($row->{$series_col} // '') if length $series_col;
+			if (length $size_col) {
+				my $sv = _numeric_cell($row->{$size_col} // '');
+				$meta{size} = $sv if defined $sv;
+			}
+			push @points, [$xv, $yv, {}, (%meta ? \%meta : ())];
 		}
 		return { error => 'No plottable data' } unless @points;
 
@@ -5725,6 +5762,14 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 				x_label => $x_col,
 				y_label => $y_col,
 				id      => $svg_id,
+				(length $series_col
+					? (colour_by_series => 1, series_col => $series_col,
+					   scheme => _categorical_scheme($options->{scheme}))
+					: ()),
+				(length $size_col
+					? (size_col => $size_col,
+					   radius_range => [ _scatter_radii($options->{min_r}, $options->{max_r}) ])
+					: ()),
 			});
 		my $html = $sn->{html};
 		utf8::decode($html) unless utf8::is_utf8($html);
@@ -10967,11 +11012,7 @@ sub scatter_view ($self) {
 	my $series_col = $self->param('series') // '';
 	my $size_col   = $self->param('size')   // '';
 	my $scheme     = $self->param('scheme') // 'tableau10';
-	my $min_r      = int($self->param('min_r') || 3);
-	my $max_r      = int($self->param('max_r') || 15);
-	$min_r = 1 if $min_r < 1; $min_r = 40 if $min_r > 40;
-	$max_r = 1 if $max_r < 1; $max_r = 40 if $max_r > 40;
-	($min_r, $max_r) = ($max_r, $min_r) if $min_r > $max_r;
+	my ($min_r, $max_r) = _scatter_radii($self->param('min_r'), $self->param('max_r'));
 	my $back       = _safe_back_url($self->param('back')) // '/';
 	my $back2      = _safe_back_url($self->param('back2'));
 	my $back2_lbl  = $self->param('back2_label') // '';
@@ -11044,8 +11085,12 @@ sub scatter_view ($self) {
 			(length $size_col   ? (size   => $size_col)   : ()),
 		},
 		# scheme= means nothing without series=, and is unchecked then, so it
-		# is not saved: a canvas copy would otherwise carry ?scheme=Blues.
-		options => { (length $series_col ? (scheme => $scheme) : ()) },
+		# is not saved: a canvas copy would otherwise carry ?scheme=Blues.  The
+		# radii likewise only with size=.
+		options => {
+			(length $series_col ? (scheme => $scheme) : ()),
+			(length $size_col   ? (min_r => $min_r, max_r => $max_r) : ()),
+		},
 	);
 	my ($platform, $language) = $self->_resolve_template;
 	$self->render(

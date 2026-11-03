@@ -565,7 +565,10 @@ D3.js v7 scatter/bubble plot.  Parameters:
   y=<col>       Y-axis column (required; numeric)
   series=<col>  categorical colour dimension (optional)
   size=<col>    numeric bubble-radius dimension (optional)
-  scheme=<name> colour scheme when series= is set (optional)
+  scheme=<name> colour scheme when series= is set: tableau10 (default),
+                category10, set2, set3 or paired; any other is a 400
+  min_r=N       smallest bubble radius in px with size= (1-40, default 3)
+  max_r=N       largest bubble radius in px with size= (1-40, default 15)
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=            result filters (repeatable)
 
@@ -739,7 +742,11 @@ and C<plain>.  The text is shown as plain text, never as markup.  A map's C<enco
 to geocode) or C<lat> and C<lon>.  A C<wordcloud> card's C<encode> names the
 text column to read in C<col>, and its C<options> take the same C<topn>,
 C<minlen> and C<stop> the C<GET /wordcloud> page takes, so the two count and
-rank words with one function.  The optional C<query> is the canvas page's
+rank words with one function.  A C<scatter> card's C<encode> names C<x>
+and C<y>, and optionally C<series> (colour by value) and C<size> (bubble size); its
+C<options> take C<scheme>, C<min_r> and C<max_r> as C<GET /scatter> does,
+except that an unknown C<scheme> draws the default colours.
+The optional C<query> is the canvas page's
 query string: C<cf> (cross-filter), C<c> (calculated columns) and
 C<p.E<lt>nameE<gt>> (bound parameter values) are read from it, so a card added
 while the canvas is filtered or parameterised is drawn through the same state

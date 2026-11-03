@@ -4,9 +4,12 @@ Revision history for Database-BI
 	[ Bug fixes ]
 	- /scatter no longer saves scheme= in the chart it hands to a canvas when
 	  series= is absent, where the scheme is ignored and unchecked.
+	- A scatter added to a canvas from /scatter kept only x and y: the card now
+	  colours by series and sizes bubbles as the page does, and the page saves
+	  min_r= and max_r= with it.  A bad saved scheme draws the default colours.
 	[ Tests ]
-	- t/scatter.t: series=, scheme=, size=, min_r= and max_r= on /scatter, and
-	  the scatter panel's inputs.
+	- t/scatter.t: series=, scheme=, size=, min_r= and max_r= on /scatter and
+	  on a canvas scatter card, and the scatter panel's inputs.
 
 0.019.0	Tue Nov  3 11:46:08 AM EST 2026
 	[ Enhancements ]
