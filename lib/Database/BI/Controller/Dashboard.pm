@@ -4104,6 +4104,10 @@ sub _canonical_path {
 	while (1) {
 		my $string = $probe->to_string;
 		my $real   = -e $string ? realpath($string) : undef;
+		# Cwd::realpath on Windows does not follow symlinks (GetFullPathName
+		# only tidies the name), so a link in data_dir could point the
+		# guard's comparison anywhere.
+		$real = _follow_links($real) if defined $real && length $real && $^O eq 'MSWin32';
 		if (defined $real && length $real) {
 			return File::Spec->canonpath(
 				@tail ? Mojo::File->new($real, @tail)->to_string : $real
@@ -4118,6 +4122,42 @@ sub _canonical_path {
 	# Nothing on the path exists at all, so the lexical absolute form is all
 	# there is to compare.
 	return File::Spec->canonpath($abs->to_string);
+}
+
+# _follow_links($path) -> $path | undef
+#
+# Purpose: $path with every symlink in it replaced by what it points at, one
+#          component at a time, as realpath does where it can.  For Windows,
+#          whose realpath leaves links alone; it works the same anywhere, which
+#          is how it is tested.
+# Entry:   An absolute path.
+# Exit:    The resolved absolute path; undef after 40 links, which is a loop.
+sub _follow_links {
+	my ($path) = @_;
+	my ($vol, $dirs, $file) = File::Spec->splitpath($path);
+	my @todo = grep { length } File::Spec->splitdir($dirs), $file;
+	my @done;
+	my $hops = 0;
+	while (@todo) {
+		my $part = shift @todo;
+		next if $part eq '.';
+		if ($part eq '..') { pop @done; next }
+		my $here = File::Spec->catpath($vol, File::Spec->catdir(File::Spec->rootdir, @done, $part), '');
+		if (-l $here) {
+			return undef if ++$hops > 40;
+			my $target = readlink $here;
+			return undef unless defined $target && length $target;
+			my ($tvol, $tdirs, $tfile) = File::Spec->splitpath($target);
+			if (File::Spec->file_name_is_absolute($target)) {
+				$vol  = $tvol if length $tvol;
+				@done = ();
+			}
+			unshift @todo, grep { length } File::Spec->splitdir($tdirs), $tfile;
+			next;
+		}
+		push @done, $part;
+	}
+	return File::Spec->catpath($vol, File::Spec->catdir(File::Spec->rootdir, @done), '');
 }
 
 # canonical_spec($spec) -> $spec

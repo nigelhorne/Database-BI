@@ -6825,6 +6825,28 @@ sub croak_rethrow {
 		is calc_value(q{if(1, 'y', bad_fn_not_reached)}, { bad_fn_not_reached => 1 }), 'y', 'a branch not taken is not run';
 	};
 
+	# week() is worked out in Perl, because strftime('%V') is '' on Windows.
+	# Where %V works, the two must agree, above all around the new year.
+	subtest 'Calc::_iso_week -- agrees with strftime %V' => sub {
+		require Time::Local;
+		plan skip_all => "strftime has no %V here"
+			unless (POSIX::strftime('%V', gmtime(0)) // '') =~ /\A\d+\z/;
+		my $bad = 0;
+		for my $year (1999 .. 2030) {
+			for my $k (1 .. 7) {
+				for my $md ([1, $k], [12, 32 - $k]) {
+					my @g = gmtime Time::Local::timegm(0, 0, 12, $md->[1], $md->[0] - 1, $year);
+					my $want = POSIX::strftime('%V', @g) + 0;
+					my $got  = Database::BI::Calc::_iso_week($g[5] + 1900, $g[6], $g[7]);
+					next if $got == $want;
+					$bad++;
+					diag("$year-$md->[0]-$md->[1]: $got, not $want");
+				}
+			}
+		}
+		is $bad, 0, 'the first and last seven days of 1999 to 2030';
+	};
+
 	subtest 'Calc functions -- dates' => sub {
 		is calc_value('year(d)', \%row), 2026, 'year';
 		is calc_value('month(d)', \%row), 5, 'month';
@@ -7832,6 +7854,45 @@ sub croak_rethrow {
 		is $F{_inside_dir}->('/a/..b', '/a'), 1, 'a name that starts with two dots is a name';
 		is $F{_inside_dir}->('', '/a'), 0, 'no path';
 		is $F{_inside_dir}->('/a', ''), 0, 'no directory';
+	};
+
+	# Windows' realpath leaves symlinks alone, so _canonical_path follows them
+	# there with _follow_links.  It is written for any platform, so it is
+	# checked here against realpath wherever there are symlinks.
+	subtest 'Dashboard::_follow_links -- agrees with realpath' => sub {
+		require Cwd;
+		my $fn   = \&Database::BI::Controller::Dashboard::_follow_links;
+		my $base = Mojo::File->new(tempdir(CLEANUP => 1))->realpath;
+		$base->child('real', 'deep')->make_path;
+		$base->child('real', 'deep', 'f.csv')->spew("a\n1\n");
+		plan skip_all => 'no symlinks here'
+			unless eval { symlink($base->child('real')->to_string, $base->child('abs')->to_string) };
+		symlink('real/deep', $base->child('rel')->to_string);           # relative
+		symlink('../rel', $base->child('real', 'up')->to_string);        # .. in the target
+		symlink('abs', $base->child('chain')->to_string);                # a link to a link
+		symlink('loop2', $base->child('loop1')->to_string);
+		symlink('loop1', $base->child('loop2')->to_string);
+
+		for my $p ('abs', 'abs/deep/f.csv', 'rel', 'rel/f.csv', 'real/up', 'real/up/f.csv',
+			'chain/deep', 'real/deep/../deep/f.csv', 'real') {
+			my $path = $base->child(split m{/}, $p)->to_string;
+			is $fn->($path), Cwd::realpath($path), "$p";
+		}
+		is $fn->($base->child('loop1')->to_string), undef, 'a loop gives up';
+
+		# As on Windows: realpath only tidies the name.  _canonical_path, and so
+		# every data_dir guard, must still see where the link goes.
+		{
+			no warnings 'redefine';
+			local $^O = 'MSWin32';
+			local *Database::BI::Controller::Dashboard::realpath = sub { File::Spec->rel2abs($_[0]) };
+			is $F{_canonical_path}->($base->child('abs', 'deep')), $base->child('real', 'deep')->to_string,
+				'_canonical_path follows a link where realpath does not';
+			is $F{_canonical_path}->($base->child('rel', 'new')), $base->child('real', 'deep', 'new')->to_string,
+				'and a relative one, below which names do not exist yet';
+			is $F{_inside_dir}->($F{_canonical_path}->($base->child('abs', 'deep')), $base->child('abs')->to_string), 0,
+				'so a link cannot make the outside look inside';
+		}
 	};
 
 	subtest 'Dashboard::_calc_models_path -- never inside the data' => sub {

@@ -186,7 +186,9 @@ my %FUNCTIONS = (
 		my $t = _epoch_of($1 + 0, $2 + 0, $3 + 0, 12, 0, 0);
 		return undef unless defined $t;
 		my @lt = localtime($t);
-		POSIX::strftime('%V', @lt) + 0;
+		# Not strftime('%V'): the Windows C runtime does not have it, and
+		# gives ''.
+		_iso_week($lt[5] + 1900, $lt[6], $lt[7]);
 	},
 	month_name => sub {
 		# Returns full English month name, e.g. 'January'.
@@ -347,6 +349,32 @@ sub _fmt_parts {
 #          exist is unparseable rather than quietly a different date.  The
 #          clock time is allowed two hours of slack, because the hour a
 #          daylight-saving change skips does not exist and mktime moves it.
+# _iso_week($year, $wday, $yday) -> 1..53
+#
+# The ISO 8601 week of a day, from localtime's weekday (0 = Sunday) and day of
+# the year (0 = 1 January).  Week 1 holds the year's first Thursday, so the
+# first days of January can be in the last week of the year before, and the
+# last days of December in week 1 of the next.
+sub _iso_week {
+	my ($year, $wday, $yday) = @_;
+	my $leap  = sub { my $y = shift; ($y % 4 == 0 && $y % 100 != 0) || $y % 400 == 0 };
+	# Monday is 1 and Sunday 7, as ISO counts.
+	my $iso_wday = $wday || 7;
+	my $week     = int(($yday + 1 - $iso_wday + 10) / 7);
+	# The weekday of 1 January, 0 = Sunday.
+	my $jan1  = ($wday - $yday) % 7;
+	my $weeks = sub {
+		my ($y, $j1) = @_;
+		return ($j1 == 4 || ($leap->($y) && $j1 == 3)) ? 53 : 52;
+	};
+	if ($week < 1) {
+		my $prev_jan1 = ($jan1 - ($leap->($year - 1) ? 366 : 365)) % 7;
+		return $weeks->($year - 1, $prev_jan1);
+	}
+	return 1 if $week > $weeks->($year, $jan1);
+	return $week;
+}
+
 sub _epoch_of {
 	my ($y, $mon, $day, $h, $mi, $s) = @_;
 	require POSIX;

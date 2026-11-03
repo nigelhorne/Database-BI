@@ -35,8 +35,11 @@ Revision history for Database-BI
 	  crafted link such as /bar?range=<script> ran script on this site.
 	  scheme= reached a chart's script unchecked.  A cell holding
 	  </script><script> ran on /bar, /pie, /stacked and /graph.
+	- On Windows, a symlink was not followed when checking that a file is under
+	  data_dir, so a link could point a lookup outside it.
 	- Saved definitions for a path: dataset reached through a symlink were not
 	  found by its /open page.
+	- week() was 0 on Windows.
 	- A saved definition that could no longer be applied made every page of its
 	  dataset a 400, so the panel that mends it could not be reached.  The table
 	  page is now drawn without it, with a note saying what is wrong.
