@@ -360,10 +360,10 @@ Approximate LCSAJ segments: 17<br>
 </span><span class="">   19: # It is a pure cache: deleting the extracts/ directory at any time leaves
 </span><span class="">   20: # the application fully functional.  No file under data_dir is created.
 </span><span class="">   21: #
-</span><span class="">   22: # This is a standalone cache class: the web application does not call it (the
-</span><span class="">   23: # routes read their sources directly), and the tests cover the class itself.
-</span><span class="">   24: # A caller decides whether to build a new extract; Extract only stores and
-</span><span class="">   25: # retrieves bytes.
+</span><span class="">   22: # The web application reads an accelerated dataset&#39;s extract through get(), and
+</span><span class="">   23: # script/bi-extract builds one through put() (Dashboard::accelerate).  A caller
+</span><span class="">   24: # decides whether to build a new extract; Extract only stores and retrieves
+</span><span class="">   25: # bytes.
 </span><span class="">   26: # ---------------------------------------------------------------------------
 </span><span class="">   27: 
 </span><span class="">   28: # new( model_dir =&gt; $dir ) -&gt; $self
@@ -531,97 +531,98 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  142: The cache key is an MD5 of the dataset spec, its source mtime, and its size.
 </span><span class="">  143: Deleting the extracts directory leaves the application fully functional.
 </span><span class="">  144: 
-</span><span class="">  145: This is a standalone cache class.  The web application does not call it; the
-</span><span class="">  146: caller decides when to build an extract, and the class only stores and finds
-</span><span class="">  147: the bytes.
-</span><span class="">  148: 
-</span><span class="">  149: =head1 METHODS
-</span><span class="">  150: 
-</span><span class="">  151: =head2 new
-</span><span class="">  152: 
-</span><span class="">  153: =head3 API SPECIFICATION
-</span><span class="">  154: 
-</span><span class="">  155: =head4 INPUT
-</span><span class="">  156: 
-</span><span class="">  157: 	{ model_dir =&gt; &#39;string&#39; }   # required; extracts live in &lt;model_dir&gt;/extracts/
-</span><span class="">  158: 
-</span><span class="">  159: =head4 OUTPUT
-</span><span class="">  160: 
-</span><span class="">  161: A C&lt;Database::BI::Extract&gt; object.  Croaks C&lt;model_dir is required&gt; without
-</span><span class="">  162: C&lt;model_dir&gt;.  Nothing is created on disc until C&lt;put&gt;.
-</span><span class="">  163: 
-</span><span class="">  164: =head2 path
-</span><span class="">  165: 
-</span><span class="">  166: =head3 API SPECIFICATION
-</span><span class="">  167: 
-</span><span class="">  168: =head4 INPUT
-</span><span class="">  169: 
-</span><span class="">  170: 	$spec    # the dataset spec, e.g. &#39;table:sales&#39;
-</span><span class="">  171: 	$mtime   # source modification time (undef is 0)
-</span><span class="">  172: 	$size    # source size in bytes (undef is 0)
-</span><span class="">  173: 
-</span><span class="">  174: =head4 OUTPUT
-</span><span class="">  175: 
-</span><span class="">  176: 	&#39;string&#39;   # &lt;model_dir&gt;/extracts/&lt;md5 of spec, mtime and size&gt;.db
-</span><span class="">  177: 
-</span><span class="">  178: The path is computed, not checked: the file need not exist.
-</span><span class="">  179: 
-</span><span class="">  180: =head2 get
-</span><span class="">  181: 
-</span><span class="">  182: =head3 API SPECIFICATION
-</span><span class="">  183: 
-</span><span class="">  184: =head4 INPUT
-</span><span class="">  185: 
-</span><span class="">  186: The same three arguments as C&lt;path&gt;.
-</span><span class="">  187: 
-</span><span class="">  188: =head4 OUTPUT
-</span><span class="">  189: 
-</span><span class="">  190: 	&#39;string&#39; | undef   # the path when that file exists, otherwise undef
-</span><span class="">  191: 
-</span><span class="">  192: A changed mtime or size gives a different path, so a stale extract is a miss.
-</span><span class="">  193: 
-</span><span class="">  194: =head2 put
-</span><span class="">  195: 
-</span><span class="">  196: =head3 API SPECIFICATION
-</span><span class="">  197: 
-</span><span class="">  198: =head4 INPUT
-</span><span class="">  199: 
-</span><span class="">  200: 	$spec, $mtime, $size   # as for path
-</span><span class="">  201: 	$bytes                 # required; the SQLite file&#39;s contents
-</span><span class="">  202: 
-</span><span class="">  203: =head4 OUTPUT
-</span><span class="">  204: 
-</span><span class="">  205: 	&#39;string&#39;   # the path written
-</span><span class="">  206: 
-</span><span class="">  207: Creates C&lt;extracts/&gt; when it is missing.  Croaks C&lt;sqlite_bytes are required&gt;
-</span><span class="">  208: when C&lt;$bytes&gt; is undefined or empty, and croaks naming the path when the
-</span><span class="">  209: directory or file cannot be written.
-</span><span class="">  210: 
-</span><span class="">  211: =head2 evict
-</span><span class="">  212: 
-</span><span class="">  213: =head3 API SPECIFICATION
-</span><span class="">  214: 
-</span><span class="">  215: =head4 INPUT
-</span><span class="">  216: 
-</span><span class="">  217: 	$spec   # accepted but not used: see below
-</span><span class="">  218: 
-</span><span class="">  219: =head4 OUTPUT
-</span><span class="">  220: 
-</span><span class="">  221: 	&#39;integer&#39;   # the number of files removed (0 when there is no extracts/)
-</span><span class="">  222: 
-</span><span class="">  223: A fingerprint cannot be traced back to its spec, so C&lt;evict&gt; removes every
-</span><span class="">  224: C&lt;.db&gt; file in C&lt;extracts/&gt;, not only C&lt;$spec&gt;&#39;s.
-</span><span class="">  225: 
-</span><span class="">  226: =head1 AUTHOR
-</span><span class="">  227: 
-</span><span class="">  228: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class="">  229: 
-</span><span class="">  230: =head1 LICENCE AND COPYRIGHT
-</span><span class="">  231: 
-</span><span class="">  232: Copyright 2026 Nigel Horne.
-</span><span class="">  233: Usage is subject to the GPL2 licence terms.
-</span><span class="">  234: 
-</span><span class="">  235: =cut
+</span><span class="">  145: The application reads the extract of an accelerated dataset through C&lt;get&gt;,
+</span><span class="">  146: and C&lt;script/bi-extract&gt; builds one through C&lt;put&gt;; see
+</span><span class="">  147: L&lt;Database::BI/Accelerated datasets&gt;.  The caller decides when to build an
+</span><span class="">  148: extract, and the class only stores and finds the bytes.
+</span><span class="">  149: 
+</span><span class="">  150: =head1 METHODS
+</span><span class="">  151: 
+</span><span class="">  152: =head2 new
+</span><span class="">  153: 
+</span><span class="">  154: =head3 API SPECIFICATION
+</span><span class="">  155: 
+</span><span class="">  156: =head4 INPUT
+</span><span class="">  157: 
+</span><span class="">  158: 	{ model_dir =&gt; &#39;string&#39; }   # required; extracts live in &lt;model_dir&gt;/extracts/
+</span><span class="">  159: 
+</span><span class="">  160: =head4 OUTPUT
+</span><span class="">  161: 
+</span><span class="">  162: A C&lt;Database::BI::Extract&gt; object.  Croaks C&lt;model_dir is required&gt; without
+</span><span class="">  163: C&lt;model_dir&gt;.  Nothing is created on disc until C&lt;put&gt;.
+</span><span class="">  164: 
+</span><span class="">  165: =head2 path
+</span><span class="">  166: 
+</span><span class="">  167: =head3 API SPECIFICATION
+</span><span class="">  168: 
+</span><span class="">  169: =head4 INPUT
+</span><span class="">  170: 
+</span><span class="">  171: 	$spec    # the dataset spec, e.g. &#39;table:sales&#39;
+</span><span class="">  172: 	$mtime   # source modification time (undef is 0)
+</span><span class="">  173: 	$size    # source size in bytes (undef is 0)
+</span><span class="">  174: 
+</span><span class="">  175: =head4 OUTPUT
+</span><span class="">  176: 
+</span><span class="">  177: 	&#39;string&#39;   # &lt;model_dir&gt;/extracts/&lt;md5 of spec, mtime and size&gt;.db
+</span><span class="">  178: 
+</span><span class="">  179: The path is computed, not checked: the file need not exist.
+</span><span class="">  180: 
+</span><span class="">  181: =head2 get
+</span><span class="">  182: 
+</span><span class="">  183: =head3 API SPECIFICATION
+</span><span class="">  184: 
+</span><span class="">  185: =head4 INPUT
+</span><span class="">  186: 
+</span><span class="">  187: The same three arguments as C&lt;path&gt;.
+</span><span class="">  188: 
+</span><span class="">  189: =head4 OUTPUT
+</span><span class="">  190: 
+</span><span class="">  191: 	&#39;string&#39; | undef   # the path when that file exists, otherwise undef
+</span><span class="">  192: 
+</span><span class="">  193: A changed mtime or size gives a different path, so a stale extract is a miss.
+</span><span class="">  194: 
+</span><span class="">  195: =head2 put
+</span><span class="">  196: 
+</span><span class="">  197: =head3 API SPECIFICATION
+</span><span class="">  198: 
+</span><span class="">  199: =head4 INPUT
+</span><span class="">  200: 
+</span><span class="">  201: 	$spec, $mtime, $size   # as for path
+</span><span class="">  202: 	$bytes                 # required; the SQLite file&#39;s contents
+</span><span class="">  203: 
+</span><span class="">  204: =head4 OUTPUT
+</span><span class="">  205: 
+</span><span class="">  206: 	&#39;string&#39;   # the path written
+</span><span class="">  207: 
+</span><span class="">  208: Creates C&lt;extracts/&gt; when it is missing.  Croaks C&lt;sqlite_bytes are required&gt;
+</span><span class="">  209: when C&lt;$bytes&gt; is undefined or empty, and croaks naming the path when the
+</span><span class="">  210: directory or file cannot be written.
+</span><span class="">  211: 
+</span><span class="">  212: =head2 evict
+</span><span class="">  213: 
+</span><span class="">  214: =head3 API SPECIFICATION
+</span><span class="">  215: 
+</span><span class="">  216: =head4 INPUT
+</span><span class="">  217: 
+</span><span class="">  218: 	$spec   # accepted but not used: see below
+</span><span class="">  219: 
+</span><span class="">  220: =head4 OUTPUT
+</span><span class="">  221: 
+</span><span class="">  222: 	&#39;integer&#39;   # the number of files removed (0 when there is no extracts/)
+</span><span class="">  223: 
+</span><span class="">  224: A fingerprint cannot be traced back to its spec, so C&lt;evict&gt; removes every
+</span><span class="">  225: C&lt;.db&gt; file in C&lt;extracts/&gt;, not only C&lt;$spec&gt;&#39;s.
+</span><span class="">  226: 
+</span><span class="">  227: =head1 AUTHOR
+</span><span class="">  228: 
+</span><span class="">  229: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  230: 
+</span><span class="">  231: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  232: 
+</span><span class="">  233: Copyright 2026 Nigel Horne.
+</span><span class="">  234: Usage is subject to the GPL2 licence terms.
+</span><span class="">  235: 
+</span><span class="">  236: =cut
 </span></pre>
 
 <script>
