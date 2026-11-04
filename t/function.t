@@ -8702,7 +8702,7 @@ sub croak_rethrow {
 		$tm->post_ok('/geo/save')->status_is(400)->json_is('/error', 'l= required');
 		$tm->post_ok('/geo/delete')->status_is(400)->json_is('/error', 'l= required');
 		$tm->post_ok("/geo/save?l=$SALES")->status_is(400)->json_is('/error', 'col= required');
-		$tm->post_ok("/geo/save?l=$SALES&col=region")->status_is(400)->json_is('/error', 'kind must be lat, lon, or location');
+		$tm->post_ok("/geo/save?l=$SALES&col=region")->status_is(400)->json_is('/error', 'kind must be lat, lon, location or location_suffix');
 		$tm->post_ok("/geo/save?l=$SALES&col=region&kind=evil")->status_is(400);
 
 		$tm->post_ok("/geo/save?l=$SALES&col=region&kind=location")->status_is(200);

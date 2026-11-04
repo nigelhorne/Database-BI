@@ -624,4 +624,41 @@ subtest 'the diagnostics can be rendered by the caller' => sub {
 	ok($seen{'warn_map_rows_skipped'}, 'the object was asked for that key');
 };
 
+subtest 'place_rows joins a place written across columns' => sub {
+	my $G = 'Database::BI::Model::Geocode';
+	my @rows = (
+		{ address => 'Brezje 8, Cerknica', country => 'Slovenia' },
+		{ address => '',                   country => 'Slovenia' },
+		{ address => "  Mahni\x{10D}i 10 ", country => "Slovenia\t" },
+		{ address => undef,                country => '' },
+		'not a row',
+	);
+	my @copy = map { ref $_ ? { %{$_} } : $_ } @rows;
+
+	my ($places, $name) = $G->place_rows(\@rows, [qw(address country)]);
+	is($name, 'address, country', 'the place is named after its columns, in order');
+	is_deeply($places, [
+		{ 'address, country' => 'Brezje 8, Cerknica, Slovenia' },
+		{ 'address, country' => 'Slovenia' },
+		{ 'address, country' => "Mahni\x{10D}i 10, Slovenia" },
+		{ 'address, country' => '' },
+		undef,
+	], 'cells are trimmed and joined with ", ", empty ones left out, one row each');
+	is_deeply(\@rows, \@copy, 'the rows given are not changed');
+
+	my ($reversed) = $G->place_rows(\@rows, [qw(country address)]);
+	is($reversed->[0]{'country, address'}, 'Slovenia, Brezje 8, Cerknica', 'the order is the one given');
+
+	my ($same, $one) = $G->place_rows(\@rows, ['address']);
+	ok($same == \@rows, 'one column hands back the rows themselves');
+	is($one, 'address', 'under that column\'s name');
+
+	my $result = $G->new(geocoder => stub())->resolve_column($places, $name);
+	is($result->{counts}{distinct}, 4, 'resolve_column reads the joined column');
+
+	throws_ok { $G->place_rows({}, ['a']) }     qr/must be an arrayref/, 'rows must be an arrayref';
+	throws_ok { $G->place_rows(\@rows, []) }    qr/column name is required/, 'and a column is needed';
+	throws_ok { $G->place_rows(\@rows, ['']) }  qr/column name is required/, 'not just an empty name';
+};
+
 done_testing();

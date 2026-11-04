@@ -2595,17 +2595,39 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(Geocode => 'error_cache_interface', $err->(sub { $G->new(cache => Unit::GeoBroken->new) }), ['Unit::GeoBroken']);
 		message_ok(Geocode => 'error_cache_dir', $err->(sub { $G->file_cache('/no/such/directory') }), ['/no/such/directory']);
 
+		# Geo::Coder::Free without Geo::Coder::List: a stand-in for the first,
+		# and the second hidden, so this is raised whatever is installed.
+		{
+			no warnings qw(once redefine);
+			local $INC{'Geo/Coder/Free.pm'} = __FILE__;
+			local $Geo::Coder::Free::VERSION = '99';
+			local *Geo::Coder::Free::new = sub { return bless {}, 'Unit::GeoFree' };
+			delete local $INC{'Geo/Coder/List.pm'};
+			local @INC = (sub {
+				die "Can't locate $_[1] in \@INC (hidden by t/unit.t)\n" if $_[1] eq 'Geo/Coder/List.pm';
+				return;
+			}, @INC);
+			my (undef, $no_list) = $G->new->geocoder_available;
+			message_ok(Geocode => 'error_map_geocoder_list_missing', $no_list, ['it is not installed']);
+		}
+
 		# The chain's own messages, with the local data and Nominatim stood in
-		# for by t/lib/BI/Test/Nominatim.pm, so nothing reaches the network.
+		# for by t/lib/BI/Test/Nominatim.pm, so nothing reaches the network.  They
+		# need the real chain; where it cannot be built (CI installs no
+		# recommended modules) the two are left out of the ledger rather than
+		# failed, and t/geocode-online.t, which skips there too, is their test.
 		SKIP: {
-			skip 'Geo::Coder::List 0.39, Geo::Coder::OSM 0.03 and LWP::UserAgent::Throttled 0.14 or later are needed', 1
-				unless eval {
-					require Geo::Coder::List;          Geo::Coder::List->VERSION(0.39);
-					require Geo::Coder::OSM;           Geo::Coder::OSM->VERSION(0.03);
-					require LWP::UserAgent::Throttled; LWP::UserAgent::Throttled->VERSION(0.14);
-					require Geo::Location::Point;
-					1;
-				};
+			my $have_chain = eval {
+				require Geo::Coder::List;          Geo::Coder::List->VERSION(0.39);
+				require Geo::Coder::OSM;           Geo::Coder::OSM->VERSION(0.03);
+				require LWP::UserAgent::Throttled; LWP::UserAgent::Throttled->VERSION(0.14);
+				require Geo::Location::Point;
+				1;
+			};
+			unless ($have_chain) {
+				delete $ledger{"msg.Geocode.$_"} for qw(warn_map_geocoder_local_only warn_map_geocoder_online_failed);
+				skip 'Geo::Coder::List 0.39, Geo::Coder::OSM 0.03 and LWP::UserAgent::Throttled 0.14 or later are needed', 2;
+			}
 			require BI::Test::Nominatim;
 			my $text = sub {
 				my ($result, $key) = @_;
@@ -2613,10 +2635,6 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 				return $m ? $m->{text} : undef;
 			};
 
-			BI::Test::Nominatim::with_chain(hide => ['Geo::Coder::List'], sub {
-				my (undef, $no_list) = $G->new->geocoder_available;
-				message_ok(Geocode => 'error_map_geocoder_list_missing', $no_list, ['it is not installed']);
-			});
 			BI::Test::Nominatim::with_chain(hide => ['Geo::Coder::OSM'], sub {
 				my $r = $G->new->resolve_values(['Nowhere']);
 				message_ok(Geocode => 'warn_map_geocoder_local_only', $text->($r, 'warn_map_geocoder_local_only'));
@@ -2977,9 +2995,9 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok('/geo/save')->status_is(400)->json_is('/error', 'l= required');
 		$tm->post_ok('/geo/delete')->status_is(400)->json_is('/error', 'l= required');
 		$tm->post_ok("/geo/save?$l")->status_is(400)->json_is('/error', 'col= required');
-		$tm->post_ok("/geo/save?$l&col=c&kind=evil")->status_is(400)->json_is('/error', 'kind must be lat, lon, or location');
-		$tm->post_ok("/geo/save?$l&col=c&kind=$_")->status_is(200)->json_is('/ok', 1) for qw(lat lon location);
-		$tm->get_ok("/geo/list?$l")->json_is('/columns/c/kind', 'location');
+		$tm->post_ok("/geo/save?$l&col=c&kind=evil")->status_is(400)->json_is('/error', 'kind must be lat, lon, location or location_suffix');
+		$tm->post_ok("/geo/save?$l&col=c&kind=$_")->status_is(200)->json_is('/ok', 1) for qw(lat lon location location_suffix);
+		$tm->get_ok("/geo/list?$l")->json_is('/columns/c/kind', 'location_suffix');
 		$tm->post_ok("/geo/delete?$l&col=c")->status_is(200)->json_is('/ok', 1);
 		$tm->post_ok("/geo/save?$l&col=d&kind=lat");
 		$tm->post_ok("/geo/delete?$l")->status_is(200);

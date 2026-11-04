@@ -1050,6 +1050,10 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 					<select id="ac-map-loc"></select>
 					<span class="ac-note">Or choose latitude and longitude below.</span>
 				</label>
+				<label class="ac-field" data-for="map" data-label="Followed by (optional)">Followed by (optional)
+					<select id="ac-map-loc2"></select>
+					<span class="ac-note">Added after the place, with a comma: an address followed by its country.</span>
+				</label>
 				<label class="ac-field" data-for="map" data-label="Latitude">Latitude
 					<select id="ac-map-lat"></select>
 				</label>
@@ -1134,6 +1138,10 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 			<label class="ac-field">Place column (optional)
 				<select id="me-loc"></select>
 				<span class="ac-note">A place column is used when chosen; otherwise the coordinates below are.</span>
+			</label>
+			<label class="ac-field">Followed by (optional)
+				<select id="me-loc2"></select>
+				<span class="ac-note">Added after the place, with a comma: an address followed by its country.</span>
 			</label>
 			<label class="ac-field">Latitude
 				<select id="me-lat"></select>
@@ -2966,6 +2974,7 @@ menu, so it reads without the menu being opened.</p>
 		var csList     = document.getElementById('ac-cs-list');
 		var csEmpty    = document.getElementById('ac-cs-empty');
 		var mapLocSel = document.getElementById('ac-map-loc');
+		var mapLoc2Sel = document.getElementById('ac-map-loc2');
 		var mapLatSel = document.getElementById('ac-map-lat');
 		var mapLonSel = document.getElementById('ac-map-lon');
 		var binsInp  = document.getElementById('ac-bins');
@@ -3028,6 +3037,7 @@ menu, so it reads without the menu being opened.</p>
 		fill(csBySel,
 			[{ value: '', label: '\u2014 the whole view \u2014' }].concat(allCols));
 		fill(mapLocSel, choose.concat(allCols));
+		if (mapLoc2Sel) fill(mapLoc2Sel, [{ value: '', label: '\u2014 nothing \u2014' }].concat(allCols));
 		fill(mapLatSel, choose.concat(numCols));
 		fill(mapLonSel, choose.concat(numCols));
 		/* Optional columns, so each says "none" first. */
@@ -3687,6 +3697,7 @@ menu, so it reads without the menu being opened.</p>
 		var editPanel  = document.getElementById('me-panel');
 		var editForm   = document.getElementById('me-form');
 		var editLoc    = document.getElementById('me-loc');
+		var editLoc2   = document.getElementById('me-loc2');
 		var editLat    = document.getElementById('me-lat');
 		var editLon    = document.getElementById('me-lon');
 		var editSave   = document.getElementById('me-save');
@@ -3696,6 +3707,9 @@ menu, so it reads without the menu being opened.</p>
 		if (editPanel && editForm && editLoc && editLat && editLon && editSave && editError) {
 			var editTarget = null;   /* { card, btn, index } */
 			var editLoaded = false;
+			/* Place columns past the second, which only a URL can give a card:
+			 * the dialog shows two, and keeps the rest when it saves. */
+			var editLocRest = [];
 
 			var editSetError = function (message) {
 				editError.textContent = message || '';
@@ -3776,6 +3790,7 @@ menu, so it reads without the menu being opened.</p>
 				editSave.disabled = true;
 				editSave.textContent = 'Save columns';
 				editLoc.innerHTML = '<option value="">Loading\u2026</option>';
+				if (editLoc2) editLoc2.innerHTML = '';
 				editLat.innerHTML = '';
 				editLon.innerHTML = '';
 				editSetError('');
@@ -3795,7 +3810,13 @@ menu, so it reads without the menu being opened.</p>
 						var numeric = canvasColumns.filter(function (c) { return c.numeric; })
 							.map(function (c) { return c.name; });
 						var all = canvasColumns.map(function (c) { return c.name; });
-						editFill(editLoc, all, enc.loc || '');
+						var locs = Array.isArray(enc.loc) ? enc.loc : (enc.loc ? [enc.loc] : []);
+						editFill(editLoc, all, locs[0] || '');
+						if (editLoc2) {
+							editFill(editLoc2, all, locs[1] || '');
+							editLoc2.options[0].textContent = '\u2014 nothing \u2014';
+						}
+						editLocRest = locs.slice(2);
 						editFill(editLat, numeric, enc.lat || '');
 						editFill(editLon, numeric, enc.lon || '');
 						editLoaded = true;
@@ -3837,7 +3858,11 @@ menu, so it reads without the menu being opened.</p>
 
 				var encode = {};
 				if (editLoc.value) {
-					encode.loc = editLoc.value;
+					var locs = [editLoc.value];
+					if (editLoc2 && editLoc2.value) locs.push(editLoc2.value);
+					if (locs.length > 1) locs = locs.concat(editLocRest);
+					locs = locs.filter(function (c, i) { return locs.indexOf(c) === i; });
+					encode.loc = locs.length > 1 ? locs : locs[0];
 				} else if (editLat.value && editLon.value) {
 					encode.lat = editLat.value;
 					encode.lon = editLon.value;
@@ -3878,7 +3903,7 @@ menu, so it reads without the menu being opened.</p>
 
 					editClose(1);
 					announce('Map columns updated: '
-						+ (encode.loc ? 'place column ' + encode.loc
+						+ (encode.loc ? (Array.isArray(encode.loc) ? 'place columns ' + encode.loc.join(', ') : 'place column ' + encode.loc)
 						              : 'latitude ' + encode.lat + ' and longitude ' + encode.lon) + '.');
 
 					var titleEl = card.querySelector('.visual-card-title');
@@ -5118,7 +5143,9 @@ menu, so it reads without the menu being opened.</p>
 				options.minlen = Math.min(64,  Math.max(1, parseInt(wcMinlenInp.value, 10) || 3));
 			} else if (kind === 'map') {
 				if (mapLocSel.value) {
-					encode.loc = mapLocSel.value;
+					/* A second column makes the place their cells joined by ", ". */
+					encode.loc = (mapLoc2Sel && mapLoc2Sel.value && mapLoc2Sel.value !== mapLocSel.value)
+						? [mapLocSel.value, mapLoc2Sel.value] : mapLocSel.value;
 				} else {
 					encode.lat = picked(mapLatSel, 'latitude column'); if (!encode.lat) return;
 					encode.lon = picked(mapLonSel, 'longitude column'); if (!encode.lon) return;

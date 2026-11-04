@@ -182,6 +182,13 @@
 	sharing a position become one marker.
 </p>
 <dl class="spec">
+	<dt><code>loc=&lt;col&gt;</code></dt>
+	<dd>
+		A column of places to geocode. Repeat it for a place written across
+		columns: <code>loc=Address&amp;loc=Country</code> looks up each row's
+		address and country joined with a comma, leaving out an empty cell. The
+		map panel's <em>Followed by</em> field does the same.
+	</dd>
 	<dt><code>popup=&lt;col&gt;</code></dt>
 	<dd>A column shown in the marker popup; repeatable.</dd>
 	<dt><code>max=N</code>, <code>zoom=N</code></dt>

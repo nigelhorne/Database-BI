@@ -36,8 +36,15 @@ Revision history for Database-BI
 	  whose local lookup fails is left for later rather than ending the
 	  page.  Nominatim is asked over https, one request a lookup
 	  (Geo::Coder::OSM asked over http, and was redirected).
+	- /map takes loc= more than once, for a place written across columns:
+	  loc=Address&loc=Country looks up "Brezje 8, Cerknica, Slovenia".  The
+	  map panel has a Followed by column (guessed when one is called
+	  Country, and remembered with the other), canvas map cards keep the
+	  columns as a list, and script/bi-geocode takes --col more than once.
 	- script/bi-geocode takes --offline and --online-max.
 	[ Bug fixes ]
+	- script/bi-geocode could not open a path: spec: it looked for a table
+	  named after the whole file name, extension included.
 	- /scatter no longer saves scheme= in the chart it hands to a canvas when
 	  series= is absent, where the scheme is ignored and unchecked.
 	- A scatter added to a canvas from /scatter kept only x and y: the card now

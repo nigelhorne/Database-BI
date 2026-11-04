@@ -129,7 +129,19 @@ my $shared_b_csv = _write_file(File::Spec->catfile($dir, 'shared-b.csv'),
 	. "2,Hastings\n"
 );
 
+# A place written across two columns: an address, then its country.  The
+# second row has no address, so its place is the country alone; the third's
+# address has spaces around it.
+my $houses_csv = _write_file(File::Spec->catfile($dir, 'houses.csv'),
+	"id,person,address,country\n"
+	. "1,Valentin,\"Brezje 8, Cerknica\",Slovenia\n"
+	. "2,Franc,,Slovenia\n"
+	. "3,Marija,\"  Brezje 8, Cerknica \",Slovenia\n"
+	. "4,Ana,,\n"
+);
+
 my $places_spec = 'path:' . $places_csv;
+my $houses_spec = 'path:' . $houses_csv;
 my $markup_spec = 'path:' . $markup_csv;
 my $range_spec  = 'path:' . $range_csv;
 my $towns_spec  = 'path:' . $towns_csv;
@@ -160,6 +172,8 @@ my $stub = Stub::Geocoder->new(results => {
 	'Faversham'           => Stub::Point->new(latitude => 51.31, longitude => 0.89, database => 'OpenAddresses'),
 	'Hastings'            => Stub::Point->new(latitude => 50.85, longitude => 0.57, database => 'OpenAddresses'),
 	'Rye'                 => Stub::Point->new(latitude => 50.95, longitude => 0.73, database => 'OpenAddresses'),
+	'Brezje 8, Cerknica, Slovenia' => Stub::Point->new(latitude => 45.79, longitude => 14.36, database => 'OpenAddresses'),
+	'Slovenia'            => Stub::Point->new(latitude => 46.12, longitude => 14.82, database => 'OpenAddresses'),
 });
 
 $t->app->config->{geocoder} = $stub;
@@ -862,6 +876,62 @@ subtest 'an HTML::OSM older than 0.12 degrades instead of returning 500' => sub 
 			'the warning is the older-install message, not the missing-module one')
 		->content_unlike(qr/L\.marker\(/, 'no map script is emitted')
 		->content_like(qr/Plotting 2 markers/, 'the markers are still counted');
+};
+
+subtest 'loc= repeated geocodes the columns joined with ", "' => sub {
+	my $url = '/map?l=' . url_escape($houses_spec) . '&loc=address&loc=country';
+	my $before = scalar @{ $stub->{calls} };
+
+	$t->get_ok($url)->status_is(200);
+	my $body = $t->tx->res->body;
+
+	my @asked = map { @{ $_->{values} } } @{ $stub->{calls} }[ $before .. $#{ $stub->{calls} } ];
+	is_deeply([ sort @asked ], [ 'Brezje 8, Cerknica, Slovenia', 'Slovenia' ],
+		'the geocoder is asked for each row\'s cells joined, trimmed, without the empty ones');
+
+	like($body, qr/<title>Map of address, country/, 'the page is titled after both columns');
+	like($body, qr/from columns address, country/, 'the summary names both columns');
+	like($body, qr/Plotting 2 markers for 3 of 4 rows/, 'a row with neither cell is not plotted');
+	like($body, qr/L\.marker\(\[45\.79, 14\.36\]/, 'the address is plotted');
+	like($body, qr/L\.marker\(\[46\.12, 14\.82\]/, 'and the row with only a country, at the country');
+	like($body, qr/<strong>Brezje 8, Cerknica, Slovenia/, 'the popup names the joined place');
+	unlike($body, qr/<b>address:<\/b>|<b>country:<\/b>/, 'and leaves the two columns out of its list');
+	like(html_unescape($body), qr/Map: address, country/, 'the breadcrumb names both columns');
+
+	my ($chart) = $body =~ /data-chart="([^"]*)"/;
+	my $spec = decode_json(html_unescape($chart // 'null'));
+	is_deeply($spec->{encode}{loc}, [qw(address country)], 'Add to canvas keeps both columns, in order');
+
+	$t->get_ok('/map?l=' . url_escape($houses_spec) . '&loc=address&loc=nope')
+		->status_is(400, 'a second column that is not there is refused')
+		->content_like(qr/Column "nope" is not in this view/);
+
+	$t->get_ok('/map?l=' . url_escape($houses_spec) . '&loc=country&loc=')
+		->status_is(200, 'an empty loc= is ignored')
+		->content_like(qr/<title>Map of country &#x2014;/, 'leaving the one column');
+
+	# A canvas card stores the columns as a list, and draws the same map.
+	$t->post_ok('/api/analyses' => json => {
+		name     => 'Houses',
+		datasets => [ { spec => $houses_spec, alias => 'left' } ],
+		visuals  => [ { kind => 'map', encode => { loc => [qw(address country)] }, title => 'Houses' } ],
+	})->status_is(201);
+	my $id = $t->tx->res->json->{id};
+	$t->get_ok("/a/$id")->status_is(200)
+		->content_like(qr/L\.marker\(\[45\.79, 14\.36\]/, 'a card with two place columns plots the joined place')
+		->content_like(qr/Plotting 2 markers for 3 of 4 rows/, 'and counts the same rows');
+
+	# The map panel offers the second column, and remembers it.
+	$t->get_ok('/open?path=' . url_escape($houses_csv))->status_is(200)
+		->element_exists('select#map-loc2-sel[name="loc"]', 'the map panel has a "Followed by" column');
+	$t->post_ok('/geo/save' => form => {
+		l => $houses_spec, replace => 1, col => [qw(address country)], kind => [qw(location location_suffix)],
+	})->status_is(200)->json_is('/ok' => 1);
+	$t->get_ok('/geo/list?l=' . url_escape($houses_spec))
+		->json_is('/columns/country/kind' => 'location_suffix', 'the second column is remembered as such')
+		->json_is('/columns/address/kind' => 'location');
+	$t->post_ok('/geo/save' => form => { l => $houses_spec, col => 'country', kind => 'suffix' })
+		->status_is(400, 'an unknown kind is still refused');
 };
 
 subtest 'a canvas map card degrades the same way' => sub {

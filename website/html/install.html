@@ -308,8 +308,10 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	lookups. Places the local data does not know are asked of OpenStreetMap's
 	Nominatim, one a second and with no limit on how many: a map page asks it about
 	at most <code>map_geocode_online_max</code> places, and this is how the rest are
-	found. <code>--offline</code> keeps every lookup local, and
-	<code>--online-max N</code> sets a limit:
+	found. <code>--col</code> may be given twice for a place written across
+	columns (<code>--col Address --col Country</code>), joined with a comma as
+	<code>loc=</code> joins them on the map. <code>--offline</code> keeps every lookup
+	local, and <code>--online-max N</code> sets a limit:
 </p>
 <pre><code>./script/bi-geocode --spec table:customers --col city \
                     [--data-dir DIR] [--model-dir DIR] \

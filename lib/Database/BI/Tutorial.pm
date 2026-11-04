@@ -600,6 +600,7 @@ my @CHAPTERS = (
 			'Open the table and click Map...',
 			'Keep Coordinate columns, then choose the latitude and longitude columns.',
 			'If your table has places instead, choose Place-name column and pick that column.',
+			'If the place is split over two columns, such as an address and its country, choose the second one under Followed by. The map then looks up "Brezje 8, Cerknica, Slovenia".',
 			'Tick Remember columns. Next time, the panel chooses the same columns for this table. Click Forget remembered columns to stop this.',
 			'Tick Heatmap layer to colour the busy areas. Choose a Heat weight column to make some rows count for more.',
 			'Type an Initial zoom from 0 to 19 to start closer in. Leave it empty to fit every marker.',
@@ -949,6 +950,7 @@ my @CHAPTERS = (
 		steps => [
 			'Find the script at script/bi-geocode in the application folder.',
 			'Pass --spec with the table, and --col with the column that holds the place names.',
+			'Give --col twice for a place split over two columns, such as --col Address --col Country.',
 			'For example: bi-geocode --spec table:virginia_counties --col county --region US.',
 			'Pass --region with a country code, such as GB or US, when the names could be in several countries.',
 			'Pass --dry-run to look the places up without keeping the result.',

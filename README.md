@@ -625,7 +625,9 @@ perl Makefile.PL
 
     ```
     l=<spec>       left table (required)
-    loc=<col>      column of places to geocode (required unless lat= and lon= are)
+    loc=<col>      column of places to geocode (required unless lat= and lon= are);
+                   repeat it for a place written across columns, which are joined
+                   with ", " in that order (loc=Address&loc=Country)
     lat=<col>      latitude column, -90..90
     lon=<col>      longitude column, -180..180
     popup=<col>    column shown in the marker popup (repeatable)

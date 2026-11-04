@@ -1421,6 +1421,16 @@
           [%- END -%]
         </select>
       </div>
+      <div class="join-field" id="map-loc2-field" hidden>
+        <label for="map-loc2-sel">Followed by</label>
+        <select id="map-loc2-sel" name="loc" disabled
+                title="A column added after the place, with a comma: an address column followed by a country column looks up &quot;Brezje 8, Cerknica, Slovenia&quot;">
+          <option value="">&#x2014; nothing &#x2014;</option>
+          [%- FOREACH col IN columns -%]
+          <option value="[% col | html %]">[% col | html %]</option>
+          [%- END -%]
+        </select>
+      </div>
       <div class="graph-btn-col">
         <span class="graph-btn-spacer"></span>
         <label class="check-label">
@@ -4258,6 +4268,8 @@ function biDetectColType(colName) {
   var latSel        = document.getElementById('map-lat-sel');
   var lonSel        = document.getElementById('map-lon-sel');
   var locSel        = document.getElementById('map-loc-sel');
+  var loc2Sel       = document.getElementById('map-loc2-sel');
+  var loc2Field     = document.getElementById('map-loc2-field');
   var latField      = document.getElementById('map-lat-field');
   var lonField      = document.getElementById('map-lon-field');
   var locField      = document.getElementById('map-loc-field');
@@ -4273,7 +4285,7 @@ function biDetectColType(colName) {
 
   function checkMap() {
     if (byLocation()) {
-      btnDo.disabled = !locSel.value;
+      btnDo.disabled = !locSel.value || loc2Sel.value === locSel.value;
     } else {
       btnDo.disabled = !(latSel.value && lonSel.value && latSel.value !== lonSel.value);
     }
@@ -4286,9 +4298,11 @@ function biDetectColType(colName) {
     latField.hidden = loc;
     lonField.hidden = loc;
     locField.hidden = !loc;
+    loc2Field.hidden = !loc;
     latSel.disabled = loc;
     lonSel.disabled = loc;
     locSel.disabled = !loc;
+    loc2Sel.disabled = !loc;
     latSel.required = !loc;
     lonSel.required = !loc;
     locSel.required = loc;
@@ -4311,6 +4325,12 @@ function biDetectColType(colName) {
     if (!latSel.value) latSel.value = guess(latSel, [/^(lat|latitude)$/i, /lat/i]);
     if (!lonSel.value) lonSel.value = guess(lonSel, [/^(lon|lng|long|longitude)$/i, /(lon|lng|longitude)/i]);
     if (!locSel.value) locSel.value = guess(locSel, [/^(loc|location|place|city|town|address)$/i, /(place|location|city|address)/i]);
+    // A country column is what an address usually lacks: offer it as the
+    // second part, unless it is the place column itself.
+    if (!loc2Sel.value && locSel.value && !loc2Sel.dataset.chosen) {
+      var country = guess(loc2Sel, [/^country$/i]);
+      if (country !== locSel.value) loc2Sel.value = country;
+    }
     if (!latSel.value || !lonSel.value) {
       if (locSel.value) modeSel.value = 'loc';
     }
@@ -4318,7 +4338,7 @@ function biDetectColType(colName) {
 
   // Pre-populate selects from /geo/list, then fall back to guessColumns().
   function applyGeoPrefs(cols) {
-    var kindMap = { lat: latSel, lon: lonSel, location: locSel };
+    var kindMap = { lat: latSel, lon: lonSel, location: locSel, location_suffix: loc2Sel };
     var anySet  = false;
     Object.keys(cols).forEach(function (col) {
       var kind = (cols[col] || {}).kind;
@@ -4361,11 +4381,14 @@ function biDetectColType(colName) {
             guessColumns();
           }
           if (forgetBtn) forgetBtn.hidden = !saved;
-          checkMap();
+          // A remembered or guessed place column switches the mode, so the
+          // fields are shown, enabled and checked again for it.
+          syncMode();
         })
-        .catch(function () { guessColumns(); checkMap(); });
+        .catch(function () { guessColumns(); syncMode(); });
     } else {
       guessColumns();
+      syncMode();
     }
   });
 
@@ -4385,7 +4408,7 @@ function biDetectColType(colName) {
       if (!j.ok) return;
       forgetBtn.hidden = true;
       guessColumns();
-      checkMap();
+      syncMode();
     }).catch(function () {});
   });
 
@@ -4393,6 +4416,10 @@ function biDetectColType(colName) {
   latSel.addEventListener('change', checkMap);
   lonSel.addEventListener('change', checkMap);
   locSel.addEventListener('change', checkMap);
+  loc2Sel.addEventListener('change', function () {
+    loc2Sel.dataset.chosen = '1';	// the user's choice, "nothing" included, is not guessed over
+    checkMap();
+  });
 
   // --- Colour-coding controls ---
   function isMapDateVal(v) {
@@ -4497,6 +4524,10 @@ function biDetectColType(colName) {
       mapForm.appendChild(inp);
     }
 
+    // "Followed by: nothing" sends no second loc=; opening the panel again
+    // enables it (syncMode).
+    if (!loc2Sel.value) loc2Sel.disabled = true;
+
     // Save column preferences when the checkbox is checked.
     var remChk = document.getElementById('map-remember-chk');
     if (remChk && remChk.checked) {
@@ -4510,6 +4541,8 @@ function biDetectColType(colName) {
           saves.push({ col: lonSel.value, kind: 'lon' });
         if (byLocation() && locSel.value)
           saves.push({ col: locSel.value, kind: 'location' });
+        if (byLocation() && locSel.value && loc2Sel.value)
+          saves.push({ col: loc2Sel.value, kind: 'location_suffix' });
         // One request, which replaces what was saved before; keepalive lets it
         // finish while the form takes the page to the map.
         if (saves.length) {

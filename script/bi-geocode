@@ -1,7 +1,8 @@
 #!/usr/bin/env perl
 # bi-geocode -- Phase 6 geocode-cache warming CLI for Database::BI
 #
-# Opens a dataset spec, geocodes every distinct value of the named column,
+# Opens a dataset spec, geocodes every distinct value of the named column
+# (or of several, --col repeated, joined with ", ": an address, then its country),
 # and writes the resolved coordinates into the shared geocode cache in
 # models.json.  Subsequent map views for the same dataset serve from the
 # cache without making any geocoder requests.
@@ -15,7 +16,7 @@
 # warm cache resolves zero additional places (and says so).
 #
 # Usage:
-#   bi-geocode --spec <l-spec> --col <column>
+#   bi-geocode --spec <l-spec> --col <column> [--col <column> ...]
 #              [--data-dir <dir>] [--model-dir <dir>]
 #              [--openaddr <path>] [--region <CC>]
 #              [--offline] [--online-max <n>]
@@ -45,13 +46,14 @@ use POSIX qw(strftime);
 # Parse arguments
 # ---------------------------------------------------------------------------
 
-my ($opt_spec, $opt_col, $opt_data_dir, $opt_model_dir,
+my @opt_cols;
+my ($opt_spec, $opt_data_dir, $opt_model_dir,
     $opt_openaddr, $opt_region, $opt_dry_run, $opt_verbose, $opt_help,
     $opt_offline, $opt_online_max);
 
 GetOptions(
 	'spec|s=s'       => \$opt_spec,
-	'col|c=s'        => \$opt_col,
+	'col|c=s'        => \@opt_cols,
 	'data-dir|d=s'   => \$opt_data_dir,
 	'model-dir|m=s'  => \$opt_model_dir,
 	'openaddr|o=s'   => \$opt_openaddr,
@@ -74,7 +76,8 @@ unless (defined $opt_spec && length $opt_spec) {
 	warn "bi-geocode: --spec <l-spec> is required\n";
 	exit 2;
 }
-unless (defined $opt_col && length $opt_col) {
+@opt_cols = grep { length } @opt_cols;
+unless (@opt_cols) {
 	warn "bi-geocode: --col <column> is required\n";
 	exit 2;
 }
@@ -107,9 +110,12 @@ my $source = eval {
 			directory => $data_dir,
 		);
 	} elsif (defined $path) {
-		my $f = Mojo::File->new($path);
+		# As the map page opens it: the table is the file's name without its
+		# extension, in the directory the file really is in.
+		my $f = Mojo::File->new($path)->realpath;
+		(my $stem = $f->basename) =~ s/\.[^.]+\z//;
 		Database::BI::Model::DataSource->new(
-			table     => $f->basename,
+			table     => $stem,
 			directory => $f->dirname->to_string,
 		);
 	} else {
@@ -129,11 +135,12 @@ if ($@ || !defined $records || !@$records) {
 	exit 1;
 }
 
-# Validate column
+# Validate the columns
 my $columns = $source->columns // [ keys %{ $records->[0] } ];
 my %col_set = map { $_ => 1 } @$columns;
-unless ($col_set{$opt_col}) {
-	warn "bi-geocode: column \"$opt_col\" not found in dataset\n";
+for my $col (@opt_cols) {
+	next if $col_set{$col};
+	warn "bi-geocode: column \"$col\" not found in dataset\n";
 	warn "  available: " . join(', ', sort keys %col_set) . "\n";
 	exit 1;
 }
@@ -152,6 +159,9 @@ if (-f $models_file) {
 }
 
 require Database::BI::Model::Geocode;
+
+# Several columns are one place, their cells joined with ", ", as on the map page.
+my ($places, $opt_col) = Database::BI::Model::Geocode->place_rows($records, \@opt_cols);
 
 my $cache_spec = $opt_spec . '|loc=' . $opt_col;
 my $legacy  = Database::BI::Model::Geocode->cache_from_models($models, $cache_spec);
@@ -185,7 +195,7 @@ if (defined $opt_region && $opt_region =~ /\A[A-Za-z]{2}\z/) {
 # ---------------------------------------------------------------------------
 
 my $t0 = time;
-my $result = $geocode->resolve_column($records, $opt_col, %opts);
+my $result = $geocode->resolve_column($places, $opt_col, %opts);
 my $elapsed = time - $t0;
 
 my $counts   = $result->{counts};
@@ -249,11 +259,13 @@ sub _log {
 
 sub _usage {
 	print STDERR <<'USAGE';
-Usage: bi-geocode --spec <l-spec> --col <column> [options]
+Usage: bi-geocode --spec <l-spec> --col <column> [--col <column> ...] [options]
 
 Required:
   --spec, -s <spec>     Dataset spec: table:<name>, path:</abs/path>, url:<url>
-  --col,  -c <column>   Column holding place names to geocode
+  --col,  -c <column>   Column holding place names to geocode; repeat it for a
+                        place across columns, joined with ", " in that order
+                        (--col Address --col Country)
 
 Options:
   --data-dir,  -d <dir>   Data directory (default: data)

@@ -1766,6 +1766,9 @@
       ['x','y','cat','val','series','size','bar_val','line_val','group','col','lat','lon','loc'].forEach(function (k) {
         if (p.get(k)) encode[k] = p.get(k);
       });
+      // A place spread over columns (loc= repeated) is kept as their list.
+      var locs = p.getAll('loc').filter(Boolean);
+      if (locs.length > 1) encode.loc = locs;
       vis = { kind: kind, encode: encode, title: document.title || kind };
     }
 

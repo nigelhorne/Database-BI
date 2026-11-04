@@ -1488,6 +1488,73 @@ sub file_cache {
 	);
 }
 
+=head2 place_rows
+
+    my ($places, $name) = Database::BI::Model::Geocode->place_rows(\@rows, [ 'Address', 'Country' ]);
+    my $result = $geocode->resolve_column($places, $name);
+
+A place written across several columns, such as an address and then its
+country, as one column to geocode.  Each row's cells are trimmed and joined in
+the order given, with C<", ">, leaving out the empty ones:
+C<"Brezje 8, Cerknica"> and C<"Slovenia"> become
+C<"Brezje 8, Cerknica, Slovenia">.  A row with every cell empty gives C<''>,
+which C<resolve_column> counts as skipped.
+
+The rows themselves are not changed (a SQL backend's are locked): the result is
+a new row for each, in the same order, holding only the joined place, so a
+marker's C<first_row> still indexes C<\@rows>.  With a single column the rows
+are returned as they are, under that column's name.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    \@rows       arrayref of hashrefs        # required; a row that is not a hashref gives undef
+    \@columns    arrayref of column names    # required; one or more, in order
+
+=head4 OUTPUT
+
+    (\@places, $name)
+        \@places   one hashref { $name => $place } per row, or \@rows itself for one column
+        $name      the columns joined with ", " ("Address, Country")
+
+Croaks with C<error_rows_arrayref> when C<\@rows> is not an arrayref, and with
+C<error_column_required> when C<\@columns> names no column.
+
+=head3 EXAMPLE
+
+    # loc=Address&loc=Country on the map page
+    my ($places, $name) = Database::BI::Model::Geocode->place_rows($records, [qw(Address Country)]);
+    my $result = Database::BI::Model::Geocode->new->resolve_column($places, $name, cache => \%cache);
+
+=cut
+
+sub place_rows {
+	my ($class, $rows, $columns) = @_;
+
+	croak(_fmt('error_rows_arrayref', defined($rows) ? ref($rows) || $rows : 'undef'))
+		unless ref($rows) eq 'ARRAY';
+
+	my @columns = grep { defined($_) && !ref($_) && length($_) }
+		(ref($columns) eq 'ARRAY' ? @{$columns} : ());
+	croak(_fmt('error_column_required')) unless @columns;
+
+	my $name = join(', ', @columns);
+	return ($rows, $name) if @columns == 1;
+
+	my @places = map {
+		my $row = $_;
+		(ref($row) eq 'HASH')
+			? +{ $name => join(', ', grep { length } map {
+				my $cell = $row->{$_};
+				(defined($cell) && !ref($cell)) ? ($cell =~ s/\A\s+|\s+\z//gr) : '';
+			} @columns) }
+			: undef;
+	} @{$rows};
+
+	return (\@places, $name);
+}
+
 =head2 cache_from_models
 
     my $cache = Database::BI::Model::Geocode->cache_from_models(\%models, $spec_key);

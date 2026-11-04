@@ -804,7 +804,8 @@ sub _crumb_view_suffix {
 sub _crumb_chart_subject {
 	my ($kind, $q) = @_;
 	my %p = map {
-		my $v = $q->param($_) // '';
+		# loc= may repeat, for a place spread over columns (address, country).
+		my $v = ($_ eq 'loc') ? join(', ', grep { length } @{ $q->every_param('loc') }) : ($q->param($_) // '');
 		($_ => ($v =~ $CRUMB_TEXT_RE ? $v : ''));
 	} qw(x y cat val seg col rows bar_val line_val loc lat lon);
 
@@ -11037,7 +11038,9 @@ sub extract_list ($self) {
 # geo.<spec>.places and is written by _map_data independently.
 # ---------------------------------------------------------------------------
 
-# geo_save: POST /geo/save?l=<spec>&col=<col>&kind=lat|lon|location[&replace=1]
+# geo_save: POST /geo/save?l=<spec>&col=<col>&kind=lat|lon|location|location_suffix[&replace=1]
+# location_suffix is the column whose cells follow the place's, after ", "
+# (a country after an address).
 # col= and kind= may repeat, in pairs, so a latitude and a longitude are saved
 # in one request.  replace=1 forgets the spec's saved columns first: the map
 # panel's "Remember" sends it, so a new choice replaces the old one rather than
@@ -11051,8 +11054,8 @@ sub geo_save ($self) {
 		unless length $spec;
 	return $self->render(json => { error => 'col= required' }, status => 400)
 		unless @cols && !grep { !length } @cols;
-	return $self->render(json => { error => 'kind must be lat, lon, or location' }, status => 400)
-		unless @kinds == @cols && !grep { !/\A(?:lat|lon|location)\z/ } @kinds;
+	return $self->render(json => { error => 'kind must be lat, lon, location or location_suffix' }, status => 400)
+		unless @kinds == @cols && !grep { !/\A(?:lat|lon|location|location_suffix)\z/ } @kinds;
 
 	my $models = $self->_read_models;
 	delete $models->{geo}{$spec}{columns} if $self->param('replace');
@@ -11999,6 +12002,19 @@ sub wordcloud_view ($self) {
 # filtered, calculated view and not the raw table.
 # ---------------------------------------------------------------------------
 
+# _map_loc_columns($loc) -> @columns
+#
+# The place-name columns of a map, in order, from loc: one name (a canvas card
+# saved before a place could span columns), or a list of them (loc= repeated,
+# or a card's encode.loc array).  Empty and non-string entries are dropped, and
+# a column named twice is used once.
+sub _map_loc_columns {
+	my $loc = shift;
+	my @names = ref($loc) eq 'ARRAY' ? @{$loc} : ($loc);
+	my %seen;
+	return grep { defined($_) && !ref($_) && length($_) && !$seen{$_}++ } @names;
+}
+
 # _map_data($self, \@records, \@columns, \%encode, \%options, $spec_key, $id_suffix)
 #     -> \%result
 #
@@ -12015,7 +12031,11 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	$encode  //= {};
 	$options //= {};
 
-	my $loc_col = $encode->{loc} // '';
+	# loc may name several columns, in order: the place is their cells joined
+	# with ", " (an address and then its country).  $loc_col is that list's
+	# name, which is what the page and the geocoder are told.
+	my @loc_cols = _map_loc_columns($encode->{loc});
+	my $loc_col = join(', ', @loc_cols);
 	my $lat_col = $encode->{lat} // '';
 	my $lon_col = $encode->{lon} // '';
 	my $by_location = length $loc_col;
@@ -12028,15 +12048,16 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my %col_set = map { $_ => 1 } @$columns;
 	my $cfg     = $self->app->config;
 
+	my %loc_set = map { $_ => 1 } @loc_cols;
 	my @popup = grep {
-		defined($_) && !ref($_) && length($_) && $_ ne $loc_col && $col_set{$_}
+		defined($_) && !ref($_) && length($_) && !$loc_set{$_} && $col_set{$_}
 	} @{ ref($options->{popup}) eq 'ARRAY' ? $options->{popup} : [] };
 
 	# Default: when no popup columns are requested, show every column that is
 	# not a coordinate column so the marker tooltip is informative out of the box.
 	unless (@popup) {
 		my %coord_set = map { $_ => 1 }
-			grep { defined($_) && length($_) } ($loc_col, $lat_col, $lon_col);
+			grep { defined($_) && length($_) } (@loc_cols, $lat_col, $lon_col);
 		@popup = grep { !$coord_set{$_} } @$columns;
 	}
 
@@ -12044,10 +12065,16 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my (@markers, @messages);
 
 	if ($by_location) {
-		return { error => $self->_i18n('error_map_loc_column', $loc_col), status => 400 }
-			unless $col_set{$loc_col};
+		for my $col (@loc_cols) {
+			return { error => $self->_i18n('error_map_loc_column', $col), status => 400 }
+				unless $col_set{$col};
+		}
 
 		require Database::BI::Model::Geocode;
+
+		# What the geocoder is given: one cell a row, under $loc_col, in the
+		# rows' own order, so a marker's first_row still indexes $records.
+		my ($places) = Database::BI::Model::Geocode->place_rows($records, \@loc_cols);
 
 		# The geocoder is a config seam first and a recommended dependency
 		# second: a deployment may hand in an object, and a test does exactly
@@ -12088,7 +12115,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		my $region     = $cfg->{map_region};
 
 		my $result = $geocode->resolve_column(
-			$records, $loc_col,
+			$places, $loc_col,
 			cache => \%cache,
 			((defined($region) && $region =~ /\A[A-Za-z]{2}\z/) ? (region => $region) : ()),
 			max   => _map_limit($cfg->{map_geocode_max}, $DEFAULT_MAP_GEOCODE_MAX),
@@ -12372,7 +12399,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my %chart_spec = (
 		kind   => 'map',
 		title  => $title,
-		encode => ($by_location ? { loc => $loc_col }
+		encode => ($by_location ? { loc => (@loc_cols == 1 ? $loc_cols[0] : [ @loc_cols ]) }
 		                        : { lat => $lat_col, lon => $lon_col }),
 	);
 	$chart_spec{options}{popup} = \@popup if @popup;
@@ -12522,7 +12549,8 @@ sub _canvas_map_html {
 }
 
 sub map_view ($self) {
-	my $loc_col   = $self->param('loc') // '';
+	my @loc_cols  = _map_loc_columns($self->every_param('loc'));
+	my $loc_col   = join(', ', @loc_cols);
 	my $lat_col   = $self->param('lat') // '';
 	my $lon_col   = $self->param('lon') // '';
 	my $back      = _safe_back_url($self->param('back')) // '/';
@@ -12591,7 +12619,8 @@ sub map_view ($self) {
 	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{ $columns };
-	my @popup = grep { length($_) && $_ ne $loc_col && $col_set{$_} }
+	my %loc_set = map { $_ => 1 } @loc_cols;
+	my @popup = grep { length($_) && !$loc_set{$_} && $col_set{$_} }
 		@{ $self->every_param('popup') };
 
 	# Marker colour params.  color= applies explicit threshold rules;
@@ -12685,7 +12714,7 @@ sub map_view ($self) {
 
 	my $result = $self->_map_data(
 		$records, $columns,
-		($by_location ? { loc => $loc_col } : { lat => $lat_col, lon => $lon_col }),
+		($by_location ? { loc => [ @loc_cols ] } : { lat => $lat_col, lon => $lon_col }),
 		\%options,
 		$self->param('l') // '',
 		undef,
@@ -12709,6 +12738,7 @@ sub map_view ($self) {
 		row_count       => $result->{row_count},
 		source_rows     => $result->{source_rows},
 		loc_col         => $result->{loc_col},
+		loc_many        => (@loc_cols > 1 ? 1 : 0),
 		lat_col         => $result->{lat_col},
 		lon_col         => $result->{lon_col},
 		backend         => $result->{backend},
@@ -14050,7 +14080,9 @@ failing.
 Accepts the same C<l=>, C<j=>, C<c=> and C<f=> pipeline params as every other
 visual, so the map shows the filtered, calculated view.
 
-  loc=<col>       Location column to geocode (required unless lat= and lon= are given)
+  loc=<col>       Location column to geocode (required unless lat= and lon= are given);
+                  repeatable: the place is the columns' cells joined with ", ",
+                  in order, empty ones left out (loc=Address&loc=Country)
   lat=<col>       Latitude column (numeric, -90..90)
   lon=<col>       Longitude column (numeric, -180..180)
   popup=<col>     Column shown in the marker popup (repeatable; default: all non-coordinate columns)
@@ -14128,6 +14160,7 @@ heatmap plugin at self-hosted copies for an offline deployment.
 =head3 EXAMPLE
 
   GET /map?l=table:sales&loc=place
+  GET /map?l=table:houses&loc=Address&loc=Country
     -> 200 HTML page containing Leaflet markers for the places that resolved
 
 =cut
