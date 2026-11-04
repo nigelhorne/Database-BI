@@ -181,12 +181,12 @@ $t->app->config->{geocoder} = $stub;
 # HTML::OSM is a recommends dep; skip when absent so CI does not fail just
 # because the optional renderer is not installed.
 #
-# 0.12 is the floor, not just installation: below it the application reports
+# 0.13 is the floor, not just installation: below it the application reports
 # the renderer in the page and draws nothing, so every assertion here about
 # markers, popups and Leaflet assets would fail for a reason the file cannot
 # test.  The degraded page is covered by the in-process stand-in instead.
-my $have_map_renderer = eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 };
-plan skip_all => 'HTML::OSM 0.12 or later is needed to draw a map'
+my $have_map_renderer = eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 };
+plan skip_all => 'HTML::OSM 0.13 or later is needed to draw a map'
 	unless $have_map_renderer;
 
 # ===========================================================================
@@ -637,10 +637,6 @@ subtest 'Leaflet assets and tiles can be self-hosted for an offline deployment' 
 	# A deployment with no outbound network access serves the library and the
 	# tiles itself.  Every asset is a config key, and both the map page and a
 	# map card on a canvas have to use the configured copies rather than the CDN.
-	# These config keys were added in HTML::OSM 0.11; skip on older installs
-	# (0.12 is the new minimum, so this guard is now effectively always true).
-	plan skip_all => 'HTML::OSM >= 0.12 required for asset URL overrides'
-		unless $HTML::OSM::VERSION >= 0.12;
 	local $t->app->config->{leaflet_js_url}                  = '/static/leaflet/leaflet.js';
 	local $t->app->config->{leaflet_css_url}                 = '/static/leaflet/leaflet.css';
 	local $t->app->config->{leaflet_cluster_js_url}          = '/static/leaflet/leaflet.markercluster.js';
@@ -686,10 +682,7 @@ subtest 'Leaflet assets and tiles can be self-hosted for an offline deployment' 
 };
 
 subtest 'Nominatim search box is suppressed (search => 0 set by _map_data)' => sub {
-	# HTML::OSM >= 0.12 added the search => 0 constructor param; _map_data always
-	# passes it so no keystrokes leave the server.
-	plan skip_all => 'HTML::OSM >= 0.12 required for search => 0'
-		unless $HTML::OSM::VERSION >= 0.12;
+	# _map_data always passes search => 0, so no keystrokes leave the server.
 
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon'))->status_is(200);
 	my $body = $t->tx->res->body;
@@ -700,8 +693,6 @@ subtest 'Nominatim search box is suppressed (search => 0 set by _map_data)' => s
 };
 
 subtest 'max_zoom= caps the tile layer zoom' => sub {
-	plan skip_all => 'HTML::OSM >= 0.12 required for max_zoom'
-		unless $HTML::OSM::VERSION >= 0.12;
 
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', max_zoom => 16))
 		->status_is(200);
@@ -719,8 +710,6 @@ subtest 'max_zoom= caps the tile layer zoom' => sub {
 };
 
 subtest 'max_zoom= can come from config (map_max_zoom)' => sub {
-	plan skip_all => 'HTML::OSM >= 0.12 required for max_zoom'
-		unless $HTML::OSM::VERSION >= 0.12;
 
 	local $t->app->config->{map_max_zoom} = 18;
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon'))->status_is(200);
@@ -795,8 +784,8 @@ subtest 'series= colours markers by category from the named scheme' => sub {
 		series => 'place', scheme => 'set2'))
 		->status_is(200)
 		->content_like(qr/data:image\/svg/, 'per-marker coloured icons are emitted')
-		->content_like(qr/map-legend/, 'a colour legend is shown')
-		->content_like(qr/Ramsgate/, 'the legend names a category')
+		->content_like(qr/var legendEntries = /, 'a colour key is drawn on the map')
+		->content_like(qr/Ramsgate/, 'the key names a category')
 		->content_like(qr/#66c2a5/, 'the first set2 colour is used');
 
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon',
@@ -855,7 +844,7 @@ sub _fake_renderer {
 subtest 'a missing HTML::OSM degrades instead of returning 500' => sub {
 	_fake_renderer(0, undef)
 		->status_is(200, 'the map page still renders')
-		->content_like(qr/HTML::OSM 0\.12 or later/,
+		->content_like(qr/HTML::OSM 0\.13 or later/,
 			'the warning names the version that is required')
 		->content_like(qr/and it is not installed/,
 			'the warning says the module is not installed')
@@ -867,10 +856,10 @@ subtest 'a missing HTML::OSM degrades instead of returning 500' => sub {
 			'and the rows without a coordinate are still counted');
 };
 
-subtest 'an HTML::OSM older than 0.12 degrades instead of returning 500' => sub {
+subtest 'an HTML::OSM older than 0.13 degrades instead of returning 500' => sub {
 	_fake_renderer(0, '0.11')
 		->status_is(200, 'the map page still renders')
-		->content_like(qr/HTML::OSM 0\.12 or later/,
+		->content_like(qr/HTML::OSM 0\.13 or later/,
 			'the warning names the version that is required')
 		->content_like(qr/installed HTML::OSM is 0\.11/,
 			'the warning names the version that is installed')
@@ -896,11 +885,7 @@ sub _map_key_of {
 	};
 }
 
-my $KEYED = eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 };
-
 subtest 'the map has a scale bar and a key that follows the view' => sub {
-	plan skip_all => 'the scale bar and the key on the map need HTML::OSM 0.13' unless $KEYED;
-
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon'))->status_is(200);
 	like($t->tx->res->body, qr/L\.control\.scale\(\)\.addTo\(map\)/, 'every map has a scale bar');
 	unlike($t->tx->res->body, qr/legendEntries/, 'and a map with nothing to explain has no key');
@@ -921,7 +906,6 @@ subtest 'the map has a scale bar and a key that follows the view' => sub {
 		'the values of rows with no position have no marker, so they are never in view and never listed');
 	is($key->{points}, '[[51.33,1.42,0],[51.92,0.75,1]]', 'and the key knows where each one is, to list only those in view');
 	like($body, qr/var legendEmpty = 'Nothing in this view';/, 'what it says when nothing is in view');
-	unlike($body, qr/<div class="map-legend">/, 'the key is on the map, so it is not repeated below it');
 
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon',
 		color => 'amount', color_rule => 'gt:6:#ff0000', color_default => 'green'))->status_is(200);
@@ -946,17 +930,6 @@ subtest 'the map has a scale bar and a key that follows the view' => sub {
 		[ 'Ramsgate', 'Earls Colne', '(blank)', '12345', 'amount 3', 'amount 6.5', 'amount 10' ],
 		'with both, the sizes are labelled with their column');
 	like($t->tx->res->body, qr/L\.circleMarker\([^)]*\]?, \{[^}]*\}\)/, 'and the bubbles are drawn');
-};
-
-subtest 'an HTML::OSM without the key keeps the key below the map' => sub {
-	plan skip_all => 'needs HTML::OSM 0.13 installed, to stand in for 0.12' unless $KEYED;
-
-	_with_renderer(1, '0.12', sub {
-		$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', series => 'place'));
-	})->status_is(200);
-	my $body = $t->tx->res->body;
-	unlike($body, qr/L\.control\.scale|legendEntries/, 'it is asked for neither a scale bar nor a key');
-	like($body, qr/<div class="map-legend">/, 'so the page shows the key below the map');
 };
 
 subtest 'a canvas map card is coloured and sized as the map it was saved from' => sub {
@@ -987,13 +960,10 @@ subtest 'a canvas map card is coloured and sized as the map it was saved from' =
 	like($scripts[1], qr/L\.circleMarker\(/, 'the sized card draws bubbles');
 	unlike($scripts[2], qr/L\.circleMarker\(|%23/, 'a card naming columns that are gone draws plain pins');
 
-	SKIP: {
-		skip 'the key on the map needs HTML::OSM 0.13', 3 unless $KEYED;
-		is_deeply([ map { $_->{label} } @{ _map_key_of($scripts[0])->{entries} } ], [ 'amount > 6', 'Other' ],
-			'the coloured card has its key');
-		is(_map_key_of($scripts[1])->{title}, 'amount', 'and the sized card has one for its sizes');
-		like($scripts[2], qr/L\.control\.scale/, 'every card has a scale bar');
-	}
+	is_deeply([ map { $_->{label} } @{ _map_key_of($scripts[0])->{entries} } ], [ 'amount > 6', 'Other' ],
+		'the coloured card has its key');
+	is(_map_key_of($scripts[1])->{title}, 'amount', 'and the sized card has one for its sizes');
+	like($scripts[2], qr/L\.control\.scale/, 'every card has a scale bar');
 };
 
 subtest 'loc= repeated geocodes the columns joined with ", "' => sub {

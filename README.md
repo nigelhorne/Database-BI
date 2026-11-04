@@ -627,11 +627,10 @@ perl Makefile.PL
     places, each with its number of rows, why it was not plotted and a link to
     those rows.  Markers are clustered with
     Leaflet.markercluster, so a dense map draws a count at low zoom and splits it
-    as it is zoomed in.  Clustering is always on.  With HTML::OSM 0.13 or later,
-    the map has a scale bar, opens on every marker unless `zoom=` is given, and
-    draws its key (colours, and bubble sizes) on the map; the colours listed are
-    those of the markers in view, so the key changes as the map is zoomed and moved.
-    With 0.12 the key is shown below the map.
+    as it is zoomed in.  Clustering is always on.  The map has a scale bar, opens
+    on every marker unless `zoom=` is given, and draws its key (colours, and
+    bubble sizes) on the map; the colours listed are those of the markers in view,
+    so the key changes as the map is zoomed and moved.
 
     Places that are not in the cache yet are looked up after the page is shown.
     The map draws what the cache already knows, and a progress bar names each
@@ -674,7 +673,7 @@ perl Makefile.PL
     the [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) Nominatim search box (`search => 0` is always passed), so
     nothing typed on the map is sent anywhere.  With `loc=`, a place the local
     data does not know is sent to Nominatim, as the place name alone; set
-    `map_geocode_online` to 0 to keep every lookup local.  [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.12 or
+    `map_geocode_online` to 0 to keep every lookup local.  [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.13 or
     later is the renderer; an older optional install still returns the page with a
     warning.
 

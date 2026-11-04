@@ -1865,8 +1865,8 @@ subtest '/map loc= path: geocoder called, markers + counts correct' => sub {
 	# Both distinct non-skipped places appear in map_body (Leaflet popup HTML),
 	# which is only rendered when HTML::OSM is installed.
 	SKIP: {
-		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
-			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 2;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
+			or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 2;
 		like $body, qr/Ramsgate/i, 'Ramsgate marker present in response';
 		like $body, qr/Margate/i,  'Margate marker present in response';
 	}
@@ -2037,8 +2037,8 @@ subtest '/map lat/lon path: duplicate coordinates collapse to one marker' => sub
 	# Rows 1+2 share a coordinate -> one marker; row 3 is separate; row 4 is unusable.
 	# The lat values appear inside the Leaflet JS in map_body, which requires HTML::OSM.
 	SKIP: {
-		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
-			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 2;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
+			or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 2;
 		like $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat present in response';
 		like $body, qr/$MARGATE_LAT/,  'Margate lat present in response';
 	}
@@ -2057,8 +2057,8 @@ subtest '/map lat/lon path: f= filter applied before marker construction' => sub
 	# Only row 1 (name=A) survives the filter.
 	# Lat values appear in the Leaflet JS inside map_body, which requires HTML::OSM.
 	SKIP: {
-		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
-			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 2;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
+			or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 2;
 		like   $body, qr/$RAMSGATE_LAT/, 'Ramsgate lat in response after filter';
 		unlike $body, qr/$MARGATE_LAT/,  'Margate lat absent after name:eq:A filter';
 	}
@@ -2171,8 +2171,8 @@ subtest '/map popup= column appears in marker label HTML' => sub {
 	# Popup column names appear inside map_body (Leaflet popup HTML),
 	# which is only rendered when HTML::OSM is installed.
 	SKIP: {
-		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
-			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 1;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
+			or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 1;
 		like $body, qr/amount/i, 'amount column referenced in map output (popup)';
 	}
 
@@ -2296,7 +2296,7 @@ subtest '/map: an older HTML::OSM => 200 with the older-renderer warning' => sub
 		'the older install is reported as such, not as a missing module';
 	like $body, qr/installed HTML::OSM is 0\.11/,
 		'the warning names the version that is installed';
-	like $body, qr/HTML::OSM 0\.12 or later/,
+	like $body, qr/HTML::OSM 0\.13 or later/,
 		'and the version that is needed';
 };
 
@@ -2306,7 +2306,7 @@ subtest '/map: a missing HTML::OSM => 200 with the not-installed warning' => sub
 	like $body, qr/data-key="error_map_renderer_missing"/,
 		'the missing renderer is reported as not installed';
 	like $body, qr/and it is not installed/, 'the warning says so';
-	like $body, qr/HTML::OSM 0\.12 or later/, 'and names the version that is needed';
+	like $body, qr/HTML::OSM 0\.13 or later/, 'and names the version that is needed';
 	unlike $body, qr/installed HTML::OSM is/, 'it does not claim a version is installed';
 };
 
@@ -2350,8 +2350,8 @@ subtest '/map: ?c= calculated field applied before geocoding' => sub {
 	# City names appear inside map_body (Leaflet popup HTML),
 	# which is only rendered when HTML::OSM is installed.
 	SKIP: {
-		eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
-			or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 1;
+		eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
+			or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 1;
 		like $body, qr/ramsgate/i, 'ramsgate appears in the map output';
 	}
 
@@ -4148,7 +4148,7 @@ subtest 'A geocoder that throws: the request fails, and leaves nothing behind' =
 };
 
 subtest 'A map renderer that fails mid-request is not a crash' => sub {
-	plan skip_all => 'needs HTML::OSM 0.12 or later' unless eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 };
+	plan skip_all => 'needs HTML::OSM 0.13 or later' unless eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 };
 	my $tm = _isolated_app();
 	my $places = _csv_file(tempdir(CLEANUP => 1), 'coords.csv', 'id,lat,lon', '1,51.3,1.4');
 	my $guard = mock_scoped('HTML::OSM', new => sub { die "tile server unreachable\n" });

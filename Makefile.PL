@@ -114,7 +114,7 @@ WriteMakefile(
 					'DBD::MariaDB' => 0,
 					# Rendering the map itself (Phase 6.1).  Also runtime-required: the
 					# rest of the application installs, starts and tests without it.
-					'HTML::OSM' => '0.12'
+					'HTML::OSM' => '0.13'
 				}
 			}, test => {
 				recommends => {

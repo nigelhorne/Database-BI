@@ -1601,11 +1601,11 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		            ->status_is(200, '200 for valid loc= geocode')
 		            ->content_type_like(qr{text/html}, 'response is HTML');
 		# Place names appear only inside map_body (Leaflet popup HTML), which
-		# needs HTML::OSM 0.12 or later: below that floor the page reports the
+		# needs HTML::OSM 0.13 or later: below that floor the page reports the
 		# renderer and draws nothing.  Skip this single assertion then.
 		SKIP: {
-			eval { require HTML::OSM; HTML::OSM->VERSION(0.12); 1 }
-				or skip 'HTML::OSM 0.12 or later is needed for marker HTML', 1;
+			eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
+				or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 1;
 			$res->content_like(qr/$MAP_PLACE/i, 'place name appears in response');
 		}
 		delete $ledger{'GET./map.200.loc'};
@@ -3402,7 +3402,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		{
 			# With the renderer said to be there and failing, whether or not this
 			# machine has it: HTML::OSM is only recommended, and this key is in the ledger.
-			mock('Database::BI::Controller::Dashboard::_map_renderer_version' => sub { (1, '0.12') });
+			mock('Database::BI::Controller::Dashboard::_map_renderer_version' => sub { (1, '0.13') });
 			no warnings qw(redefine once);
 			local *HTML::OSM::new = $boom;
 			$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);

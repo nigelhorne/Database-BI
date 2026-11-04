@@ -59,7 +59,8 @@ Revision history for Database-BI
 	  map is zoomed and moved; bubble sizes are always listed.  A map with
 	  no zoom= opens on every marker, as the map panel says; it used to open
 	  at zoom 12 on the markers' midpoint, which could show none of them.
-	  With HTML::OSM 0.12 the map is drawn as before, with the key below it.
+	  HTML::OSM 0.13 is now the recommended minimum: with an older one a map
+	  page says which version it needs, as it did below 0.12.
 	- A map no longer waits for its places to be looked up before it is
 	  shown.  It draws what the place cache knows, and a progress bar names
 	  each place as it is looked up ("Looking up 5 of 10: Brezje 8,
@@ -96,7 +97,24 @@ Revision history for Database-BI
 	- script/bi-geocode died on every run ('option "max" must be a positive
 	  integer, not "0"'), and its summary counted cache hits from a key that
 	  does not exist and compared rows with places.
+	- A canvas map card whose saved color rules held something other than a
+	  rule (PUT and import store a card as sent) was a 500; such entries are
+	  now ignored.  A card whose encode, options or filters are not of the
+	  right shape is drawn as if they were absent, rather than failing.
+	- cv=abc on a canvas was read as card 0, which was then drawn unfiltered
+	  as the source of the cross-filter (and perl warned).  Only a whole
+	  number names a card.
+	- Removing a text card left a bookmark's cv= naming the removed card,
+	  which then named the card that moved into its place.  It is dropped.
+	- A negative offset in a page of rows is read as 0, and a map's unplotted
+	  rows ignore anything in the rows that is not a row.
+	- A column-listing error on a table page lost only the last "at FILE line
+	  N" of a rethrown error; it now goes through the same tidying as every
+	  other error shown to a reader.
 	[ Tests ]
+	- t/function.t covers the geocoding progress run, the remaining
+	  DataSource, Calc and Geocode helpers, and the Dashboard helpers and
+	  canvas, lookup, extraction and /geo/lookup routes no part reached.
 	- t/function.t tries _follow_links on an NT-form link target only where
 	  readlink gives the target back as written: Cygwin turns a target with
 	  backslashes into a Windows path (a CPAN Testers failure on Cygwin).

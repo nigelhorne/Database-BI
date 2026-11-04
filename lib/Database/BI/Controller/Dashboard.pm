@@ -105,8 +105,9 @@ Readonly my $MARIADB_SERVER_RE => qr{\Amariadb:([A-Za-z_][A-Za-z0-9_]*)\z};
 # because the [...] notation would be ambiguous in the path syntax).
 Readonly my $REMOTE_HOST_RE => qr/\A(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\@)?[a-zA-Z0-9][a-zA-Z0-9._-]*\z/;
 
-# The tile layer HTML::OSM 0.10 hardcodes.  HTML::OSM >= 0.12 is required;
-# that release introduced search => 0, max_zoom, and tile_url (0.11).
+# The tile layer HTML::OSM 0.10 hardcodes.  HTML::OSM >= 0.13 is required;
+# 0.12 introduced search => 0, max_zoom, and tile_url (0.11), and 0.13 the scale
+# bar, the key on the map and fit.
 Readonly my $DEFAULT_TILE_URL => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 # The language the distribution ships templates for.  It is what a request falls
@@ -118,14 +119,9 @@ Readonly my $DEFAULT_LANGUAGE => 'en';
 # constructor arguments strictly, so an older install does not ignore the new
 # keys - it croaks on them.  _map_data therefore checks the version before
 # building a map, and reports a missing or old renderer instead of a 500.
-Readonly my $MIN_HTML_OSM_VERSION => '0.12';
-
-# The HTML::OSM that draws a scale bar and a key on the map, the key listing
-# only what is in view (scale, legend, and group on each marker), and opens
-# the map on every marker (fit).  An older
-# one still draws the map, and the map page then shows its key below it.
-# Not named $MIN_*: t/recommended-versions.t reads that one as the floor.
-Readonly my $HTML_OSM_KEY_FLOOR => '0.13';
+# 0.13 draws the scale bar and the key on the map, listing only what is in view
+# (scale, legend, and group on each marker), and opens on every marker (fit).
+Readonly my $MIN_HTML_OSM_VERSION => '0.13';
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary for all user-visible strings in this controller.
@@ -217,9 +213,9 @@ Readonly my %MESSAGES => (
 	error_map_coordinate_range  => 'Column "%s" holds only values outside the range of %s; check that lat= and lon= are not swapped',
 	error_map_coordinate_numeric => 'Columns "%s" and "%s" hold no numeric coordinate pairs; a map needs numbers, or loc=<column> to geocode places',
 	error_map_no_markers        => 'No row has a location that could be plotted',
-	error_map_renderer_missing  => 'Drawing a map needs HTML::OSM 0.12 or later, and it is not installed',
+	error_map_renderer_missing  => 'Drawing a map needs HTML::OSM 0.13 or later, and it is not installed',
 	error_map_renderer_failed   => 'The map could not be drawn; the server log has the reason',
-	error_map_renderer_old      => 'Drawing a map needs HTML::OSM 0.12 or later, but the installed HTML::OSM is %s',
+	error_map_renderer_old      => 'Drawing a map needs HTML::OSM 0.13 or later, but the installed HTML::OSM is %s',
 	warn_join_schema_mismatch   => 'Column "%s" has type %s in %s but %s in %s; the join keeps both columns, so check which one a calculation uses',
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
@@ -2939,6 +2935,8 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 # copied and never spliced.
 sub _rows_of_page {
 	my ($rows, $offset, $per_page) = @_;
+	# A negative offset would count from the end of the rows.
+	$offset = 0 if $offset < 0;
 	my $last = $offset + $per_page - 1;
 	$last = $#$rows if $last > $#$rows;
 	return [ @{$rows}[$offset .. $last] ];
@@ -3943,8 +3941,8 @@ sub _page_columns :Protected ($self, $source, $records, $spec_key) {
 		})
 	};
 	unless ($calc_records) {
-		(my $e = $@) =~ s/ at \S+ line \d+\.?\n?$//;
-		$self->render(text => $e, status => 400);
+		# Every location croak added on the way up, not only the last.
+		$self->render(text => _tidy_error($@), status => 400);
 		return ();
 	}
 	return ($calc_records, $calc_columns);
@@ -5131,11 +5129,15 @@ sub analyses_delete_visual ($self) {
 # _shift_card_param($search, $removed) -> $search
 #
 # A saved query string with its cv= moved down if the card it names came after
-# the one removed.  A text card is never a cross-filter's source, so cv= cannot
-# name the removed card itself.
+# the one removed.  The canvas never makes a text card a cross-filter's source,
+# but a bookmark is stored as PATCHed, so a cv= naming the removed card is
+# dropped: kept, it would name the card that moved into its place.
 sub _shift_card_param {
 	my ($search, $removed) = @_;
-	$search =~ s{(?<![^?&])cv=(\d+)}{ 'cv=' . ($1 > $removed ? $1 - 1 : $1) }ge;
+	$search =~ s{(?<![^?&])cv=(\d+)(&?)}{
+		$1 == $removed ? '' : ('cv=' . ($1 > $removed ? $1 - 1 : $1) . $2)
+	}ge;
+	$search =~ s{&\z}{};
 	return $search;
 }
 
@@ -5320,6 +5322,16 @@ sub analyses_import ($self) {
 	$self->render(json => { id => $id, imported => 1 }, status => 201);
 }
 
+# _cross_filter_source($cv) -> Int
+#
+# The index of the card a cross-filter came from (cv=), or -1 for none.  Only
+# a whole number names a card: int('abc') is 0, which would draw the first
+# card unfiltered as if it were the source.
+sub _cross_filter_source {
+	my $cv = shift;
+	return (defined($cv) && $cv =~ /\A[0-9]{1,9}\z/) ? int($cv) : -1;
+}
+
 # _build_canvas_pipeline($self, \%analysis) -> ($src, $records, \@cols) or ()
 #
 # Opens the first dataset from a saved analysis and chains any declared joins.
@@ -5385,8 +5397,7 @@ sub _canvas_render_context :Protected ($self, $a, $query, $more_cards = undef) {
 		if $cross_row && $cross_row->{error};
 
 	my @cf_specs  = $params ? grep { /\S/ } @{ $params->every_param('cf') // [] } : ();
-	my $cf_source = (defined $params && defined $params->param('cv'))
-		? int($params->param('cv')) : -1;
+	my $cf_source = _cross_filter_source($params ? $params->param('cv') : undef);
 
 	# The relative time range the canvas page names in its query string is part
 	# of the state a card is drawn through, like cf= and the bound parameters,
@@ -5561,9 +5572,12 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 	return { html => _text_card_markup($vis), title => _text_card_title($vis) }
 		if $kind eq 'text';
 
-	my $encode  = $vis->{encode}  // {};
-	my $options = $vis->{options} // {};
-	my $filters = $vis->{filters} // [];
+	# A stored card is not checked part by part (PUT and import keep a visual
+	# as sent), so a part of the wrong shape is read as absent here rather than
+	# dereferenced.
+	my $encode  = ref($vis->{encode})  eq 'HASH'  ? $vis->{encode}  : {};
+	my $options = ref($vis->{options}) eq 'HASH'  ? $vis->{options} : {};
+	my $filters = ref($vis->{filters}) eq 'ARRAY' ? [ grep { defined && !ref } @{ $vis->{filters} } ] : [];
 	my $title   = $vis->{title}   // '';
 
 	# Every chart on a canvas needs an element id of its own: HTML::D3 names the
@@ -6559,8 +6573,7 @@ sub canvas_render ($self) {
 		# Semantics: self-highlighting (source shown in full; others filtered).
 		# Multiple simultaneous selections are not supported in this version.
 		my @cf_specs  = grep { /\S/ } @{ $self->every_param('cf') // [] };
-		my $cf_source = defined($self->param('cv'))
-			? int($self->param('cv')) : -1;
+		my $cf_source = _cross_filter_source($self->param('cv'));
 		my $cf_active = !!@cf_specs;
 
 		# Build the "clear cross-filter" URL for the chip close button.
@@ -12102,7 +12115,8 @@ sub _map_unplotted {
 	my @all_filters;
 	if ($total) {
 		@all_filters = map { "$_:in:" . to_json([ sort keys %{ $cells{$_} } ]) } @{$loc_cols};
-		my $hit = $records;
+		# Only rows can be filtered; one that is not is never selected.
+		my $hit = [ grep { ref($_) eq 'HASH' } @{$records} ];
 		$hit = _apply_filter_spec($hit, $_) for @all_filters;
 		@all_filters = () unless scalar(@{$hit}) == $total;
 	}
@@ -12382,7 +12396,6 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	# the map - the search box, the buttons, the div and its script - goes in the
 	# body where the map should appear.
 	my ($map_head, $map_body);
-	my $legend_drawn = 0;
 	if (@markers) {
 		# HTML::OSM is a recommended dependency, so its absence - or an install
 		# older than the options below - is a state the page reports and
@@ -12453,30 +12466,22 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 			# left out rather than refused.
 			my $color_col = $options->{color_col} // $encode->{color} // '';
 			$color_col = '' if ref($color_col) || !$col_set{$color_col};
-			my $color_rules   = ref($options->{color_rules}) eq 'ARRAY' ? $options->{color_rules} : [];
+			# A card's rules are stored unchecked: one that is not a rule is
+			# left out rather than read as one.
+			my $color_rules   = [ grep { ref($_) eq 'HASH' }
+				@{ ref($options->{color_rules}) eq 'ARRAY' ? $options->{color_rules} : [] } ];
 			my $color_default = $options->{color_default} // $DEFAULT_MARKER_COLOR;
 			my $size_col = $options->{size} // $encode->{size} // '';
 			$size_col = '' if ref($size_col) || !$col_set{$size_col};
 
-			# The scale bar, and the key on the map, need an HTML::OSM that
-			# draws them; an older one is passed neither, and still draws the
-			# map.  The version _map_renderer_version found is compared, rather
-			# than asked for again: this is a feature of a newer copy, not the
-			# floor the renderer messages name.
-			my $keyed = (eval { version->parse($osm_version) >= version->parse($HTML_OSM_KEY_FLOOR) }) ? 1 : 0;
+			# The scale bar, and the key on the map: colours and bubble sizes.
 			my $size_range = [ _map_size_range($records, \@markers, $size_col) ];
-			my %key = $keyed
-				? $self->_map_key($color_col, $color_rules, $color_default,
-					defined($options->{scheme}), $size_col, $size_range)
-				: ();
-			if ($keyed) {
-				$osm_args{scale} = 1;
-				# Without a zoom the map opens on every marker, as the panel
-				# promises; an older HTML::OSM opens at zoom 12 on their midpoint
-				$osm_args{fit} = 1 unless defined $options->{zoom};
-				%osm_args = (%osm_args, %key) if @{ $key{legend} // [] };
-				$legend_drawn = @{ $key{legend} // [] } ? 1 : 0;
-			}
+			my %key = $self->_map_key($color_col, $color_rules, $color_default,
+				defined($options->{scheme}), $size_col, $size_range);
+			$osm_args{scale} = 1;
+			# Without a zoom the map opens on every marker, as the panel promises
+			$osm_args{fit} = 1 unless defined $options->{zoom};
+			%osm_args = (%osm_args, %key) if @{ $key{legend} // [] };
 
 			my $drawn = eval {
 				my $map = HTML::OSM->new(%osm_args);
@@ -12494,10 +12499,8 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 						$color = _apply_color_rule($cval, $color_rules, $color_default);
 						# Which key entry the marker belongs to, so the key lists
 						# only what is in view
-						if ($keyed) {
-							my $index = _color_rule_index($cval, $color_rules);
-							$group = defined($index) ? "rule$index" : 'other';
-						}
+						my $index = _color_rule_index($cval, $color_rules);
+						$group = defined($index) ? "rule$index" : 'other';
 					}
 					if (length $size_col) {
 						my $sv = defined($row)
@@ -12616,7 +12619,6 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		unplotted    => \@unplotted,
 		unplotted_filters => \@unplotted_filters,
 		pending      => \@pending,
-		legend_drawn => ($map_body ? $legend_drawn : 0),
 	};
 }
 
@@ -12882,11 +12884,6 @@ sub map_view ($self) {
 	$options{weight}   = $weight_col     if length($weight_col) && $col_set{$weight_col};
 	$options{lookup}   = 0               if $progress || $geocode_mode eq 'cached';
 
-	# The colour key, shown below the map when the map cannot draw it itself
-	my @color_legend = length($color_col)
-		? _map_colour_entries($color_col, $color_rules, $color_default, scalar @series_cats)
-		: ();
-
 	my $result = $self->_map_data(
 		$records, $columns,
 		($by_location ? { loc => [ @loc_cols ] } : { lat => $lat_col, lon => $lon_col }),
@@ -12977,9 +12974,6 @@ sub map_view ($self) {
 		backend         => $result->{backend},
 		chart           => $result->{chart},
 		chart_json      => $self->_chart_json($result->{chart}),
-		color_col       => $color_col,
-		color_legend    => \@color_legend,
-		legend_drawn    => $result->{legend_drawn},
 		back_url        => ($back2 // $back),
 		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
@@ -13186,14 +13180,16 @@ sub _map_colour_entries {
 
 	my %op_label = (gt => '>', ge => '>=', lt => '<', le => '<=', eq => '=', ne => '!=');
 	my @entries;
+	$rules = [] unless ref($rules) eq 'ARRAY';
 	for my $index (0 .. $#{$rules}) {
 		my $rule = $rules->[$index];
+		next unless ref($rule) eq 'HASH';
 		my $val  = $rule->{val} // '';
 		push @entries, {
 			color => $rule->{color},
 			label => $is_series
 				? (length($val) ? $val : '(blank)')
-				: "$color_col " . ($op_label{ $rule->{op} } // $rule->{op}) . " $val",
+				: "$color_col " . ($op_label{ $rule->{op} // '' } // $rule->{op} // '') . " $val",
 			group => "rule$index",
 		};
 	}
@@ -13244,8 +13240,11 @@ sub _map_key :Protected ($self, $color_col, $rules, $default, $is_series, $size_
 sub _color_rule_index {
 	my ($value, $rules) = @_;
 	$value //= '';
+	$rules = [] unless ref($rules) eq 'ARRAY';
 	for my $index (0 .. $#{$rules}) {
+		next unless ref($rules->[$index]) eq 'HASH';
 		my ($op, $threshold) = @{ $rules->[$index] }{qw(op val)};
+		$op        //= '';
 		$threshold //= '';
 		my $match;
 		if (	$value     =~ /\A-?\d+(?:\.\d+)?\z/ &&
@@ -14468,7 +14467,7 @@ C<geocode=wait>, waits for the lookups as before.
 
 The map page never shows the L<HTML::OSM> Nominatim search box: C<search => 0>
 is always passed, so nothing typed on the page leaves the reader's machine.
-L<HTML::OSM> 0.12 or later is the renderer; with an older optional install (or
+L<HTML::OSM> 0.13 or later is the renderer; with an older optional install (or
 none at all) the page still renders the marker count and a warning, rather than
 failing.
 
