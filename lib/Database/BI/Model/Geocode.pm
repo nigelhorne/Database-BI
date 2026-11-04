@@ -2,7 +2,7 @@ package Database::BI::Model::Geocode;
 
 # Resolve a location column to coordinates, once per distinct value.
 #
-# Phase 6.2 of BI-Phase6.md: a dataset with places but no coordinates offers
+# A dataset with places but no coordinates offers
 # loc=<column>, and the distinct values of that column are looked up by a
 # Geo::Coder::List chain: Geo::Coder::Free's local data first, then
 # OpenStreetMap's Nominatim service (Geo::Coder::OSM) for the places the local
@@ -25,9 +25,8 @@ package Database::BI::Model::Geocode;
 #      eval: a backend exception still propagates, exactly as it does from
 #      geocode() itself.
 #
-# Skipping is remembered rather than repeated.  An attempted-and-unresolved value
-# is stored as 0 - the shape BI-Phase6.md section 6.3 gives the geo section of
-# .bi/models.json - so the next request over the same column plots what resolved,
+# Skipping is remembered rather than repeated.  An attempted-and-unresolved value,
+# so the next request over the same column plots what resolved,
 # reports the rest, and asks the geocoder nothing at all.
 
 use strict;
@@ -40,7 +39,7 @@ use Time::HiRes			();
 use Params::Get			();
 use Params::Validate::Strict	qw(validate_strict);
 
-our $VERSION = '0.020.0';
+use version; our $VERSION = version->declare('0.020.0');
 
 # The version of Geo::Coder::Free this module asks for: 0.46 added valid_location()
 # and on_error => 'undef', 0.47 added geocode_many(), and 0.48 added the
@@ -104,7 +103,7 @@ Readonly my $SHARED_CACHE_KEY => 'shared';
 # ---------------------------------------------------------------------------
 # I18N message dictionary.
 # Every user-visible string this module produces is keyed here.  The keys are
-# BI-Phase6.md section 11's for the conditions it names - geocoder missing, the
+# for the conditions it names - geocoder missing, the
 # location column not being in the view, skipped rows, the cap, and no openaddr
 # data - so the controller and this module describe the same conditions with the
 # same words; the rest are this module's own argument and interface errors, which
@@ -172,15 +171,13 @@ sub _message {
 	return { 'key' => $key, 'text' => $self->_msg($key, @args) };
 }
 
-=encoding utf8
-
 =head1 NAME
 
 Database::BI::Model::Geocode - Resolve a location column to coordinates, once per distinct value
 
 =head1 VERSION
 
-0.013.0
+0.020.0
 
 =head1 SYNOPSIS
 
@@ -1646,7 +1643,7 @@ This is a B<class method>; the invocant is ignored.
 This module never writes the file.  The caller is responsible for passing
 C<$updated_models> to C<_write_models()> or its equivalent, which is where
 the writability and C<data_dir> guards live.  The separation keeps those
-guards in the one place that already owns them (section 7 of the phase spec).
+guards in the one place that already owns them
 
 =head3 API SPECIFICATION
 
@@ -2079,6 +2076,8 @@ C<429 Too Many Requests>) or not at all.  The places are in C<not_attempted>,
 uncached, and the next request asks again.
 
 =back
+
+=encoding utf8
 
 =head1 FORMAL SPECIFICATION
 
