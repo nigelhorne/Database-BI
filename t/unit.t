@@ -2652,7 +2652,20 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		};
 		my $res = $geo->resolve_column([ { c => 'Paris' }, { c => '' }, { c => '12' } ], 'c');
 		my %by  = map { $_->{key} => $_->{text} } grep { ref } @{ $res->{messages} // [] };
-		message_ok(Geocode => 'warn_map_rows_skipped', $by{warn_map_rows_skipped}, [1, 3, 2]);
+		my $why = join ', ',
+			sprintf($DICTIONARY{Geocode}{warn_map_rows_why_empty}, 1),
+			sprintf($DICTIONARY{Geocode}{warn_map_rows_why_refused}, 1);
+		message_ok(Geocode => 'warn_map_rows_skipped', $by{warn_map_rows_skipped}, [1, 3, 2, $why]);
+		message_ok(Geocode => 'warn_map_rows_why_empty',   $by{warn_map_rows_skipped}, [1], 1);
+		message_ok(Geocode => 'warn_map_rows_why_refused', $by{warn_map_rows_skipped}, [1], 1);
+		{
+			# The other two reasons: a place not found, and one held back by the cap.
+			my $res2 = $G->new(geocoder => Unit::Geocoder->new)
+				->resolve_column([ { c => 'Nowhere' }, { c => 'Elsewhere' } ], 'c', max => 1);
+			my ($m) = map { $_->{text} } grep { ref && $_->{key} eq 'warn_map_rows_skipped' } @{ $res2->{messages} // [] };
+			message_ok(Geocode => 'warn_map_rows_why_not_found', $m, [1], 1);
+			message_ok(Geocode => 'warn_map_rows_why_later',     $m, [1], 1);
+		}
 
 		my $many = Unit::Geocoder->new;
 		my $capped = $G->new(geocoder => $many)->resolve_values([qw(A B)], max => $CAPPED);

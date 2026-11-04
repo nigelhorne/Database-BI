@@ -43,7 +43,9 @@ the user add filter conditions without opening any panel.  Pressing Enter
 applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: `eq`,
 `ne`, `contains`, `starts`, `lt`, `le`, `gt`, `ge`, `empty`,
-`notempty`.  Filters are applied server-side after all joins.  `lt`, `le`,
+`notempty`; and `in`, which a link can carry but the bar does not offer: any
+value of a JSON list, as in `f=place:in:["Paris","Rome"]`.  Filters are
+applied server-side after all joins.  `lt`, `le`,
 `gt` and `ge` compare numbers, reading `$1,234.56` and `(1,234.56)` as
 numbers too; a blank or a word in the cell matches none of them.
 - **Combine (UNION ALL)** -- the "Combine data" panel stacks rows from a
@@ -620,9 +622,10 @@ perl Makefile.PL
     value, remembered once in the model store and shared with every dataset that
     names it) or from coordinate columns (`lat=` and `lon=`).  Rows sharing a
     position become one marker.  When some rows cannot be plotted, the note that
-    says so opens onto a list of their places, each with its number of rows, why it
-    was not plotted (empty, not a place name, not found, or not looked up yet) and a
-    link to those rows in the table.  Markers are clustered with
+    says so counts them by reason (empty, not a place name, not found, or not looked
+    up yet), links to all of them in the table, and opens onto a list of their
+    places, each with its number of rows, why it was not plotted and a link to
+    those rows.  Markers are clustered with
     Leaflet.markercluster, so a dense map draws a count at low zoom and splits it
     as it is zoomed in.  Clustering is always on.  Parameters:
 

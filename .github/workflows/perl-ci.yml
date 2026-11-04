@@ -172,7 +172,7 @@ jobs:
         run: |
           eval "$(perl -I ~/perl5/lib/perl5 -Mlocal::lib)"
           cpanm --notest App::perlimports
-          find lib -name '*.pm' | xargs perlimports --lint
+          find lib -name '*.pm' -print0 | xargs -0 perlimports --lint
         shell: bash
 
       - name: Test coverage

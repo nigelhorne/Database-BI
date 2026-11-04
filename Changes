@@ -46,6 +46,13 @@ Revision history for Database-BI
 	  onto a list of their places: how many rows each stands for, why (no
 	  place, not a place name, not found, or not looked up yet), and a link
 	  to those rows in the table it came from.
+	- The note that some rows of a map could not be plotted names only the
+	  reasons that apply, each with its rows ("8 whose place was not found"),
+	  rather than every reason there could be.  Beside it, one link opens
+	  all those rows in the table at once.
+	- A new filter operator, in, keeps the rows whose cell is any value of a
+	  JSON list: f=place:in:["Paris","Rome"].  It is what that link uses.
+
 	[ Bug fixes ]
 	- Calc::date_normalise and the date functions in calculated fields gave
 	  the caller back a changed $!: on BSD, mktime and localtime can

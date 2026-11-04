@@ -2552,6 +2552,9 @@ function biDetectColType(colName) {
 
     function rebuildRowOps(ops, keepOp) {
       opSel.innerHTML = '';
+      // "is one of" is never offered, but a link (a map's unplotted rows)
+      // can bring one; keep it, or reopening the panel would turn it into eq.
+      if (keepOp === 'in') ops = ops.concat([['in', 'is one of']]);
       ops.forEach(function (pair) {
         var opt = document.createElement('option');
         opt.value = pair[0]; opt.textContent = pair[1];
@@ -2579,20 +2582,20 @@ function biDetectColType(colName) {
     valInp.type = 'text';
     valInp.className = 'filter-val-inp';
     valInp.placeholder = 'value';
-    valInp.value = (prefill.op !== 'between' && rowColType !== 'date' && rowColType !== 'numeric' && prefill.val !== undefined) ? prefill.val : '';
+    valInp.value = (prefill.op !== 'between' && (prefill.op === 'in' || (rowColType !== 'date' && rowColType !== 'numeric')) && prefill.val !== undefined) ? prefill.val : '';
 
     var numInp = document.createElement('input');
     numInp.type = 'number';
     numInp.className = 'filter-num-inp';
     numInp.placeholder = 'number';
     numInp.style.display = 'none';
-    if (rowColType === 'numeric' && prefill.val !== undefined) numInp.value = prefill.val;
+    if (rowColType === 'numeric' && prefill.op !== 'in' && prefill.val !== undefined) numInp.value = prefill.val;
 
     var dateInp = document.createElement('input');
     dateInp.type = 'date';
     dateInp.className = 'filter-date-inp';
     dateInp.style.display = 'none';
-    if (rowColType === 'date' && prefill.op !== 'between' && prefill.val) dateInp.value = prefill.val;
+    if (rowColType === 'date' && prefill.op !== 'between' && prefill.op !== 'in' && prefill.val) dateInp.value = prefill.val;
 
     var fromInp = document.createElement('input');
     fromInp.type = 'date';
@@ -2619,8 +2622,9 @@ function biDetectColType(colName) {
       var op        = opSel.value;
       var isBetween = op === 'between';
       var isUnary   = op === 'empty' || op === 'notempty';
-      var isDate    = rowColType === 'date';
-      var isNumeric = rowColType === 'numeric';
+      var isList    = op === 'in';
+      var isDate    = rowColType === 'date' && !isList;
+      var isNumeric = rowColType === 'numeric' && !isList;
       valInp.style.display  = (!isDate && !isNumeric && !isUnary) ? '' : 'none';
       numInp.style.display  = (isNumeric && !isUnary)             ? '' : 'none';
       dateInp.style.display = (isDate && !isUnary && !isBetween)  ? '' : 'none';

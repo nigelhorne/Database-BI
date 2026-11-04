@@ -666,6 +666,32 @@ subtest '_apply_filter_spec -- eq operator (case-insensitive)' => sub {
 	is scalar(@$out2), 1, 'eq is case-insensitive';
 };
 
+subtest '_apply_filter_spec -- in operator (a JSON list, matched as eq is)' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
+	my $records = [
+		{ id => 1, place => 'Paris' },
+		{ id => 2, place => 'Rome' },
+		{ id => 3, place => '' },
+		{ id => 4 },
+		{ id => 5, place => '12345' },
+		{ id => 6, place => 'Rome, Italy' },
+	];
+	my $ids = sub { [ map { $_->{id} } @{ $fn->($records, $_[0]) } ] };
+
+	is_deeply $ids->('place:in:["paris","ROME"]'), [1, 2], 'any value of the list, case-insensitive, whole cells only';
+	is_deeply $ids->('place:in:[""]'), [3, 4], 'an empty string is the empty cell, and a missing one';
+	is_deeply $ids->('place:in:[null]'), [3, 4], 'and so is null';
+	is_deeply $ids->('place:in:[12345]'), [5], 'a number in the list is its text';
+	is_deeply $ids->('place:in:["Rome, Italy"]'), [6], 'a value may hold a comma';
+	is_deeply $ids->('place:in:[]'), [], 'an empty list matches nothing';
+	is_deeply $ids->('place:in:Paris'), [], 'a value that is not JSON matches nothing, rather than everything';
+	is_deeply $ids->('place:in:{"a":"Paris"}'), [], 'nor does JSON that is not a list';
+	is_deeply $ids->('place:in:[["Paris"]]'), [], 'and a list inside the list is not a value';
+	is_deeply $ids->("place:in:[\"\\u00c9vian\"]"), [], 'a value outside ASCII is read as characters';
+	my $accented = $fn->([ { place => "\x{c9}vian" } ], "place:in:[\"\x{e9}vian\"]");
+	is scalar(@$accented), 1, 'and matched case-insensitively';
+};
+
 subtest '_apply_filter_spec -- ne operator' => sub {
 	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
 	my $records = [
@@ -7346,6 +7372,10 @@ sub croak_rethrow {
 		is $F{_crumb_view_suffix}->($q->('f=' . Mojo::Util::url_escape('<b>:eq:x'))), '', 'markup in a column is not repeated';
 		is $F{_crumb_view_suffix}->($q->('f=' . Mojo::Util::url_escape('a:eq:<b>'))), '', 'nor in a value';
 		is $F{_crumb_view_suffix}->($q->('f=' . Mojo::Util::url_escape(('x' x 65) . ':eq:y'))), '', 'nor a value too long to be a label';
+		is $F{_crumb_view_suffix}->($q->('f=' . Mojo::Util::url_escape('place:in:["<b>","Rome"]'))), ' (place is one of 2 values)',
+			'a list is counted, never repeated';
+		is $F{_crumb_view_suffix}->($q->('f=' . Mojo::Util::url_escape('place:in:nonsense'))), ' (place is one of 0 values)',
+			'and a list that is not one counts nothing';
 	};
 
 	subtest 'Dashboard::_crumb_chart_subject' => sub {

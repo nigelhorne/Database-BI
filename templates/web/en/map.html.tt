@@ -35,7 +35,9 @@
   .map-unplotted-table th,
   .map-unplotted-table td { text-align: left; padding: 0.15rem 0.75rem 0.15rem 0; vertical-align: top; }
   .map-unplotted-table td.num { white-space: nowrap; }
-  .map-unplotted-table a { color: inherit; }
+  .map-unplotted-table a,
+  .map-unplotted-all { color: var(--accent-text, #2c3e7a); text-decoration: underline; font-weight: 600; }
+  .map-unplotted-all { display: inline-block; margin: 0.3rem 0 0; }
   .map-summary {
     font-size: 0.85rem;
     color: var(--text-secondary, #555);
@@ -83,9 +85,12 @@
   <ul>
     [%- FOREACH message IN messages %]
     <li class="map-note" data-key="[% message.key | html %]">[% message.text | html %]
+      [%- IF message.key == 'warn_map_rows_skipped' && unplotted_url.length %]
+      <br><a class="map-unplotted-all" href="[% unplotted_url | html %]">Show the [% unplotted_rows %] row[% unplotted_rows == 1 ? '' : 's' %] that [% unplotted_rows == 1 ? 'was' : 'were' %] not plotted in the table</a>
+      [%- END %]
       [%- IF message.key == 'warn_map_rows_skipped' && unplotted.size %]
       <details class="map-unplotted">
-        <summary>Show the [% unplotted.size %] place[% unplotted.size == 1 ? '' : 's' %] that [% unplotted.size == 1 ? 'was' : 'were' %] not plotted</summary>
+        <summary>List the [% unplotted.size %] place[% unplotted.size == 1 ? '' : 's' %] that [% unplotted.size == 1 ? 'was' : 'were' %] not plotted</summary>
         [%- SET why = {
           empty     => 'No place in the row',
           refused   => 'Not a place name (a bare number)',

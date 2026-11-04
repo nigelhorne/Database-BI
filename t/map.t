@@ -948,7 +948,9 @@ subtest 'the places that were not plotted can be listed, and their rows opened' 
 	my $body = $t->tx->res->body;
 
 	like($body, qr/data-key="warn_map_rows_skipped"/, 'the rows are said to be unplotted');
-	like($body, qr/<summary>Show the 4 places that were not plotted<\/summary>/,
+	like(html_unescape($body), qr/Plotted 1 of 6 rows; 5 could not be plotted: 1 with no place in the row, 1 whose place is a bare number, not a place name, 2 whose place was not found, 1 whose place has not been looked up yet</,
+		'the note names each reason that applies, counted in rows');
+	like($body, qr/<summary>List the 4 places that were not plotted<\/summary>/,
 		'and the note opens onto the places, one each however many rows name it');
 
 	my @entries = $body =~ /<tr data-reason="([^"]+)">\s*<td>(.*?)<\/td>\s*<td class="num">(.*?)<\/td>/sg;
@@ -970,6 +972,18 @@ subtest 'the places that were not plotted can be listed, and their rows opened' 
 	like($atlantis, qr/\A\Q$table\E&f=place%3Aeq%3AAtlantis&back2=/, 'a place links to the table it came from, filtered to it');
 	like($empty, qr/&f=place%3Aempty&/, 'an empty cell to its empty rows');
 
+	# One link opens every unplotted row at once, whatever the reason.
+	my ($all) = $body =~ /<a class="map-unplotted-all" href="([^"]+)">([^<]+)</;
+	like($body, qr/>Show the 5 rows that were not plotted in the table</, 'one link offers every unplotted row');
+	$all = html_unescape($all // '');
+	like($all, qr/\A\Q$table\E&f=place%3Ain%3A&back2=|\A\Q$table\E&f=place%3Ain%3A/, 'as an in filter on the table it came from');
+	$t->get_ok($all)->status_is(200);
+	my $all_page = $t->tx->res->body;
+	my @ids = $all_page =~ /<td[^>]*>([1-6])<\/td>\s*<td[^>]*>(?:Atlantis|Lyonesse|12345|)<\/td>/g;
+	is_deeply([ sort @ids ], [ 2 .. 6 ], 'which shows those rows and not the plotted one')
+		or diag($all);
+	unlike($all_page, qr/<td[^>]*>Ramsgate<\/td>/, 'Ramsgate, which was plotted, is not among them');
+
 	$t->get_ok($atlantis)->status_is(200);
 	my $rows_page = $t->tx->res->body;
 	is(scalar(() = $rows_page =~ /<td[^>]*>Atlantis<\/td>/g), 2, 'the link shows the rows that name the place');
@@ -980,6 +994,57 @@ subtest 'the places that were not plotted can be listed, and their rows opened' 
 
 	$t->get_ok('/map?l=' . url_escape("path:$shared_a_csv") . '&loc=place&back=' . url_escape($table))->status_is(200);
 	unlike($t->tx->res->body, qr/class="map-unplotted"/, 'a map that plots every row lists nothing');
+};
+
+subtest 'the link to every unplotted row is offered only when it is exact' => sub {
+	# A place across two columns is filtered column by column, so the cells of
+	# two unplotted rows can pair up into a row that was plotted.  Then the one
+	# link would show too much, and only the per-place links are offered.
+	my $mixed = _write_file(File::Spec->catfile($dir, 'unplotted-mixed.csv'),
+		"id,address,country\n"
+		. "1,\"Brezje 8, Cerknica\",Slovenia\n"
+		. "2,Atlantis,Slovenia\n"
+		. "3,\"Brezje 8, Cerknica\",Sea\n");
+	$t->get_ok('/map?l=' . url_escape("path:$mixed") . '&loc=address&loc=country')->status_is(200);
+	my $body = $t->tx->res->body;
+	like($body, qr/<summary>List the 2 places that were not plotted<\/summary>/, 'two places were not plotted');
+	unlike($body, qr/class="map-unplotted-all"/, 'and the one link, which would also select row 1, is not offered');
+	is(scalar(() = $body =~ /title="Show these rows in the table"/g), 2, 'but each place still links to its rows');
+
+	my $apart = _write_file(File::Spec->catfile($dir, 'unplotted-apart.csv'),
+		"id,address,country\n"
+		. "1,\"Brezje 8, Cerknica\",Slovenia\n"
+		. "2,Atlantis,Sea\n"
+		. "3,Lyonesse,Sea\n");
+	$t->get_ok('/map?l=' . url_escape("path:$apart") . '&loc=address&loc=country')->status_is(200);
+	my ($all) = $t->tx->res->body =~ /<a class="map-unplotted-all" href="([^"]+)"/;
+	ok(defined $all, 'when the columns select exactly the unplotted rows, the link is offered');
+	$all = html_unescape($all // '');
+	like($all, qr/f=address%3Ain%3A.*&f=country%3Ain%3A/, 'with an in filter on each place column');
+	$t->get_ok($all)->status_is(200);
+	my $rows = $t->tx->res->body;
+	ok(scalar($rows =~ /<td[^>]*>Atlantis<\/td>/) && scalar($rows =~ /<td[^>]*>Lyonesse<\/td>/), 'it shows both unplotted rows');
+	unlike($rows, qr/<td[^>]*>Brezje 8, Cerknica<\/td>/, 'and not the plotted one');
+};
+
+subtest 'a place outside ASCII links to its rows' => sub {
+	# The links carry the cell in the URL.  Escaped as characters rather than
+	# UTF-8, the letters came back as something else and no row matched.
+	my $town = "\x{10C}u\x{10D}ki";
+	my $csv  = _write_file(File::Spec->catfile($dir, 'unplotted-utf8.csv'),
+		Mojo::Util::encode('UTF-8', "id,place\n1,Ramsgate\n2,$town\n3,$town\n"));
+	$t->get_ok('/map?l=' . url_escape("path:$csv") . '&loc=place')->status_is(200);
+	my $body = $t->tx->res->body;
+
+	my ($one) = $body =~ /<a href="([^"]+)" title="Show these rows in the table">/;
+	my ($all) = $body =~ /<a class="map-unplotted-all" href="([^"]+)"/;
+	ok(defined($one) && defined($all), 'the place and all the unplotted rows are linked');
+
+	for my $link ([ 'the place', $one ], [ 'every unplotted row', $all ]) {
+		$t->get_ok(html_unescape($link->[1] // ''))->status_is(200);
+		my $page = Mojo::Util::decode('UTF-8', $t->tx->res->body);
+		is(scalar(() = $page =~ /<td[^>]*>\Q$town\E<\/td>/g), 2, "the link to $link->[0] shows its two rows");
+	}
 };
 
 subtest 'a canvas map card degrades the same way' => sub {

@@ -125,7 +125,12 @@ Readonly our %MESSAGES => (
 	'error_values_arrayref'			=> 'Geocode: the values must be an arrayref, not "%s"',
 	'error_rows_arrayref'			=> 'Geocode: the rows must be an arrayref, not "%s"',
 	'error_column_required'			=> 'Geocode: the column name is required',
-	'warn_map_rows_skipped'			=> 'Plotted %d of %d rows; %d hold no location that could be plotted (an empty cell, a bare number, or a place that could not be found)',
+	'warn_map_rows_skipped'			=> 'Plotted %d of %d rows; %d could not be plotted: %s',
+	# The reasons warn_map_rows_skipped gives, those that apply, joined with ', '.
+	'warn_map_rows_why_empty'		=> '%d with no place in the row',
+	'warn_map_rows_why_refused'		=> '%d whose place is a bare number, not a place name',
+	'warn_map_rows_why_not_found'		=> '%d whose place was not found',
+	'warn_map_rows_why_later'		=> '%d whose place has not been looked up yet',
 	'warn_map_geocode_capped'		=> 'Geocoded %d of the %d places that had not been looked up before; the rest are untouched, so open the data source again or run the geocode warm script to finish them',
 	'warn_map_geocoder_unavailable_data'	=> 'The geocoder has no OpenAddresses data configured (OPENADDR_HOME), so places resolve only as coarsely as the bundled MaxMind data allows',
 	'warn_map_geocoder_local_only'		=> 'Places the local data does not know were not looked up online, which needs Geo::Coder::OSM 0.03 and LWP::UserAgent::Throttled 0.14 or later',
@@ -525,7 +530,8 @@ The count invariant always holds:
     error_map_loc_column               -- column not found in any row
     error_map_geocoder_missing         -- no geocoder, or version below the floor
     error_map_geocoder_list_missing    -- Geo::Coder::List absent or too old
-    warn_map_rows_skipped              -- some rows could not be plotted
+    warn_map_rows_skipped              -- some rows could not be plotted, and why
+    warn_map_rows_why_*                -- the reasons it names (not messages of their own)
     warn_map_geocode_capped            -- max or online_max held some values back
     warn_map_geocoder_unavailable_data -- local data only, and OPENADDR_HOME not set
     warn_map_geocoder_local_only       -- no Geo::Coder::OSM, and places were not found
@@ -1378,8 +1384,27 @@ sub resolve_column {
 	$result->{'counts'}{'plotted'}  = $plotted;
 	$result->{'counts'}{'unusable'} = $rows_total - $plotted;
 
-	push @{ $result->{'messages'} }, $self->_message('warn_map_rows_skipped', $plotted, $rows_total, $rows_total - $plotted)
-		if $plotted < $rows_total;
+	if ($plotted < $rows_total) {
+		# Why the rest were not plotted, counted in rows, naming only the reasons
+		# that apply: a list of every possible reason sent a reader looking for
+		# empty cells that were not there.
+		my %why;
+		for my $value (@{ $result->{'skipped'} }) {
+			my $key = (defined($value) && !ref($value)) ? $value : '';
+			$why{$key} = length($key) ? 'refused' : 'empty';
+		}
+		$why{$_} = 'not_found' for grep { defined } @{ $result->{'unresolved'} };
+		$why{$_} = 'later'     for grep { defined } @{ $result->{'not_attempted'} };
+
+		my %rows_by;
+		$rows_by{ $why{$_} } += $row_count{$_} for grep { exists $row_count{$_} } keys %why;
+
+		my $reasons = join(', ', map { $self->_msg("warn_map_rows_why_$_", $rows_by{$_}) }
+			grep { $rows_by{$_} } qw(empty refused not_found later));
+
+		push @{ $result->{'messages'} }, $self->_message('warn_map_rows_skipped',
+			$plotted, $rows_total, $rows_total - $plotted, $reasons);
+	}
 
 	return $result;
 }
@@ -2006,11 +2031,18 @@ string.
 
 =item C<warn_map_rows_skipped>
 
-    Plotted %d of %d rows; %d hold no location that could be plotted ...
+    Plotted %d of %d rows; %d could not be plotted: %s
 
-Some rows in the input had a cell that was empty, a bare number, or a place
-that the geocoder could not find.  The count of plotted rows is less than the
-total.  Not an error: the map renders with the rows that could be resolved.
+Some rows could not be plotted.  The last argument says why, counted in rows,
+naming only the reasons that apply, joined with C<, >; each is one of
+
+    warn_map_rows_why_empty      %d with no place in the row
+    warn_map_rows_why_refused    %d whose place is a bare number, not a place name
+    warn_map_rows_why_not_found  %d whose place was not found
+    warn_map_rows_why_later      %d whose place has not been looked up yet
+
+in that order, rendered through the same C<i18n> object as the message.  Not an
+error: the map renders with the rows that could be resolved.
 
 =item C<warn_map_geocode_capped>
 

@@ -15,7 +15,7 @@ use CGI::Lingua;
 use Database::BI::Tutorial;
 use Database::BI::Util;
 use Mojo::File;
-use Mojo::JSON		qw(encode_json decode_json);
+use Mojo::JSON		qw(encode_json decode_json from_json to_json);
 use Mojo::Parameters;
 use Mojo::URL;
 use Mojo::Util		qw(url_escape encode xml_escape);
@@ -594,7 +594,7 @@ Readonly my %CRUMB_KIND => (
 Readonly my %CRUMB_OP => (
 	eq => '=', ne => '!=', contains => 'contains', starts => 'starts with',
 	lt => '<', le => '<=', gt => '>', ge => '>=', between => 'between',
-	empty => 'is empty', notempty => 'is not empty',
+	empty => 'is empty', notempty => 'is not empty', in => 'is one of',
 );
 
 # A trail is never longer than this, whatever the URLs say.
@@ -782,6 +782,12 @@ sub _crumb_view_suffix {
 		my ($col, $op, $val) = split /:/, $spec, 3;
 		next unless length($col // '') && length($op // '');
 		next unless $col =~ $CRUMB_TEXT_RE;
+		# A list is JSON, which the crumb text pattern refuses: say how long it is.
+		if ($op eq 'in') {
+			my $n = () = _filter_in_values($val);
+			push @bits, "$col $CRUMB_OP{in} $n value" . ($n == 1 ? '' : 's');
+			next;
+		}
 		next if length($val // '') && $val !~ $CRUMB_TEXT_RE;
 		my $word = $CRUMB_OP{$op} // $op;
 		push @bits, ($op eq 'empty' || $op eq 'notempty')
@@ -1448,6 +1454,8 @@ sub _get_columns {
 #       lt (strict), le (inclusive), gt (strict), ge (inclusive)
 #     Unary (val is ignored):
 #       empty (cell eq ''), notempty (cell ne '')
+#     List (val = a JSON array of strings; compared as eq is):
+#       in -- lc(cell) is one of them; a val that is not such an array matches nothing
 #     Range (val = lo:hi, string comparison -- correct for ISO YYYY-MM-DD dates):
 #       between -- lo le cell le hi
 #   Boundary rules for numeric operators:
@@ -1707,6 +1715,20 @@ sub _time_range_request ($c) {
 	return 1;
 }
 
+# _filter_in_values($val) -> @strings
+#
+# The values an f=col:in:<val> filter lists: $val is a JSON array, and only its
+# plain scalars count (a null is the empty cell).  Anything else lists nothing,
+# so a damaged link matches no row rather than every row.
+sub _filter_in_values {
+	my ($val) = @_;
+	local $@;
+	my $list;
+	return () unless eval { $list = from_json($val // q{}); 1 };
+	return () unless ref($list) eq 'ARRAY';
+	return map { $_ // '' } grep { !ref } @{$list};
+}
+
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
@@ -1726,6 +1748,7 @@ sub _apply_filter_spec {
 	# one, so it matches none of the four, rather than counting as zero.
 	my $by_number = !$is_date && $op =~ /\A(?:lt|le|gt|ge)\z/;
 	my $num_val   = $by_number ? _numeric_cell($val) : undef;
+	my %in_set    = $op eq 'in' ? (map { lc($_) => 1 } _filter_in_values($val)) : ();
 	return [grep {
 		my $cell  = $_->{$col} // '';
 		my $num   = $by_number ? _numeric_cell($cell) : undef;
@@ -1745,6 +1768,7 @@ sub _apply_filter_spec {
 		$op eq 'ge'       ? ($is_date ? $ncell ge $nval  : $both && $num >= $num_val) :
 		$op eq 'empty'    ? $cell eq ''                                         :
 		$op eq 'notempty' ? $cell ne ''                                         :
+		$op eq 'in'       ? $in_set{ lc($cell) }                                 :
 		$op eq 'between'  ? do {
 			my ($lo, $hi) = split /:/, $val, 2;
 			length($lo // '') && length($hi // '') && $ncell ge $lo && $ncell le $hi
@@ -2456,6 +2480,7 @@ sub _dedup_records {
 #   lt / le / gt / ge -- SQL numeric comparison.  Residual when the value is
 #                      not a plain number (avoids column-affinity surprises
 #                      with currency or comma-formatted values).
+#   in              -- Always residual (a list of values, matched as eq is).
 #   empty / notempty -- Always residual.  Must match both SQL NULL and the
 #                      literal empty string; cannot be expressed as a single
 #                      D::A criterion without an -or grouping.
@@ -4645,7 +4670,7 @@ sub _analysis_to_url :Protected ($self, $a) {
 	for my $ds (@datasets) {
 		next unless ref $ds->{filters} eq 'ARRAY';
 		for my $f (@{ $ds->{filters} }) {
-			push @params, 'f=' . url_escape($f);
+			push @params, 'f=' . url_escape(encode('UTF-8', $f));
 		}
 	}
 
@@ -6560,7 +6585,7 @@ sub canvas_render ($self) {
 			if ($base ne '/') {
 				my $sep = ($base =~ /\?/) ? '&' : '?';
 				for my $cf (@cf_specs) {
-					$base .= $sep . 'f=' . url_escape($cf);
+					$base .= $sep . 'f=' . url_escape(encode('UTF-8', $cf));
 					$sep = '&';
 				}
 				$drillthrough_url = $base;
@@ -12015,7 +12040,8 @@ sub _map_loc_columns {
 	return grep { defined($_) && !ref($_) && length($_) && !$seen{$_}++ } @names;
 }
 
-# _map_unplotted(\@records, \@places, $loc_col, \@loc_cols, \%resolved) -> @entries
+# _map_unplotted(\@records, \@places, $loc_col, \@loc_cols, \%resolved)
+#     -> (\@entries, \@all_filters)
 #
 # The places a geocoded map could not plot, so that the page can say which
 # they are: one entry for each, in the order of the first row that names it,
@@ -12024,6 +12050,12 @@ sub _map_loc_columns {
 # (not looked up yet: past a cap, or waiting for OpenStreetMap).  filters are
 # f= specs that select the place's rows in the table, built from the cells of
 # its first row: one for each place column, eq that cell, or empty.
+#
+# @all_filters select every unplotted row at once: for each place column, in
+# the list of its cells in those rows.  Columns filtered apart can pair a cell
+# of one row with a cell of another, which may name a place that was plotted,
+# so the filters are tried on the rows and kept only when they select exactly
+# the unplotted ones; otherwise @all_filters is empty.
 sub _map_unplotted {
 	my ($records, $places, $loc_col, $loc_cols, $resolved) = @_;
 
@@ -12035,17 +12067,33 @@ sub _map_unplotted {
 	$reason{$_} = 'not_found' for grep { defined } @{ $resolved->{unresolved}    // [] };
 	$reason{$_} = 'later'     for grep { defined } @{ $resolved->{not_attempted} // [] };
 
-	my (%rows, %first);
+	my (%rows, %first, %cells);
+	my $total = 0;
 	for my $index (0 .. $#{$places}) {
 		my $place = $places->[$index];
 		my $value = ref($place) eq 'HASH' ? $place->{$loc_col} : undef;
 		my $key   = (defined($value) && !ref($value)) ? $value : '';
 		next unless exists $reason{$key};
 		$rows{$key}++;
+		$total++;
 		$first{$key} //= $index;
+
+		my $row = $records->[$index];
+		for my $col (@{$loc_cols}) {
+			my $cell = ref($row) eq 'HASH' ? $row->{$col} : undef;
+			$cells{$col}{ (defined($cell) && !ref($cell)) ? $cell : '' } = 1;
+		}
 	}
 
-	return map {
+	my @all_filters;
+	if ($total) {
+		@all_filters = map { "$_:in:" . to_json([ sort keys %{ $cells{$_} } ]) } @{$loc_cols};
+		my $hit = $records;
+		$hit = _apply_filter_spec($hit, $_) for @all_filters;
+		@all_filters = () unless scalar(@{$hit}) == $total;
+	}
+
+	my @entries = map {
 		my $row = $records->[ $first{$_} ];
 		$row = {} unless ref($row) eq 'HASH';
 		+{
@@ -12058,6 +12106,8 @@ sub _map_unplotted {
 			} @{$loc_cols} ],
 		};
 	} sort { $first{$a} <=> $first{$b} } keys %first;
+
+	return (\@entries, \@all_filters);
 }
 
 # _map_data($self, \@records, \@columns, \%encode, \%options, $spec_key, $id_suffix)
@@ -12107,7 +12157,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	}
 
 	my ($backend, $plotted_rows) = (undef, 0);
-	my (@markers, @messages, @unplotted);
+	my (@markers, @messages, @unplotted, @unplotted_filters);
 
 	if ($by_location) {
 		for my $col (@loc_cols) {
@@ -12169,7 +12219,9 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		push @messages, @{ $result->{messages} };
 		$backend      = $result->{backend};
 		$plotted_rows = $result->{counts}{plotted};
-		@unplotted    = _map_unplotted($records, $places, $loc_col, \@loc_cols, $result);
+		my ($entries, $all) = _map_unplotted($records, $places, $loc_col, \@loc_cols, $result);
+		@unplotted         = @{$entries};
+		@unplotted_filters = @{$all};
 
 		# Only a request that asked something new, or found old answers to move
 		# into the shared cache, has something new to remember: rewriting the
@@ -12483,6 +12535,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		backend      => $backend,
 		chart        => \%chart_spec,
 		unplotted    => \@unplotted,
+		unplotted_filters => \@unplotted_filters,
 	};
 }
 
@@ -12779,23 +12832,30 @@ sub map_view ($self) {
 	my $rows_base = ($back =~ m{\A(?:https?://[^/]+)?/(?:open\?|view/)}) ? $back
 		: $self->_spec_to_url($self->param('l') // '');
 	my $here = $self->req->url->path_query;
+	my $rows_url = sub {
+		my ($filters) = @_;
+		return '' if $rows_base eq '/' || !@{$filters};
+		my $sep = ($rows_base =~ /\?/) ? '&' : '?';
+		return $rows_base . $sep . join('&',
+			(map { 'f=' . url_escape(encode('UTF-8', $_)) } @{$filters}),
+			'back2=' . url_escape($here),
+			'back2_label=' . url_escape('Back to map'),
+		);
+	};
 	my @unplotted = map {
 		my $entry = { %{$_} };
-		if ($rows_base ne '/') {
-			my $sep = ($rows_base =~ /\?/) ? '&' : '?';
-			$entry->{url} = $rows_base . $sep . join('&',
-				(map { 'f=' . url_escape($_) } @{ $entry->{filters} }),
-				'back2=' . url_escape($here),
-				'back2_label=' . url_escape('Back to map'),
-			);
-		}
+		$entry->{url} = $rows_url->($entry->{filters});
 		$entry;
 	} @{ $result->{unplotted} // [] };
+	my $unplotted_rows = 0;
+	$unplotted_rows += $_->{rows} for @unplotted;
 
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/map",
 		unplotted       => \@unplotted,
+		unplotted_rows  => $unplotted_rows,
+		unplotted_url   => $rows_url->($result->{unplotted_filters} // []),
 		format          => 'html',
 		title           => $result->{title},
 		extra_head      => $result->{map_head},
@@ -14730,6 +14790,9 @@ B<Supported operators:>
   ge        numeric greater-than-or-equal
   empty     cell is undef or empty string (val ignored)
   notempty  cell is defined and non-empty (val ignored)
+  in        case-insensitive equality with any value of a JSON array of
+            strings, e.g. C<f=place:in:["Paris","Rome"]>; a value that is
+            not such an array matches no row
 
 B<Quick-filter bar (table view):>
 

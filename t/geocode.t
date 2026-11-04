@@ -157,7 +157,7 @@ subtest 'a dirty column is skipped end to end' => sub {
 		['warn_map_rows_skipped'],
 		'and the page is told that some rows could not be plotted');
 
-	like($result->{'messages'}[0]{'text'}, qr/Plotted 7 of 12 rows; 5 hold no location/,
+	like($result->{'messages'}[0]{'text'}, qr/Plotted 7 of 12 rows; 5 could not be plotted: /,
 		'with the numbers in the message');
 
 	# The crux: nothing that is not a location reached the geocoder.  One batch,
@@ -319,6 +319,32 @@ subtest 'the cap counts new lookups, and holds the rest back for the next reques
 	is($fourth->{'counts'}{'attempted'}, 0, 'a column that is all cached performs no lookups, whatever the cap is');
 	is($fourth->{'counts'}{'cached'}, 5, 'all five come from the cache');
 	is($fourth->{'messages'}[0]{'key'}, 'warn_map_rows_skipped', 'and the only thing left to report is the rows');
+};
+
+subtest 'the message names only the reasons that apply, counted in rows' => sub {
+	my $geocode = Database::BI::Model::Geocode->new(geocoder => stub(), openaddr => 'test');
+	my $text = sub {
+		my ($result) = @_;
+		my ($m) = grep { $_->{'key'} eq 'warn_map_rows_skipped' } @{ $result->{'messages'} };
+		return $m ? $m->{'text'} : undef;
+	};
+
+	# Every row unplotted for one reason: the message says only that one.
+	my $lost = $geocode->resolve_column([ map { { 'place' => $_ } } qw(Atlantis Atlantis Lyonesse) ], 'place');
+	is($text->($lost), 'Plotted 0 of 3 rows; 3 could not be plotted: 3 whose place was not found',
+		'three rows naming places that were not found say so, and nothing else');
+
+	# All four reasons, in their fixed order, each counted in rows.
+	my $all = $geocode->resolve_column([ map { { 'place' => $_ } }
+		'Ramsgate, Kent', 'Atlantis', '', undef, '12', '12', 'Lyonesse', 'Avalon' ], 'place', max => 2);
+	is($text->($all), 'Plotted 1 of 8 rows; 7 could not be plotted: '
+		. '2 with no place in the row, 2 whose place is a bare number, not a place name, '
+		. '1 whose place was not found, 2 whose place has not been looked up yet',
+		'every reason, in order, with its rows');
+
+	# Rows that all plotted say nothing.
+	my $fine = $geocode->resolve_column([ { 'place' => 'Sittingbourne' } ], 'place');
+	ok(!defined $text->($fine), 'a column that plots every row has no such message');
 };
 
 subtest 'the counts add up, in every state' => sub {

@@ -164,7 +164,10 @@
 	<dd>
 		<code>eq</code>, <code>ne</code>, <code>contains</code>,
 		<code>starts</code>, <code>lt</code>, <code>le</code>, <code>gt</code>,
-		<code>ge</code>, <code>empty</code>, <code>notempty</code>. String
+		<code>ge</code>, <code>empty</code>, <code>notempty</code>, and
+		<code>in</code>, any value of a JSON list
+		(<code>f=place:in:["Paris","Rome"]</code>), which a map uses to link to
+		the rows it could not plot. String
 		comparisons are case-insensitive. The four order operators compare numbers,
 		reading <code>$1,234.56</code> and <code>(1,234.56)</code> as numbers too; a
 		blank or a word in the cell matches none of them.

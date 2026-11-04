@@ -95,7 +95,9 @@ the user add filter conditions without opening any panel.  Pressing Enter
 applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: C<eq>,
 C<ne>, C<contains>, C<starts>, C<lt>, C<le>, C<gt>, C<ge>, C<empty>,
-C<notempty>.  Filters are applied server-side after all joins.  C<lt>, C<le>,
+C<notempty>; and C<in>, which a link can carry but the bar does not offer: any
+value of a JSON list, as in C<f=place:in:["Paris","Rome"]>.  Filters are
+applied server-side after all joins.  C<lt>, C<le>,
 C<gt> and C<ge> compare numbers, reading C<$1,234.56> and C<(1,234.56)> as
 numbers too; a blank or a word in the cell matches none of them.
 
@@ -666,9 +668,10 @@ comes from a location column that is geocoded (C<loc=>, one lookup per distinct
 value, remembered once in the model store and shared with every dataset that
 names it) or from coordinate columns (C<lat=> and C<lon=>).  Rows sharing a
 position become one marker.  When some rows cannot be plotted, the note that
-says so opens onto a list of their places, each with its number of rows, why it
-was not plotted (empty, not a place name, not found, or not looked up yet) and a
-link to those rows in the table.  Markers are clustered with
+says so counts them by reason (empty, not a place name, not found, or not looked
+up yet), links to all of them in the table, and opens onto a list of their
+places, each with its number of rows, why it was not plotted and a link to
+those rows.  Markers are clustered with
 Leaflet.markercluster, so a dense map draws a count at low zoom and splits it
 as it is zoomed in.  Clustering is always on.  Parameters:
 
