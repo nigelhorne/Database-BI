@@ -934,6 +934,54 @@ subtest 'loc= repeated geocodes the columns joined with ", "' => sub {
 		->status_is(400, 'an unknown kind is still refused');
 };
 
+subtest 'the places that were not plotted can be listed, and their rows opened' => sub {
+	# Ramsgate is known; Atlantis is not, and is named twice; Lyonesse is past
+	# the cap of one new lookup; one row is empty and one a bare number.
+	my $csv = _write_file(File::Spec->catfile($dir, 'unplotted.csv'),
+		"id,place\n1,Ramsgate\n2,Atlantis\n3,Atlantis\n4,\n5,12345\n6,Lyonesse\n");
+	my $spec  = "path:$csv";
+	my $table = '/open?path=' . url_escape($csv);
+	my $map   = '/map?l=' . url_escape($spec) . '&loc=place';
+
+	local $t->app->config->{map_geocode_max} = 1;
+	$t->get_ok($map . '&back=' . url_escape($table))->status_is(200);
+	my $body = $t->tx->res->body;
+
+	like($body, qr/data-key="warn_map_rows_skipped"/, 'the rows are said to be unplotted');
+	like($body, qr/<summary>Show the 4 places that were not plotted<\/summary>/,
+		'and the note opens onto the places, one each however many rows name it');
+
+	my @entries = $body =~ /<tr data-reason="([^"]+)">\s*<td>(.*?)<\/td>\s*<td class="num">(.*?)<\/td>/sg;
+	my @got;
+	while (my ($reason, $place, $rows) = splice @entries, 0, 3) {
+		my ($href) = $rows =~ /href="([^"]+)"/;
+		(my $count = $rows) =~ s/<[^>]+>//g;
+		push @got, [ $reason, $place, $count, html_unescape($href // '') ];
+	}
+	is_deeply([ map { [ @{$_}[0 .. 2] ] } @got ], [
+		[ 'not_found', 'Atlantis',          '2 rows' ],
+		[ 'empty',     '<em>(empty)</em>',  '1 row'  ],
+		[ 'refused',   '12345',             '1 row'  ],
+		[ 'later',     'Lyonesse',          '1 row'  ],
+	], 'in row order, each with its reason and how many rows it stands for');
+	like($body, qr/Not looked up yet; it will be tried next time/, 'the reasons are said in words');
+
+	my ($atlantis, $empty) = map { $_->[3] } @got[0, 1];
+	like($atlantis, qr/\A\Q$table\E&f=place%3Aeq%3AAtlantis&back2=/, 'a place links to the table it came from, filtered to it');
+	like($empty, qr/&f=place%3Aempty&/, 'an empty cell to its empty rows');
+
+	$t->get_ok($atlantis)->status_is(200);
+	my $rows_page = $t->tx->res->body;
+	is(scalar(() = $rows_page =~ /<td[^>]*>Atlantis<\/td>/g), 2, 'the link shows the rows that name the place');
+	like(html_unescape($rows_page), qr/Map: place/, 'with the map in its breadcrumb, to go back to');
+
+	$t->get_ok($map)->status_is(200);
+	like(html_unescape($t->tx->res->body), qr{href="/open\?path=[^"]*&f=place%3Aeq%3AAtlantis}, 'with no back=, the link is to the file\'s own table');
+
+	$t->get_ok('/map?l=' . url_escape("path:$shared_a_csv") . '&loc=place&back=' . url_escape($table))->status_is(200);
+	unlike($t->tx->res->body, qr/class="map-unplotted"/, 'a map that plots every row lists nothing');
+};
+
 subtest 'a canvas map card degrades the same way' => sub {
 	# A canvas draws its map cards through the same _map_data, so a card has to
 	# carry the warning and the marker count too, and the page has to survive

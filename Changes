@@ -42,7 +42,15 @@ Revision history for Database-BI
 	  Country, and remembered with the other), canvas map cards keep the
 	  columns as a list, and script/bi-geocode takes --col more than once.
 	- script/bi-geocode takes --offline and --online-max.
+	- When a geocoded map cannot plot some rows, the note that says so opens
+	  onto a list of their places: how many rows each stands for, why (no
+	  place, not a place name, not found, or not looked up yet), and a link
+	  to those rows in the table it came from.
 	[ Bug fixes ]
+	- Calc::date_normalise and the date functions in calculated fields gave
+	  the caller back a changed $!: on BSD, mktime and localtime can
+	  leave errno set when they succeed (a CPAN Testers failure in t/unit.t).
+	  Fixes https://www.cpantesters.org/cpan/report/ef94d1fc-d7aa-11f1-839c-f58cc80b69bd
 	- script/bi-geocode could not open a path: spec: it looked for a table
 	  named after the whole file name, extension included.
 	- /scatter no longer saves scheme= in the chart it hands to a canvas when
@@ -56,6 +64,10 @@ Revision history for Database-BI
 	  integer, not "0"'), and its summary counted cache hits from a key that
 	  does not exist and compared rows with places.
 	[ Tests ]
+	- t/function.t tries _follow_links on an NT-form link target only where
+	  readlink gives the target back as written: Cygwin turns a target with
+	  backslashes into a Windows path (a CPAN Testers failure on Cygwin).
+	  Fixes https://www.cpantesters.org/cpan/report/4d672bda-d7ac-11f1-8016-ac2316d9a04a
 	- The geocoding tests pass without the recommended modules, as on CI:
 	  t/transition.t stands in for Geo::Coder::List, t/unit.t raises the
 	  "needs Geo::Coder::List" message with it hidden, and t/integration.t

@@ -29,6 +29,13 @@
     color: var(--warning-fg, #5c4a11);
   }
   .map-notes ul { margin: 0; padding-left: 1.1rem; }
+  .map-unplotted { margin: 0.35rem 0 0.15rem; }
+  .map-unplotted summary { cursor: pointer; text-decoration: underline; }
+  .map-unplotted-table { border-collapse: collapse; margin-top: 0.35rem; font-size: 0.85rem; }
+  .map-unplotted-table th,
+  .map-unplotted-table td { text-align: left; padding: 0.15rem 0.75rem 0.15rem 0; vertical-align: top; }
+  .map-unplotted-table td.num { white-space: nowrap; }
+  .map-unplotted-table a { color: inherit; }
   .map-summary {
     font-size: 0.85rem;
     color: var(--text-secondary, #555);
@@ -75,7 +82,31 @@
 <div class="map-notes" role="status">
   <ul>
     [%- FOREACH message IN messages %]
-    <li class="map-note" data-key="[% message.key | html %]">[% message.text | html %]</li>
+    <li class="map-note" data-key="[% message.key | html %]">[% message.text | html %]
+      [%- IF message.key == 'warn_map_rows_skipped' && unplotted.size %]
+      <details class="map-unplotted">
+        <summary>Show the [% unplotted.size %] place[% unplotted.size == 1 ? '' : 's' %] that [% unplotted.size == 1 ? 'was' : 'were' %] not plotted</summary>
+        [%- SET why = {
+          empty     => 'No place in the row',
+          refused   => 'Not a place name (a bare number)',
+          not_found => 'Not found',
+          later     => 'Not looked up yet; it will be tried next time',
+        } %]
+        <table class="map-unplotted-table">
+          <thead><tr><th scope="col">Place</th><th scope="col">Rows</th><th scope="col">Why</th></tr></thead>
+          <tbody>
+          [%- FOREACH u IN unplotted %]
+          <tr data-reason="[% u.reason | html %]">
+            <td>[% IF u.place.length %][% u.place | html %][% ELSE %]<em>(empty)</em>[% END %]</td>
+            <td class="num">[% IF u.url %]<a href="[% u.url | html %]" title="Show these rows in the table">[% u.rows %] row[% u.rows == 1 ? '' : 's' %]</a>[% ELSE %][% u.rows %][% END %]</td>
+            <td>[% why.${u.reason} | html %]</td>
+          </tr>
+          [%- END %]
+          </tbody>
+        </table>
+      </details>
+      [%- END %]
+    </li>
     [%- END %]
   </ul>
 </div>

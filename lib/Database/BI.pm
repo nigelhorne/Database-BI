@@ -665,7 +665,10 @@ OpenStreetMap map of the filtered view, drawn with HTML::OSM.  A row's position
 comes from a location column that is geocoded (C<loc=>, one lookup per distinct
 value, remembered once in the model store and shared with every dataset that
 names it) or from coordinate columns (C<lat=> and C<lon=>).  Rows sharing a
-position become one marker.  Markers are clustered with
+position become one marker.  When some rows cannot be plotted, the note that
+says so opens onto a list of their places, each with its number of rows, why it
+was not plotted (empty, not a place name, not found, or not looked up yet) and a
+link to those rows in the table.  Markers are clustered with
 Leaflet.markercluster, so a dense map draws a count at low zoom and splits it
 as it is zoomed in.  Clustering is always on.  Parameters:
 

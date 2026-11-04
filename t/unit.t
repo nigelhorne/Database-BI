@@ -2738,6 +2738,30 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			is $! + 0, $errno, "$name keeps \$!";
 			cmp_ok $left, '>', $ALARM_SECS - 10, "$name leaves the alarm running" if $alarm_reports;
 		}
+
+		# FreeBSD's mktime runs tzset, which can leave errno set (84, EILSEQ) when
+		# it succeeds; Linux's does not, so this mktime does it on purpose.  The
+		# date functions still give the caller its $! back.
+		{
+			no warnings 'redefine';
+			my $real = \&POSIX::mktime;
+			local *POSIX::mktime = sub { my $epoch = $real->(@_); $! = 84; return $epoch };
+			for my $case (
+				[ 'Calc::date_normalise' => sub { Database::BI::Calc::date_normalise('01/15/2026', '%m/%d/%Y') } ],
+				[ 'Calc::evaluate (week, weekday)' => sub {
+					Database::BI::Calc->new(expr => 'week(d) + weekday(d)', columns => ['d'])->evaluate({ d => '2026-01-15' });
+				} ],
+				[ 'Calc::evaluate (span by week)' => sub {
+					Database::BI::Calc->new(expr => 'span(d, "1w")', columns => ['d'])->evaluate({ d => '2026-01-15' });
+				} ],
+			) {
+				my ($name, $code) = @$case;
+				local $! = 2;
+				my $value = $code->();
+				is $! + 0, 2, "$name keeps \$! where mktime sets errno";
+				ok defined($value), "$name still answers";
+			}
+		}
 		delete $ledger{'api.Globals'};
 	};
 

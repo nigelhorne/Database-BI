@@ -7869,8 +7869,13 @@ sub croak_rethrow {
 		symlink('real/deep', $base->child('rel')->to_string);           # relative
 		symlink('../rel', $base->child('real', 'up')->to_string);        # .. in the target
 		symlink('abs', $base->child('chain')->to_string);                # a link to a link
-		# The NT form some Windows perls' readlink gives; here just a name.
-		symlink('\\??\\' . $base->child('real')->to_string, $base->child('nt')->to_string);
+		# The NT form some Windows perls' readlink gives; here just a name.  Cygwin
+		# reads a target holding backslashes as a Windows path when the link is
+		# made, and readlink then answers that path, not this text: the case is
+		# only tried where the link holds the text it was given.
+		my $nt_target = '\\??\\' . $base->child('real')->to_string;
+		symlink($nt_target, $base->child('nt')->to_string);
+		my $nt_literal = (readlink($base->child('nt')->to_string) // '') eq $nt_target;
 		symlink('loop2', $base->child('loop1')->to_string);
 		symlink('loop1', $base->child('loop2')->to_string);
 
@@ -7887,8 +7892,10 @@ sub croak_rethrow {
 			'real/deep/../deep/f.csv' => 'real/deep/f.csv',
 			'real'                    => 'real',
 			'abs/not/yet'             => 'real/not/yet',
-			'nt/deep'                 => 'real/deep',
+			($nt_literal ? ('nt/deep' => 'real/deep') : ()),
 		);
+		note('the NT-form link is not tried: readlink does not give back its target as written')
+			unless $nt_literal;
 		for my $p (sort keys %where) {
 			my $got = $fn->($base->child(split m{/}, $p)->to_string);
 			is(defined $got ? File::Spec->canonpath($got) : undef,

@@ -12015,6 +12015,51 @@ sub _map_loc_columns {
 	return grep { defined($_) && !ref($_) && length($_) && !$seen{$_}++ } @names;
 }
 
+# _map_unplotted(\@records, \@places, $loc_col, \@loc_cols, \%resolved) -> @entries
+#
+# The places a geocoded map could not plot, so that the page can say which
+# they are: one entry for each, in the order of the first row that names it,
+# as { place, rows, reason, filters }.  reason is 'empty' (no place in the
+# row), 'refused' (not a place name: a bare number), 'not_found', or 'later'
+# (not looked up yet: past a cap, or waiting for OpenStreetMap).  filters are
+# f= specs that select the place's rows in the table, built from the cells of
+# its first row: one for each place column, eq that cell, or empty.
+sub _map_unplotted {
+	my ($records, $places, $loc_col, $loc_cols, $resolved) = @_;
+
+	my %reason;
+	for my $value (@{ $resolved->{skipped} // [] }) {
+		my $key = (defined($value) && !ref($value)) ? $value : '';
+		$reason{$key} = length($key) ? 'refused' : 'empty';
+	}
+	$reason{$_} = 'not_found' for grep { defined } @{ $resolved->{unresolved}    // [] };
+	$reason{$_} = 'later'     for grep { defined } @{ $resolved->{not_attempted} // [] };
+
+	my (%rows, %first);
+	for my $index (0 .. $#{$places}) {
+		my $place = $places->[$index];
+		my $value = ref($place) eq 'HASH' ? $place->{$loc_col} : undef;
+		my $key   = (defined($value) && !ref($value)) ? $value : '';
+		next unless exists $reason{$key};
+		$rows{$key}++;
+		$first{$key} //= $index;
+	}
+
+	return map {
+		my $row = $records->[ $first{$_} ];
+		$row = {} unless ref($row) eq 'HASH';
+		+{
+			place   => $_,
+			rows    => $rows{$_},
+			reason  => $reason{$_},
+			filters => [ map {
+				my $cell = $row->{$_};
+				(defined($cell) && !ref($cell) && length($cell)) ? "$_:eq:$cell" : "$_:empty";
+			} @{$loc_cols} ],
+		};
+	} sort { $first{$a} <=> $first{$b} } keys %first;
+}
+
 # _map_data($self, \@records, \@columns, \%encode, \%options, $spec_key, $id_suffix)
 #     -> \%result
 #
@@ -12062,7 +12107,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	}
 
 	my ($backend, $plotted_rows) = (undef, 0);
-	my (@markers, @messages);
+	my (@markers, @messages, @unplotted);
 
 	if ($by_location) {
 		for my $col (@loc_cols) {
@@ -12124,6 +12169,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		push @messages, @{ $result->{messages} };
 		$backend      = $result->{backend};
 		$plotted_rows = $result->{counts}{plotted};
+		@unplotted    = _map_unplotted($records, $places, $loc_col, \@loc_cols, $result);
 
 		# Only a request that asked something new, or found old answers to move
 		# into the shared cache, has something new to remember: rewriting the
@@ -12436,6 +12482,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		lon_col      => ($by_location ? undef    : $lon_col),
 		backend      => $backend,
 		chart        => \%chart_spec,
+		unplotted    => \@unplotted,
 	};
 }
 
@@ -12726,9 +12773,29 @@ sub map_view ($self) {
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 	my ($platform, $language) = $self->_resolve_template;
 
+	# Each place that could not be plotted links to its rows in the table,
+	# as a bar drills into its category: the table this map came from, with
+	# the place's filters added, and back2= to return here.
+	my $rows_base = ($back =~ m{\A(?:https?://[^/]+)?/(?:open\?|view/)}) ? $back
+		: $self->_spec_to_url($self->param('l') // '');
+	my $here = $self->req->url->path_query;
+	my @unplotted = map {
+		my $entry = { %{$_} };
+		if ($rows_base ne '/') {
+			my $sep = ($rows_base =~ /\?/) ? '&' : '?';
+			$entry->{url} = $rows_base . $sep . join('&',
+				(map { 'f=' . url_escape($_) } @{ $entry->{filters} }),
+				'back2=' . url_escape($here),
+				'back2_label=' . url_escape('Back to map'),
+			);
+		}
+		$entry;
+	} @{ $result->{unplotted} // [] };
+
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/map",
+		unplotted       => \@unplotted,
 		format          => 'html',
 		title           => $result->{title},
 		extra_head      => $result->{map_head},
