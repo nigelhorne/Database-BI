@@ -293,9 +293,9 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="../Extract.pm.html">⬅ Previous</a> <a href="../../../../../index.html">Index</a>
  <a href="Geocode.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 94.26%<br>
-TER2 (Branch): 90.23%<br>
-TER3 (LCSAJ): 96.8% (30/31)<br>
+TER1 (Statement): 99.40%<br>
+TER2 (Branch): 94.25%<br>
+TER3 (LCSAJ): 100.0% (31/31)<br>
 Approximate LCSAJ segments: 175<br>
 </div>
 
@@ -796,7 +796,7 @@ Approximate LCSAJ segments: 175<br>
 </span><span class="">  455:   error_table_name_unsafe     -- internal_table names a SQLite table whose own name
 </span><span class="">  456:                                  has illegal characters; says what else to open and
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  457:                                  how to rename it
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  458:   error_no_usable_tables      -- every table in a SQLite file has such a name
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  458:   error_no_usable_tables      -- every table in a SQLite file has such a name
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2029,7 +2029,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1528: 			my @usable = grep { $_ =~ $TABLE_NAME_RE } @tbls;
 </span><span class=""> 1529: 			croak $self-&gt;_msg(&#39;error_no_usable_tables&#39;, $raw_table, join(&#39;, &#39;, @tbls),
 </span><span class=""> 1530: 				$tbls[0], _safe_table_name($tbls[0])) unless @usable;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1531: 			my ($match) = grep { $_ eq $dbname } @usable;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1531: 			my ($match) = grep { $_ eq $dbname } @usable;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2124,7 +2124,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1584: 			# underscores).  Passing the actual file size ensures the slurp path
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1584: 			# underscores).  Passing the actual file size ensures the slurp path
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2146,7 +2146,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1585: 			# is always taken, so &quot;Account Number&quot; stays &quot;Account Number&quot; rather
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1585: 			# is always taken, so &quot;Account Number&quot; stays &quot;Account Number&quot; rather
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2191,7 +2191,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 								</div>
 							</li></ul></details>
 <span class=""> 1587: 			defined($info-&gt;{file_size}) ? (max_slurp_size =&gt; $info-&gt;{file_size}) : (),
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 1588: 		});
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 1588: 		});
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2543,7 +2543,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1916: =cut
 </span><span class=""> 1917: 
 </span><span class=""> 1918: sub mariadb_tables {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot-uncovered">●</span><span class="lcsaj-tip-text">[NOT COVERED] 1919 → 1932 → 1937</span></span> 1919: 	my ($class, $server, $settings) = @_;
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1919 → 1932 → 1937</span></span> 1919: 	my ($class, $server, $settings) = @_;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1920: 	local ($@, $!);
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1921: 
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1922: 	my ($dbh) = _mariadb_connect($server, $settings);
@@ -2659,7 +2659,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 2020: =head4 INPUT
 </span><span class=""> 2021: 
 </span><span class=""> 2022: None.
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2023: 
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 2023: 
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -2681,7 +2681,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."> 2024: =head4 OUTPUT
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."> 2024: =head4 OUTPUT
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>

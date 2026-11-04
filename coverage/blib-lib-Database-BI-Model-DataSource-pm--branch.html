@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Model/DataSource.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">90.2%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">94.3%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -39,8 +39,8 @@ https://pjcj.net
 <tr><td class="h"><a id="L529">529</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $safe_table =~ /$TABLE_NAME_RE/</td></tr>
 <tr><td class="h"><a id="L713">713</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $settings eq &quot;HASH&quot;</td></tr>
 <tr><td class="h"><a id="L718">718</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $database =~ /$MARIADB_DATABASE_RE/</td></tr>
-<tr><td class="h"><a id="L719">719</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $host =~ /$MARIADB_HOST_RE/</td></tr>
-<tr><td class="h"><a id="L720">720</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $port and not $port =~ /$MARIADB_PORT_RE/</td></tr>
+<tr><td class="h"><a id="L719">719</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $host =~ /$MARIADB_HOST_RE/</td></tr>
+<tr><td class="h"><a id="L720">720</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $port and not $port =~ /$MARIADB_PORT_RE/</td></tr>
 <tr><td class="h"><a id="L724">724</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $driver</td></tr>
 <tr><td class="h"><a id="L727">727</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $port ? :</td></tr>
 <tr><td class="h"><a id="L734">734</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $dbh</td></tr>
@@ -81,9 +81,9 @@ https://pjcj.net
 <tr><td class="h"><a id="L1855">1855</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_file_is_empty&#39;}</td></tr>
 <tr><td class="h"><a id="L1856">1856</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}</td></tr>
 <tr><td class="h"><a id="L1857">1857</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;aggregate&quot;)</td></tr>
-<tr><td class="h"><a id="L1887">1887</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_mariadb&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L1929">1929</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless $rows</td></tr>
-<tr><td class="h"><a id="L1934">1934</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless $seen{$name}</td></tr>
+<tr><td class="h"><a id="L1887">1887</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $self-&gt;{&#39;_mariadb&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L1929">1929</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $rows</td></tr>
+<tr><td class="h"><a id="L1934">1934</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $seen{$name}</td></tr>
 <tr><td class="h"><a id="L2040">2040</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;{&#39;_file_path&#39;} and -f $self-&gt;{&#39;_file_path&#39;}</td></tr>
 <tr><td class="h"><a id="L2041">2041</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;updated&quot;)</td></tr>
 <tr><td class="h"><a id="L2080">2080</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;_db&#39;} and $self-&gt;{&#39;_db&#39;}-&gt;can(&quot;schema&quot;)</td></tr>
