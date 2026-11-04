@@ -46,7 +46,7 @@ our $THROTTLED_FLOOR = '0.14';
 {
 	package BI::Test::Nominatim::Local;
 
-	sub new { my ($class, %a) = @_; return bless { %a, calls => [] }, $class }
+	sub new { my ($class, %a) = @_; return bless { %a, calls => [], regions => [] }, $class }
 
 	sub valid_location {
 		my ($self, $v) = @_;
@@ -73,6 +73,7 @@ our $THROTTLED_FLOOR = '0.14';
 	# Geo::Coder::List asks with geocode(location => $place).
 	sub geocode {
 		my ($self, %a) = @_;
+		push @{ $self->{regions} }, $a{region};
 		return $self->_answer($a{location});
 	}
 
@@ -90,7 +91,8 @@ our $THROTTLED_FLOOR = '0.14';
 #     -> \%seen, after running $code->(\%seen)
 #
 # %seen holds requests (each { place, host, agent, uri }) and local (the
-# stand-in Geo::Coder::Free, whose calls say what the local data was asked).
+# stand-in Geo::Coder::Free, whose calls say what the local data was asked,
+# and regions the region hint each geocode() was given).
 sub with_chain {
 	my $code = pop;
 	my %arg  = @_;

@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.020.0	Tue Nov  3 11:59:26 AM EST 2026
+0.020.0
 	[ Enhancements ]
 	- The line graph panel has Lines by, which draws one line for each value of a
 	  column (series=).  It was reachable only by writing the URL.
@@ -31,9 +31,11 @@ Revision history for Database-BI
 	  LWP::UserAgent::Throttled are new recommends.
 	- Geo::Coder::List keeps the answers it finds in a cache under
 	  <model_dir>/geocode-cache, shared by /map and script/bi-geocode, so a
-	  place Nominatim found is not asked again for a month.  Nominatim is
-	  asked over https, one request a lookup (Geo::Coder::OSM asked over
-	  http, and was redirected).
+	  place Nominatim found is not asked again for a month.  The local data
+	  is asked through the same cache, with or without Nominatim, and a place
+	  whose local lookup fails is left for later rather than ending the
+	  page.  Nominatim is asked over https, one request a lookup
+	  (Geo::Coder::OSM asked over http, and was redirected).
 	- script/bi-geocode takes --offline and --online-max.
 	[ Bug fixes ]
 	- /scatter no longer saves scheme= in the chart it hands to a canvas when

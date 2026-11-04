@@ -97,7 +97,8 @@
 	its local database first, then OpenStreetMap's Nominatim service through
 	<strong>Geo::Coder::OSM</strong> (0.03 or later) for the places the local data does
 	not know. <strong>LWP::UserAgent::Throttled</strong> (0.14 or later) keeps those
-	requests to Nominatim's limit of one a second. Without Geo::Coder::OSM, or with
+	requests to Nominatim's limit of one a second. Nominatim is asked over https, and
+	what it finds is kept for a month in <code>&lt;model_dir&gt;/geocode-cache/</code>. Without Geo::Coder::OSM, or with
 	<code>map_geocode_online =&gt; 0</code>, every lookup stays on this machine.
 	Without HTML::OSM the map pages are hidden, and the rest of the application is
 	unaffected. <strong>Redis</strong> (or
@@ -220,8 +221,8 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td><code>model_dir</code></td>
 			<td><code>.bi</code></td>
 			<td>
-				Where saved canvases, calculated fields, groups, date patterns and
-				geocoded places live. It may be absolute, but it may not be equal to
+				Where saved canvases, calculated fields, groups, date patterns,
+				geocoded places and the geocode cache live. It may be absolute, but it may not be equal to
 				or inside <code>data_dir</code>.
 			</td>
 		</tr>

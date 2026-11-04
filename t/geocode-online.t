@@ -237,6 +237,55 @@ subtest 'Geo::Coder::List is given the cache, and uses it' => sub {
 		is_deeply($r->{cache}{Walmer}, [ 51.20, 1.40 ], 'and gets the same answer');
 	});
 
+	# The local data alone goes through the cache as well: with Nominatim off,
+	# and with it on for the places past online_max.
+	my %offline;
+	with_chain(local => { Ramsgate => [ 51.33, 1.42 ] }, sub {
+		my ($seen) = @_;
+		my $local = $seen->{local};
+
+		my $first = $G->new(cache => \%offline, online => 0)->resolve_values(['Ramsgate'], { region => 'GB' });
+		is_deeply($local->{calls}, ['Ramsgate'], 'offline, the local data is asked');
+		is_deeply($local->{regions}, ['GB'], 'with the region hint');
+		is($first->{counts}{lookups}, 1, 'which is a lookup');
+		ok(scalar(keys %offline), 'and what it found is in the cache');
+
+		my $again = $G->new(cache => \%offline, online => 0)->resolve_values(['Ramsgate']);
+		is_deeply($local->{calls}, ['Ramsgate'], 'a second object answers from the cache without asking it');
+		is_deeply($again->{cache}{Ramsgate}, [ 51.33, 1.42 ], 'with the same answer');
+		is($again->{counts}{lookups}, 0, 'not counted as a lookup');
+	});
+
+	with_chain(online => { Deal => [ 51.22, 1.40 ] }, sub {
+		my ($seen) = @_;
+		$G->new(cache => \%offline)->resolve_values(['Deal'], { region => 'GB' });
+		is_deeply($seen->{requests}[0]{uri} =~ /region/ ? ['region'] : [], [],
+			'the region hint is not sent to Nominatim');
+
+		my $r = $G->new(cache => \%offline, online => 0)->resolve_values(['Deal']);
+		is_deeply($r->{cache}{Deal}, [ 51.22, 1.40 ], 'and offline, a place Nominatim found is answered from the cache');
+	});
+
+	with_chain(local => { Hythe => [ 51.07, 1.08 ] }, online => { Sandgate => [ 51.07, 1.15 ] }, sub {
+		my ($seen) = @_;
+		my %shared;
+		$G->new(cache => \%shared, online => 0)->resolve_values(['Hythe']);
+		my $calls = scalar @{ $seen->{local}{calls} };
+		$G->new(cache => \%shared, online_max => 1)->resolve_values([qw(Sandgate Hythe)]);
+		is(scalar @{ $seen->{local}{calls} }, $calls + 1,
+			'past online_max the local data is asked only about what the cache does not know');
+	});
+
+	with_chain(local => { Boom => 'die', Fine => [ 5, 5 ] }, sub {
+		my $r = do {
+			local $SIG{__WARN__} = sub { };
+			$G->new(online => 0)->resolve_values([qw(Boom Fine)]);
+		};
+		ok(!exists $r->{cache}{Boom}, 'offline, a lookup that threw is not remembered as not found');
+		is_deeply($r->{not_attempted}, ['Boom'], 'it is left for later');
+		is_deeply($r->{cache}{Fine}, [ 5, 5 ], 'and the next place is still looked up');
+	});
+
 	throws_ok { $G->file_cache(File::Spec->catdir($dir, 'not-there')) } qr/needs a directory that exists/,
 		'file_cache refuses a directory that does not exist';
 	throws_ok { $G->new(cache => bless {}, 'Local::NoGetSet') } qr/get\(\) and set\(\).*Local::NoGetSet/,

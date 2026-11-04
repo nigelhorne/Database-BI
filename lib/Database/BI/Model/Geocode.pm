@@ -287,16 +287,19 @@ a backend that would reject it anyway.
 
 =item B<Look the rest up without letting one value end the batch.>
 
-With the local data alone, the lookups are one C<geocode_many()> batch
-requested with C<< on_error => 'undef' >>.  A value the geocoder refuses after
-the pre-filter is a miss; a backend that throws an exception is still a throw,
-because nothing here wraps the geocoder in an C<eval>.
-
-With Nominatim in the chain, each place goes down the chain on its own.
-C<Geo::Coder::List> catches what a geocoder throws and asks the next one, so a
-throw does not end the request there; a place whose lookup threw and found
-nothing is held (put in C<not_attempted>, not cached), because "not found" is
+Each place goes down a C<Geo::Coder::List> on its own: the local data, then
+Nominatim when it is in the chain.  With the local data alone the list holds
+only C<Geo::Coder::Free>, which is given the C<region> hint (C<Geo::Coder::OSM>
+would put it in the Nominatim query).  Either way the list's cache answers what
+it has found before.  C<Geo::Coder::List> catches what a geocoder throws and
+asks the next one, so a throw does not end the request; a place whose lookup
+threw and found nothing is held (put in C<not_attempted>, not cached), because "not found" is
 remembered for good and an error is not an answer.
+
+An injected C<geocoder> is asked for one C<geocode_many()> batch instead,
+requested with C<< on_error => 'undef' >>.  A value it refuses after the
+pre-filter is a miss; a backend that throws is still a throw, because nothing
+here wraps it in an C<eval>.
 
 =item B<Tell a Nominatim that failed from a place it does not know.>
 
@@ -314,11 +317,10 @@ The counts the module returns add up, always.
     skipped + cached + attempted + not_attempted  ==  distinct
     resolved + unresolved                         ==  cached + attempted
 
-C<lookups> is the number the geocoder itself reports for the batch.  With
-C<Geo::Coder::Free> 0.48 and later it may be lower than C<attempted>, because
-the geocoder counts database reads and a value it answered from a warm process
-cache costs zero reads.  Through the chain it is the number of places that
-reached a geocoder rather than the chain's own cache.  It never exceeds
+C<lookups> is the number of places that reached a geocoder rather than the
+chain's own cache.  For an injected geocoder it is the number that geocoder
+reports for the batch, which C<Geo::Coder::Free> 0.48 and later keeps lower than
+C<attempted> when a value is answered from a warm process cache.  It never exceeds
 C<attempted>.  C<online> is how many of them were asked of Nominatim.
 
 =head2 The cache
@@ -672,12 +674,18 @@ sub _load_geocoder {
 		return;
 	}
 
-	my $chain = Geo::Coder::List->new(cache => $self->{'cache'} // _default_cache())->push($local);
-	$self->{'_local'} = $local;
+	# Two lists over one cache: the local data alone, which is asked with the
+	# region hint (Geo::Coder::OSM would put it in the Nominatim query), and the
+	# whole chain when Nominatim is wanted.  What either finds is in the cache
+	# for the other.
+	my $cache = $self->{'cache'} // _default_cache();
+	my $chain = Geo::Coder::List->new(cache => $cache)->push($local);
+	$self->{'_local'}       = $local;
+	$self->{'_local_chain'} = $chain;
 
 	if ($self->{'online'}) {
 		if (my $online = _online_geocoder()) {
-			$chain->push($online);
+			$chain = Geo::Coder::List->new(cache => $cache)->push($local)->push($online);
 			$self->{'_online'} = $online;
 		} else {
 			$self->{'_online_missing'} = 1;
@@ -736,7 +744,10 @@ sub _online_geocoder {
 		$online_ua = $ua;
 	}
 
-	$Geo::Coder::OSM::SOURCES{$NOMINATIM_SOURCE} = $NOMINATIM_URL;
+	{
+		no warnings qw(once);	# the module's own variable, which only it reads
+		$Geo::Coder::OSM::SOURCES{$NOMINATIM_SOURCE} = $NOMINATIM_URL;
+	}
 
 	return Geo::Coder::OSM->new(ua => $online_ua, sources => $NOMINATIM_SOURCE);
 }
@@ -911,18 +922,19 @@ sub _resolve {
 		$capped = 1;
 	}
 
-	# 3. The lookups.  Without an online geocoder they are one batch of the
-	# local data, with the non-croaking mode and the region hint.  With one, each
-	# place goes down the chain on its own, so a place that reaches Nominatim is
-	# counted against online_max, and a Nominatim that does not answer is not
-	# taken to mean the place does not exist.
+	# 3. The lookups, each place down a Geo::Coder::List on its own, so that its
+	# cache answers what it has found before.  With an online geocoder a place
+	# that reaches Nominatim is counted against online_max, and a Nominatim that
+	# does not answer is not taken to mean the place does not exist.  Without
+	# one the list holds the local data alone, asked with the region hint.  An
+	# injected geocoder is asked for one batch, with the non-croaking mode.
 	my ($lookups, $resolved, $unresolved) = (0, 0, 0);
 	my $lookup = { 'answers' => {}, 'held' => [], 'online' => 0 };
 
 	if (@attempt) {
-		$lookup = $self->{'_online'}
-			? $self->_lookup_online($geocoder, \@attempt, $region)
-			: _lookup_batch($geocoder->can('geocode_many') ? $geocoder : $self->{'_local'}, \@attempt, $region);
+		$lookup = $self->{'_online'}		? $self->_lookup_online($geocoder, \@attempt, $region)
+			: $self->{'_local_chain'}	? $self->_lookup_local(\@attempt, $region)
+			:				  _lookup_batch($geocoder, \@attempt, $region);
 
 		$lookups = $lookup->{'lookups'};
 
@@ -1017,9 +1029,10 @@ sub _resolve {
 
 # _lookup_batch($geocoder, \@values, $region) -> \%lookup
 #
-# One geocode_many() call, as the local data answers.  The count the geocoder
-# reports for the batch is the one a caller caps its work by; a geocoder that
-# reports none leaves the number of values it was handed.
+# One geocode_many() call, for a geocoder injected in place of the chain.
+# The count the geocoder reports for the batch is the one a caller caps its
+# work by; a geocoder that reports none leaves the number of values it was
+# handed.
 sub _lookup_batch {
 	my ($geocoder, $values, $region) = @_;
 
@@ -1039,6 +1052,45 @@ sub _lookup_batch {
 	};
 }
 
+# _lookup_local(\@values, $region) -> \%lookup
+#
+# Each place down the Geo::Coder::List that holds the local data alone, with
+# the region hint.  Geo::Coder::Free's own geocode_many() asks geocode() once a
+# place as well, so going one at a time costs nothing, and the list's cache
+# answers what it has found before, here or online.  A lookup answered by that
+# cache is not counted as one.  The list catches what the local geocoder throws
+# and logs it; a place whose lookup threw and found nothing is held, not
+# remembered as not found, as on the online path.
+sub _lookup_local {
+	my ($self, $values, $region) = @_;
+
+	my $chain = $self->{'_local_chain'};
+	my (%answers, @held);
+	my $lookups = 0;
+
+	for my $value (@{ $values }) {
+		$chain->flush();
+		my $point = $chain->geocode(location => $value, (defined($region) ? (region => $region) : ()));
+		my @log   = @{ $chain->log() // [] };
+
+		$lookups++ unless grep { ($_->{'geocoder'} // '') eq 'cache' } @log;
+
+		if (!$point && grep { defined $_->{'error'} } @log) {
+			push @held, $value;
+			next;
+		}
+
+		$answers{$value} = $point;
+	}
+
+	return {
+		'answers' => \%answers,
+		'lookups' => $lookups,
+		'held'    => \@held,
+		'online'  => 0,
+	};
+}
+
 # _lookup_online($chain, \@values, $region) -> \%lookup
 #
 # Each place down the Geo::Coder::List chain: the local data, then Nominatim.
@@ -1048,8 +1100,8 @@ sub _lookup_batch {
 # in both cases, and only its last response says which.
 #
 # Once online_max places have gone online, or Nominatim has failed once, the
-# rest are asked of the local data alone, as one batch.  A place it does not
-# know is then held rather than remembered as not found, because Nominatim
+# rest are asked of the local data alone, through _lookup_local.  A place it
+# does not know is then held rather than remembered as not found, because Nominatim
 # was never asked.
 #
 # Geo::Coder::List catches whatever a geocoder in it throws, logs it and asks
@@ -1109,10 +1161,12 @@ sub _lookup_online {
 	}
 
 	if (@rest) {
-		my $local = _lookup_batch($self->{'_local'}, \@rest, $region);
+		my $local = $self->_lookup_local(\@rest, $region);
 		$lookups += $local->{'lookups'};
+		push @held, @{ $local->{'held'} };
 
-		for my $value (@rest) {
+		my %thrown = map { $_ => 1 } @{ $local->{'held'} };
+		for my $value (grep { !$thrown{$_} } @rest) {
 			my ($lat, $lon) = _coordinates($local->{'answers'}{$value});
 
 			if (defined($lat) && defined($lon)) {
@@ -1754,9 +1808,9 @@ You may call them on an instance for convenience, but the invocant is not used.
 The pattern C<< Database::BI::Model::Geocode->cache_from_models(...) >> is
 clearer.
 
-=item B<The geocoder batch receives on_error => 'undef'.>
+=item B<An injected geocoder's batch receives on_error => 'undef'.>
 
-A value the geocoder rejects after the C<valid_location()> pre-filter is
+A value an injected geocoder rejects after the C<valid_location()> pre-filter is
 returned as C<undef> from the batch; it does not croak.  A backend that throws
 an exception (a real database error, a network failure) still propagates
 upward, because nothing here wraps the geocoder in an C<eval>.
@@ -1966,7 +2020,9 @@ Cap application (MAX = the max option, default 500):
 
 Geocoding step -- for each v in ATTEMPT:
 
-    BATCH = geocoder.geocode_many(ATTEMPT, on_error => 'undef')
+    BATCH = { v => chain.geocode(v) | v in ATTEMPT }    (each through the list's
+            cache; an injected geocoder: geocode_many(ATTEMPT, on_error => 'undef');
+            a v whose lookup threw and found nothing moves to NOT_ATTEMPTED)
 
     for v in ATTEMPT:
         (lat, lon) = coordinates(BATCH(v))

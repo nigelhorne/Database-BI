@@ -126,7 +126,9 @@ B<Maps> -- C<GET /map> plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded by a
 L<Geo::Coder::List> chain: L<Geo::Coder::Free>'s local data first, then
 OpenStreetMap's Nominatim service (L<Geo::Coder::OSM>, at most one request a
-second) for the places the local data does not know.  Each distinct place is
+second) for the places the local data does not know.  Nominatim is asked over
+https, and what it finds is also kept for a month in
+C<E<lt>model_dirE<gt>/geocode-cache/>.  Each distinct place is
 looked up once, remembered in the model store and shared by every dataset that
 names it.  Rows sharing a position become one marker.
 
