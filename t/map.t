@@ -305,7 +305,10 @@ subtest 'popup= adds a column to the marker popup' => sub {
 		->status_is(200);
 
 	my $body = $t->tx->res->body;
-	like($body, qr/amount: 10/, 'the popup names the requested column and its value');
+	like($body, qr/amount: 3/, 'the popup names the requested column and its value');
+	like($body, qr{<th>amount<\\/th><\\/tr><tr><td>10<\\/td><\\/tr><tr><td>5<\\/td>},
+		'and lists it for each row of a place where it differs');
+	unlike($body, qr{<th>id<}, 'only the requested column');
 };
 
 subtest 'A place value is escaped, never injected as markup' => sub {
@@ -1306,5 +1309,47 @@ subtest '/geo/lookup: a place that cannot be looked up now is held, not remember
 
 	$t->app->config->{geocoder} = $geocoder;
 };
+
+# ---------------------------------------------------------------------------
+# A marker stands for every row at its place, and its popup lists them: the
+# values the rows share once, the ones that differ as a table.  Past
+# map_popup_rows the rest are counted, with a link to them in the table this
+# map came from.  (Reported on a family-history file: a house where three
+# events happened showed "3 rows" and only the first event.)
+# ---------------------------------------------------------------------------
+subtest 'a popup lists every row at a place, capped, with a link to the rest' => sub {
+	$t->get_ok(_url(l => $places_spec, loc => 'place'))->status_is(200);
+	my $body = $t->tx->res->body;
+	my ($popup) = $body =~ m{bindPopup\('(<strong>Ramsgate.*?)'\)}s;
+	ok defined($popup), 'the Ramsgate marker has a popup' or return;
+	like $popup, qr/2 rows<br>lat: 51\.33<br>lon: 1\.42/, 'what both rows share is said once';
+	like $popup, qr{<tr><th>id<\\/th><th>amount<\\/th><\\/tr><tr><td>1<\\/td><td>10<\\/td><\\/tr><tr><td>2<\\/td><td>5<\\/td><\\/tr>},
+		'and both rows are listed, not only the first';
+	unlike $popup, qr/more/, 'two rows are under the default cap';
+
+	local $t->app->config->{map_popup_rows} = 1;
+	my $back = '/open?path=' . url_escape($places_csv);
+	$t->get_ok(_url(l => $places_spec, loc => 'place', back => $back))->status_is(200);
+	($popup) = $t->tx->res->body =~ m{bindPopup\('(<strong>Ramsgate.*?)'\)}s;
+	is scalar(() = $popup =~ /<td>/g), 2, 'one row of two cells under a cap of one';
+	my ($link) = $popup =~ m{and 1 more: <a href="([^"]+)">show all 2 in the table<\\/a>};
+	ok defined($link), 'the rest are counted and linked' or return;
+	$link =~ s/&amp;/&/g;
+	like $link, qr{\A/open\?path=[^&]+&f=place%3Aeq%3ARamsgate&back2=}, 'to the table, filtered to the place';
+	$t->get_ok($link)->status_is(200);
+	is scalar(() = $t->tx->res->body =~ m{<td[^>]*>Ramsgate</td>}g), 2, 'which shows exactly its rows';
+
+	# By coordinates, rows at one point are one marker in the same way.
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', back => $back))->status_is(200);
+	($popup) = $t->tx->res->body =~ m{bindPopup\('(<strong>51\.330000, 1\.420000.*?)'\)}s;
+	like $popup, qr/place: Ramsgate/, 'a point lists its shared values';
+	like $popup, qr{and 1 more: <a href="[^"]*f=lat%3Aeq%3A51\.33&amp;f=lon%3Aeq%3A1\.42}, 'and links to its rows by coordinate';
+
+	# A cap that is not a number is the default.
+	local $t->app->config->{map_popup_rows} = 'lots';
+	$t->get_ok(_url(l => $places_spec, loc => 'place'))->status_is(200);
+	unlike $t->tx->res->body, qr/and \d+ more/, 'a bad map_popup_rows is ignored';
+};
+
 
 done_testing();

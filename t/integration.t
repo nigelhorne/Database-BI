@@ -4356,4 +4356,39 @@ subtest 'A SQLite export opens again' => sub {
 	is_deeply($rows->(url_escape("path:$file")), $rows->('table:sales'), 'and the same rows as the table it came from');
 };
 
+# A bank export: the first transaction has a cheque number and almost no other
+# row does.  The id column was the first safe column with a value in the first
+# data row, so it was Check, and Database::Abstraction dropped every row with
+# no cheque number: the table showed 2 of 6 rows.  Every row must be shown, and
+# exported, whichever cells happen to be filled in the first one.
+subtest 'A column empty in most rows is not the id' => sub {
+	my $tm  = _isolated_app();
+	my $dir = File::Temp::tempdir(CLEANUP => 1);
+	my $file = File::Spec->catfile($dir, 'AccountHistory.csv');
+	Mojo::File->new($file)->spew(join("\r\n",
+		'Account Number,Post Date,Check,Description,Debit,Credit,Status',
+		'"XX2106",11/4/2026,650825,"Money Transfer",260.00,,Pending',
+		'"XX2106",11/3/2026,,"Humana",145.22,,Posted',
+		'"XX2106",11/2/2026,,"Zelle, Transfer",141.00,,Posted',
+		'"XX2106",10/30/2026,650826,"Card",673.42,,Posted',
+		'"XX2106",10/20/2026,,"Aviva",,897.32,Posted',
+		'"XX2106",10/19/2026,,"Zelle Transfer",,341.54,Posted',
+	) . "\r\n");
+	$tm->get_ok('/open?path=' . url_escape($file))->status_is(200);
+	my $body = $tm->tx->res->body;
+	is(scalar(() = $body =~ m{<td[^>]*>XX2106</td>}g), 6, 'every row is shown');
+	like($body, qr{<td[^>]*>Zelle, Transfer</td>}, 'a quoted separator does not shift the columns');
+	$tm->get_ok('/export?format=json&l=' . url_escape("path:$file"))->status_is(200);
+	is(scalar(@{ $tm->tx->res->json }), 6, 'and exported');
+
+	# The rows without a cheque number must be there to be filtered,
+	# not dropped before any filter runs
+	$tm->get_ok('/open?path=' . url_escape($file) . '&f=' . url_escape('Check:notempty:'))->status_is(200);
+	$body = $tm->tx->res->body;
+	is(scalar(() = $body =~ m{<td[^>]*>XX2106</td>}g), 2, 'a notempty filter on Check keeps the 2 cheques');
+	like($body, qr{<td[^>]*>650826</td>}, 'one of them is the second cheque');
+	$tm->get_ok('/open?path=' . url_escape($file) . '&f=' . url_escape('Check:empty:'))->status_is(200);
+	is(scalar(() = $tm->tx->res->body =~ m{<td[^>]*>XX2106</td>}g), 4, 'an empty filter on Check gives the other 4');
+};
+
 done_testing();

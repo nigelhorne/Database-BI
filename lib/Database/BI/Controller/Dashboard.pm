@@ -275,6 +275,7 @@ Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_ge
 # script/bi-geocode, which has no page to hold, asks without a limit.
 Readonly my $DEFAULT_MAP_GEOCODE_ONLINE_MAX => 20;   # map_geocode_online_max
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
+Readonly my $DEFAULT_MAP_POPUP_ROWS  => 10;    # rows listed in one marker's popup (map_popup_rows)
 Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
 # A bubble map's size key: the bubbles' own colour when they have one, and
 # this grey when the colour says something else (a colour column)
@@ -12233,6 +12234,11 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my ($backend, $plotted_rows) = (undef, 0);
 	my (@markers, @messages, @unplotted, @unplotted_filters, @pending);
 
+	# How many rows a popup lists, and where the rest are: the map page passes
+	# rows_url, which makes a table link from filters; a canvas card has none.
+	my $popup_rows = _map_limit($cfg->{map_popup_rows}, $DEFAULT_MAP_POPUP_ROWS);
+	my $rows_url   = ref($options->{rows_url}) eq 'CODE' ? $options->{rows_url} : undef;
+
 	if ($by_location) {
 		for my $col (@loc_cols) {
 			return { error => $self->_i18n('error_map_loc_column', $col), status => 400 }
@@ -12304,14 +12310,27 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 			}
 		}
 
+		# Every row at a place, keyed as the geocoder keyed the place, so its
+		# popup can list them all and not only the first.
+		my %rows_at;
+		for my $index (0 .. $#{$places}) {
+			my $place = $places->[$index];
+			my $value = ref($place) eq 'HASH' ? $place->{$loc_col} : undef;
+			push @{ $rows_at{ (defined($value) && !ref($value)) ? $value : '' } }, $index;
+		}
+
 		for my $marker (@{ $result->{markers} }) {
-			my $row = ($marker->{first_row} <= $#$records)
-				? $records->[ $marker->{first_row} ] : {};
+			my @at  = @{ $rows_at{ $marker->{value} } // [] };
+			my $row = $records->[ $at[0] // $marker->{first_row} ];
+			$row = {} unless ref($row) eq 'HASH';
+			my $more_url = $rows_url ? $rows_url->([ map {
+				my $cell = $row->{$_};
+				(defined($cell) && !ref($cell) && length($cell)) ? "$_:eq:$cell" : "$_:empty";
+			} @loc_cols ]) : '';
 			push @markers, {
 				%{ $marker },
 				'label' => _map_popup(
-					$marker->{value}, $marker->{rows},
-					[ map { [ $_, $row->{$_} ] } @popup ],
+					$marker->{value}, [ @{$records}[@at] ], \@popup, $popup_rows, $more_url,
 				),
 			};
 		}
@@ -12322,7 +12341,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		return { error => "Column not found: $lon_col", status => 400 }
 			unless $col_set{$lon_col};
 
-		my (%by_key, $out_of_lat, $out_of_lon, $unusable);
+		my (%by_key, %rows_at, $out_of_lat, $out_of_lon, $unusable);
 
 		for my $index (0 .. $#$records) {
 			my $row = $records->[$index];
@@ -12341,6 +12360,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 			# file renderable, and "how many are here?" is the question a map
 			# answers.
 			my $key   = sprintf('%.6f,%.6f', $lat, $lon);
+			push @{ $rows_at{$key} }, $index;
 			my $point = $by_key{$key};
 			if ($point) { $point->{rows}++; next }
 
@@ -12366,11 +12386,15 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		} if $plotted_rows < scalar @$records;
 
 		for my $marker (@markers) {
+			my $key = sprintf('%.6f,%.6f', $marker->{lat}, $marker->{lon});
 			my $row = $records->[ $marker->{first_row} ];
+			my $more_url = $rows_url ? $rows_url->([
+				"$lat_col:eq:" . ($row->{$lat_col} // ''),
+				"$lon_col:eq:" . ($row->{$lon_col} // ''),
+			]) : '';
 			$marker->{label} = _map_popup(
 				sprintf('%.6f, %.6f', $marker->{lat}, $marker->{lon}),
-				$marker->{rows},
-				[ map { [ $_, $row->{$_} ] } @popup ],
+				[ @{$records}[ @{ $rows_at{$key} } ] ], \@popup, $popup_rows, $more_url,
 			);
 		}
 	}
@@ -12884,22 +12908,9 @@ sub map_view ($self) {
 	$options{weight}   = $weight_col     if length($weight_col) && $col_set{$weight_col};
 	$options{lookup}   = 0               if $progress || $geocode_mode eq 'cached';
 
-	my $result = $self->_map_data(
-		$records, $columns,
-		($by_location ? { loc => [ @loc_cols ] } : { lat => $lat_col, lon => $lon_col }),
-		\%options,
-		$self->param('l') // '',
-		undef,
-	);
-
-	return $self->render(text => $result->{error}, status => $result->{status})
-		if $result->{error};
-
-	my ($source_url, $source_accessed) = $self->_url_attribution;
-	my ($platform, $language) = $self->_resolve_template;
-
-	# Each place that could not be plotted links to its rows in the table,
-	# as a bar drills into its category: the table this map came from, with
+	# Each place that could not be plotted, and each marker with more rows
+	# than its popup lists, links to its rows in the table, as a bar drills
+	# into its category: the table this map came from, with
 	# the place's filters added, and back2= to return here.
 	my $rows_base = ($back =~ m{\A(?:https?://[^/]+)?/(?:open\?|view/)}) ? $back
 		: $self->_spec_to_url($self->param('l') // '');
@@ -12914,6 +12925,22 @@ sub map_view ($self) {
 			'back2_label=' . url_escape('Back to map'),
 		);
 	};
+	$options{rows_url} = $rows_url;
+
+	my $result = $self->_map_data(
+		$records, $columns,
+		($by_location ? { loc => [ @loc_cols ] } : { lat => $lat_col, lon => $lon_col }),
+		\%options,
+		$self->param('l') // '',
+		undef,
+	);
+
+	return $self->render(text => $result->{error}, status => $result->{status})
+		if $result->{error};
+
+	my ($source_url, $source_accessed) = $self->_url_attribution;
+	my ($platform, $language) = $self->_resolve_template;
+
 	my @unplotted = map {
 		my $entry = { %{$_} };
 		$entry->{url} = $rows_url->($entry->{filters});
@@ -13063,20 +13090,60 @@ sub geo_lookup ($self) {
 	});
 }
 
-# _map_popup($heading, $rows, \@extras) -> $html
+# _map_popup($heading, \@rows, \@columns, $limit, $more_url) -> $html
 #
 # The popup for one marker: what it is, how many rows it stands for, and the
-# columns the request asked for.  Leaflet treats a popup string as HTML, and a
-# place name out of a user's file is not markup, so every value is escaped here.
+# rows themselves.  A value every row shares is said once, as "Column: value";
+# the columns that differ are a small table of at most $limit rows, in a box
+# that scrolls, so a place with many rows does not cover the map.  The rest
+# are counted, with a link to them in the table when $more_url is given.
+# Leaflet treats a popup string as HTML, and a value out of a user's file is
+# not markup, so every value is escaped here.
 sub _map_popup {
-	my ($heading, $rows, $extras) = @_;
+	my ($heading, $rows, $columns, $limit, $more_url) = @_;
+
+	my @rows = grep { ref($_) eq 'HASH' } @{ ref($rows) eq 'ARRAY' ? $rows : [] };
+	my @cols = grep { defined($_) && !ref($_) && length($_) } @{ ref($columns) eq 'ARRAY' ? $columns : [] };
+	$limit = _map_limit($limit, $DEFAULT_MAP_POPUP_ROWS);
+	my $cell = sub { my $v = $_[0]->{ $_[1] }; (defined($v) && !ref($v)) ? $v : '' };
 
 	my @lines = '<strong>' . xml_escape($heading // '') . '</strong>';
-	push @lines, $rows . ' rows' if $rows != 1;
-	push @lines, map { xml_escape($_->[0]) . ': ' . xml_escape($_->[1]) }
-		grep { defined($_->[1]) && length($_->[1]) } @{ $extras // [] };
+	push @lines, scalar(@rows) . ' rows' if @rows > 1;
 
-	return join('<br>', @lines);
+	# The same in every row, or not.
+	my (@shared, @differ);
+	for my $col (@cols) {
+		my %seen = map { $cell->($_, $col) => 1 } @rows;
+		if (keys(%seen) > 1) { push @differ, $col }
+		elsif (@rows)        { push @shared, [ $col, $cell->($rows[0], $col) ] }
+	}
+	push @lines, map { xml_escape($_->[0]) . ': ' . xml_escape($_->[1]) }
+		grep { length $_->[1] } @shared;
+
+	my $html = join('<br>', @lines);
+	return $html unless @differ;
+
+	# The box keeps its size and scroll inline, one style a marker, so a page
+	# without the stylesheet still cannot be covered; the cells' spacing is
+	# .bi-map-popup-rows in the page's stylesheet, not repeated in every cell.
+	my @shown = @rows > $limit ? @rows[0 .. $limit - 1] : @rows;
+	$html .= '<div class="bi-map-popup-rows" style="max-height:14em;overflow:auto">'
+		. '<table><tr>' . join('', map { '<th>' . xml_escape($_) . '</th>' } @differ) . '</tr>'
+		. join('', map {
+			my $row = $_;
+			'<tr>' . join('', map { '<td>' . xml_escape($cell->($row, $_)) . '</td>' } @differ) . '</tr>';
+		} @shown)
+		. '</table></div>';
+
+	if (my $more = @rows - @shown) {
+		$html .= "<div>and $more more"
+			. ((defined($more_url) && length($more_url))
+				? ': <a href="' . xml_escape($more_url) . '">show all ' . scalar(@rows) . ' in the table</a>'
+				: '')
+			. '</div>';
+	}
+
+	return $html;
 }
 
 # _map_size_range($records, \@markers, $col) -> ($min, $max)

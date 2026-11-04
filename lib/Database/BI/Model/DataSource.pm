@@ -803,6 +803,37 @@ sub _new_from_mariadb :Protected {
 # Protected initialisation
 # ---------------------------------------------------------------------------
 
+# _best_id_column($fh, $sep, \@header_fields) -> $column_name | undef
+#
+# Purpose: The column Database::Abstraction should key rows on.
+# Entry:   $fh is open just after the header line; @header_fields is the header
+#          split and stripped, in file order (empty names included, so indexes
+#          match the data).
+# Exit:    The safe-identifier column with the fewest rows D::A would drop
+#          (an empty cell, or one starting with '#', which D::A reads as a
+#          comment), the earliest on a tie; undef when no header name is safe.
+#          Reads $fh to its end.
+sub _best_id_column {
+	my ($fh, $sep, $fields) = @_;
+
+	my @safe = grep { $fields->[$_] =~ $TABLE_NAME_RE } 0 .. $#{$fields};
+	return undef unless @safe;
+
+	require Text::CSV;
+	my $csv = Text::CSV->new({ binary => 1, sep_char => $sep, allow_loose_quotes => 1, allow_whitespace => 1 });
+	my %dropped = map { $_ => 0 } @safe;
+	while (my $row = $csv->getline($fh)) {
+		next unless grep { defined($_) && length($_) } @{$row};	# a blank line is not a row
+		for my $i (@safe) {
+			my $cell = $row->[$i];
+			$dropped{$i}++ if !defined($cell) || $cell !~ /\S/ || $cell =~ /\A\s*#/;
+		}
+	}
+
+	my ($best) = sort { $dropped{$a} <=> $dropped{$b} || $a <=> $b } @safe;
+	return $fields->[$best];
+}
+
 # _detect_file_info( $dir, $table ) -> \%info
 #
 # Peek at the first header line of a CSV, TSV or PSV file and return a hashref:
@@ -934,34 +965,15 @@ sub _detect_file_info :Protected {
 		# value in the id column or D::A drops it (empty_is_undef => 1 makes
 		# truly empty cells undef).
 		#
-		# Strategy: read the first non-empty data row and find the first safe
-		# column whose value in that row is non-empty.  A simple split (same
-		# separator) is used rather than a full CSV parse; it may mis-index
-		# fields that contain the separator inside quotes, but correctly detects
-		# whether a given index position is blank -- sufficient for id selection.
-		# Fall back to the first safe column in the header if the data row
-		# check is inconclusive (e.g. file has only a header line).
-		my ($safe_id) = grep { $_ =~ $TABLE_NAME_RE } @cols;	# header-only fallback
+		# Strategy: of the safe columns, the one with the fewest empty cells
+		# across the whole file, the earliest on a tie.  Choosing by the first
+		# data row alone lost rows: a bank export whose first transaction had a
+		# cheque number made Check the id, and D::A then dropped the 358 of 362
+		# rows that had none.  D::A reads the whole file anyway (max_slurp_size
+		# is the file's size), so one more pass costs no more than that.  With
+		# no data rows, the first safe column in the header.
+		my $safe_id = _best_id_column($fh, $sep, \@fields);
 
-		my $data_line;
-		while (defined($data_line = <$fh>)) {
-			chomp $data_line;
-			$data_line =~ s/\r\z//;
-			last if length $data_line;	# skip blank lines between header and data
-		}
-		if (defined $data_line) {
-			my @vals = split /\Q$sep\E/, $data_line, -1;
-			for my $i (0 .. $#cols) {
-				next unless $cols[$i] =~ $TABLE_NAME_RE;
-				my $val = $vals[$i] // '';
-				$val =~ s/\A[\s"]+//;
-				$val =~ s/[\s"]+\z//;
-				if (length $val) {
-					$safe_id = $cols[$i];
-					last;
-				}
-			}
-		}
 		# If no safe identifier was found in the header, check whether the first
 		# row looks like data values rather than column names.  A CSV exported
 		# from a bank or accounting system often has no header row at all -- the

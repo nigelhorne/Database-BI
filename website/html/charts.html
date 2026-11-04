@@ -208,7 +208,14 @@
 		map panel's <em>Followed by</em> field does the same.
 	</dd>
 	<dt><code>popup=&lt;col&gt;</code></dt>
-	<dd>A column shown in the marker popup; repeatable.</dd>
+	<dd>
+		A column shown in the marker popup; repeatable. By default the popup
+		shows every column but the place. A marker stands for every row at its
+		place, and its popup lists them: a value they all share once, the rest
+		as a small table. Past ten rows (<code>map_popup_rows</code>) the table
+		scrolls no further; the rest are counted, with a link to them in the
+		table.
+	</dd>
 	<dt><code>max=N</code>, <code>zoom=N</code></dt>
 	<dd>How many markers to draw (default 2,000) and the initial zoom; by default the map fits its markers.</dd>
 	<dt><code>tiles=name</code></dt>

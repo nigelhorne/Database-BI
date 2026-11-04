@@ -78,6 +78,18 @@ Revision history for Database-BI
 	  anyone can read; it now signs the places a map page lists.
 
 	[ Bug fixes ]
+	- A CSV whose first data row had a value in a column that is mostly
+	  empty showed only the rows with a value there: a bank export whose
+	  first transaction had a cheque number showed 4 of its 362 rows.  The
+	  column rows are keyed on was the first one filled in the first row,
+	  and Database::Abstraction drops a row whose key is empty.  It is now
+	  the column with the fewest empty cells in the whole file.
+	- A map marker's popup showed only the first of the rows at its place:
+	  "3 rows" and one event.  It now lists them all, a value every row
+	  shares once and the columns that differ as a small table.  Past
+	  map_popup_rows (default 10) the rest are counted, with a link to them
+	  in the table, and the table scrolls, so a busy place does not cover the
+	  map.  The same holds for rows at one coordinate.
 	- A map card on a canvas is coloured and sized as the map it was saved
 	  from.  It stores color and size in its encode, which only the map page's
 	  options were read for, so a card drew plain pins.

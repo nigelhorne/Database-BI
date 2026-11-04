@@ -8355,13 +8355,44 @@ sub croak_rethrow {
 	};
 
 	subtest 'Dashboard::_map_popup -- a place name is not markup' => sub {
-		is $F{_map_popup}->('Town', 1, []), '<strong>Town</strong>', 'one row';
-		is $F{_map_popup}->('Town', 3, []), '<strong>Town</strong><br>3 rows', 'several';
-		is $F{_map_popup}->(undef, 1, undef), '<strong></strong>', 'nothing';
-		is $F{_map_popup}->('T', 1, [ [ 'a', 'b' ], [ 'c', undef ], [ 'd', '' ] ]), '<strong>T</strong><br>a: b', 'empty extras are left out';
-		my $html = $F{_map_popup}->('<script>x</script>', 1, [ [ '<img>', q{"'&} ] ]);
+		is $F{_map_popup}->('Town', [ {} ], []), '<strong>Town</strong>', 'one row';
+		is $F{_map_popup}->('Town', [ {}, {}, {} ], []), '<strong>Town</strong><br>3 rows', 'several';
+		is $F{_map_popup}->(undef, undef, undef), '<strong></strong>', 'nothing';
+		is $F{_map_popup}->('T', [ { a => 'b', c => undef, d => '' } ], [ qw(a c d) ]), '<strong>T</strong><br>a: b', 'empty cells are left out';
+		my $html = $F{_map_popup}->('<script>x</script>', [ { '<img>' => q{"'&} } ], [ '<img>' ]);
 		unlike $html, qr/<script|<img/, 'markup is escaped everywhere';
 		like $html, qr/&lt;script&gt;/, 'and shown as text';
+	};
+
+	# A marker stands for every row at its place, so its popup lists them all:
+	# what they share once, what differs in a table that is capped and scrolls,
+	# so a place with hundreds of rows cannot cover the map.
+	subtest 'Dashboard::_map_popup -- every row at a place, without smothering the map' => sub {
+		my @rows = map { { person => 'Valentin', year => 1910 + $_, event => "E$_", note => '' } } 1 .. 3;
+		my $html = $F{_map_popup}->('Brezje', \@rows, [ qw(person year event note) ], 10, '');
+		like $html, qr{\A<strong>Brezje</strong><br>3 rows<br>person: Valentin<div class="bi-map-popup-rows"}, 'what every row shares is said once';
+		like $html, qr{<tr><th>year</th><th>event</th></tr>}, 'what differs is a table';
+		is scalar(() = $html =~ /<td>E\d<\/td>/g), 3, 'with a line for each row';
+		unlike $html, qr/note/, 'a column empty in every row is left out';
+		like $html, qr/max-height:[^;"]+;overflow:auto/, 'the box scrolls rather than growing';
+		unlike $html, qr/more/, 'nothing is left over';
+
+		my @many = map { { n => $_ } } 1 .. 25;
+		$html = $F{_map_popup}->('P', \@many, [ 'n' ], 4, '/open?path=x&f=a');
+		is scalar(() = $html =~ /<td>/g), 4, 'no more rows than the limit';
+		like $html, qr{and 21 more: <a href="/open\?path=x&amp;f=a">show all 25 in the table</a>}, 'the rest are counted and linked, the link escaped';
+		like $F{_map_popup}->('P', \@many, [ 'n' ], 4, undef), qr{and 21 more</div>\z}, 'without a link, only counted';
+		is scalar(() = $F{_map_popup}->('P', \@many, [ 'n' ], $_, '') =~ /<td>/g), 10, "a limit of '$_' is the default"
+			for ('', 0, -3, 'lots', undef);
+
+		$html = $F{_map_popup}->('P', [ { n => '<b>', x => [ 1 ] }, 'not a row', undef, { n => '&' } ], [ 'n', 'x', undef, [ 'y' ] ], 10, '');
+		like $html, qr{<td>&lt;b&gt;</td><td>&amp;</td>|<td>&lt;b&gt;</td></tr><tr><td>&amp;</td>}, 'cells are escaped';
+		like $html, qr/2 rows/, 'what is not a row is not counted';
+		unlike $html, qr/ARRAY/, 'and a cell that is a reference is empty, not its address';
+
+		$html = $F{_map_popup}->('Same', [ { a => 1 }, { a => 1 } ], [ 'a' ], 10, '/x');
+		is $html, '<strong>Same</strong><br>2 rows<br>a: 1', 'identical rows need no table';
+		keeps_globals_ok('_map_popup', sub { $F{_map_popup}->('P', \@many, [ 'n' ], 4, '') });
 	};
 
 	subtest 'Dashboard::_map_size_range, _map_radius, _map_limit' => sub {
@@ -10824,6 +10855,37 @@ sub croak_rethrow {
 			'rules that are not hashes are ignored';
 	};
 }
+
+# ============================================================================
+# DataSource::_best_id_column -- the id must not drop rows
+#
+# Database::Abstraction drops every row whose id cell is empty or starts with
+# '#', so the id is the safe column with the fewest such cells over the whole
+# file, not the first that happens to be filled in the first data row.
+# ============================================================================
+subtest 'DataSource::_best_id_column -- the column that drops fewest rows' => sub {
+	my $best = \&Database::BI::Model::DataSource::_best_id_column;
+	my $pick = sub {
+		my ($body, @header) = @_;
+		# CORE:: because the autodie in scope here cannot open an in-memory file.
+		CORE::open(my $fh, '<', \$body) or return 'cannot read';
+		return $best->($fh, ',', \@header);
+	};
+	is $pick->("650825,a,x\n,b,y\n,c,z\n", qw(Check Desc Status)), 'Desc',
+		'filled in the first row is not enough';
+	is $pick->("1,a\n2,b\n", qw(id name)), 'id', 'the earliest of two full columns';
+	is $pick->("1,\"a,b\",x\n2,c,y\n", qw(Check Desc Status)), 'Check', 'a quoted separator does not shift the cells';
+	is $pick->("#1,a\n#2,b\n", qw(id name)), 'name', "a cell D::A reads as a comment counts as empty";
+	is $pick->("  ,a\n\t,b\n", qw(id name)), 'name', 'so does whitespace';
+	is $pick->("\n\n1,\n", qw(id name)), 'id', 'blank lines are not rows';
+	is $pick->('', qw(id name)), 'id', 'no data: the first safe column';
+	is $pick->("1,2\n", 'Account Number', 'Post Date'), undef, 'no safe column at all';
+	is $pick->("1,2\n", '', 'b'), 'b', 'an empty header name is skipped, its index kept';
+	is $pick->(",,,x\n,,,y\n", qw(a b c d)), 'd', 'a short row is all empties before the filled cell';
+	is $pick->("a\nb\n", qw(x y)), 'x', 'a missing cell is empty in every row, so a tie keeps the earliest';
+	is $pick->("\"unterminated,1\n2,3\n", qw(a b)), 'a', 'a malformed line stops the count, not the open';
+	keeps_globals_ok('_best_id_column', sub { $pick->("1,a\n", qw(id name)) });
+};
 
 done_testing();
 

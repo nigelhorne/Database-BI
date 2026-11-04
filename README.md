@@ -648,7 +648,8 @@ perl Makefile.PL
                    with ", " in that order (loc=Address&loc=Country)
     lat=<col>      latitude column, -90..90
     lon=<col>      longitude column, -180..180
-    popup=<col>    column shown in the marker popup (repeatable)
+    popup=<col>    column shown in the marker popup (repeatable; default every
+                   column but the place or coordinates)
     max=N          markers to draw (default map_max_markers, 2000)
     zoom=N         initial zoom 0..19 (default: fit the markers)
     max_zoom=N     tile layer maxZoom 0..28 (default: map_max_zoom, if set)
@@ -667,6 +668,13 @@ perl Makefile.PL
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=            result filters (repeatable)
     ```
+
+    A marker stands for every row at its place, and its popup lists them all: a
+    value every row shares is shown once ("Person: Valentin Puntar"), and the
+    columns that differ are a small table, one line a row.  The table shows at most
+    `map_popup_rows` rows (default 10) in a box that scrolls, so a busy place does
+    not cover the map; the rest are counted, with a link to them in the table the
+    map came from.
 
     An unknown `tiles=` or `scheme=` is a 400, as is an unknown column, `color=`
     together with `series=`, or a transposed lat/lon pair.  The page never shows
@@ -1341,7 +1349,8 @@ the local data does not know is not sent to OpenStreetMap's Nominatim; default
 at one a second, the rest are left for the next request or for
 `script/bi-geocode`; the map page's progress bar asks one place a request, so
 it reaches every place), `secrets` (a list; the first signs the places a map
-page lists for `POST /geo/lookup`.  Without it each start makes a random one), `map_max_markers` (markers per request, default 2000),
+page lists for `POST /geo/lookup`.  Without it each start makes a random one), `map_max_markers` (markers per request, default 2000), `map_popup_rows`
+(rows listed in one marker's popup, default 10),
 `map_region` (a two-letter country hint for ambiguous places), `map_max_zoom`
 (the default tile-layer maxZoom) and `tile_sources` (a hashref of named tile
 sources, each `{ url => ... }`, selected with `tiles=`).
