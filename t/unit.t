@@ -3109,6 +3109,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			[ error_map_source      => "/map?l=$SPEC" ],
 			[ error_map_coordinates => "/map?l=$SPEC&lat=id" ],
 			[ error_map_tiles_unknown => "/map?l=$SPEC&lat=id&lon=id&tiles=nope", ['nope'] ],
+			[ error_map_geocode_mode  => "/map?l=$SPEC&lat=id&lon=id&geocode=nope", ['nope'] ],
 			[ error_map_coordinate_numeric => "/map?l=$SPEC&lat=region&lon=product", ['region', 'product'] ],
 		);
 		for my $row (@table) {
@@ -3378,6 +3379,18 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->get_ok("/map?$l&lat=lat&lon=lon&max=$CAPPED")->status_is(200);
 		message_ok(Dashboard => 'warn_map_markers_capped', $tm->tx->res->body, [$CAPPED, 2], 1);
 
+		SKIP: {
+			# The key on the map, and what it says when nothing in it is in
+			# view, need an HTML::OSM that draws one
+			unless (eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }) {
+				delete $ledger{'msg.Dashboard.map_legend_empty'};
+				skip 'the key on a map needs HTML::OSM 0.13', 1;
+			}
+			$tm->get_ok("/map?$l&lat=lat&lon=lon&series=place")->status_is(200);
+			my ($empty) = $tm->tx->res->body =~ /var legendEmpty = '([^']*)'/;
+			message_ok(Dashboard => 'map_legend_empty', $empty);
+		}
+
 		mock('Database::BI::Controller::Dashboard::_map_renderer_version' => sub { (0, undef) });
 		$tm->get_ok("/map?$l&lat=lat&lon=lon")->status_is(200);
 		message_ok(Dashboard => 'error_map_renderer_missing', $tm->tx->res->body, [], 1);
@@ -3414,6 +3427,13 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$fresh->get_ok("/map?$l&loc=place")->status_is(200);
 		message_ok(Dashboard => 'warn_map_cache_unwritten', $fresh->tx->res->body, [], 1);
 		restore_all();
+
+		# The map page's progress bar looks places up one at a time, each signed
+		# by the page that listed it.
+		$tm->post_ok('/geo/lookup')->status_is(400);
+		message_ok(Dashboard => 'error_geo_lookup_place', $tm->tx->res->json->{error});
+		$tm->post_ok('/geo/lookup' => form => { place => 'Paris', sig => 'forged' })->status_is(403);
+		message_ok(Dashboard => 'error_geo_lookup_unsigned', $tm->tx->res->json->{error});
 
 		# The AI routes: the provider is the only thing replaced.
 		require HTTP::Response;

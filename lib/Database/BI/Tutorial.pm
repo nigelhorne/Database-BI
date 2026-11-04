@@ -612,7 +612,7 @@ my @CHAPTERS = (
 			'Or click List the places that were not plotted to see each place.',
 			'Click the number of rows beside a place to see those rows in the table.',
 		],
-		tip   => 'Rows at one place become one marker. Click a marker to see what it stands for. To size each marker by a number, add &size= and a column name to the map address. To give each category its own colour and a legend, add &series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. At most 20 places are looked up there each time the map opens. Open the map again to find the rest.',
+		tip   => 'Rows at one place become one marker. Click a marker to see what it stands for. The scale bar and the key change as you zoom. The key lists only the colours you can see. To size each marker by a number, add &size= and a column name to the map address. To give each category its own colour and a legend, add &series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. The map opens at once with the places already known. A bar shows each new place as it is looked up. Click Cancel to stop and see the map with the places found so far. Every place found is kept, so the next map of it opens at once.',
 		walkthrough => {
 			title => 'Walk through: Virginia counties on a map',
 			intro => 'This example uses the virginia_counties table in the data folder.',

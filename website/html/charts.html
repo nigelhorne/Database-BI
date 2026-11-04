@@ -179,10 +179,26 @@
 	local data first and then on OpenStreetMap's Nominatim, remembered in the
 	model store and shared by every dataset that names it) or
 	from coordinate columns (<code>lat=</code> and <code>lon=</code>). Rows
-	sharing a position become one marker. When some rows cannot be plotted, the
+	sharing a position become one marker. The map opens on every marker, unless
+	<code>zoom=</code> says otherwise, and has a scale bar. A map coloured by
+	<code>series=</code>, <code>color=</code> or <code>size=</code> draws its key on
+	the map, listing only the colours of the markers in view, so it changes as the
+	map is zoomed and moved (HTML::OSM 0.13 or later; with 0.12 the key is below
+	the map). When some rows cannot be plotted, the
 	note that says so counts them by reason, links to all of them in the table,
 	and opens onto a list of their places: how many rows each one stands for, why
 	it was not plotted, and a link to those rows.
+</p>
+<p>
+	Places that are not in the cache yet are looked up after the page is shown.
+	The map draws what the cache knows, and a progress bar names each place as it
+	is looked up, such as <em>Looking up 5 of 10: 10 Downing St, London</em>. Each
+	answer is saved at once, and the map is drawn again when the last place is in.
+	<em>Cancel</em> stops the lookups and draws the map with the places found so
+	far. The rest are listed as not looked up yet, with a link to look them up.
+	<code>geocode=wait</code> looks every place up before the page is sent, which
+	is also what a client that is not a browser gets, and
+	<code>geocode=cached</code> looks nothing up.
 </p>
 <dl class="spec">
 	<dt><code>loc=&lt;col&gt;</code></dt>

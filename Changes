@@ -53,7 +53,33 @@ Revision history for Database-BI
 	- A new filter operator, in, keeps the rows whose cell is any value of a
 	  JSON list: f=place:in:["Paris","Rome"].  It is what that link uses.
 
+	- With HTML::OSM 0.13, every map has a scale bar, and a map coloured by
+	  series=, color= rules or size= has its key drawn on the map.  The key
+	  lists only the colours of the markers in view, so it changes as the
+	  map is zoomed and moved; bubble sizes are always listed.  A map with
+	  no zoom= opens on every marker, as the map panel says; it used to open
+	  at zoom 12 on the markers' midpoint, which could show none of them.
+	  With HTML::OSM 0.12 the map is drawn as before, with the key below it.
+	- A map no longer waits for its places to be looked up before it is
+	  shown.  It draws what the place cache knows, and a progress bar names
+	  each place as it is looked up ("Looking up 5 of 10: Brezje 8,
+	  Cerknica, Slovenia"), with a Cancel button.  Each answer is saved as
+	  it comes (POST /geo/lookup), so a run that is cancelled or interrupted
+	  keeps what it found, and the map is drawn again when the last place is
+	  in.  After Cancel the places left are listed as not looked up yet, with
+	  a link to look them up.  The progress bar asks one place at a time, so
+	  map_geocode_online_max no longer leaves places for the next visit, where
+	  each paid for a slow local lookup again.  geocode=wait keeps the old
+	  behaviour, which a client that is not a browser still gets;
+	  geocode=cached looks nothing up.
+	- The application's secret is random for each start unless the config
+	  sets secrets => [...].  Mojolicious used the application's name, which
+	  anyone can read; it now signs the places a map page lists.
+
 	[ Bug fixes ]
+	- A map card on a canvas is coloured and sized as the map it was saved
+	  from.  It stores color and size in its encode, which only the map page's
+	  options were read for, so a card drew plain pins.
 	- Calc::date_normalise and the date functions in calculated fields gave
 	  the caller back a changed $!: on BSD, mktime and localtime can
 	  leave errno set when they succeed (a CPAN Testers failure in t/unit.t).

@@ -18,7 +18,7 @@ use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json from_json to_json);
 use Mojo::Parameters;
 use Mojo::URL;
-use Mojo::Util		qw(url_escape encode xml_escape);
+use Mojo::Util		qw(url_escape encode xml_escape hmac_sha1_sum secure_compare);
 use File::Path		qw(remove_tree);
 use File::Spec;
 use File::Temp		qw(tempfile tempdir);
@@ -120,6 +120,13 @@ Readonly my $DEFAULT_LANGUAGE => 'en';
 # building a map, and reports a missing or old renderer instead of a 500.
 Readonly my $MIN_HTML_OSM_VERSION => '0.12';
 
+# The HTML::OSM that draws a scale bar and a key on the map, the key listing
+# only what is in view (scale, legend, and group on each marker), and opens
+# the map on every marker (fit).  An older
+# one still draws the map, and the map page then shows its key below it.
+# Not named $MIN_*: t/recommended-versions.t reads that one as the floor.
+Readonly my $HTML_OSM_KEY_FLOOR => '0.13';
+
 # ---------------------------------------------------------------------------
 # I18N message dictionary for all user-visible strings in this controller.
 # To plug in a Locale::Maketext backend, extend _i18n() below.
@@ -216,8 +223,12 @@ Readonly my %MESSAGES => (
 	warn_join_schema_mismatch   => 'Column "%s" has type %s in %s but %s in %s; the join keeps both columns, so check which one a calculation uses',
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
+	map_legend_empty            => 'Nothing in this view',
 	warn_map_cache_unwritten    => 'The resolved places could not be remembered in the model store, so the next request will look them up again',
 	error_map_tiles_unknown     => 'Unknown tile source "%s"; define it under tile_sources in database_bi.conf',
+	error_map_geocode_mode      => 'geocode= must be "wait" (look places up before the page is sent) or "cached" (look nothing up), not "%s"',
+	error_geo_lookup_place      => 'A lookup needs place= and the sig= the map page gave it',
+	error_geo_lookup_unsigned   => 'This place was not listed by a map page, or the server has restarted since; open the map again',
 	error_insights_no_data      => 'No data available to analyse',
 	insights_insufficient_data  => 'Insufficient data for this insight type (need more rows or periods)',
 	ask_unavailable    => 'Ask a question is not available: no AI provider is configured',
@@ -269,6 +280,9 @@ Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_ge
 Readonly my $DEFAULT_MAP_GEOCODE_ONLINE_MAX => 20;   # map_geocode_online_max
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
 Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
+# A bubble map's size key: the bubbles' own colour when they have one, and
+# this grey when the colour says something else (a colour column)
+Readonly my $MAP_SIZE_KEY_COLOR  => '#888888';
 Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
     red orange yellow green teal cyan blue navy purple
     magenta pink brown maroon olive silver gray grey gold lime white black
@@ -12110,6 +12124,52 @@ sub _map_unplotted {
 	return (\@entries, \@all_filters);
 }
 
+# _map_region($config) -> $region or undef
+#
+# The country hint for the local geocoder: config map_region when it is two
+# letters, else none.
+sub _map_region {
+	my $cfg = shift;
+	my $region = $cfg->{map_region};
+
+	return (defined($region) && !ref($region) && $region =~ /\A[A-Za-z]{2}\z/) ? $region : undef;
+}
+
+# _map_geocoder($self, $online) -> Database::BI::Model::Geocode
+#
+# The geocoder a map asks, built from the config the same way for the map page,
+# a canvas card and /geo/lookup.  The geocoder is a config seam first and a
+# recommended dependency second: a deployment may hand in an object, and a test
+# does exactly that.  With neither, the model reports the module as unavailable
+# and the map is still the map.
+#
+# map_geocode_online => 0 keeps every lookup on this machine: a place the local
+# data does not know is then not sent to OpenStreetMap.  A false $online does
+# the same for one request (the progress run, once Nominatim has failed).
+# Geo::Coder::List keeps its answers in files beside models.json, so a place
+# Nominatim found is not asked again by another request, worker or restart.  A
+# model_dir that is refused (inside data_dir) gets none, and the module falls
+# back on a cache in this process's memory.
+sub _map_geocoder :Protected ($self, $online) {
+	require Database::BI::Model::Geocode;
+
+	my $cfg         = $self->app->config;
+	my $models_path = $self->_calc_models_path;
+	my $injected    = $cfg->{geocoder};
+
+	return Database::BI::Model::Geocode->new(
+		(defined($models_path)
+			? (cache => Database::BI::Model::Geocode->file_cache(Mojo::File->new($models_path)->dirname->to_string))
+			: ()),
+		(defined($injected) && ref($injected) && $injected->can('geocode_many')
+			? (geocoder => $injected) : ()),
+		(defined($cfg->{openaddr}) && length($cfg->{openaddr})
+			? (openaddr => $cfg->{openaddr}) : ()),
+		online     => (($online && ($cfg->{map_geocode_online} // 1)) ? 1 : 0),
+		online_max => _map_limit($cfg->{map_geocode_online_max}, $DEFAULT_MAP_GEOCODE_ONLINE_MAX),
+	);
+}
+
 # _map_data($self, \@records, \@columns, \%encode, \%options, $spec_key, $id_suffix)
 #     -> \%result
 #
@@ -12157,7 +12217,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	}
 
 	my ($backend, $plotted_rows) = (undef, 0);
-	my (@markers, @messages, @unplotted, @unplotted_filters);
+	my (@markers, @messages, @unplotted, @unplotted_filters, @pending);
 
 	if ($by_location) {
 		for my $col (@loc_cols) {
@@ -12171,29 +12231,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		# rows' own order, so a marker's first_row still indexes $records.
 		my ($places) = Database::BI::Model::Geocode->place_rows($records, \@loc_cols);
 
-		# The geocoder is a config seam first and a recommended dependency
-		# second: a deployment may hand in an object, and a test does exactly
-		# that.  With neither, the model reports the module as unavailable and
-		# the map is still the map.
-		# map_geocode_online => 0 keeps every lookup on this machine: a place
-		# the local data does not know is then not sent to OpenStreetMap.
-		# Geo::Coder::List keeps its answers in files beside models.json, so a
-		# place Nominatim found is not asked again by another request, worker or
-		# restart.  A model_dir that is refused (inside data_dir) gets none, and
-		# the module falls back on a cache in this process's memory.
-		my $models_path = $self->_calc_models_path;
-		my $injected = $cfg->{geocoder};
-		my $geocode  = Database::BI::Model::Geocode->new(
-			(defined($models_path)
-				? (cache => Database::BI::Model::Geocode->file_cache(Mojo::File->new($models_path)->dirname->to_string))
-				: ()),
-			(defined($injected) && ref($injected) && $injected->can('geocode_many')
-				? (geocoder => $injected) : ()),
-			(defined($cfg->{openaddr}) && length($cfg->{openaddr})
-				? (openaddr => $cfg->{openaddr}) : ()),
-			online     => (($cfg->{map_geocode_online} // 1) ? 1 : 0),
-			online_max => _map_limit($cfg->{map_geocode_online_max}, $DEFAULT_MAP_GEOCODE_ONLINE_MAX),
-		);
+		my $geocode = $self->_map_geocoder(1);
 
 		# A place name means the same place whichever file's column holds it, so
 		# the answers live in one shared cache: the second dataset that names a
@@ -12207,14 +12245,19 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		my $shared     = Database::BI::Model::Geocode->shared_cache_from_models($models);
 		my %cache      = (%$legacy, %$shared);
 		my $to_share   = grep { !exists $shared->{$_} } keys %$legacy;
-		my $region     = $cfg->{map_region};
+		my $region     = _map_region($cfg);
 
+		# lookup => 0 (the map page in a browser) asks nothing here: the
+		# places not cached yet come back as pending, and the page looks them
+		# up one at a time through /geo/lookup, with a progress bar.
 		my $result = $geocode->resolve_column(
 			$places, $loc_col,
 			cache => \%cache,
-			((defined($region) && $region =~ /\A[A-Za-z]{2}\z/) ? (region => $region) : ()),
+			(defined($region) ? (region => $region) : ()),
 			max   => _map_limit($cfg->{map_geocode_max}, $DEFAULT_MAP_GEOCODE_MAX),
+			lookup => ((defined($options->{lookup}) && !$options->{lookup}) ? 0 : 1),
 		);
+		@pending = @{ $result->{pending} // [] };
 
 		push @messages, @{ $result->{messages} };
 		$backend      = $result->{backend};
@@ -12339,6 +12382,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	# the map - the search box, the buttons, the div and its script - goes in the
 	# body where the map should appear.
 	my ($map_head, $map_body);
+	my $legend_drawn = 0;
 	if (@markers) {
 		# HTML::OSM is a recommended dependency, so its absence - or an install
 		# older than the options below - is a state the page reports and
@@ -12403,24 +12447,57 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 			);
 			# The renderer is a third-party module: whatever it does, the page
 			# reports it and survives, as it does when the module is absent.
+			# The map page passes the colour and size columns as options; a
+			# canvas card has them in its encode, as the page saved them.  A
+			# card's are stored unchecked, so one that names no column is
+			# left out rather than refused.
+			my $color_col = $options->{color_col} // $encode->{color} // '';
+			$color_col = '' if ref($color_col) || !$col_set{$color_col};
+			my $color_rules   = ref($options->{color_rules}) eq 'ARRAY' ? $options->{color_rules} : [];
+			my $color_default = $options->{color_default} // $DEFAULT_MARKER_COLOR;
+			my $size_col = $options->{size} // $encode->{size} // '';
+			$size_col = '' if ref($size_col) || !$col_set{$size_col};
+
+			# The scale bar, and the key on the map, need an HTML::OSM that
+			# draws them; an older one is passed neither, and still draws the
+			# map.  The version _map_renderer_version found is compared, rather
+			# than asked for again: this is a feature of a newer copy, not the
+			# floor the renderer messages name.
+			my $keyed = (eval { version->parse($osm_version) >= version->parse($HTML_OSM_KEY_FLOOR) }) ? 1 : 0;
+			my $size_range = [ _map_size_range($records, \@markers, $size_col) ];
+			my %key = $keyed
+				? $self->_map_key($color_col, $color_rules, $color_default,
+					defined($options->{scheme}), $size_col, $size_range)
+				: ();
+			if ($keyed) {
+				$osm_args{scale} = 1;
+				# Without a zoom the map opens on every marker, as the panel
+				# promises; an older HTML::OSM opens at zoom 12 on their midpoint
+				$osm_args{fit} = 1 unless defined $options->{zoom};
+				%osm_args = (%osm_args, %key) if @{ $key{legend} // [] };
+				$legend_drawn = @{ $key{legend} // [] } ? 1 : 0;
+			}
+
 			my $drawn = eval {
 				my $map = HTML::OSM->new(%osm_args);
-				my $color_col     = $options->{color_col} // '';
-				my $color_rules   = $options->{color_rules}   // [];
-				my $color_default = $options->{color_default} // $DEFAULT_MARKER_COLOR;
-				my $size_col      = $options->{size} // '';
 
 				# Bubble maps: one radius per marker, scaled across the plotted
 				# values.  Circle markers keep their pixel size as the reader
 				# zooms, which is what makes them comparable.
-				my ($size_min, $size_max) = _map_size_range($records, \@markers, $size_col);
+				my ($size_min, $size_max) = @{$size_range};
 
 				for my $marker (@markers) {
 					my $row = $records->[ $marker->{first_row} ];
-					my $color;
+					my ($color, $group);
 					if (length $color_col) {
 						my $cval = (defined($row) ? $row->{$color_col} : undef) // '';
 						$color = _apply_color_rule($cval, $color_rules, $color_default);
+						# Which key entry the marker belongs to, so the key lists
+						# only what is in view
+						if ($keyed) {
+							my $index = _color_rule_index($cval, $color_rules);
+							$group = defined($index) ? "rule$index" : 'other';
+						}
 					}
 					if (length $size_col) {
 						my $sv = defined($row)
@@ -12430,12 +12507,14 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 							html   => $marker->{label},
 							radius => _map_radius($sv, $size_min, $size_max),
 							(defined($color) ? (colour => _color_hex($color)) : ()),
+							(defined($group) ? (group  => $group)            : ()),
 						);
 					} else {
 						$map->add_marker(
 							[ $marker->{lat}, $marker->{lon} ],
 							html => $marker->{label},
 							(defined($color) ? (icon => _marker_icon($color)) : ()),
+							(defined($group) ? (group => $group)              : ()),
 						);
 					}
 				}
@@ -12536,6 +12615,8 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		chart        => \%chart_spec,
 		unplotted    => \@unplotted,
 		unplotted_filters => \@unplotted_filters,
+		pending      => \@pending,
+		legend_drawn => ($map_body ? $legend_drawn : 0),
 	};
 }
 
@@ -12716,6 +12797,20 @@ sub map_view ($self) {
 		return $self->render(text => $e, status => 400);
 	}
 
+	# geocode= says when the places not in the cache yet are looked up: 'wait'
+	# in this request, before the page is sent; 'cached' not at all, so the map
+	# shows what the cache knows (where Cancel leads).  Without it, a page a
+	# browser navigated to (a GET whose Accept names text/html, which fetch()
+	# and scripts do not send) asks nothing here: it lists the places for the
+	# page, which looks them up one at a time with a progress bar.  Any other
+	# client waits, as every client did before.
+	my $geocode_mode = $self->param('geocode') // '';
+	return $self->render(text => $self->_i18n('error_map_geocode_mode', $geocode_mode), status => 400)
+		unless $geocode_mode =~ /\A(?:wait|cached|)\z/;
+	my $progress = $by_location && !length($geocode_mode)
+		&& $self->req->method eq 'GET'
+		&& ($self->req->headers->accept // '') =~ m{\btext/html\b};
+
 	return unless $self->_reduce_or_render(\$records, \$columns);
 
 	my %col_set = map { $_ => 1 } @{ $columns };
@@ -12785,32 +12880,12 @@ sub map_view ($self) {
 	$options{tile_url} = $tile_url_override if defined $tile_url_override;
 	$options{heat}     = 1               if $heat;
 	$options{weight}   = $weight_col     if length($weight_col) && $col_set{$weight_col};
+	$options{lookup}   = 0               if $progress || $geocode_mode eq 'cached';
 
-	# Build colour legend for the template
-	my @color_legend;
-	if (length $color_col) {
-		if (@series_cats) {
-			for my $i (0 .. $#series_cats) {
-				push @color_legend, {
-					color => $series_palette->[ $i % @$series_palette ],
-					label => length($series_cats[$i]) ? $series_cats[$i] : '(blank)',
-				};
-			}
-		} else {
-			my %op_label = (
-				gt => '>', ge => '>=', lt => '<', le => '<=', eq => '=', ne => '!=',
-			);
-			for my $rule (@$color_rules) {
-				push @color_legend, {
-					color => $rule->{color},
-					label => $color_col . ' ' . ($op_label{ $rule->{op} } // $rule->{op})
-						. ' ' . $rule->{val},
-				};
-			}
-			push @color_legend, { color => $color_default, label => 'Other' }
-				if @color_legend;
-		}
-	}
+	# The colour key, shown below the map when the map cannot draw it itself
+	my @color_legend = length($color_col)
+		? _map_colour_entries($color_col, $color_rules, $color_default, scalar @series_cats)
+		: ();
 
 	my $result = $self->_map_data(
 		$records, $columns,
@@ -12850,9 +12925,40 @@ sub map_view ($self) {
 	my $unplotted_rows = 0;
 	$unplotted_rows += $_->{rows} for @unplotted;
 
+	# This page with geocode= set to $mode, or without it for undef.
+	my $here_with = sub {
+		my ($mode) = @_;
+		my $url = $self->req->url->clone;
+		$url->query->remove('geocode');
+		$url->query->append(geocode => $mode) if defined $mode;
+		return $url->path_query;
+	};
+
+	# The places to look up, each signed so that /geo/lookup asks only what a
+	# map page listed: without that, any page on the web could post a string
+	# for this server to send to OpenStreetMap.
+	my @pending = $progress ? @{ $result->{pending} // [] } : ();
+	my %progress;
+	if (@pending) {
+		my $json = to_json([ map { { place => $_, sig => $self->_geo_lookup_sig($_) } } @pending ]);
+		$json =~ s{</}{<\\/}g;
+		%progress = (
+			geocode_pending      => scalar @pending,
+			geocode_pending_json => $json,
+			geocode_done_url     => $here_with->(undef),
+			geocode_cached_url   => $here_with->('cached'),
+			geocode_wait_url     => $here_with->('wait'),
+		);
+	}
+
+	# After Cancel, the places left are offered again.
+	$progress{geocode_retry_url} = $here_with->(undef)
+		if $geocode_mode eq 'cached' && grep { $_->{reason} eq 'later' } @unplotted;
+
 	$self->render(
 		handler         => 'tt',
 		template        => "$platform/$language/map",
+		%progress,
 		unplotted       => \@unplotted,
 		unplotted_rows  => $unplotted_rows,
 		unplotted_url   => $rows_url->($result->{unplotted_filters} // []),
@@ -12873,6 +12979,7 @@ sub map_view ($self) {
 		chart_json      => $self->_chart_json($result->{chart}),
 		color_col       => $color_col,
 		color_legend    => \@color_legend,
+		legend_drawn    => $result->{legend_drawn},
 		back_url        => ($back2 // $back),
 		back_label      => ($back2 ? ($back2_lbl || 'Back') : 'Back to table'),
 		($back2 ? (back2_url => $back, back2_label => 'Back to table') : ()),
@@ -12880,6 +12987,86 @@ sub map_view ($self) {
 		source_accessed => $source_accessed,
 		language        => $language,
 	);
+}
+
+# _geo_lookup_sig($self, $place) -> $hex
+#
+# What the map page signs each place it lists with, and /geo/lookup checks.
+# The key is the application's secret, which BI.pm makes at random for each
+# start unless the config names one, so a list outlives neither a restart nor
+# another installation.
+sub _geo_lookup_sig :Protected ($self, $place) {
+	return hmac_sha1_sum(encode('UTF-8', "geo-lookup\0$place"), $self->app->secrets->[0]);
+}
+
+# ---------------------------------------------------------------------------
+# POST /geo/lookup  place=<place>&sig=<sig>[&online=0]
+#
+# One place, for the map page's progress bar: looked up as the map would, and
+# its answer saved in the shared place cache straight away, so a run that is
+# cancelled or interrupted keeps every place it found.  The place must carry the
+# signature the map page gave it.  online=0 keeps the lookup on this machine;
+# the page sends it once OpenStreetMap has failed, so that each place left does
+# not wait for it again.
+#
+# Replies 200 JSON:
+#   { place, status => 'found' | 'not_found' | 'held' | 'refused',
+#     stored => 0|1, online_failed => 0|1, messages => [ text ... ] }
+# 'held' is a place that could not be looked up now (OpenStreetMap did not
+# answer, or the geocoder is missing); it is not remembered, so the next map
+# asks again.  stored says that the answer is in the cache: a found or
+# not-found place the store refused to keep is 0.
+# 400 JSON { error } without place= or sig=; 403 JSON { error } for a bad sig=.
+# ---------------------------------------------------------------------------
+sub geo_lookup ($self) {
+	my $place = $self->param('place') // '';
+	my $sig   = $self->param('sig')   // '';
+
+	return $self->render(json => { error => $self->_i18n('error_geo_lookup_place') }, status => 400)
+		unless length($place) && length($sig);
+	return $self->render(json => { error => $self->_i18n('error_geo_lookup_unsigned') }, status => 403)
+		unless secure_compare($sig, $self->_geo_lookup_sig($place));
+
+	my $cfg     = $self->app->config;
+	my $geocode = $self->_map_geocoder(($self->param('online') // 1) ? 1 : 0);
+	my $models  = $self->_read_models;
+	my $region  = _map_region($cfg);
+
+	my $result = $geocode->resolve_values(
+		[ $place ],
+		cache => Database::BI::Model::Geocode->shared_cache_from_models($models),
+		(defined($region) ? (region => $region) : ()),
+		max   => 1,
+	);
+
+	my $status = $result->{points}{$place}		? 'found'
+		: (grep { $_ eq $place } @{ $result->{unresolved} })	? 'not_found'
+		: (grep { $_ eq $place } @{ $result->{skipped} })	? 'refused'
+		:							  'held';
+
+	# A place another tab answered meanwhile is in the cache already.
+	my $stored = ($status eq 'found' || $status eq 'not_found') && !$result->{counts}{attempted};
+
+	if ($result->{counts}{attempted} && $status ne 'held') {
+		my $backend = $result->{backend};
+		$stored = $self->_write_models(Database::BI::Model::Geocode->models_with_shared_cache(
+			$models, { $place => $result->{cache}{$place} },
+			(defined($backend) ? (backend => $backend) : ()),
+			built => _iso8601_utc(),
+		)) ? 1 : 0;
+	}
+
+	my @messages = map { $_->{text} } grep {
+		$_->{key} ne 'warn_map_geocoder_unavailable_data'
+	} @{ $result->{messages} };
+
+	return $self->render(json => {
+		place         => $place,
+		status        => $status,
+		stored        => $stored ? 1 : 0,
+		online_failed => (grep { $_->{key} eq 'warn_map_geocoder_online_failed' } @{ $result->{messages} }) ? 1 : 0,
+		messages      => \@messages,
+	});
 }
 
 # _map_popup($heading, $rows, \@extras) -> $html
@@ -12986,23 +13173,84 @@ sub _parse_color_rules {
 	return (\@rules, $default_color);
 }
 
-# _apply_color_rule($value, \@rules, $default_color) -> $color
+# _map_colour_entries($color_col, \@rules, $default, $is_series) -> @entries
 #
-# Returns the first colour whose rule matches $value, or $default_color.
-# Numeric comparisons are used when both sides look like plain numbers.
-sub _apply_color_rule {
-	my ($value, $rules, $default) = @_;
+# The colour key of a map, as { color, label, group }: one entry for each rule,
+# and Other for the default colour.  A series (series= with a scheme) is
+# listed by value, with no Other: its values past the palette's two cycles
+# take a palette colour but are not listed.  group names the entry for
+# _color_rule_index's answer ("rule<N>", or "other"), which is how HTML::OSM
+# lists only the entries in view.
+sub _map_colour_entries {
+	my ($color_col, $rules, $default, $is_series) = @_;
+
+	my %op_label = (gt => '>', ge => '>=', lt => '<', le => '<=', eq => '=', ne => '!=');
+	my @entries;
+	for my $index (0 .. $#{$rules}) {
+		my $rule = $rules->[$index];
+		my $val  = $rule->{val} // '';
+		push @entries, {
+			color => $rule->{color},
+			label => $is_series
+				? (length($val) ? $val : '(blank)')
+				: "$color_col " . ($op_label{ $rule->{op} } // $rule->{op}) . " $val",
+			group => "rule$index",
+		};
+	}
+	push @entries, { color => $default, label => 'Other', group => 'other' }
+		if @entries && !$is_series;
+	return @entries;
+}
+
+# _map_key($self, $color_col, \@rules, $default, $is_series, $size_col, \@range)
+#     -> (legend => \@entries, legend_title => $title, legend_empty => $text)
+#
+# What HTML::OSM is given to draw a map's key: the colour entries, each with
+# its group so the key lists only what is in view, then two or three bubble
+# sizes when a size column is set (those are always listed: they say what a
+# size means, wherever the reader is).  The title is the colour column, or
+# the size column when there is no colour; with both, each size is labelled
+# with its column.  The colours go to HTML::OSM as hex, which is all it takes.
+sub _map_key :Protected ($self, $color_col, $rules, $default, $is_series, $size_col, $range) {
+	my @legend = map {
+		{ label => $_->{label}, colour => _color_hex($_->{color}), group => $_->{group} }
+	} (length($color_col) ? _map_colour_entries($color_col, $rules, $default, $is_series) : ());
+
+	my ($min, $max) = @{ $range // [] };
+	if (length($size_col) && defined($min)) {
+		my @values = ($max > $min) ? ($min, ($min + $max) / 2, $max) : ($min);
+		for my $value (@values) {
+			my $text = 0 + sprintf('%.4g', $value);
+			push @legend, {
+				label  => (@legend && length($color_col) ? "$size_col $text" : "$text"),
+				colour => (length($color_col) ? $MAP_SIZE_KEY_COLOR : _color_hex($default)),
+				radius => _map_radius($value, $min, $max),
+			};
+		}
+	}
+
+	return () unless @legend;
+	return (
+		legend       => \@legend,
+		legend_title => (length($color_col) ? $color_col : $size_col),
+		legend_empty => $self->_i18n('map_legend_empty'),
+	);
+}
+
+# _color_rule_index($value, \@rules) -> $index | undef
+#
+# The index of the first rule that matches $value, or undef when none does
+# (the marker takes the default colour).  _apply_color_rule says the colour.
+sub _color_rule_index {
+	my ($value, $rules) = @_;
 	$value //= '';
-	for my $rule (@$rules) {
-		my ($op, $threshold, $color) = @{$rule}{qw(op val color)};
-		my ($num_val, $num_thr);
+	for my $index (0 .. $#{$rules}) {
+		my ($op, $threshold) = @{ $rules->[$index] }{qw(op val)};
+		$threshold //= '';
+		my $match;
 		if (	$value     =~ /\A-?\d+(?:\.\d+)?\z/ &&
 			$threshold =~ /\A-?\d+(?:\.\d+)?\z/) {
-			$num_val = $value     + 0;
-			$num_thr = $threshold + 0;
-		}
-		my $match;
-		if (defined $num_val) {
+			my ($num_val, $num_thr) = ($value + 0, $threshold + 0);
 			$match = ($op eq 'gt' && $num_val >  $num_thr)
 			      || ($op eq 'ge' && $num_val >= $num_thr)
 			      || ($op eq 'lt' && $num_val <  $num_thr)
@@ -13013,9 +13261,19 @@ sub _apply_color_rule {
 			$match = ($op eq 'eq' && lc($value) eq lc($threshold))
 			      || ($op eq 'ne' && lc($value) ne lc($threshold));
 		}
-		return $color if $match;
+		return $index if $match;
 	}
-	return $default;
+	return undef;
+}
+
+# _apply_color_rule($value, \@rules, $default_color) -> $color
+#
+# Returns the first colour whose rule matches $value, or $default_color.
+# Numeric comparisons are used when both sides look like plain numbers.
+sub _apply_color_rule {
+	my ($value, $rules, $default) = @_;
+	my $index = _color_rule_index($value, $rules);
+	return defined($index) ? $rules->[$index]{color} : $default;
 }
 
 # _marker_icon($color) -> $data_uri
@@ -14198,6 +14456,16 @@ a dense map draws a count at low zoom and splits it into individual pins as it
 is zoomed in; a sparse map looks the same, because markers far enough apart are
 left on their own.  Clustering is always on; there is no C<cluster=> switch.
 
+A browser is not kept waiting for the geocoder.  The page it navigated to (a
+GET whose Accept names C<text/html>) plots what the cache knows and lists the
+places not cached yet, each signed with the application's secret.  Its script
+then posts them, one at a time, to C<POST /geo/lookup> (L</geo_lookup>), with a
+progress bar naming each place and a Cancel button.  When the last answer is
+in, it draws the page again; after Cancel, or when a place could not be settled
+(not answered, or the store refused it), it draws it with C<geocode=cached>,
+whose notes link back to the page without it.  Any other client, and
+C<geocode=wait>, waits for the lookups as before.
+
 The map page never shows the L<HTML::OSM> Nominatim search box: C<search => 0>
 is always passed, so nothing typed on the page leaves the reader's machine.
 L<HTML::OSM> 0.12 or later is the renderer; with an older optional install (or
@@ -14226,6 +14494,9 @@ visual, so the map shows the filtered, calculated view.
   color_default=<colour>  Fallback when no rule matches (default #3388ff)
   series=<col>    Colour markers by category; mutually exclusive with color=
   scheme=<name>   Palette for series=: tableau10, category10, set2, set3, paired
+  geocode=wait    Look up places not cached yet before the page is sent
+                  (the default for a client that is not a browser)
+  geocode=cached  Look nothing up; plot what the cache knows
   back=<url>, back2=<url>, back2_label=<text>  Breadcrumb links
   f=              Result filters (repeatable)
 
@@ -14241,7 +14512,8 @@ categories rather than rules.
 Config values: C<map_geocode_max> (new lookups per request, default 500),
 C<map_geocode_online> (0 keeps every lookup local; default 1, which asks
 OpenStreetMap's Nominatim about places the local data does not know),
-C<map_geocode_online_max> (places asked of Nominatim per request, default 20),
+C<map_geocode_online_max> (places asked of Nominatim per request, default 20;
+the progress bar asks one place a request),
 C<map_max_markers> (markers per request, default 2000), C<map_region> (a
 two-letter country hint for ambiguous place names), C<map_max_zoom> (the tile
 layer's default maxZoom), C<tile_sources> (a hashref of named tile sources,
@@ -14271,11 +14543,14 @@ heatmap plugin at self-hosted copies for an offline deployment.
   color_default string Optional.  Fallback marker colour.
   series   string  Optional.  Column to colour by category.
   scheme   string  Optional.  Palette for series= (default tableau10).
+  geocode  string  Optional.  'wait' or 'cached'; see above.
   back     url     Optional.  Safe back-link URL (sanitised by _safe_back_url).
 
 =head4 OUTPUT
 
-  200 text/html    Rendered map page.
+  200 text/html    Rendered map page; for a browser, with the progress bar
+                   when places are not cached yet.
+  400 text/plain   geocode= other than wait or cached.
   400 text/plain   No loc=, or lat= without lon=.
   400 text/plain   Column not found: <col>  (or the geocode message naming it).
   400 text/plain   Coordinate column wholly out of range, naming it.
@@ -14289,6 +14564,51 @@ heatmap plugin at self-hosted copies for an offline deployment.
   GET /map?l=table:sales&loc=place
   GET /map?l=table:houses&loc=Address&loc=Country
     -> 200 HTML page containing Leaflet markers for the places that resolved
+
+=cut
+
+=head2 geo_lookup
+
+C<POST /geo/lookup> -- Look up one place for the map page's progress bar.
+
+The place is looked up as C<GET /map> would look it up (the same geocoder,
+file cache and region), and the answer goes into the model store's shared place
+cache before the reply is sent.  A run that is cancelled or interrupted
+therefore keeps every place it found.  Only a place a map page listed is
+accepted: the page signs each one with the application's secret, so no other
+site can have this server send a string to OpenStreetMap.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  place   string  Required.  The place, as the map page listed it.
+  sig     string  Required.  The signature the map page gave it.
+  online  bool    Optional.  0 keeps the lookup on this machine (sent once
+                  OpenStreetMap has failed in the run).  Default 1.
+
+=head4 OUTPUT
+
+  200 application/json
+    { place         => $place,
+      status        => 'found' | 'not_found' | 'held' | 'refused',
+      stored        => 0 | 1,     # the answer is in the shared cache
+      online_failed => 0 | 1,     # OpenStreetMap did not answer
+      messages      => [ $text, ... ] }
+  400 application/json  { error }  place= or sig= missing.
+  403 application/json  { error }  sig= is not this server's for the place
+                                   (or the server has restarted since).
+
+C<held> is a place that could not be looked up now; it is not remembered, so
+the next map asks again.  C<refused> is a value the geocoder does not take for
+a place.  A found or not-found place that the store would not keep has
+C<stored> 0.
+
+=head3 EXAMPLE
+
+  POST /geo/lookup  place=Brezje%208%2C%20Cerknica&sig=...
+    -> { "place": "Brezje 8, Cerknica", "status": "found", "stored": 1,
+         "online_failed": 0, "messages": [] }
 
 =cut
 

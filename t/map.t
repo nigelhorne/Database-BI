@@ -713,7 +713,9 @@ subtest 'max_zoom= caps the tile layer zoom' => sub {
 
 	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon'))
 		->status_is(200);
-	unlike($t->tx->res->body, qr/maxZoom/, 'absent max_zoom= means no maxZoom option emitted');
+	# The tile layer's options: fitBounds has a maxZoom of its own, the zoom it
+	# fits to at most
+	unlike($t->tx->res->body, qr/attribution: '(?:[^'\\]|\\.)*',\s*maxZoom/, 'absent max_zoom= means no maxZoom option emitted');
 };
 
 subtest 'max_zoom= can come from config (map_max_zoom)' => sub {
@@ -876,6 +878,122 @@ subtest 'an HTML::OSM older than 0.12 degrades instead of returning 500' => sub 
 			'the warning is the older-install message, not the missing-module one')
 		->content_unlike(qr/L\.marker\(/, 'no map script is emitted')
 		->content_like(qr/Plotting 2 markers/, 'the markers are still counted');
+};
+
+# The key HTML::OSM draws on the map: its entries, groups and points, as the
+# script declares them
+sub _map_key_of {
+	my ($body) = @_;
+	my ($entries) = $body =~ /var legendEntries = (.*?);\n/;
+	my ($groups)  = $body =~ /var legendGroups = (.*?);\n/;
+	my ($points)  = $body =~ /var legendPoints = (.*?);\n/;
+	my ($title)   = $body =~ /var legendTitle = '((?:[^'\\]|\\.)*)';/;
+	return {
+		entries => defined($entries) ? decode_json($entries) : undef,
+		groups  => defined($groups)  ? decode_json($groups)  : undef,
+		points  => $points,
+		title   => $title,
+	};
+}
+
+my $KEYED = eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 };
+
+subtest 'the map has a scale bar and a key that follows the view' => sub {
+	plan skip_all => 'the scale bar and the key on the map need HTML::OSM 0.13' unless $KEYED;
+
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon'))->status_is(200);
+	like($t->tx->res->body, qr/L\.control\.scale\(\)\.addTo\(map\)/, 'every map has a scale bar');
+	unlike($t->tx->res->body, qr/legendEntries/, 'and a map with nothing to explain has no key');
+	like($t->tx->res->body, qr/map\.fitBounds\(\[\[51\.33, 0\.75\], \[51\.92, 1\.42\]\]/,
+		'with no zoom= it opens on every marker');
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', zoom => 9))->status_is(200);
+	unlike($t->tx->res->body, qr/fitBounds/, 'a zoom= is where it opens instead');
+
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', series => 'place', scheme => 'set2'))->status_is(200);
+	my $body = $t->tx->res->body;
+	my $key  = _map_key_of($body);
+	is($key->{title}, 'place', 'a series key is titled with its column');
+	is_deeply([ map { [ @{$_}{qw(label colour group)} ] } @{ $key->{entries} } ],
+		[ [ 'Ramsgate', '#66c2a5', 'rule0' ], [ 'Earls Colne', '#fc8d62', 'rule1' ],
+		  [ '(blank)', '#8da0cb', 'rule2' ], [ '12345', '#e78ac3', 'rule3' ] ],
+		'each value, its colour, and the group its markers are given');
+	is_deeply($key->{groups}, [ 'rule0', 'rule1' ],
+		'the values of rows with no position have no marker, so they are never in view and never listed');
+	is($key->{points}, '[[51.33,1.42,0],[51.92,0.75,1]]', 'and the key knows where each one is, to list only those in view');
+	like($body, qr/var legendEmpty = 'Nothing in this view';/, 'what it says when nothing is in view');
+	unlike($body, qr/<div class="map-legend">/, 'the key is on the map, so it is not repeated below it');
+
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon',
+		color => 'amount', color_rule => 'gt:6:#ff0000', color_default => 'green'))->status_is(200);
+	$key = _map_key_of($t->tx->res->body);
+	is_deeply([ map { [ @{$_}{qw(label colour group)} ] } @{ $key->{entries} } ],
+		[ [ 'amount > 6', '#ff0000', 'rule0' ], [ 'Other', '#008000', 'other' ] ],
+		'colour rules are listed as rules, with Other; a named colour is passed as hex')
+		or diag(explain($key->{entries}));
+	is($key->{points}, '[[51.33,1.42,0],[51.92,0.75,1]]', 'a marker that matches no rule belongs to Other');
+
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', size => 'amount'))->status_is(200);
+	$key = _map_key_of($t->tx->res->body);
+	is($key->{title}, 'amount', 'a bubble key is titled with the size column');
+	is_deeply([ map { [ $_->{label}, $_->{radius} ] } @{ $key->{entries} } ],
+		[ [ '3', 6 ], [ '6.5', 18 ], [ '10', 30 ] ],
+		'the smallest, middle and largest sizes, drawn the size their bubbles are');
+	ok(!(grep { exists $_->{group} } @{ $key->{entries} }), 'sizes say what a size means anywhere, so they are always listed');
+
+	$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', series => 'place', size => 'amount'))->status_is(200);
+	$key = _map_key_of($t->tx->res->body);
+	is_deeply([ map { $_->{label} } @{ $key->{entries} } ],
+		[ 'Ramsgate', 'Earls Colne', '(blank)', '12345', 'amount 3', 'amount 6.5', 'amount 10' ],
+		'with both, the sizes are labelled with their column');
+	like($t->tx->res->body, qr/L\.circleMarker\([^)]*\]?, \{[^}]*\}\)/, 'and the bubbles are drawn');
+};
+
+subtest 'an HTML::OSM without the key keeps the key below the map' => sub {
+	plan skip_all => 'needs HTML::OSM 0.13 installed, to stand in for 0.12' unless $KEYED;
+
+	_with_renderer(1, '0.12', sub {
+		$t->get_ok(_url(l => $places_spec, lat => 'lat', lon => 'lon', series => 'place'));
+	})->status_is(200);
+	my $body = $t->tx->res->body;
+	unlike($body, qr/L\.control\.scale|legendEntries/, 'it is asked for neither a scale bar nor a key');
+	like($body, qr/<div class="map-legend">/, 'so the page shows the key below the map');
+};
+
+subtest 'a canvas map card is coloured and sized as the map it was saved from' => sub {
+	# A card stores its colour and size columns in encode, as the map page
+	# saves them.  They used to be read only from the page's options, so a
+	# card drew plain pins.
+	my $cid = $t->post_ok('/api/analyses',
+		{ 'Content-Type' => 'application/json' },
+		encode_json({
+			name     => 'Keyed maps',
+			datasets => [ { spec => $places_spec, alias => 'left' } ],
+			visuals  => [
+				{ kind => 'map', encode => { lat => 'lat', lon => 'lon', color => 'amount' },
+				  options => { color_rules => [ { op => 'gt', val => 6, color => '#ff0000' } ], color_default => '#00ff00' },
+				  title => 'Coloured' },
+				{ kind => 'map', encode => { lat => 'lat', lon => 'lon', size => 'amount' }, title => 'Sized' },
+				{ kind => 'map', encode => { lat => 'lat', lon => 'lon', color => 'nope', size => 'nope' }, title => 'Stale' },
+			],
+		})
+	)->status_is(201)->tx->res->json->{id};
+
+	$t->get_ok("/a/$cid")->status_is(200);
+	my $body = $t->tx->res->body;
+	my @scripts = $body =~ m{(<script>(?:(?!</script>).)*?L\.map\('map-\d'\).*?</script>)}sg;
+	is(scalar @scripts, 3, 'three map cards');
+	like($scripts[0], qr/%23ff0000/, 'the coloured card colours a marker by its rule');
+	like($scripts[0], qr/%2300ff00/, 'and the rest by its default');
+	like($scripts[1], qr/L\.circleMarker\(/, 'the sized card draws bubbles');
+	unlike($scripts[2], qr/L\.circleMarker\(|%23/, 'a card naming columns that are gone draws plain pins');
+
+	SKIP: {
+		skip 'the key on the map needs HTML::OSM 0.13', 3 unless $KEYED;
+		is_deeply([ map { $_->{label} } @{ _map_key_of($scripts[0])->{entries} } ], [ 'amount > 6', 'Other' ],
+			'the coloured card has its key');
+		is(_map_key_of($scripts[1])->{title}, 'amount', 'and the sized card has one for its sizes');
+		like($scripts[2], qr/L\.control\.scale/, 'every card has a scale bar');
+	}
 };
 
 subtest 'loc= repeated geocodes the columns joined with ", "' => sub {
@@ -1095,6 +1213,128 @@ subtest 'a canvas map card degrades the same way' => sub {
 		like $body, qr/<td>Ramsgate<\/td>/,
 			"$label: and still shows the data rows";
 	}
+};
+
+# ===========================================================================
+# The progress bar: a browser's map page asks nothing, lists the places, and
+# /geo/lookup answers them one at a time, saving each answer as it comes.
+# ===========================================================================
+
+subtest 'A browser is shown the map at once, with the places to look up listed' => sub {
+	my $progress_csv = _write_file(File::Spec->catfile(tempdir(CLEANUP => 1), 'progress.csv'),
+		"id,town\n1,Ramsgate\n2,Walmer\n3,Sandwich\n4,Walmer\n5,42\n");
+	my $spec  = 'path:' . $progress_csv;
+	my $html  = { Accept => 'text/html,application/xhtml+xml' };
+	my $calls = scalar @{ $stub->{'calls'} };
+
+	$t->get_ok(_url(l => $spec, loc => 'town'), $html)->status_is(200);
+	my $body = $t->tx->res->body;
+
+	is(scalar @{ $stub->{'calls'} }, $calls, 'the page asked the geocoder nothing');
+	like($body, qr/id="map-progress"/, 'it has the progress bar');
+	like($body, qr/id="map-progress-cancel"/, 'and a Cancel button');
+	like($body, qr/Looking up 2 places that are not in the cache yet/,
+		'it counts the places that are not cached, once each, without the bare number');
+	like($body, qr/L\.marker\(\[51\.33, 1\.42\]/, 'a cached place is on the map already');
+	unlike($body, qr/class="map-notes"/, 'the notes wait until the places are looked up');
+	like($body, qr{fetch\('/geo/lookup'}, 'the page posts to /geo/lookup');
+
+	my ($json) = $body =~ m{<script type="application/json" id="map-pending">(.*?)</script>}s;
+	ok(defined($json), 'the places are listed for the script');
+	my $pending = decode_json($json // '[]');
+	is_deeply([ map { $_->{place} } @{$pending} ], [qw(Walmer Sandwich)], 'in the order of their rows');
+	ok(!(grep { !length($_->{sig} // '') } @{$pending}), 'each one signed');
+
+	my ($done)   = $body =~ /data-done-url="([^"]*)"/;
+	my ($cached) = $body =~ /data-cached-url="([^"]*)"/;
+	$done   = html_unescape($done // '');
+	$cached = html_unescape($cached // '');
+	unlike($done, qr/geocode=/, 'when it is done the page is drawn again as it was asked for');
+	like($cached, qr/geocode=cached/, 'and Cancel draws it from the cache');
+	like($body, qr/<noscript>.*geocode=wait/s, 'without a script, a link waits for the lookups');
+
+	# Walmer is found, and saved at once.
+	$stub->{'results'}{'Walmer'} = Stub::Point->new(latitude => 51.20, longitude => 1.40, database => 'OpenAddresses');
+	$t->post_ok('/geo/lookup' => form => $pending->[0])->status_is(200)
+		->json_is('/status', 'found')->json_is('/stored', 1)->json_is('/place', 'Walmer');
+	is(scalar @{ $stub->{'calls'} }, $calls + 1, 'one place, one lookup');
+	my $models = decode_json(do { open(my $fh, '<', $model_store) or die $!; local $/; <$fh> });
+	is_deeply($models->{geo}{shared}{places}{Walmer}, [51.20, 1.40], 'Walmer is in the shared cache already');
+
+	# Asking again (another tab) is answered from the cache.
+	$t->post_ok('/geo/lookup' => form => $pending->[0])->status_is(200)
+		->json_is('/status', 'found')->json_is('/stored', 1);
+	is(scalar @{ $stub->{'calls'} }, $calls + 1, 'a place in the cache is not looked up again');
+
+	# A place's signature does not fit another place.
+	$t->post_ok('/geo/lookup' => form => { place => 'Sandwich', sig => $pending->[0]{sig} })->status_is(403);
+
+	# Cancel: the map is drawn from the cache, Sandwich is left for later, and
+	# a link offers to look it up.
+	$t->get_ok($cached, $html)->status_is(200);
+	$body = $t->tx->res->body;
+	is(scalar @{ $stub->{'calls'} }, $calls + 1, 'geocode=cached asks nothing');
+	unlike($body, qr/id="map-progress"/, 'and shows no progress bar');
+	like($body, qr/L\.marker\(\[51\.2, 1\.4\]/, 'the place found before Cancel is on the map');
+	like($body, qr/<tr data-reason="later">\s*<td>Sandwich</, 'the place not looked up is listed as later');
+	my ($retry) = $body =~ /id="map-retry" href="([^"]*)"/;
+	ok(defined($retry), 'with a link to look it up');
+	unlike(html_unescape($retry // ''), qr/geocode=/, 'which is the map without geocode=');
+
+	# Sandwich is not found: remembered as such, so the next page is complete.
+	$t->post_ok('/geo/lookup' => form => $pending->[1])->status_is(200)
+		->json_is('/status', 'not_found')->json_is('/stored', 1);
+	$t->get_ok($done, $html)->status_is(200);
+	$body = $t->tx->res->body;
+	unlike($body, qr/id="map-progress"/, 'once every place has an answer, there is no progress bar');
+	like($body, qr/<tr data-reason="not_found">\s*<td>Sandwich</, 'and Sandwich is not found');
+	like($body, qr/Plotting 2 markers for 3 of 5 rows/, 'the rest are plotted');
+};
+
+subtest 'geocode=wait, and a client that is not a browser, look places up first' => sub {
+	my $wait_csv = _write_file(File::Spec->catfile(tempdir(CLEANUP => 1), 'wait.csv'),
+		"id,town\n1,Margate\n2,Broadstairs\n");
+	$stub->{'results'}{'Margate'}     = Stub::Point->new(latitude => 51.38, longitude => 1.38, database => 'OpenAddresses');
+	$stub->{'results'}{'Broadstairs'} = Stub::Point->new(latitude => 51.36, longitude => 1.43, database => 'OpenAddresses');
+	my $calls = scalar @{ $stub->{'calls'} };
+
+	$t->get_ok(_url(l => "path:$wait_csv", loc => 'town', geocode => 'wait'),
+		{ Accept => 'text/html' })->status_is(200);
+	is(scalar @{ $stub->{'calls'} }, $calls + 1, 'geocode=wait looks them up in the request');
+	unlike($t->tx->res->body, qr/id="map-progress"/, 'with no progress bar');
+	like($t->tx->res->body, qr/Plotting 2 markers for 2 of 2 rows/, 'and plots them');
+
+	$t->get_ok(_url(l => "path:$wait_csv", loc => 'town', geocode => 'nope'))->status_is(400)
+		->content_like(qr/geocode= must be "wait"/);
+};
+
+subtest '/geo/lookup: a place that cannot be looked up now is held, not remembered' => sub {
+	my $held_csv = _write_file(File::Spec->catfile(tempdir(CLEANUP => 1), 'held.csv'),
+		"id,town\n1,Nowhere Yet\n");
+	my $url  = _url(l => "path:$held_csv", loc => 'town');
+	my $html = { Accept => 'text/html' };
+
+	# Listed by the page while there is a geocoder to ask...
+	$t->get_ok($url, $html)->status_is(200);
+	my ($json) = $t->tx->res->body =~ m{<script type="application/json" id="map-pending">(.*?)</script>}s;
+	my ($item) = @{ decode_json($json // '[]') };
+	is($item->{place}, 'Nowhere Yet', 'the page lists the place');
+
+	# ...and looked up after it has gone.
+	my $geocoder = delete $t->app->config->{geocoder};
+	no warnings qw(redefine once);
+	local *Database::BI::Model::Geocode::_load_geocoder = sub { $_[0]{_unavailable} = 'it is not installed'; return };
+
+	$t->post_ok('/geo/lookup' => form => $item)->status_is(200)
+		->json_is('/status', 'held')->json_is('/stored', 0);
+	my $models = decode_json(do { open(my $fh, '<', $model_store) or die $!; local $/; <$fh> });
+	ok(!exists $models->{geo}{shared}{places}{'Nowhere Yet'}, 'it is not remembered');
+
+	$t->get_ok($url, $html)->status_is(200);
+	unlike($t->tx->res->body, qr/id="map-progress"/,
+		'without a geocoder nothing can be asked, so there is no progress bar');
+
+	$t->app->config->{geocoder} = $geocoder;
 };
 
 done_testing();

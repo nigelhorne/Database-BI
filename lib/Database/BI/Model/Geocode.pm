@@ -452,6 +452,7 @@ C<markers> list that a map rendering loop needs.
     cache    => hashref,            # optional; { value => [lat, lon] | 0 }
     region   => two-letter string,  # optional; country hint for the geocoder (e.g. 'GB')
     max      => positive integer,   # optional; max new lookups; default 500
+    lookup   => 0 | 1,              # optional; 0 asks nothing and lists what it would ask; default 1
 
 C<\@rows> is the full record set as returned by the pipeline.  Rows that are
 not hashrefs produce an C<undef> cell, which is classified as skipped.
@@ -473,6 +474,13 @@ C<max> is counted in new lookups, not rows.  A cached answer costs nothing
 and does not count toward it.  Values held back by the cap go into
 C<not_attempted> and are not stored in the cache, so the next request picks
 them up.
+
+C<lookup =E<gt> 0> plots from C<cache> alone and asks the geocoder nothing.
+The places it would have asked (up to C<max>, in first-seen order) are returned
+in C<pending>, and are counted in C<not_attempted> meanwhile.  A caller can then
+look them up one at a time with L</resolve_values>, saving each answer as it
+comes, which is how the map page shows its progress and can be cancelled.  The
+geocoder is still loaded, because its rule decides which values are places.
 
 =head4 OUTPUT
 
@@ -499,6 +507,7 @@ Returns a hashref:
         skipped       => [ $value, ... ],   # values refused before lookup
         unresolved    => [ $value, ... ],   # values tried (now or before) and not found
         not_attempted => [ $value, ... ],   # held back by the cap
+        pending       => [ $value, ... ],   # with lookup => 0: what would have been asked; else empty
         messages      => [ { key => $k, text => $t }, ... ],
         cache         => { $value => [lat, lon] | 0 },   # updated copy; never the caller's hashref
         backends      => { $backend_name => $count },
@@ -925,6 +934,19 @@ sub _resolve {
 		$capped = 1;
 	}
 
+	# With lookup => 0 nothing is asked: the places that would have been are
+	# handed back as 'pending', for a caller that looks them up one at a time
+	# (the map page's progress bar), and are not_attempted meanwhile.  The cap
+	# still bounds the list; the rest are pending on the next request.
+	my @wait;
+
+	unless ($opts->{'lookup'} // 1) {
+		@wait = @attempt;
+		unshift @not_attempted, @attempt;
+		@attempt = ();
+		$capped  = 0;
+	}
+
 	# 3. The lookups, each place down a Geo::Coder::List on its own, so that its
 	# cache answers what it has found before.  With an online geocoder a place
 	# that reaches Nominatim is counted against online_max, and a Nominatim that
@@ -1022,6 +1044,7 @@ sub _resolve {
 		'skipped'	=> \@skipped,
 		'unresolved'	=> \@unresolved,
 		'not_attempted'	=> \@not_attempted,
+		'pending'	=> \@wait,
 		'messages'	=> \@messages,
 		'cache'		=> \%cache,
 		'backends'	=> \%backends,
@@ -1199,6 +1222,7 @@ sub _options {
 			cache  => { type => 'hashref', optional => 1, default => undef },
 			region => { type => 'string',  optional => 1, default => undef },
 			max    => { type => 'scalar',  optional => 1, default => undef },
+			lookup => { type => 'scalar',  optional => 1, default => 1 },
 		},
 		stack_trace => 1,
 		input => $opts,
@@ -1221,6 +1245,7 @@ sub _options {
 		'cache'  => $args->{'cache'},
 		'region' => $args->{'region'},
 		'max'    => $max,
+		'lookup' => $args->{'lookup'} ? 1 : 0,
 	};
 }
 
@@ -1246,6 +1271,7 @@ absent, and C<warn_map_rows_skipped> is never emitted.
     cache    => hashref,             # optional; { value => [lat, lon] | 0 }
     region   => string,              # optional; two-letter country hint
     max      => positive integer,    # optional; new lookups allowed; default 500
+    lookup   => 0 | 1,               # optional; 0 asks nothing (see resolve_column); default 1
 
 Duplicate values in C<\@values> cost one lookup each.  C<undef>, references,
 empty strings, and pure-digit strings are refused before any lookup and counted
@@ -1272,6 +1298,7 @@ C<counts.rows>, C<counts.plotted>, and C<counts.unusable>):
         skipped       => [ $value, ... ],
         unresolved    => [ $value, ... ],
         not_attempted => [ $value, ... ],
+        pending       => [ $value, ... ],
         messages      => [ { key => $k, text => $t }, ... ],
         cache         => { $value => [lat, lon] | 0 },
         backends      => { $name => $count },
@@ -2115,6 +2142,15 @@ Cap application (MAX = the max option, default 500):
     ATTEMPT        = PENDING[0 .. min(MAX, |PENDING|) - 1]
     CAPPED         = |PENDING| > MAX
     NOT_ATTEMPTED' = NOT_ATTEMPTED ∪ PENDING[MAX .. |PENDING| - 1]   (when CAPPED)
+
+Deferral (lookup => 0):
+
+    R.pending      = ATTEMPT
+    NOT_ATTEMPTED' = NOT_ATTEMPTED' ∪ ATTEMPT
+    ATTEMPT        = ∅                 (so CACHE' = CACHE, and nothing is asked)
+    CAPPED         = false
+
+Otherwise R.pending = ∅.
 
 Geocoding step -- for each v in ATTEMPT:
 

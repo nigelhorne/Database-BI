@@ -673,7 +673,20 @@ up yet), links to all of them in the table, and opens onto a list of their
 places, each with its number of rows, why it was not plotted and a link to
 those rows.  Markers are clustered with
 Leaflet.markercluster, so a dense map draws a count at low zoom and splits it
-as it is zoomed in.  Clustering is always on.  Parameters:
+as it is zoomed in.  Clustering is always on.  With HTML::OSM 0.13 or later,
+the map has a scale bar, opens on every marker unless C<zoom=> is given, and
+draws its key (colours, and bubble sizes) on the map; the colours listed are
+those of the markers in view, so the key changes as the map is zoomed and moved.
+With 0.12 the key is shown below the map.
+
+Places that are not in the cache yet are looked up after the page is shown.
+The map draws what the cache already knows, and a progress bar names each
+place as it is looked up ("Looking up 5 of 10: 10 Downing St, London").  Each
+answer is saved at once, through C<POST /geo/lookup>, and the map is drawn
+again when the last one is in.  Cancel stops the lookups and draws the map with
+the places found so far.  The places left are listed as not looked up yet, with
+a link to look them up.  Without JavaScript, or for a client that is not a
+browser, the page waits for the lookups instead (C<geocode=wait>).  Parameters:
 
   l=<spec>       left table (required)
   loc=<col>      column of places to geocode (required unless lat= and lon= are);
@@ -694,6 +707,9 @@ as it is zoomed in.  Clustering is always on.  Parameters:
   color_default=<colour>  fallback colour (default #3388ff)
   series=<col>   colour markers by category (not with color=)
   scheme=<name>  palette for series=: tableau10, category10, set2, set3, paired
+  geocode=wait   look up the places not cached yet before the page is sent
+                 (the default for a client that is not a browser)
+  geocode=cached look nothing up: plot what the cache knows (where Cancel leads)
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=            result filters (repeatable)
 
@@ -964,6 +980,16 @@ C<replace=1> forgets the spec's saved columns first.  The map panel's
 
 Removes a coordinate-column preference.  Body: C<l=&col=>.
 Omit C<col=> to clear all preferences for the spec.
+
+=item C<POST /geo/lookup>
+
+Looks up one place for the map page's progress bar, and saves the answer in
+the shared place cache at once.  Body: C<place=&sig=>, where C<sig> is the
+signature the map page gave the place (any other place is refused with 403),
+plus C<online=0> to keep the lookup on this machine.  Returns
+C<{ place, status, stored, online_failed, messages }>, where C<status> is
+C<found>, C<not_found>, C<held> (not looked up now, and not remembered) or
+C<refused>.  See L</Maps>.
 
 =item C<GET /insights>
 
@@ -1336,7 +1362,9 @@ default 500), C<map_geocode_online> (0 keeps geocoding on this machine: a place
 the local data does not know is not sent to OpenStreetMap's Nominatim; default
 1), C<map_geocode_online_max> (places asked of Nominatim per request, default 20;
 at one a second, the rest are left for the next request or for
-C<script/bi-geocode>), C<map_max_markers> (markers per request, default 2000),
+C<script/bi-geocode>; the map page's progress bar asks one place a request, so
+it reaches every place), C<secrets> (a list; the first signs the places a map
+page lists for C<POST /geo/lookup>.  Without it each start makes a random one), C<map_max_markers> (markers per request, default 2000),
 C<map_region> (a two-letter country hint for ambiguous places), C<map_max_zoom>
 (the default tile-layer maxZoom) and C<tile_sources> (a hashref of named tile
 sources, each C<< { url =E<gt> ... } >>, selected with C<tiles=>).
@@ -1809,6 +1837,15 @@ sub startup ($self) {
 		}
 	});
 
+	# The key the map page signs the places it lists with (/geo/lookup checks
+	# it).  Mojolicious would use the moniker, which anyone can read; a config
+	# secrets => [...] keeps lists valid across restarts, and without one each
+	# start makes its own.  This runs before hypnotoad forks, so every worker
+	# shares it.
+	my $secrets = $self->config('secrets');
+	$self->secrets((ref($secrets) eq 'ARRAY' && @{$secrets})
+		? $secrets : [ Mojo::Util::generate_secret() ]);
+
 	# Cap inbound request body size.  When the limit fires, Mojolicious sets
 	# req->is_limit_exceeded and still dispatches to the controller (with partial
 	# content in the upload asset).  The controller checks is_limit_exceeded and
@@ -2123,6 +2160,7 @@ sub startup ($self) {
 	$r->get('/extract/list')   ->to('Dashboard#extract_list');
 	$r->post('/geo/save')     ->to('Dashboard#geo_save');
 	$r->post('/geo/delete')   ->to('Dashboard#geo_delete');
+	$r->post('/geo/lookup')   ->to('Dashboard#geo_lookup');
 	$r->get('/geo/list')      ->to('Dashboard#geo_list');
 	$r->get('/scatter')       ->to('Dashboard#scatter_view');
 	$r->get('/stacked')       ->to('Dashboard#stacked_view');

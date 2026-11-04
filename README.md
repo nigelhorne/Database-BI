@@ -627,7 +627,20 @@ perl Makefile.PL
     places, each with its number of rows, why it was not plotted and a link to
     those rows.  Markers are clustered with
     Leaflet.markercluster, so a dense map draws a count at low zoom and splits it
-    as it is zoomed in.  Clustering is always on.  Parameters:
+    as it is zoomed in.  Clustering is always on.  With HTML::OSM 0.13 or later,
+    the map has a scale bar, opens on every marker unless `zoom=` is given, and
+    draws its key (colours, and bubble sizes) on the map; the colours listed are
+    those of the markers in view, so the key changes as the map is zoomed and moved.
+    With 0.12 the key is shown below the map.
+
+    Places that are not in the cache yet are looked up after the page is shown.
+    The map draws what the cache already knows, and a progress bar names each
+    place as it is looked up ("Looking up 5 of 10: 10 Downing St, London").  Each
+    answer is saved at once, through `POST /geo/lookup`, and the map is drawn
+    again when the last one is in.  Cancel stops the lookups and draws the map with
+    the places found so far.  The places left are listed as not looked up yet, with
+    a link to look them up.  Without JavaScript, or for a client that is not a
+    browser, the page waits for the lookups instead (`geocode=wait`).  Parameters:
 
     ```
     l=<spec>       left table (required)
@@ -649,6 +662,9 @@ perl Makefile.PL
     color_default=<colour>  fallback colour (default #3388ff)
     series=<col>   colour markers by category (not with color=)
     scheme=<name>  palette for series=: tableau10, category10, set2, set3, paired
+    geocode=wait   look up the places not cached yet before the page is sent
+                   (the default for a client that is not a browser)
+    geocode=cached look nothing up: plot what the cache knows (where Cancel leads)
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=            result filters (repeatable)
     ```
@@ -920,6 +936,16 @@ perl Makefile.PL
 
     Removes a coordinate-column preference.  Body: `l=&col=`.
     Omit `col=` to clear all preferences for the spec.
+
+- `POST /geo/lookup`
+
+    Looks up one place for the map page's progress bar, and saves the answer in
+    the shared place cache at once.  Body: `place=&sig=`, where `sig` is the
+    signature the map page gave the place (any other place is refused with 403),
+    plus `online=0` to keep the lookup on this machine.  Returns
+    `{ place, status, stored, online_failed, messages }`, where `status` is
+    `found`, `not_found`, `held` (not looked up now, and not remembered) or
+    `refused`.  See ["Maps"](#maps).
 
 - `GET /insights`
 
@@ -1314,7 +1340,9 @@ default 500), `map_geocode_online` (0 keeps geocoding on this machine: a place
 the local data does not know is not sent to OpenStreetMap's Nominatim; default
 1), `map_geocode_online_max` (places asked of Nominatim per request, default 20;
 at one a second, the rest are left for the next request or for
-`script/bi-geocode`), `map_max_markers` (markers per request, default 2000),
+`script/bi-geocode`; the map page's progress bar asks one place a request, so
+it reaches every place), `secrets` (a list; the first signs the places a map
+page lists for `POST /geo/lookup`.  Without it each start makes a random one), `map_max_markers` (markers per request, default 2000),
 `map_region` (a two-letter country hint for ambiguous places), `map_max_zoom`
 (the default tile-layer maxZoom) and `tile_sources` (a hashref of named tile
 sources, each `{ url => ... }`, selected with `tiles=`).
