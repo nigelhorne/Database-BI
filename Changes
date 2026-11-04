@@ -56,6 +56,10 @@ Revision history for Database-BI
 	  integer, not "0"'), and its summary counted cache hits from a key that
 	  does not exist and compared rows with places.
 	[ Tests ]
+	- The geocoding tests pass without the recommended modules, as on CI:
+	  t/transition.t stands in for Geo::Coder::List, t/unit.t raises the
+	  "needs Geo::Coder::List" message with it hidden, and t/integration.t
+	  counts the geocoder as installed only with Geo::Coder::List as well.
 	- t/scatter.t: series=, scheme=, size=, min_r= and max_r= on /scatter and
 	  on a canvas scatter card, and the scatter fields of both panels.
 	- t/graph-series.t: series= on /graph, on a canvas line card and in both

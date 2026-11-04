@@ -3220,7 +3220,8 @@ subtest 'Requests in flight together each get their own answer' => sub {
 # nothing else.
 # ===========================================================================
 Readonly my @OPTIONAL_GROUPS => (
-	[ geocoder => 'Geo::Coder::Free' ],
+	# The geocoder is Geo::Coder::Free in a Geo::Coder::List: it needs both.
+	[ geocoder => 'Geo::Coder::Free', 'Geo::Coder::List' ],
 	[ osm      => 'HTML::OSM' ],
 	[ redis    => 'Redis', 'Redis::Fast' ],
 	[ xml      => 'XML::Simple' ],
@@ -3228,6 +3229,9 @@ Readonly my @OPTIONAL_GROUPS => (
 	[ sftp     => 'Net::SFTP::Foreign' ],
 	[ xlsx     => 'Spreadsheet::ParseXLSX' ],
 );
+
+# The groups whose modules are needed together rather than as alternatives.
+Readonly my %ALL_OF => (geocoder => 1);
 
 Readonly my $MATRIX_DRIVER => <<'DRIVER';
 use strict;
@@ -3412,9 +3416,12 @@ subtest 'Optional modules: every combination degrades only its own feature' => s
 	my $status = system($^X, @include, $driver, $input);
 	is($status, 0, 'the driver ran to the end');
 
+	# A group is there when any of its modules is (Redis or Redis::Fast), except
+	# one that needs all of them together.
 	my %installed = map {
 		my ($name, @mods) = @{$_};
-		$name => (scalar grep { _module_is_installed($_) } @mods) ? 1 : 0;
+		my $found = scalar grep { _module_is_installed($_) } @mods;
+		$name => ($ALL_OF{$name} ? $found == @mods : $found) ? 1 : 0;
 	} @OPTIONAL_GROUPS;
 
 	for my $mask (0 .. (2 ** @OPTIONAL_GROUPS) - 1) {
