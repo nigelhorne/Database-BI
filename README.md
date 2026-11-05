@@ -160,7 +160,8 @@ before reaching the controller and are compared against cell values as
 Perl character strings.  Unicode characters in filter values are therefore
 supported transparently.
 
-URL-imported HTML tables are fetched with [LWP::UserAgent::Cached](https://metacpan.org/pod/LWP%3A%3AUserAgent%3A%3ACached);
+URL-imported HTML tables are fetched with [Database::BI::SafeUA](https://metacpan.org/pod/Database%3A%3ABI%3A%3ASafeUA) (see
+["Which addresses it may fetch"](#which-addresses-it-may-fetch));
 [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction) uses the page's own charset declaration to decode
 the body.  If the remote page declares an incorrect charset, cell values
 may contain mojibake -- this is a limitation of the source data, not the
@@ -369,7 +370,8 @@ perl Makefile.PL
 - `GET /import`
 
     Fetches an HTML table from a public URL (`?url=`) and renders it as a
-    data grid.  An optional `?t=` parameter (zero-based integer) selects
+    data grid.  A URL that leads to this machine or a private network is refused
+    (see ["Which addresses it may fetch"](#which-addresses-it-may-fetch)).  An optional `?t=` parameter (zero-based integer) selects
     which HTML table on the page to display when the page contains multiple
     tables.
 
@@ -1361,6 +1363,38 @@ by a name, list it:
 (`~/.config`, `.vscode/settings.json`), since those hold other programs'
 settings.  The folder list in the Export panel leaves them out already.
 
+### Which Addresses It May Fetch
+
+`/import` and a `url:` data source make the server fetch a URL, so a page
+could point it at what only the server can reach: a service on this machine, a
+database on the office network, or a cloud's metadata service on
+`169.254.169.254`, which hands out its credentials.  So the server refuses a
+URL that leads to this machine, a private or shared network
+(`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, `100.64.0.0/10`,
+`fc00::/7`), link-local addresses, multicast or a reserved range.
+
+It is what the name _resolves to_ that counts, not how the URL reads:
+`http://localtest.me/` and `http://127.0.0.1.nip.io/` are names whose DNS
+answers `127.0.0.1`, and `http://2130706433/` or `http://0x7f000001/` are
+`127.0.0.1` written another way; all are refused.  An address is looked up
+once, checked, and that address is the one connected to, so a name that answers
+differently the second time (DNS rebinding) gains nothing.  Each redirect is
+checked the same way, and at most 5 are followed.  Over `https` the
+certificate must still be the site's.  The refusal says why, for example
+`localtest.me is 127.0.0.1, which is this machine`.
+
+To read from an intranet site, name it:
+
+```perl
+{ url_private_hosts => ['reports.corp.example', '*.corp.example'] }
+```
+
+Those names may resolve to a private address; every other name is still
+checked, and an address written as such (`http://10.1.2.3/`) is never let
+through.  A name that is not a host name, or `*` alone, stops the start.
+This check is not a firewall: where the server's machine can reach something it
+should not, rules on outgoing connections are the stronger defence.
+
 ### Logging In
 
 With `password_hash` set, every page asks for a password first.  A server
@@ -1679,7 +1713,8 @@ front of every route but the login, share and embed links (see
 under 60 seconds, croaks; so does a `listen` other machines could reach when
 there is no password;
 - a `file_roots` that is not a list of folders that exist croaks (see
-["Which folders it may use"](#which-folders-it-may-use));
+["Which folders it may use"](#which-folders-it-may-use)); so does a `url_private_hosts` that is not a
+list of host names (see ["Which addresses it may fetch"](#which-addresses-it-may-fetch));
 - the `before_dispatch` hook that refuses requests from other sites (see
 ["Requests from other sites"](#requests-from-other-sites)); an `allowed_hosts` that is not a list of host
 names croaks;

@@ -1018,9 +1018,9 @@ subtest '_build_export_url -- multiple filter specs produce multiple &f= params'
 #
 # $url U (regex to extract $host) -> $host D -> multiple U (guard checks)
 # $packed D (inet_aton result) -> U (unpack) -> $n D -> U (range checks)
-# The D~ anomaly from CLAUDE.md: non-standard IPv4 encodings (octal, hex,
-# decimal integer) pass through because $host doesn't match the dotted-quad
-# regex; the authoritative block is at the network-egress firewall layer.
+# Non-standard IPv4 encodings (octal, hex, decimal integer, short forms) are
+# read as the resolver reads them, so they are blocked like the dotted form.
+# Names are checked when fetched, by Database::BI::SafeUA (t/safe-ua.t).
 # ======================================================================
 
 subtest '_is_safe_url -- localhost variants are blocked' => sub {
@@ -1062,13 +1062,10 @@ subtest '_is_safe_url -- non-HTTP schemes fail host-extraction and return 0' => 
 	ok !$IS_SAFE->('file:///etc/passwd'),    'file: scheme blocked';
 };
 
-subtest '_is_safe_url -- non-standard IPv4 encodings pass through (documented)' => sub {
-	# Octal/hex/decimal-int IPv4 forms do NOT match the dotted-quad regex
-	# (/\A\d{1,3}(?:\.\d{1,3}){3}\z/) so they skip the range checks and return 1.
-	# This is documented behaviour in CLAUDE.md: the authoritative block is the
-	# egress firewall.  These tests document the current behaviour, not a bug.
-	ok $IS_SAFE->('http://0177.0.0.1/'),     'octal 127.0.0.1 passes (documented gap)';
-	ok $IS_SAFE->('http://2130706433/'),     'decimal-int 127.0.0.1 passes (documented)';
+subtest '_is_safe_url -- non-standard IPv4 encodings are blocked' => sub {
+	# These once passed: only the dotted form was range-checked.
+	ok !$IS_SAFE->('http://0177.0.0.1/'),     'octal 127.0.0.1 blocked';
+	ok !$IS_SAFE->('http://2130706433/'),     'decimal-int 127.0.0.1 blocked';
 };
 
 # ======================================================================

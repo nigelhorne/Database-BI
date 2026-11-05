@@ -303,7 +303,8 @@ before reaching the controller and are compared against cell values as
 Perl character strings.  Unicode characters in filter values are therefore
 supported transparently.
 
-URL-imported HTML tables are fetched with L<LWP::UserAgent::Cached>;
+URL-imported HTML tables are fetched with L<Database::BI::SafeUA> (see
+L</Which addresses it may fetch>);
 L<Database::Abstraction> uses the page's own charset declaration to decode
 the body.  If the remote page declares an incorrect charset, cell values
 may contain mojibake -- this is a limitation of the source data, not the
@@ -494,7 +495,8 @@ home, and returns JSON C<{ url, path }>.
 =item C<GET /import>
 
 Fetches an HTML table from a public URL (C<?url=>) and renders it as a
-data grid.  An optional C<?t=> parameter (zero-based integer) selects
+data grid.  A URL that leads to this machine or a private network is refused
+(see L</Which addresses it may fetch>).  An optional C<?t=> parameter (zero-based integer) selects
 which HTML table on the page to display when the page contains multiple
 tables.
 
@@ -1439,6 +1441,36 @@ C<POST /export> also refuses a folder or file whose name starts with a dot
 (F<~/.config>, F<.vscode/settings.json>), since those hold other programs'
 settings.  The folder list in the Export panel leaves them out already.
 
+=head2 Which addresses it may fetch
+
+C</import> and a C<url:> data source make the server fetch a URL, so a page
+could point it at what only the server can reach: a service on this machine, a
+database on the office network, or a cloud's metadata service on
+C<169.254.169.254>, which hands out its credentials.  So the server refuses a
+URL that leads to this machine, a private or shared network
+(C<10.0.0.0/8>, C<172.16.0.0/12>, C<192.168.0.0/16>, C<100.64.0.0/10>,
+C<fc00::/7>), link-local addresses, multicast or a reserved range.
+
+It is what the name I<resolves to> that counts, not how the URL reads:
+C<http://localtest.me/> and C<http://127.0.0.1.nip.io/> are names whose DNS
+answers C<127.0.0.1>, and C<http://2130706433/> or C<http://0x7f000001/> are
+C<127.0.0.1> written another way; all are refused.  An address is looked up
+once, checked, and that address is the one connected to, so a name that answers
+differently the second time (DNS rebinding) gains nothing.  Each redirect is
+checked the same way, and at most 5 are followed.  Over C<https> the
+certificate must still be the site's.  The refusal says why, for example
+C<localtest.me is 127.0.0.1, which is this machine>.
+
+To read from an intranet site, name it:
+
+    { url_private_hosts => ['reports.corp.example', '*.corp.example'] }
+
+Those names may resolve to a private address; every other name is still
+checked, and an address written as such (C<http://10.1.2.3/>) is never let
+through.  A name that is not a host name, or C<*> alone, stops the start.
+This check is not a firewall: where the server's machine can reach something it
+should not, rules on outgoing connections are the stronger defence.
+
 =head2 Logging in
 
 With C<password_hash> set, every page asks for a password first.  A server
@@ -1738,7 +1770,8 @@ under 60 seconds, croaks; so does a C<listen> other machines could reach when
 there is no password;
 
 =item * a C<file_roots> that is not a list of folders that exist croaks (see
-L</Which folders it may use>);
+L</Which folders it may use>); so does a C<url_private_hosts> that is not a
+list of host names (see L</Which addresses it may fetch>);
 
 =item * the C<before_dispatch> hook that refuses requests from other sites (see
 L</Requests from other sites>); an C<allowed_hosts> that is not a list of host
@@ -2202,6 +2235,7 @@ sub startup ($self) {
 	_check_cross_origin_opener_policy($self->config('cross_origin_opener_policy'));
 	_check_allowed_hosts($self->config('allowed_hosts'));
 	_check_file_roots($self->config('file_roots'), $self->home);
+	_check_url_private_hosts($self->config('url_private_hosts'));
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
 
 	# Only this machine can reach a server unless the configuration says
@@ -2583,6 +2617,7 @@ sub startup ($self) {
 				url           => $opts{url},
 				cache         => $chi,
 				cache_ttl_url => $cache_ttl_url,
+				private_hosts => $c->app->config('url_private_hosts') // [],
 				exists $opts{html_table_index}
 					? (html_table_index => $opts{html_table_index})
 					: (),
@@ -2911,6 +2946,28 @@ sub _require_password_if_open {
 			. 'Set password_hash (make it with "script/database-bi password"), '
 			. 'or listen on this machine only: listen => \'http://127.0.0.1:3000\' '
 			. '(for hypnotoad, hypnotoad => { listen => [\'http://127.0.0.1:8080\'] }; for morbo, -l http://127.0.0.1:3000)';
+	}
+	return;
+}
+
+# _check_url_private_hosts( $value ) -> void
+#
+# Purpose: Refuse a url_private_hosts that is not a list of host names.
+# Entry:   Config url_private_hosts: undef, or names ('reports.corp.example',
+#          or '*.corp.example' for its subdomains) that a url: source or
+#          /import may fetch although they resolve to a private address.
+# Exit:    Returns; croaks otherwise.  '*' alone is refused: it would turn the
+#          check off for every name, which is what egress rules are for.
+sub _check_url_private_hosts {
+	my ($value) = @_;
+	return unless defined $value;
+	croak "url_private_hosts: give a list of host names, such as ['reports.corp.example']"
+		unless ref($value) eq 'ARRAY';
+	for my $name (@{$value}) {
+		croak sprintf("url_private_hosts: '%s' is not a host name such as 'reports.corp.example' or '*.corp.example'",
+			ref($name) || $name // 'undef')
+			unless defined $name && !ref $name
+				&& $name =~ /\A(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\z/;
 	}
 	return;
 }

@@ -1066,6 +1066,10 @@ my @FAQ = (
 		answer   => 'Whoever runs the program has chosen which folders it may use, and that one is outside them. Choose a file or folder inside, or ask them to add it.',
 	},
 	{
+		question => 'Import from a web page refuses the address.',
+		answer   => 'The page is on this computer or a private network, and the program only reads pages on the public internet. Whoever runs it can name intranet sites it may read.',
+	},
+	{
 		question => 'Export will not save into a folder whose name starts with a dot.',
 		answer   => 'Those folders hold settings for other programs, so saving there is refused. Choose another folder.',
 	},

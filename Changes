@@ -123,6 +123,22 @@ Revision history for Database-BI
 	  trusts the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's proxy => 1).
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
+	- /import and url: sources could be pointed at this machine or a private
+	  network.  Only a dotted IPv4 address in the URL was checked, so a name
+	  whose DNS answers 127.0.0.1 (localtest.me, 127.0.0.1.nip.io), an
+	  address written another way (2130706433, 0x7f000001, 0177.0.0.1,
+	  127.1), localhost. with its dot, or an IPv6 form of one went through,
+	  as did a redirect from a public site to any of them, the cloud
+	  metadata service on 169.254.169.254 included.  Every request,
+	  redirects too (at most 5), is now resolved, refused when any address
+	  is on this machine, a private or shared network, link-local,
+	  multicast or reserved (an IPv4 address inside IPv6 counts as itself),
+	  and sent to the address that was checked, so DNS that answers
+	  differently the second time gains nothing; over https the certificate
+	  must still be the site's.  The refusal says why.  An intranet name that
+	  resolves to a private address is refused too unless listed in
+	  url_private_hosts (names, or '*.corp.example'); an address written as
+	  such never is.  One that is not a list of host names stops the start.
 	[ Tests ]
 	- t/csp.t checks the policy, the config keys, which replies carry it, and
 	  that every script and stylesheet the chart and map pages load is
@@ -141,6 +157,15 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/safe-ua.t checks, with no network, that names resolving to this
+	  machine, a private network or the metadata service are refused and
+	  nothing is sent; that every written form of such an address is refused
+	  without a lookup; that a public name is sent to the address checked
+	  with its Host, TLS server name and certificate name kept; that a
+	  redirect to a private address is refused; url_private_hosts; and that
+	  /import and url: sources use it.  t/edge_cases.t and t/data-flow.t,
+	  which recorded the decimal, octal and hex forms as getting through, now
+	  expect them refused.
 	- t/file-roots.t checks that with file_roots each route that takes a
 	  local path keeps to them and without it nothing changes; that what is
 	  outside is refused the same whether or not it exists, through '..' and

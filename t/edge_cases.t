@@ -86,15 +86,21 @@ subtest '_is_safe_url -- public IPs and hostnames are allowed' => sub {
 	ok  $IS_SAFE_URL->('https://api.example.org/data'),'https public hostname allowed';
 };
 
-subtest '_is_safe_url -- non-standard IP representations pass Perl layer (documented bypass)' => sub {
-	# These non-decimal IP representations are NOT blocked at the Perl layer by
-	# design; see the _is_safe_url comment: "The authoritative defence against
-	# hostname-based SSRF is a network-layer egress firewall."
-	ok  $IS_SAFE_URL->('http://0177.0.0.1/'),          'octal 0177.0.0.1 passes Perl layer (documented)';
-	ok  $IS_SAFE_URL->('http://2130706433/'),           'decimal int 127.0.0.1 passes Perl layer (documented)';
-	ok  $IS_SAFE_URL->('http://0x7f000001/'),           'hex int 127.0.0.1 passes Perl layer (documented)';
-	diag 'NOTE: above URLs may still reach loopback; egress firewall must block them'
-		if $ENV{TEST_VERBOSE};
+subtest '_is_safe_url -- non-standard IP representations are blocked' => sub {
+	# These once passed: only the dotted form was range-checked.  They are read
+	# as the resolver reads them, so each is the address it spells.
+	ok !$IS_SAFE_URL->('http://0177.0.0.1/'),          'octal 0177.0.0.1 blocked';
+	ok !$IS_SAFE_URL->('http://2130706433/'),           'decimal int 127.0.0.1 blocked';
+	ok !$IS_SAFE_URL->('http://0x7f000001/'),           'hex int 127.0.0.1 blocked';
+	ok !$IS_SAFE_URL->('http://127.1/'),                'short form 127.1 blocked';
+	ok !$IS_SAFE_URL->('http://10.1/'),                 'short form 10.1 (10.0.0.1) blocked';
+	ok !$IS_SAFE_URL->('http://user@127.0.0.1/'),       'userinfo before the host is not the host';
+	ok !$IS_SAFE_URL->('http://localhost./'),           'a trailing dot';
+	ok !$IS_SAFE_URL->('http://app.localhost/'),        '*.localhost';
+	ok !$IS_SAFE_URL->('http://[::ffff:127.0.0.1]/'),   'IPv4-mapped IPv6';
+	ok !$IS_SAFE_URL->('http://[fe80::1]/'),            'IPv6 link-local';
+	ok $IS_SAFE_URL->('http://[2606:4700::1111]/'),     'a public IPv6 address passes';
+	ok $IS_SAFE_URL->('http://localtest.me/'),          'a name passes here: SafeUA checks what it resolves to';
 };
 
 subtest '_is_safe_url -- non-http/https schemes are rejected' => sub {

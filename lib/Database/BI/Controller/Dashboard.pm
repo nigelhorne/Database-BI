@@ -26,7 +26,6 @@ use File::Path		qw(remove_tree);
 use File::Spec;
 use File::Temp		qw(tempfile tempdir);
 use Readonly;
-use Socket		qw(inet_aton);
 use Sub::Protected;
 use version ();
 
@@ -666,54 +665,35 @@ sub request_refusal {
 
 # _is_safe_url($url) -> bool
 #
-# Purpose: SSRF guard.  Blocks the most dangerous classes of Server-Side Request
-#          Forgery targets: loopback aliases (localhost, 127/8) and literal
-#          private/link-local/CGNAT IPv4 addresses in the URL host component.
+# Purpose: The quick SSRF check on a URL a request names (/import, url:
+#          specs), before anything is fetched, so the reader is told at once.
+# Entry:   The URL.
+# Exit:    0 for anything but http(s), no host, localhost or *.localhost, or a
+#          host written as an address that is not public; else 1.
 #
-# Design rationale for scope:
-#   Resolving hostnames via DNS and checking the result is ineffective: a
-#   separate DNS lookup happens at LWP connect time (TOCTOU / DNS rebinding
-#   window).  The authoritative defence against hostname-based SSRF is a
-#   network-layer egress firewall.  This function handles the Perl-layer
-#   interception for the most common patterns that operators cannot easily
-#   filter at the network level: bare loopback aliases and literal private IPs
-#   hard-coded by an attacker.
-#
-# Blocked targets:
-#   localhost / 127.0.0.0/8 / 0.0.0.0 / ::1  -- loopback aliases
-#   10.0.0.0/8    -- RFC 1918 private (literal IP)
-#   172.16.0.0/12 -- RFC 1918 private (literal IP)
-#   192.168.0.0/16-- RFC 1918 private (literal IP)
-#   169.254.0.0/16-- link-local; AWS/GCP/Azure metadata endpoint (literal IP)
-#   100.64.0.0/10 -- CGNAT / Tailscale shared space (literal IP)
-#
-# Hostname-based targets (e.g. http://internal.corp.example.com/) are allowed
-# at this layer; block them with egress firewall rules instead.
+# It reads the URL as LWP will (URI: so http://user@127.0.0.1/ is host
+# 127.0.0.1), and an address in every spelling the resolver accepts
+# (2130706433, 0x7f000001, 0177.0.0.1, 127.1, [::ffff:127.0.0.1]).  It does not
+# look names up: a name such as localtest.me, or one whose DNS answers
+# 127.0.0.1, is refused when it is fetched, by Database::BI::SafeUA, which
+# resolves each request (and each redirect), checks every address, and
+# connects to the one it checked, so a second DNS answer cannot differ.
 sub _is_safe_url {
-	my $url = $_[0];
-
-	return 0 unless $url =~ m{\Ahttps?://([^/:?\[\]#]+)}i;
-	my $host = lc $1;
-
-	# Block well-known loopback aliases.
-	return 0 if $host eq 'localhost'
-	          || $host =~ /\A127\./
-	          || $host eq '0.0.0.0'
-	          || $host eq '::1';
-
-	# For literal IPv4 addresses only: check private/link-local/CGNAT ranges.
-	# Skipping DNS for hostname targets avoids a live network call in tests and
-	# removes the TOCTOU window that makes DNS-resolved checks illusory anyway.
-	return 1 unless $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/;
-
-	my $packed = inet_aton($host) or return 1;
-	my $n = unpack 'N', $packed;
-
-	return 0 if ($n & 0xFF000000) == 0x0A000000;	# 10/8
-	return 0 if ($n & 0xFFF00000) == 0xAC100000;	# 172.16/12
-	return 0 if ($n & 0xFFFF0000) == 0xC0A80000;	# 192.168/16
-	return 0 if ($n & 0xFFFF0000) == 0xA9FE0000;	# 169.254/16 (link-local / metadata)
-	return 0 if ($n & 0xFFC00000) == 0x64400000;	# 100.64/10 (CGNAT)
+	my ($url) = @_;
+	return 0 unless defined $url && $url =~ m{\Ahttps?://}i;
+	require URI;
+	require Database::BI::SafeUA;
+	my $uri  = URI->new($url);
+	my $host = eval { lc($uri->host // '') } // '';
+	$host =~ s/\.\z//;
+	return 0 unless length $host;
+	# A host that is neither a name nor an IPv6 address is not a URL LWP
+	# would read the same way (http://::1/ has the host ':').
+	return 0 unless $host =~ /\A[a-z0-9_](?:[a-z0-9_.-]*[a-z0-9_])?\z/
+		|| ($host =~ /:/ && defined Database::BI::SafeUA::numeric_host($host));
+	return 0 if $host eq 'localhost' || $host =~ /\.localhost\z/;
+	my $ip = Database::BI::SafeUA::numeric_host($host);
+	return 0 if defined $ip && Database::BI::SafeUA::blocked_address($ip);
 	return 1;
 }
 

@@ -262,6 +262,22 @@ hypnotoad -s script/database-bi</code></pre>
 	Export also refuses a folder or file whose name starts with a dot, such as
 	<code>~/.config</code>: those hold other programs' settings.
 </p>
+<h3 id="url-fetch">Which addresses it may fetch</h3>
+<p>
+	Import from a web page and a <code>url:</code> source make the server fetch a
+	URL, so it refuses one that leads to this machine, a private network, or a
+	cloud's metadata service on <code>169.254.169.254</code>. What counts is the
+	address the name resolves to: <code>localtest.me</code>, whose DNS answers
+	<code>127.0.0.1</code>, is refused, and so is <code>http://2130706433/</code>,
+	which is <code>127.0.0.1</code> written another way. The server connects to
+	the address it checked, and checks every redirect too. To read from an intranet
+	site, name it:
+</p>
+<pre><code>{ url_private_hosts =&gt; ['reports.corp.example', '*.corp.example'] }</code></pre>
+<p>
+	This is not a firewall: if the server's machine can reach something it should
+	not, block that with rules on outgoing connections.
+</p>
 <p>
 	<code>script/database-bi daemon</code>
 	ignores a file named after it, and so does <code>hypnotoad</code>; to show a
@@ -406,6 +422,16 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 				Host names the server answers to besides <code>localhost</code> and IP
 				addresses, such as <code>['bi.example.com', '*.corp.example']</code>, or
 				<code>['*']</code> for any. See <a href="#other-sites">Requests from other sites</a>.
+			</td>
+		</tr>
+		<tr>
+			<td><code>url_private_hosts</code></td>
+			<td>unset</td>
+			<td>
+				Intranet names a <code>url:</code> source or Import from a web page may
+				fetch although they resolve to a private address, such as
+				<code>['reports.corp.example', '*.corp.example']</code>. See
+				<a href="#url-fetch">Which addresses it may fetch</a>.
 			</td>
 		</tr>
 		<tr>

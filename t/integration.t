@@ -4005,8 +4005,8 @@ subtest 'A URL source: a failure is not cached, so the source can recover' => su
 
 subtest 'A URL source: the client is given a timeout, and is asked once' => sub {
 	my $tm = _isolated_app();
-	require LWP::UserAgent::Cached;
-	my $ua_new = spy('LWP::UserAgent::Cached::new');
+	require Database::BI::SafeUA;
+	my $ua_new = spy('LWP::UserAgent::new');
 	my $gets = 0;
 	my $guard = mock_scoped('LWP::UserAgent', get => sub {
 		$gets++;
@@ -4023,8 +4023,9 @@ subtest 'A URL source: the client is given a timeout, and is asked once' => sub 
 	restore_all();
 
 	is($gets, 1, 'a timeout is not retried while the reader waits');
-	ok(scalar @calls, 'the client came from the library that caches');
-	my (undef, undef, %args) = @{ $calls[0] // [] };
+	my ($call) = grep { ($_->[1] // '') eq 'Database::BI::SafeUA' } @calls;
+	ok($call, 'the client is the one that will not reach this machine or a private network');
+	my (undef, undef, %args) = @{ $call // [] };
 	cmp_ok($args{timeout} // 0, '>', 0, 'and has a timeout');
 	cmp_ok($args{timeout} // 0, '<=', $CONFIG{max_timeout_s}, "of at most $CONFIG{max_timeout_s}s");
 };

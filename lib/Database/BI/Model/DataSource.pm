@@ -96,6 +96,13 @@ B<Select a specific table when a page has more than one HTML table:>
         html_table_index => 2,   # zero-based: 0 = first table, 2 = third table
     );
 
+B<Fetch from an intranet host, which resolves to a private address:>
+
+    my $source = Database::BI::Model::DataSource->new(
+        url           => 'https://reports.corp.example/sales.html',
+        private_hosts => ['*.corp.example'],
+    );
+
 B<Open one specific internal table from a multi-table SQLite database:>
 
     # A SQLite file may contain more than one table.
@@ -223,7 +230,12 @@ the host-validation regex and produces C<error_backend_init>.
 =head2 URL-backed tables
 
 URL-backed tables (the C<url =E<gt>> constructor path) are fetched with
-L<LWP::UserAgent::Cached>.  If the remote server declares a charset in its
+L<Database::BI::SafeUA>, which refuses (C<403>, so the read croaks
+C<error_fetch_failed>) any request or redirect whose host resolves to this
+machine, a private network or a link-local address such as a cloud metadata
+service, and connects to the address it checked.  C<private_hosts =E<gt> [...]>
+names the hosts (exact, or C<*.suffix>) that may resolve privately: an
+intranet.  If the remote server declares a charset in its
 HTTP headers or in an HTML C<meta> tag, L<Database::Abstraction> uses it
 to decode the response body.  If the charset declaration is absent or wrong,
 cell values may arrive as raw bytes rather than character strings, and
@@ -556,6 +568,8 @@ sub new {
 #          then calls _init_url_backend to build the D::A in-memory table.
 # Entry:   $raw->{url} must be an http:// or https:// URL.
 #          $raw->{html_table_index} (optional, default 0): zero-based table index.
+#          $raw->{private_hosts} (optional): names that may resolve to private
+#          addresses (Database::BI::SafeUA).
 #          $raw->{i18n} (optional): Locale::Maketext-compatible object.
 # Exit:    Returns $self.  Croaks on invalid URL scheme or backend init failure.
 # Side Effects: None: the URL is fetched by the first read.
@@ -574,6 +588,7 @@ sub _new_from_url :Protected {
 		_cache            => $raw->{cache},
 		_cache_ttl_url    => $raw->{cache_ttl_url} // '15 min',
 		_html_table_index => $table_idx,
+		_private_hosts    => ref($raw->{private_hosts}) eq 'ARRAY' ? $raw->{private_hosts} : [],
 		_id_col           => undef,
 		_columns          => undef,
 		_db               => undef,
@@ -611,11 +626,15 @@ sub _init_url_backend :Protected {
 			unless $pkg->isa('Database::Abstraction');
 	}
 
+	# D::A fetches with the ua it is given: one that will not reach this
+	# machine or a private network, however the URL or its DNS is dressed up.
+	require Database::BI::SafeUA;
 	my $db = eval {
 		$pkg->new({
 			url              => $url,
 			html_table_index => $table_index,
 			no_entry         => 1,
+			ua               => Database::BI::SafeUA->new(private_hosts => $self->{_private_hosts}),
 		})
 	};
 	croak $self->_msg('error_url_fetch', $url, $@) if $@;
