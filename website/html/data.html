@@ -94,7 +94,10 @@
 	<code>sql</code>, <code>sqlite</code>, <code>sqlite3</code>, <code>db</code>,
 	<code>xml</code>, <code>xlsx</code> and JSON. A file whose columns cannot be
 	identified is read as header-less and given synthetic column names rather
-	than silently losing its first row.
+	than silently losing its first row. Nor are rows lost when a column is
+	mostly empty: a bank export whose cheque-number column is filled in only
+	now and then still shows every transaction, and a filter such as
+	<em>is not empty</em> on that column picks out the cheques.
 </p>
 <p id="mariadb">
 	A <strong>MariaDB or MySQL server</strong> is opened by name. Add it to
