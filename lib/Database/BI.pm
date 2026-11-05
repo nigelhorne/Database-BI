@@ -58,6 +58,12 @@ Readonly my @PERMISSIONS_DENIED => qw(
 Readonly my $DEFAULT_PERMISSIONS_POLICY =>
 	join(', ', (map { "$_=()" } @PERMISSIONS_DENIED), 'clipboard-write=(self)');
 
+# Cross-Origin-Opener-Policy for a page: a window another site opened, or a
+# window a page opens on another site, gets no handle on the page.  No page
+# opens a window or reads window.opener; links out are rel="noopener" anyway.
+Readonly my $DEFAULT_COOP => 'same-origin';
+Readonly my %COOP_VALUES  => map { $_ => 1 } qw(same-origin same-origin-allow-popups noopener-allow-popups unsafe-none);
+
 # Strict-Transport-Security, sent on replies to https requests: a year, and
 # this host only.  includeSubDomains and preload reach other sites of the same
 # domain, and are hard to take back, so they are for the configuration to add.
@@ -1460,6 +1466,17 @@ self-hosted library under C<public/> keeps working, because Mojolicious names
 C<.js> and C<.css> files for what they are; one served some other way must be
 sent as C<text/javascript> or C<text/css>, or the browser will not load it.
 
+Every page carries C<Cross-Origin-Opener-Policy: same-origin>: a window that
+another site opened, or that a page opened on another site, gets no handle on
+the page through C<window.opener>.  No page opens a window or reads an
+opener, and every link to a new window is C<rel="noopener">.
+C<cross_origin_opener_policy> sets another of C<same-origin>,
+C<same-origin-allow-popups>, C<noopener-allow-popups> and C<unsafe-none>, or
+C<''> or C<0> for none; any other value stops the application at startup.  No
+C<Cross-Origin-Embedder-Policy> is sent: it would refuse the libraries and
+tiles the CDNs and OpenStreetMap serve, and nothing here needs the isolation
+it gives.
+
 Every reply carries a C<Permissions-Policy> that turns off the browser
 features no page uses: the camera, the microphone, location, payment, USB,
 serial and HID devices, screen capture, full screen, reading the clipboard and
@@ -2002,6 +2019,7 @@ sub startup ($self) {
 	_check_embed_frame_ancestors($self->config('embed_frame_ancestors'));
 	_check_strict_transport_security($self->config('strict_transport_security'));
 	_check_permissions_policy($self->config('permissions_policy'));
+	_check_cross_origin_opener_policy($self->config('cross_origin_opener_policy'));
 
 	my $secrets = $self->config('secrets');
 	$self->secrets((ref($secrets) eq 'ARRAY' && @{$secrets})
@@ -2134,6 +2152,14 @@ sub startup ($self) {
 		# browser that knows frame-ancestors follows it and ignores this.
 		$headers->header('X-Frame-Options' => 'SAMEORIGIN')
 			unless defined $headers->header('X-Frame-Options');
+
+		# A page keeps its window to itself: another site that opened it, or
+		# that it opened, cannot reach it through window.opener.  For pages
+		# only, as it is a property of the document a window shows.
+		if (defined(my $coop = _cross_origin_opener_policy($c->app->config))) {
+			$headers->header('Cross-Origin-Opener-Policy' => $coop)
+				unless defined $headers->header('Cross-Origin-Opener-Policy');
+		}
 
 		# /embed/ stashes the other sites embed_frame_ancestors allows.
 		my $framers = $c->stash('csp_frame_ancestors');
@@ -2502,6 +2528,33 @@ sub _evict_old_uploads {
 			unlink $entry->to_string;
 		}
 	});
+}
+
+# _cross_origin_opener_policy( \%config ) -> $value | undef
+#
+# Purpose: The Cross-Origin-Opener-Policy header a page carries.
+# Entry:   The config.  cross_origin_opener_policy is one of %COOP_VALUES
+#          ('' or 0 sends none); without it, $DEFAULT_COOP.
+# Exit:    The value, or undef for none.  One changed after startup to a value
+#          not in the list is not sent.
+sub _cross_origin_opener_policy {
+	my ($config) = @_;
+	my $value = ($config // {})->{cross_origin_opener_policy};
+	return $DEFAULT_COOP unless defined $value;
+	return if ref $value || !length($value) || $value eq '0';
+	return $COOP_VALUES{$value} ? $value : undef;
+}
+
+# _check_cross_origin_opener_policy( $value ) -> void
+#
+# Purpose: Refuse a cross_origin_opener_policy a browser would not read.
+# Entry:   The config value.
+# Exit:    Returns; croaks on anything but undef, '', 0 or a known value.
+sub _check_cross_origin_opener_policy {
+	my ($value) = @_;
+	return if !defined $value || (!ref $value && (!length($value) || $value eq '0' || $COOP_VALUES{$value}));
+	croak sprintf("cross_origin_opener_policy: '%s' is not one of %s, or 0 for none",
+		ref $value ? ref $value : $value, join(', ', sort keys %COOP_VALUES));
 }
 
 # _permissions_policy( \%config ) -> $value | undef

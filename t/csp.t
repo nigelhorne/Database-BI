@@ -638,5 +638,47 @@ subtest 'Permissions-Policy' => sub {
 	lives_ok { Test::Mojo->new('Database::BI', { permissions_policy => 'geolocation=(self)' }) } 'and starts with a value';
 };
 
+# A page keeps its window to itself: no other site's window, opener or popup,
+# gets a handle on it.  Nothing a page does needs one.
+subtest 'Cross-Origin-Opener-Policy' => sub {
+	restore();
+	my $CO    = 'Cross-Origin-Opener-Policy';
+	my $sales = url_escape('table:sales');
+	for my $url ('/', "/bar?l=$sales&cat=region&val=amount", '/no/such/page', "/bar?l=$sales&cat=nosuch&val=amount") {
+		$t->get_ok($url, { Accept => 'text/html' })->header_is($CO => 'same-origin', "$url keeps its window");
+	}
+	$t->get_ok("/export?l=$sales&format=csv")->header_exists_not($CO, 'a download is not a page');
+
+	# Nothing on the pages relies on an opener, and every link to a new
+	# window says so.
+	my $root = File::Spec->catdir($t->app->home->to_string, 'templates');
+	for my $file (Mojo::File->new($root)->list_tree->grep(qr/\.tt\z/)->each) {
+		my $text = $file->slurp;
+		my $name = $file->to_rel($root);
+		unlike($text, qr/\bwindow\.open\s*\(|\.opener\b/, "$name opens no window and reads no opener");
+		my @blank = $text =~ /(<a\b[^>]*\btarget="_blank"[^>]*>)/g;
+		is(scalar(grep { !/\brel="[^"]*\bnoopener\b/ } @blank), 0, "$name: each target=_blank link is noopener");
+	}
+
+	for my $value ('same-origin-allow-popups', 'unsafe-none') {
+		$config->{cross_origin_opener_policy} = $value;
+		$t->get_ok('/')->header_is($CO => $value, "cross_origin_opener_policy => '$value'");
+	}
+	for my $off ('', 0) {
+		$config->{cross_origin_opener_policy} = $off;
+		$t->get_ok('/')->header_exists_not($CO, "'$off' sends none");
+	}
+	$config->{cross_origin_opener_policy} = 'same-origin; x';
+	$t->get_ok('/')->header_exists_not($CO, 'a value made bad after startup is not sent');
+	restore();
+
+	for my $bad ('same-site', 'same-origin; report-to=x', [ 'same-origin' ]) {
+		throws_ok { Test::Mojo->new('Database::BI', { cross_origin_opener_policy => $bad }) }
+			qr/cross_origin_opener_policy/, 'startup refuses ' . (ref $bad ? encode_json($bad) : $bad);
+	}
+	lives_ok { Test::Mojo->new('Database::BI', { cross_origin_opener_policy => 'same-origin-allow-popups' }) }
+		'and starts with a known value';
+};
+
 restore();
 done_testing();

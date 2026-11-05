@@ -46,6 +46,12 @@ Revision history for Database-BI
 	  it for the type it names.  Without it a browser could guess that a CSV
 	  export, or text from a data file, was HTML or script, and run what a
 	  cell held.
+	- Every page carries Cross-Origin-Opener-Policy: same-origin, so a window
+	  another site opened, or one a page opened on another site, cannot reach
+	  the page through window.opener.  cross_origin_opener_policy sets another
+	  value ('' or 0 for none); an unknown one stops the start.  The footer's
+	  link to GitHub, the one target=_blank link without it, is now
+	  rel="noopener".
 	- Every reply carries a Permissions-Policy that turns off the browser
 	  features no page uses (camera, microphone, location, payment, USB,
 	  serial, HID, screen capture, full screen, reading the clipboard and
@@ -75,6 +81,8 @@ Revision history for Database-BI
 	  checks X-Frame-Options under each policy setting, Referrer-Policy and
 	  X-Content-Type-Options on every kind of reply, that a self-hosted
 	  script and stylesheet are served as what they are, that
+	  Cross-Origin-Opener-Policy is on pages and that no template opens a
+	  window, reads an opener or links to a new window without noopener, that
 	  Permissions-Policy turns off what no template uses and keeps the
 	  clipboard for Copy link, that
 	  Strict-Transport-Security is sent over https (TLS, or a trusted proxy)

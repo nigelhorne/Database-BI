@@ -280,6 +280,14 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			</td>
 		</tr>
 		<tr>
+			<td><code>cross_origin_opener_policy</code></td>
+			<td><code>same-origin</code></td>
+			<td>
+				The Cross-Origin-Opener-Policy header on pages; <code>''</code> or
+				<code>0</code> for none. See <a href="#csp">Content-Security-Policy</a>.
+			</td>
+		</tr>
+		<tr>
 			<td><code>permissions_policy</code></td>
 			<td>every unused feature off</td>
 			<td>
@@ -368,6 +376,14 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	working, because <code>.js</code> and <code>.css</code> files are sent as what
 	they are. One served some other way must be sent as <code>text/javascript</code>
 	or <code>text/css</code>, or the browser will not load it.
+</p>
+<p>
+	Every page carries <code>Cross-Origin-Opener-Policy: same-origin</code>, so a
+	window another site opened, or one a page opened on another site, gets no handle
+	on the page. <code>cross_origin_opener_policy</code> sets another value, such as
+	<code>same-origin-allow-popups</code>, or turns it off with <code>''</code> or
+	<code>0</code>. No <code>Cross-Origin-Embedder-Policy</code> is sent: it would
+	refuse the libraries and map tiles that other servers send.
 </p>
 <p>
 	Every reply also carries a <code>Permissions-Policy</code> that turns off the

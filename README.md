@@ -1402,6 +1402,17 @@ self-hosted library under `public/` keeps working, because Mojolicious names
 `.js` and `.css` files for what they are; one served some other way must be
 sent as `text/javascript` or `text/css`, or the browser will not load it.
 
+Every page carries `Cross-Origin-Opener-Policy: same-origin`: a window that
+another site opened, or that a page opened on another site, gets no handle on
+the page through `window.opener`.  No page opens a window or reads an
+opener, and every link to a new window is `rel="noopener"`.
+`cross_origin_opener_policy` sets another of `same-origin`,
+`same-origin-allow-popups`, `noopener-allow-popups` and `unsafe-none`, or
+`''` or `0` for none; any other value stops the application at startup.  No
+`Cross-Origin-Embedder-Policy` is sent: it would refuse the libraries and
+tiles the CDNs and OpenStreetMap serve, and nothing here needs the isolation
+it gives.
+
 Every reply carries a `Permissions-Policy` that turns off the browser
 features no page uses: the camera, the microphone, location, payment, USB,
 serial and HID devices, screen capture, full screen, reading the clipboard and
