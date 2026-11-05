@@ -362,5 +362,100 @@ subtest 'error pages carry it, other replies do not' => sub {
 		->header_exists_not($CSP, 'a JSON reply');
 };
 
+# No other site may frame a page, however the policy is configured: a
+# report-only policy only reports frame-ancestors, a policy of one's own may
+# leave it out, and '' sends none.  X-Frame-Options covers each of those, and
+# the browsers that read nothing else.
+subtest 'no page can be framed by another site' => sub {
+	my $sales = url_escape('table:sales');
+	my %cases = (
+		'default'          => {},
+		'report-only'      => { content_security_policy_report_only => 1 },
+		'no policy'        => { content_security_policy => '' },
+		'a policy without frame-ancestors' => { content_security_policy => "default-src 'self'" },
+	);
+	for my $case (sort keys %cases) {
+		restore();
+		%{$config} = (%{$config}, %{ $cases{$case} });
+		for my $page ('/', "/bar?l=$sales&cat=region&val=amount", '/no/such/page', "/bar?l=$sales&cat=nosuch&val=amount") {
+			$t->get_ok($page, { Accept => 'text/html' })
+				->header_is('X-Frame-Options' => 'SAMEORIGIN', "$case: $page sends X-Frame-Options");
+		}
+	}
+	restore();
+	$t->get_ok('/')->header_like($CSP => qr/frame-ancestors 'self'/, 'and the default policy says the same');
+};
+
+# embed_frame_ancestors lets the sites it names frame /embed/, and only /embed/.
+# However the policy is configured, an enforced frame-ancestors names them, so
+# turning it on never lets every site in.
+subtest 'embed_frame_ancestors' => sub {
+	restore();
+	my $id = $t->post_ok('/api/analyses' => json => {
+		name     => 'Embedded',
+		datasets => [ { spec => 'table:sales', alias => 'left' } ],
+		visuals  => [ { kind => 'bar', title => 'Bar', encode => { cat => 'region', val => 'amount' } } ],
+	})->status_is(201)->tx->res->json('/id');
+	my $token = $t->post_ok("/api/analyses/$id/share")->status_is(200)->tx->res->json('/token');
+	my $embed = "/embed/$id?token=" . url_escape($token);
+	my $ALLOWED = "frame-ancestors 'self' https://intranet.example.com https://*.corp.example";
+
+	# The frame-ancestors of each enforced policy the reply carries.
+	my $enforced = sub {
+		my @p = @{ $t->tx->res->headers->every_header($CSP) };
+		return [ map { /(frame-ancestors[^;]*)/ ? $1 : '(none)' } @p ];
+	};
+
+	$t->get_ok($embed)->status_is(200)->header_is('X-Frame-Options' => 'SAMEORIGIN');
+	is_deeply($enforced->(), ["frame-ancestors 'self'"], 'without the key, /embed/ is this site only');
+
+	$config->{embed_frame_ancestors} = [ 'https://Intranet.Example.com/', 'https://*.corp.example', 'https://intranet.example.com' ];
+	$t->get_ok($embed)->status_is(200)
+		->header_is('X-Frame-Options' => 'SAMEORIGIN', 'X-Frame-Options stays, for browsers that know only it');
+	is_deeply($enforced->(), [ $ALLOWED ], 'with it, /embed/ names those sites, once each, in lower case');
+	for my $page ('/', "/a/$id", "/share/$id?token=" . url_escape($token)) {
+		$t->get_ok($page)->status_is(200);
+		is_deeply($enforced->(), ["frame-ancestors 'self'"], "$page is still this site only");
+	}
+	$t->get_ok("/a/$id")->content_like(qr{another page of this site, or of https://intranet\.example\.com, https://\*\.corp\.example\.},
+		'the Share panel says where the embed code works');
+
+	$config->{content_security_policy_report_only} = 1;
+	$t->get_ok($embed)->status_is(200)
+		->header_like("$CSP-Report-Only" => qr/\Q$ALLOWED\E/, 'report-only: the full policy is reported');
+	is_deeply($enforced->(), [ $ALLOWED ], 'and frame-ancestors is enforced on its own');
+	delete $config->{content_security_policy_report_only};
+
+	$config->{content_security_policy} = '';
+	$t->get_ok($embed)->status_is(200);
+	is_deeply($enforced->(), [ $ALLOWED ], 'no policy: frame-ancestors is still sent');
+
+	$config->{content_security_policy} = "default-src 'self'";
+	$t->get_ok($embed)->status_is(200);
+	is_deeply($enforced->(), [ '(none)', $ALLOWED ], 'a policy without it: it is sent beside that one');
+
+	$config->{content_security_policy} = "default-src 'self'; frame-ancestors 'none'";
+	$t->get_ok($embed)->status_is(200);
+	is_deeply($enforced->(), [ "frame-ancestors 'none'" ], 'a policy that names its own is left to say so');
+	delete $config->{content_security_policy};
+
+	# Changed after startup, a bad entry is left out rather than written.
+	$config->{embed_frame_ancestors} = [ '*', 'https:', "'none'", 'https://ok.example/path', 'https://ok.example', "https://x.example; script-src *" ];
+	$t->get_ok($embed)->status_is(200);
+	is_deeply($enforced->(), [ "frame-ancestors 'self' https://ok.example" ], 'only an origin gets in');
+	$config->{embed_frame_ancestors} = 'https://one.example';
+	$t->get_ok($embed)->status_is(200);
+	is_deeply($enforced->(), [ "frame-ancestors 'self' https://one.example" ], 'one origin may be a string');
+	restore();
+
+	# At startup a bad entry stops the application.
+	for my $bad ([ 'https://x.example/path' ], [ '*' ], [ 'https:' ], [ "'self'" ], 'ftp://x.example', { a => 1 }, [ undef ]) {
+		throws_ok { Test::Mojo->new('Database::BI', { embed_frame_ancestors => $bad }) }
+			qr/embed_frame_ancestors/, 'startup refuses ' . (ref $bad ? encode_json($bad) : $bad);
+	}
+	lives_ok { Test::Mojo->new('Database::BI', { embed_frame_ancestors => [ 'http://localhost:8080' ] }) }
+		'and starts with an origin';
+};
+
 restore();
 done_testing();

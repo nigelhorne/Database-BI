@@ -1290,7 +1290,7 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 	        title="A read-only link or an embed code for people who do not use this application, or the canvas as a file">&#x1F4E4; Share&hellip;</button>
 	<div class="ac-panel" id="share-panel" role="dialog" aria-labelledby="share-heading" hidden>
 		<h3 id="share-heading">Share this canvas</h3>
-		<p class="ac-help">Anyone with the read-only link can see the canvas, but not change it, until the link expires. The embed code shows it inside another page of this site.</p>
+		<p class="ac-help">Anyone with the read-only link can see the canvas, but not change it, until the link expires. The embed code shows it inside another page of this site[% IF embed_origins.size %], or of [% embed_origins.join(', ') | html %][% END %].</p>
 		<label class="ac-field">Read-only link
 			<input type="text" id="share-url" readonly placeholder="Make a link first">
 		</label>

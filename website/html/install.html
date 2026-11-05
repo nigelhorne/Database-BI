@@ -278,6 +278,14 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			</td>
 		</tr>
 		<tr>
+			<td><code>embed_frame_ancestors</code></td>
+			<td>unset</td>
+			<td>
+				Other sites that may show a canvas's <code>/embed/</code> page in a frame.
+				See <a href="#embed">Embedding a canvas on another site</a>.
+			</td>
+		</tr>
+		<tr>
 			<td><code>ai_api_key</code></td>
 			<td>unset</td>
 			<td>
@@ -324,6 +332,9 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	A page's scripts may talk only to this site (<code>connect-src 'self'</code>),
 	and no other site may show a page in a frame
 	(<code>frame-ancestors 'self'</code>). JSON replies and downloads carry no policy.
+	Every page also carries <code>X-Frame-Options: SAMEORIGIN</code>, whatever the
+	keys below say, so framing by another site is refused even with a report-only
+	policy, a policy of your own, or none, and in browsers that read only that header.
 </p>
 <p>
 	An inline script runs only if it carries the request's nonce, a random value
@@ -342,6 +353,24 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	that <code>{nonce}</code> becomes the request's nonce; without it no inline script
 	runs. Set to <code>''</code> or <code>0</code> it sends no header. A policy written
 	out in full is not updated when the library keys change.
+</p>
+
+<h3 id="embed">Embedding a canvas on another site</h3>
+<p>
+	By default only pages of this site may show a canvas's <code>/embed/</code> page
+	in a frame. <code>embed_frame_ancestors</code> names other sites that may:
+</p>
+<pre><code>{ embed_frame_ancestors => [ 'https://intranet.example.com', 'https://*.corp.example' ] }</code></pre>
+<p>
+	Each entry is an origin: <code>http</code> or <code>https</code>, a host (a
+	<code>*</code> may stand for its first label only) and an optional port, with
+	no path. Anything else stops the application at startup. The sites are allowed
+	on <code>/embed/</code> and no other page, and however the policy above is
+	configured, an enforced <code>frame-ancestors</code> names them, so naming one
+	site never lets every site in. A policy written out with its own
+	<code>frame-ancestors</code> is left to say who may. Browsers that know only
+	<code>X-Frame-Options</code> still refuse the frame. The canvas's Share panel
+	names the sites its embed code works on.
 </p>
 
 <h2>Command-line tools</h2>

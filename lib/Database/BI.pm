@@ -1413,6 +1413,11 @@ OpenStreetMap's tile servers.  A page's scripts may talk only to this site
 (C<connect-src 'self'>), and no other site may show a page in a frame
 (C<frame-ancestors 'self'>).  JSON replies and downloads carry no policy.
 
+Every HTML page also carries C<X-Frame-Options: SAMEORIGIN>, whatever the
+policy keys below say.  A report-only policy only reports C<frame-ancestors>,
+a policy written out in full may leave it out, and older browsers read only
+this header, so framing by another site is refused in each of those cases.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (C<'nonce-...'>).  Every
 C<E<lt>scriptE<gt>> the templates write carries it, and so do those that
@@ -1438,6 +1443,26 @@ C<content_security_policy> is the whole policy, sent as written except that
 C<{nonce}> becomes the request's nonce; without it no inline script runs.  Set
 to C<''> or C<0> it sends no header.  A policy written out in full is not
 updated when the library keys change.
+
+=head3 Embedding a canvas on another site
+
+By default only pages of this site may show C</embed/:id> in a frame.
+C<embed_frame_ancestors> names other sites that may:
+
+    { embed_frame_ancestors => [ 'https://intranet.example.com', 'https://*.corp.example' ] }
+
+Each entry is an origin: C<http> or C<https>, a host (a C<*> may stand for its
+first label only) and an optional port, with no path.  Anything else stops the
+application at startup, because a security setting that does not do what it
+says should not be dropped quietly.  The sites are added to that page's
+C<frame-ancestors>, and to no other page's.  With a report-only policy, with
+none, or with one written out without C<frame-ancestors>, the page carries a
+second, enforced policy of C<frame-ancestors> alone, so naming one site never
+lets every site in.  A policy written out with its own C<frame-ancestors> is
+left to say who may.  C<X-Frame-Options: SAMEORIGIN> stays: browsers that know
+C<frame-ancestors> follow it instead, and those that know only the older
+header refuse the frame.  The canvas's Share panel names the sites its embed
+code works on.
 
 =head1 METHODS
 
@@ -1900,6 +1925,11 @@ sub startup ($self) {
 	# secrets => [...] keeps lists valid across restarts, and without one each
 	# start makes its own.  This runs before hypnotoad forks, so every worker
 	# shares it.
+	# The sites that may frame /embed/.  A mistake here is a security setting
+	# that does not do what it says, so it stops the start rather than being
+	# dropped quietly.
+	_check_embed_frame_ancestors($self->config('embed_frame_ancestors'));
+
 	my $secrets = $self->config('secrets');
 	$self->secrets((ref($secrets) eq 'ARRAY' && @{$secrets})
 		? $secrets : [ Mojo::Util::generate_secret() ]);
@@ -1996,11 +2026,35 @@ sub startup ($self) {
 
 		my $headers = $c->res->headers;
 		return unless ($headers->content_type // '') =~ m{\Atext/html\b}i;
-		my $policy = _content_security_policy($c->app->config, $c->csp_nonce);
-		return unless defined $policy;
-		my $name = $c->app->config('content_security_policy_report_only')
-			? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
-		$headers->header($name => $policy) unless defined $headers->header($name);
+
+		# Framing is refused whatever the policy says.  frame-ancestors does
+		# that in the policy, but a report-only policy only reports it, a
+		# policy of the deployment's own may leave it out, and '' sends none;
+		# older browsers read only this header.  Where both are sent, a
+		# browser that knows frame-ancestors follows it and ignores this.
+		$headers->header('X-Frame-Options' => 'SAMEORIGIN')
+			unless defined $headers->header('X-Frame-Options');
+
+		# /embed/ stashes the other sites embed_frame_ancestors allows.
+		my $framers = $c->stash('csp_frame_ancestors');
+		$framers = [] unless ref $framers eq 'ARRAY';
+
+		my $policy = _content_security_policy($c->app->config, $c->csp_nonce, $framers);
+		my $report_only = $c->app->config('content_security_policy_report_only');
+		my $name = $report_only ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
+		$headers->header($name => $policy) if defined $policy && !defined $headers->header($name);
+
+		# Allowing other sites to frame /embed/ must never allow every site.
+		# Unless an enforced policy above already says who may, a policy of
+		# frame-ancestors alone is added: with report-only, no policy, or one
+		# written out without it, the page would otherwise rely on
+		# X-Frame-Options, which these browsers ignore once frame-ancestors is
+		# anywhere.  (Browsers that know only X-Frame-Options refuse the frame.)
+		if (@{$framers}) {
+			my $enforced = $report_only ? undef : $policy;
+			$headers->add('Content-Security-Policy' => _frame_ancestors_directive($framers))
+				unless defined $enforced && $enforced =~ /(?:\A|;)\s*frame-ancestors\b/i;
+		}
 	});
 
 	# A relative time range named in the URL (?range=last_30_days&rcol=when)
@@ -2362,10 +2416,11 @@ sub _new_nonce {
 	return substr(Mojo::Util::generate_secret(), 0, 22);
 }
 
-# _content_security_policy( \%config, $nonce ) -> $policy | undef
+# _content_security_policy( \%config, $nonce, \@framers ) -> $policy | undef
 #
 # Purpose: The Content-Security-Policy header every HTML reply carries.
-# Entry:   The application's config, and the request's nonce (see csp_nonce).
+# Entry:   The application's config, the request's nonce (see csp_nonce), and
+#          the other origins that may frame this reply (only /embed/ has any).
 #          content_security_policy, when set to a string, is the whole policy,
 #          sent as written but for {nonce}, which becomes the nonce; set to ''
 #          or 0 it turns the header off.  Otherwise the policy is built from
@@ -2385,7 +2440,7 @@ sub _new_nonce {
 # no key moves it.  The pins themselves are data: URIs (_marker_icon in the controller), and a
 # chart export draws its copy through a data: or blob: image.
 sub _content_security_policy {
-	my ($config, $nonce) = @_;
+	my ($config, $nonce, $framers) = @_;
 	$config //= {};
 	$nonce = undef unless defined $nonce && $nonce =~ $NONCE_RE;
 
@@ -2429,7 +2484,73 @@ sub _content_security_policy {
 		"object-src 'none'",
 		"base-uri 'self'",
 		"form-action 'self'",
-		"frame-ancestors 'self'";
+		_frame_ancestors_directive($framers);
+}
+
+# _frame_ancestors_directive( \@framers ) -> $directive
+#
+# Purpose: frame-ancestors for a reply: this site, and the origins given.
+sub _frame_ancestors_directive {
+	my ($framers) = @_;
+	return join ' ', 'frame-ancestors', "'self'", @{ $framers // [] };
+}
+
+# _embed_frame_ancestors( \%config ) -> @origins
+#
+# Purpose: The other sites that may frame /embed/, from embed_frame_ancestors.
+# Entry:   The config.  The key is a list of origins, or one as a string.
+# Exit:    Each as a CSP source ("https://intranet.example.com"), lower case,
+#          without a trailing slash and without repeats.  An entry that is not
+#          an origin is left out (startup refuses one; see
+#          _check_embed_frame_ancestors), so a list changed after startup
+#          cannot put anything else into the header.
+sub _embed_frame_ancestors {
+	my ($config) = @_;
+	my $value = ($config // {})->{embed_frame_ancestors};
+	my @list = ref $value eq 'ARRAY' ? @{$value} : defined $value && !ref $value ? ($value) : ();
+	my %seen;
+	return grep { defined && !$seen{$_}++ } map { _frame_origin($_) } @list;
+}
+
+# _check_embed_frame_ancestors( $value ) -> void
+#
+# Purpose: Refuse an embed_frame_ancestors that does not name origins.
+# Entry:   The config value: undef, an origin, or a list of them.
+# Exit:    Returns; croaks naming the first entry that is not an origin.
+sub _check_embed_frame_ancestors {
+	my ($value) = @_;
+	return unless defined $value;
+	croak 'embed_frame_ancestors must be a list of origins, such as [ \'https://intranet.example.com\' ]'
+		if ref $value && ref $value ne 'ARRAY';
+	for my $entry (ref $value ? @{$value} : $value) {
+		next if defined _frame_origin($entry);
+		croak sprintf("embed_frame_ancestors: '%s' is not an origin such as https://intranet.example.com"
+			. ' (a scheme, a host and an optional port, with no path)', $entry // 'undef');
+	}
+	return;
+}
+
+# _frame_origin( $entry ) -> $source | undef
+#
+# Purpose: One embed_frame_ancestors entry as a CSP source, if it is an origin.
+# Entry:   A string.
+# Exit:    "scheme://host[:port]", lower case, or undef.
+#
+# Only http and https origins: a scheme on its own (https:), *, 'none' or
+# 'self' would let far more than one site in, or say something else entirely,
+# and a path would be ignored by the browser.  A wildcard is allowed as the
+# first label only (https://*.example.com), which is all CSP allows.
+sub _frame_origin {
+	my ($entry) = @_;
+	return unless defined $entry && !ref $entry;
+	my ($scheme, $host, $port) = $entry =~ m{
+		\A\s*(https?)://
+		((?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*)
+		(?::(\d{1,5}))?
+		/?\s*\z
+	}xi or return;
+	return if defined $port && ($port == 0 || $port > 65_535);
+	return lc("$scheme://$host") . (defined $port ? ":$port" : '');
 }
 
 # _csp_source( $url ) -> $source | undef

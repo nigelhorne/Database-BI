@@ -6795,6 +6795,8 @@ sub canvas_render ($self) {
 			title        => $a->{name},
 			canvas_id    => $id,
 			canvas_name  => $a->{name},
+			# The other sites the Share panel's embed code works on.
+			embed_origins => [ Database::BI::_embed_frame_ancestors($self->app->config) ],
 			canvas_data_url  => ($self->_analysis_to_url($a) // ''),
 			canvas_columns_json => $canvas_columns_json,
 			canvas_page_aliases_json => $canvas_page_aliases_json,
@@ -13631,8 +13633,14 @@ sub embed_view ($self) {
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
-	# X-Frame-Options: embed is opt-in.
+	# Every HTML page gets this from the after_dispatch hook in Database::BI;
+	# the page made to be framed says it itself, so it never depends on that.
+	# The sites embed_frame_ancestors names are allowed by frame-ancestors,
+	# which the browsers that know it follow in place of this header; those
+	# that know only this header refuse them, which is the safe way to fail.
 	$self->res->headers->header('X-Frame-Options' => 'SAMEORIGIN');
+	my @framers = Database::BI::_embed_frame_ancestors($self->app->config);
+	$self->stash(csp_frame_ancestors => \@framers) if @framers;
 
 	my @visuals = @{ $a->{visuals} // [] };
 	unless (@visuals) {

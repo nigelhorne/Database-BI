@@ -1382,6 +1382,11 @@ OpenStreetMap's tile servers.  A page's scripts may talk only to this site
 (`connect-src 'self'`), and no other site may show a page in a frame
 (`frame-ancestors 'self'`).  JSON replies and downloads carry no policy.
 
+Every HTML page also carries `X-Frame-Options: SAMEORIGIN`, whatever the
+policy keys below say.  A report-only policy only reports `frame-ancestors`,
+a policy written out in full may leave it out, and older browsers read only
+this header, so framing by another site is refused in each of those cases.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (`'nonce-...'`).  Every
 `<script>` the templates write carries it, and so do those that
@@ -1409,6 +1414,28 @@ Two keys change the policy:
 `{nonce}` becomes the request's nonce; without it no inline script runs.  Set
 to `''` or `0` it sends no header.  A policy written out in full is not
 updated when the library keys change.
+
+#### Embedding a Canvas on Another Site
+
+By default only pages of this site may show `/embed/:id` in a frame.
+`embed_frame_ancestors` names other sites that may:
+
+```perl
+{ embed_frame_ancestors => [ 'https://intranet.example.com', 'https://*.corp.example' ] }
+```
+
+Each entry is an origin: `http` or `https`, a host (a `*` may stand for its
+first label only) and an optional port, with no path.  Anything else stops the
+application at startup, because a security setting that does not do what it
+says should not be dropped quietly.  The sites are added to that page's
+`frame-ancestors`, and to no other page's.  With a report-only policy, with
+none, or with one written out without `frame-ancestors`, the page carries a
+second, enforced policy of `frame-ancestors` alone, so naming one site never
+lets every site in.  A policy written out with its own `frame-ancestors` is
+left to say who may.  `X-Frame-Options: SAMEORIGIN` stays: browsers that know
+`frame-ancestors` follow it instead, and those that know only the older
+header refuse the frame.  The canvas's Share panel names the sites its embed
+code works on.
 
 ## Methods
 

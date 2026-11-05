@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.020.1	Thu Nov  5 10:06:18 AM EST 2026
+0.020.1
 	[ Bug fixes ]
 	- Every HTML page is sent with a Content-Security-Policy.  The pages show
 	  cells from files the application did not write, and HTML::D3 before 0.27
@@ -20,6 +20,18 @@ Revision history for Database-BI
 	  reload names its nonce in the JSON reply, and the page runs only the
 	  card scripts that carry it.  A page from the page cache keeps the
 	  header it was stored with, so its nonce still matches.
+	- Every HTML page also carries X-Frame-Options: SAMEORIGIN, not only
+	  /embed/.  With content_security_policy_report_only, which only reports
+	  frame-ancestors, with content_security_policy set to '' or to a policy
+	  without frame-ancestors, and in browsers that read only that header,
+	  another site could frame any page and lure a reader into clicking it.
+	- embed_frame_ancestors => [ 'https://intranet.example.com', ... ] lets
+	  those sites show /embed/:id in a frame, and no other page.  Each entry
+	  must be an origin (a scheme, a host, an optional port; * only as the
+	  first label), or the application does not start.  However the policy is
+	  configured (report-only, none, or one without frame-ancestors), an
+	  enforced frame-ancestors names them, so naming one site never lets
+	  every site in.  The Share panel names the sites its embed code works on.
 	- content_security_policy_report_only => 1 sends the policy as
 	  Content-Security-Policy-Report-Only, and content_security_policy sets
 	  the whole policy ('' or 0 sends none; {nonce} in it becomes the nonce).
@@ -31,7 +43,10 @@ Revision history for Database-BI
 	  allowed by it.  On every kind of page, and on a canvas card's JSON, it
 	  checks that each <script> carries the nonce and that nothing has an on*
 	  attribute; it reads every template for the same; and it checks that a
-	  page served from the page cache keeps a nonce matching its header.
+	  page served from the page cache keeps a nonce matching its header.  It
+	  checks X-Frame-Options under each policy setting, and that
+	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
+	  only origins, and stops a start with anything else.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026
 	[ Enhancements ]

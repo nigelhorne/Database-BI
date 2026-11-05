@@ -877,7 +877,7 @@ my @CHAPTERS = (
 			'Click Share... in the canvas toolbar.',
 			'Click Make a link, then Copy link. The link is now on your clipboard.',
 			'Send the link by email or in a message.',
-			'To show the canvas inside another page of this site, click Copy embed code instead. Other sites cannot show it.',
+			'To show the canvas inside another page of this site, click Copy embed code instead. The panel names any other sites where it works.',
 			'The link stops working after 30 days. Click Make a new link to create another.',
 		],
 		tip   => 'The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the Canvases page reads it back.',
@@ -1034,7 +1034,7 @@ my @FAQ = (
 	},
 	{
 		question => 'Can I show a canvas on another web site?',
-		answer   => 'No. The pages refuse to be shown in a frame on another site, so nobody can dress them up as their own. Send the share link instead.',
+		answer   => 'Only on the sites that whoever runs the program has listed. The Share panel names them. On any other site the canvas is refused, so send the share link instead.',
 	},
 	{
 		question => 'A chart says it cannot be drawn.',
