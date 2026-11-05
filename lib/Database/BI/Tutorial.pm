@@ -1055,7 +1055,7 @@ my @FAQ = (
 	},
 	{
 		question => 'Can someone on another computer open it?',
-		answer   => 'Not at first: the program answers only the computer it runs on. Whoever runs it can open it to others by setting listen in the configuration file.',
+		answer   => 'Only with a password. At first the program answers only the computer it runs on. Whoever runs it can set a password, then open it to others.',
 	},
 	{
 		question => 'The page says the server does not answer to that name.',

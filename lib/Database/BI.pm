@@ -315,7 +315,9 @@ B<Start the development server (restarts automatically when you edit a file):>
 
     script/database-bi
 
-C<morbo script/database-bi> does the same thing, and
+C<morbo -l http://127.0.0.1:3000 script/database-bi> does the same thing (a bare
+C<morbo script/database-bi> listens on every interface, so it starts only with a
+password set), and
 C<script/database-bi daemon> starts a plain server with no file watcher; any
 other Mojolicious command word (C<routes>, C<get>, ...) is passed to the
 application.
@@ -1363,14 +1365,20 @@ C<-l> option of C<daemon> and C<prefork> still win over it.
 C<morbo script/database-bi> opens its port before it loads the application, so
 it does not read C<listen>; give it C<-l>, or run C<script/database-bi>.
 
+Anywhere but this machine needs a password: a C<listen> (or C<MOJO_LISTEN>, or
+C<-l>, or under hypnotoad its own C<listen>) that is not loopback stops the start
+unless C<password_hash> is set (see L</Logging in>).  The message says what to
+change.  The defaults are loopback, so they start as before.
+
 C<hypnotoad> reads its own C<< hypnotoad => { listen } >>, which defaults to
 C<http://127.0.0.1:8080>, this machine only:
 
     { hypnotoad => { listen => ['http://*:8080'] } }  # every machine
 
-Behind a reverse proxy on the same machine, leave both at their defaults.  A
-server that other machines can reach and that has no C<password_hash> logs a
-warning at startup.
+Behind a reverse proxy on the same machine, leave both at their defaults.  The
+proxy can still bring other machines' requests in, so without a password a
+request from an address that is not loopback is refused (C<403>), including one
+a trusted proxy names in C<X-Forwarded-For>.  For the public, set a password.
 
 =head2 Requests from other sites
 
@@ -1409,8 +1417,9 @@ settings.  The folder list in the Export panel leaves them out already.
 
 =head2 Logging in
 
-With C<password_hash> set, every page asks for a password first.  Make the line
-with
+With C<password_hash> set, every page asks for a password first.  A server
+other machines can reach must have one (see L</Who can reach the server>); on
+this machine alone it is optional.  Make the line with
 
     script/database-bi password
 
@@ -1701,8 +1710,8 @@ Nothing useful is returned.  By the time it returns, the application has:
 =item * the login session (L<Database::BI::Sessions>), and C<require_login> in
 front of every route but the login, share and embed links (see
 L</Logging in>); a C<password_hash> that is not a hash, or a C<login_expiration>
-under 60 seconds, croaks; a warning in the log when the server can be reached
-from other machines with no password;
+under 60 seconds, croaks; so does a C<listen> other machines could reach when
+there is no password;
 
 =item * the C<before_dispatch> hook that refuses requests from other sites (see
 L</Requests from other sites>); an C<allowed_hosts> that is not a list of host

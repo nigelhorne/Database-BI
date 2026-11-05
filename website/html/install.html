@@ -179,8 +179,16 @@ hypnotoad -s script/database-bi</code></pre>
 	<code>morbo script/database-bi</code> opens its port before it reads the
 	configuration, so give it <code>-l</code>, or run the launcher instead.
 	A <code>listen</code> that is not an <code>http://</code> or
-	<code>https://</code> location stops the start. A server other machines can
-	reach with no password logs a warning when it starts.
+	<code>https://</code> location stops the start.
+</p>
+<p>
+	Anywhere but this machine needs a password. A <code>listen</code> (or
+	<code>MOJO_LISTEN</code>, <code>-l</code>, or hypnotoad's own) that is not
+	<code>127.0.0.1</code>, <code>[::1]</code> or <code>localhost</code> stops the
+	start unless <a href="#login"><code>password_hash</code></a> is set, and says
+	what to change. So does a bare <code>morbo script/database-bi</code>, which
+	listens everywhere. Behind a reverse proxy, without a password, a request the
+	proxy brings from another machine is refused (403).
 </p>
 <h3 id="login">Logging in</h3>
 <p>

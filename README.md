@@ -174,7 +174,9 @@ application.
 script/database-bi
 ```
 
-`morbo script/database-bi` does the same thing, and
+`morbo -l http://127.0.0.1:3000 script/database-bi` does the same thing (a bare
+`morbo script/database-bi` listens on every interface, so it starts only with a
+password set), and
 `script/database-bi daemon` starts a plain server with no file watcher; any
 other Mojolicious command word (`routes`, `get`, ...) is passed to the
 application.
@@ -1284,6 +1286,11 @@ that is not `http://` or `https://` stops the start.  `MOJO_LISTEN` and the
 `morbo script/database-bi` opens its port before it loads the application, so
 it does not read `listen`; give it `-l`, or run `script/database-bi`.
 
+Anywhere but this machine needs a password: a `listen` (or `MOJO_LISTEN`, or
+`-l`, or under hypnotoad its own `listen`) that is not loopback stops the start
+unless `password_hash` is set (see ["Logging in"](#logging-in)).  The message says what to
+change.  The defaults are loopback, so they start as before.
+
 `hypnotoad` reads its own `hypnotoad => { listen }`, which defaults to
 `http://127.0.0.1:8080`, this machine only:
 
@@ -1291,9 +1298,10 @@ it does not read `listen`; give it `-l`, or run `script/database-bi`.
 { hypnotoad => { listen => ['http://*:8080'] } }  # every machine
 ```
 
-Behind a reverse proxy on the same machine, leave both at their defaults.  A
-server that other machines can reach and that has no `password_hash` logs a
-warning at startup.
+Behind a reverse proxy on the same machine, leave both at their defaults.  The
+proxy can still bring other machines' requests in, so without a password a
+request from an address that is not loopback is refused (`403`), including one
+a trusted proxy names in `X-Forwarded-For`.  For the public, set a password.
 
 ### Requests From Other Sites
 
@@ -1329,8 +1337,9 @@ settings.  The folder list in the Export panel leaves them out already.
 
 ### Logging In
 
-With `password_hash` set, every page asks for a password first.  Make the line
-with
+With `password_hash` set, every page asks for a password first.  A server
+other machines can reach must have one (see ["Who can reach the server"](#who-can-reach-the-server)); on
+this machine alone it is optional.  Make the line with
 
 ```
 script/database-bi password
@@ -1641,8 +1650,8 @@ Nothing useful is returned.  By the time it returns, the application has:
 - the login session ([Database::BI::Sessions](https://metacpan.org/pod/Database%3A%3ABI%3A%3ASessions)), and `require_login` in
 front of every route but the login, share and embed links (see
 ["Logging in"](#logging-in)); a `password_hash` that is not a hash, or a `login_expiration`
-under 60 seconds, croaks; a warning in the log when the server can be reached
-from other machines with no password;
+under 60 seconds, croaks; so does a `listen` other machines could reach when
+there is no password;
 - the `before_dispatch` hook that refuses requests from other sites (see
 ["Requests from other sites"](#requests-from-other-sites)); an `allowed_hosts` that is not a list of host
 names croaks;
