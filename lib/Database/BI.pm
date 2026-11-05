@@ -33,6 +33,12 @@ Readonly my $DEFAULT_D3_URL => 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/
 Readonly my $DEFAULT_LEAFLET_URL => 'https://unpkg.com/';
 Readonly my $DEFAULT_TILE_URL    => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
+# Where a server started without -l or MOJO_LISTEN listens: this machine only.
+# Config listen (morbo, daemon, prefork) and hypnotoad => { listen } (hypnotoad)
+# change the port, or open it to other machines with 'http://*:3000'.
+Readonly my $DEFAULT_LISTEN           => 'http://127.0.0.1:3000';
+Readonly my $DEFAULT_HYPNOTOAD_LISTEN => 'http://127.0.0.1:8080';
+
 # What a Content-Security-Policy nonce may be made of (base64 or base64url);
 # anything else reaching the policy is dropped.
 Readonly my $NONCE_RE => qr{\A[A-Za-z0-9+/_=-]+\z};
@@ -319,7 +325,9 @@ a join cannot be given on the command line, so open one and use Merge or Combine
 in the browser.  A file that is missing, cannot be read or is of an unsupported
 type is the same error, before the server starts.  A remote path, Redis spec or
 MariaDB spec is accepted as it would be by C</open>, and is checked when it is first shown.
-Use C<MOJO_LISTEN> to choose the port.  A plain server does the same with
+It listens on port 3000 of this machine only (C<http://127.0.0.1:3000>); see
+L</Who can reach the server> to change the port or open it to other machines.
+A plain server does the same with
 C<BI_OPEN=/full/path/store.db script/database-bi daemon>; a file named after
 C<daemon> is ignored.
 
@@ -328,8 +336,9 @@ B<Start the production server:>
     hypnotoad script/database-bi      # start, or restart with no downtime
     hypnotoad -s script/database-bi   # stop
 
-It listens on port 8080 and ignores C<MOJO_LISTEN>; set the port and anything
-else in C<database_bi.conf>, under C<< hypnotoad => { listen => ['http://*:3000'] } >>.
+It listens on port 8080 of this machine only and ignores C<MOJO_LISTEN>; set the
+port and anything else in C<database_bi.conf>, under
+C<< hypnotoad => { listen => ['http://*:8080'] } >> (C<*> opens it to every machine).
 It keeps its process id in F<script/hypnotoad.pid> unless C<pid_file> says
 otherwise.  It takes no database on its command line: use
 C<BI_OPEN=/full/path/store.db hypnotoad script/database-bi>.
@@ -1324,6 +1333,30 @@ application directory is read-only can stage uploads somewhere writable:
 
     { uploads_dir => '/var/tmp/database-bi-uploads' }
 
+=head2 Who can reach the server
+
+A server started by C<script/database-bi> (with no arguments, a database, or
+C<daemon> or C<prefork>) listens on C<http://127.0.0.1:3000>, so only this
+machine can reach it: the application has no login, and Mojolicious on its own
+would listen on every interface.  C<listen> changes that:
+
+    { listen => 'http://127.0.0.1:8000' }             # another port, still this machine only
+    { listen => 'http://*:3000' }                     # every machine that can reach this one
+    { listen => ['http://127.0.0.1:3000', 'http://[::1]:3000'] }  # IPv6 loopback too
+
+It takes a location, several separated by commas, or a list.  A location
+that is not C<http://> or C<https://> stops the start.  C<MOJO_LISTEN> and the
+C<-l> option of C<daemon> and C<prefork> still win over it.
+C<morbo script/database-bi> opens its port before it loads the application, so
+it does not read C<listen>; give it C<-l>, or run C<script/database-bi>.
+
+C<hypnotoad> reads its own C<< hypnotoad => { listen } >>, which defaults to
+C<http://127.0.0.1:8080>, this machine only:
+
+    { hypnotoad => { listen => ['http://*:8080'] } }  # every machine
+
+Behind a reverse proxy on the same machine, leave both at their defaults.
+
 =head2 MariaDB and MySQL servers
 
 A server is opened by name.  Each entry of C<mariadb_servers> is one database:
@@ -1577,6 +1610,10 @@ public D3 URL.
 Nothing useful is returned.  By the time it returns, the application has:
 
 =over 4
+
+=item * C<MOJO_LISTEN> set from C<listen> (default C<http://127.0.0.1:3000>) when it
+was unset, and C<< hypnotoad => { listen } >> defaulted to C<http://127.0.0.1:8080>
+(see L</Who can reach the server>); a C<listen> that is not a location croaks;
 
 =item * a 50 MiB limit on request bodies (an upload over it is answered C<413>);
 
@@ -2020,6 +2057,15 @@ sub startup ($self) {
 	_check_strict_transport_security($self->config('strict_transport_security'));
 	_check_permissions_policy($self->config('permissions_policy'));
 	_check_cross_origin_opener_policy($self->config('cross_origin_opener_policy'));
+
+	# Only this machine can reach a server unless the configuration says
+	# otherwise.  Mojolicious's own default is every interface, which put an
+	# application with no login on the local network.  -l and MOJO_LISTEN still
+	# win: the daemon and prefork commands read MOJO_LISTEN only when started,
+	# after this, and -l replaces it.
+	my @listen = _listen_locations($self->config('listen'));
+	$ENV{MOJO_LISTEN} = join(',', @listen) unless length($ENV{MOJO_LISTEN} // '');
+	_default_hypnotoad_listen($self->config);
 
 	my $secrets = $self->config('secrets');
 	$self->secrets((ref($secrets) eq 'ARRAY' && @{$secrets})
@@ -2626,6 +2672,46 @@ sub _check_strict_transport_security {
 	return if !ref $value && $value =~ $HSTS_RE;
 	croak sprintf("strict_transport_security: '%s' is not a header value such as 'max-age=31536000'"
 		. ' (optionally with includeSubDomains and preload), or 0 for none', ref $value ? ref $value : $value);
+}
+
+# _listen_locations( $value ) -> @locations
+#
+# Purpose: Where a server started without -l or MOJO_LISTEN listens.
+# Entry:   Config listen: undef, a location such as 'http://*:3000', several
+#          separated by commas, or an arrayref of them.
+# Exit:    The locations, $DEFAULT_LISTEN when none is given; croaks on
+#          anything that is not a location, since a server that listens
+#          somewhere other than intended is a security setting gone wrong.
+sub _listen_locations {
+	my ($value) = @_;
+	return ($DEFAULT_LISTEN) unless defined $value;
+
+	my @locations = ref($value) eq 'ARRAY' ? @{$value} : ref($value) ? ($value) : split(/,/, $value);
+	croak "listen: give one or more locations, such as 'http://127.0.0.1:3000' or 'http://*:3000'"
+		unless @locations;
+	for my $location (@locations) {
+		croak sprintf("listen: '%s' is not a location such as 'http://127.0.0.1:3000' or 'http://*:3000'",
+			ref($location) || $location // 'undef')
+			unless defined $location && !ref $location && $location =~ m{\Ahttps?://[^\s,]+\z};
+	}
+	return @locations;
+}
+
+# _default_hypnotoad_listen( $config ) -> void
+#
+# Purpose: Make hypnotoad listen on this machine only unless told otherwise.
+# Entry:   The application's config hashref.
+# Exit:    hypnotoad => { listen } is $DEFAULT_HYPNOTOAD_LISTEN when it was
+#          unset; a hypnotoad entry that is not a hash is left for hypnotoad.
+#
+# Hypnotoad reads hypnotoad => { listen } after loading the application, and
+# ignores MOJO_LISTEN; without one it would listen on every interface.
+sub _default_hypnotoad_listen {
+	my ($config) = @_;
+	my $hypnotoad = $config->{hypnotoad} //= {};
+	return unless ref($hypnotoad) eq 'HASH';
+	$hypnotoad->{listen} //= [$DEFAULT_HYPNOTOAD_LISTEN];
+	return;
 }
 
 # _new_nonce() -> $nonce

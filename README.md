@@ -191,7 +191,9 @@ a join cannot be given on the command line, so open one and use Merge or Combine
 in the browser.  A file that is missing, cannot be read or is of an unsupported
 type is the same error, before the server starts.  A remote path, Redis spec or
 MariaDB spec is accepted as it would be by `/open`, and is checked when it is first shown.
-Use `MOJO_LISTEN` to choose the port.  A plain server does the same with
+It listens on port 3000 of this machine only (`http://127.0.0.1:3000`); see
+["Who can reach the server"](#who-can-reach-the-server) to change the port or open it to other machines.
+A plain server does the same with
 `BI_OPEN=/full/path/store.db script/database-bi daemon`; a file named after
 `daemon` is ignored.
 
@@ -202,8 +204,9 @@ hypnotoad script/database-bi      # start, or restart with no downtime
 hypnotoad -s script/database-bi   # stop
 ```
 
-It listens on port 8080 and ignores `MOJO_LISTEN`; set the port and anything
-else in `database_bi.conf`, under `hypnotoad => { listen => ['http://*:3000'] }`.
+It listens on port 8080 of this machine only and ignores `MOJO_LISTEN`; set the
+port and anything else in `database_bi.conf`, under
+`hypnotoad => { listen => ['http://*:8080'] }` (`*` opens it to every machine).
 It keeps its process id in `script/hypnotoad.pid` unless `pid_file` says
 otherwise.  It takes no database on its command line: use
 `BI_OPEN=/full/path/store.db hypnotoad script/database-bi`.
@@ -1254,6 +1257,34 @@ application directory is read-only can stage uploads somewhere writable:
 { uploads_dir => '/var/tmp/database-bi-uploads' }
 ```
 
+### Who Can Reach the Server
+
+A server started by `script/database-bi` (with no arguments, a database, or
+`daemon` or `prefork`) listens on `http://127.0.0.1:3000`, so only this
+machine can reach it: the application has no login, and Mojolicious on its own
+would listen on every interface.  `listen` changes that:
+
+```perl
+{ listen => 'http://127.0.0.1:8000' }             # another port, still this machine only
+{ listen => 'http://*:3000' }                     # every machine that can reach this one
+{ listen => ['http://127.0.0.1:3000', 'http://[::1]:3000'] }  # IPv6 loopback too
+```
+
+It takes a location, several separated by commas, or a list.  A location
+that is not `http://` or `https://` stops the start.  `MOJO_LISTEN` and the
+`-l` option of `daemon` and `prefork` still win over it.
+`morbo script/database-bi` opens its port before it loads the application, so
+it does not read `listen`; give it `-l`, or run `script/database-bi`.
+
+`hypnotoad` reads its own `hypnotoad => { listen }`, which defaults to
+`http://127.0.0.1:8080`, this machine only:
+
+```perl
+{ hypnotoad => { listen => ['http://*:8080'] } }  # every machine
+```
+
+Behind a reverse proxy on the same machine, leave both at their defaults.
+
 ### MariaDB and MySQL Servers
 
 A server is opened by name.  Each entry of `mariadb_servers` is one database:
@@ -1522,6 +1553,9 @@ public D3 URL.
 
 Nothing useful is returned.  By the time it returns, the application has:
 
+- `MOJO_LISTEN` set from `listen` (default `http://127.0.0.1:3000`) when it
+was unset, and `hypnotoad => { listen }` defaulted to `http://127.0.0.1:8080`
+(see ["Who can reach the server"](#who-can-reach-the-server)); a `listen` that is not a location croaks;
 - a 50 MiB limit on request bodies (an upload over it is answered `413`);
 - Template Toolkit registered as handler `tt`, and the Buffer plugin
 (see ["Compression and the page cache"](#compression-and-the-page-cache));

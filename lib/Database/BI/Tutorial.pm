@@ -1037,6 +1037,10 @@ my @FAQ = (
 		answer   => 'Only on the sites that whoever runs the program has listed. The Share panel names them. On any other site the canvas is refused, so send the share link instead.',
 	},
 	{
+		question => 'Can someone on another computer open it?',
+		answer   => 'Not at first: the program answers only the computer it runs on. Whoever runs it can open it to others by setting listen in the configuration file.',
+	},
+	{
 		question => 'A chart says it cannot be drawn.',
 		answer   => 'The page says why, for example a column that the view does not have. Click Back, then choose other columns.',
 	},

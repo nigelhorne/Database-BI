@@ -52,6 +52,14 @@ Revision history for Database-BI
 	  value ('' or 0 for none); an unknown one stops the start.  The footer's
 	  link to GitHub, the one target=_blank link without it, is now
 	  rel="noopener".
+	- A server listens on this machine only: script/database-bi, daemon and
+	  prefork on http://127.0.0.1:3000, hypnotoad on http://127.0.0.1:8080.
+	  Mojolicious's default is every interface, which put an application with
+	  no login on the local network.  listen (a location, several separated
+	  by commas, or a list) changes the port, or opens it with
+	  'http://*:3000'; hypnotoad => { listen } does the same for hypnotoad.
+	  A listen that is not an http or https location stops the start.  -l
+	  and MOJO_LISTEN still win.
 	- Every reply carries a Permissions-Policy that turns off the browser
 	  features no page uses (camera, microphone, location, payment, USB,
 	  serial, HID, screen capture, full screen, reading the clipboard and
@@ -89,6 +97,10 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/launcher.t checks where a server listens by default and with listen,
+	  that MOJO_LISTEN and hypnotoad's own listen are kept, that a bad listen
+	  stops the start, and that the launcher and daemon on 127.0.0.1 answer
+	  this machine and not its network address, while on * they answer both.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026
 	[ Enhancements ]
