@@ -1,6 +1,17 @@
 Revision history for Database-BI
 
-0.020.1
+0.021.0
+	[ Enhancements ]
+	- embed_frame_ancestors => [ 'https://intranet.example.com', ... ] lets
+	  those sites show /embed/:id in a frame, and no other page.  Each entry
+	  must be an origin (a scheme, a host, an optional port; * only as the
+	  first label), or the application does not start.  However the policy is
+	  configured (report-only, none, or one without frame-ancestors), an
+	  enforced frame-ancestors names them, so naming one site never lets
+	  every site in.  The Share panel names the sites its embed code works on.
+	- content_security_policy_report_only => 1 sends the policy as
+	  Content-Security-Policy-Report-Only, and content_security_policy sets
+	  the whole policy ('' or 0 sends none; {nonce} in it becomes the nonce).
 	[ Bug fixes ]
 	- Every HTML page is sent with a Content-Security-Policy.  The pages show
 	  cells from files the application did not write, and HTML::D3 before 0.27
@@ -25,16 +36,6 @@ Revision history for Database-BI
 	  frame-ancestors, with content_security_policy set to '' or to a policy
 	  without frame-ancestors, and in browsers that read only that header,
 	  another site could frame any page and lure a reader into clicking it.
-	- embed_frame_ancestors => [ 'https://intranet.example.com', ... ] lets
-	  those sites show /embed/:id in a frame, and no other page.  Each entry
-	  must be an origin (a scheme, a host, an optional port; * only as the
-	  first label), or the application does not start.  However the policy is
-	  configured (report-only, none, or one without frame-ancestors), an
-	  enforced frame-ancestors names them, so naming one site never lets
-	  every site in.  The Share panel names the sites its embed code works on.
-	- content_security_policy_report_only => 1 sends the policy as
-	  Content-Security-Policy-Report-Only, and content_security_policy sets
-	  the whole policy ('' or 0 sends none; {nonce} in it becomes the nonce).
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
 	[ Tests ]

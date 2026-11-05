@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.020.1';
+our $VERSION = '0.021.0';
 
 =head1 NAME
 
