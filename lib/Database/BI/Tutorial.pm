@@ -1071,6 +1071,10 @@ my @FAQ = (
 		answer   => 'The page is on this computer or a private network, and the program only reads pages on the public internet. Whoever runs it can name intranet sites it may read.',
 	},
 	{
+		question => 'Export says exports are saved only in the export folders.',
+		answer   => 'Whoever runs the program has chosen the folders exports go to. The Export panel opens on one of them, so save there.',
+	},
+	{
 		question => 'Export will not save into a folder whose name starts with a dot.',
 		answer   => 'Those folders hold settings for other programs, so saving there is refused. Choose another folder.',
 	},

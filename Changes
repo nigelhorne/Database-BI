@@ -123,6 +123,21 @@ Revision history for Database-BI
 	  trusts the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's proxy => 1).
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
+	- POST /export wrote through a link: a link inside the allowed folders
+	  (file_roots) to a file outside them, or to a dot-file, had the export
+	  written there, past both checks.  An export now never replaces a link,
+	  a folder or anything but a plain file (403), and is written to a
+	  temporary file beside its name and renamed into place, so a link made
+	  after the check is replaced, not followed, and nobody reads half a
+	  file.  A file it replaces keeps its permissions, as before.
+	- export_dirs => [ '/srv/reports/exports' ] confines exports to those
+	  folders: POST /export saves only in them or below, and the Export
+	  panel opens on the first and lists no other.  Reading is still
+	  file_roots' business.  An export replaces a file of the same name, and
+	  some .json files are settings another program obeys (package.json),
+	  so a server other people use must set it: with password_hash set and
+	  no export_dirs, the start stops, saying what to add.  A folder that
+	  does not exist, is outside file_roots or is a dot-folder stops it too.
 	- /api/ask and /api/summary?ai=1 spend ai_api_key on every call, and
 	  nothing bounded how often or how much: a question could be as long as
 	  a request, and a summary's cache is missed by changing a filter.  A
@@ -177,6 +192,14 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/file-roots.t checks that an export does not write through a link
+	  (the file it points to is unchanged), nor replace a folder, leaves no
+	  temporary file, gives a new file the usual mode and a replaced one its
+	  own; and that export_dirs confines exports and the folder list, even
+	  inside file_roots, opens the panel there, and its startup checks.
+	  t/login.t checks that a password without export_dirs does not start;
+	  its apps, and those of t/launcher.t and t/unit.t with a password, now
+	  name an export folder.
 	- t/ask.t checks that a question over 500 characters is not sent, that
 	  the hour's budget is shared by Ask and Summary, that Ask then answers
 	  429 and Summary the uncached template, that 0 means no limit, and the

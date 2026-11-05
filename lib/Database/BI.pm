@@ -1415,6 +1415,23 @@ past what exists is refused too.  A root that is not a folder that exists stops
 the start.  Remote files (C</../host/...>), Redis and MariaDB are not files on
 this machine, and are not affected; neither are the command-line tools.
 
+Saving is the riskier half: an export replaces a C<.csv>, C<.json> or C<.sql>
+file of the same name, and some such files are settings another program obeys
+(a project's F<package.json> names commands that C<npm> runs).  A server other
+people use keeps exports to folders of their own, so with C<password_hash> set,
+C<export_dirs> is required, and the start stops without it:
+
+    { export_dirs => ['/srv/reports/exports'] }   # a relative one is under the application home
+
+C<POST /export> then saves only in them (or below them), and the Export panel
+opens on the first and lists no other.  Reading is unaffected: that is
+C<file_roots>.  An export folder that does not exist, is outside C<file_roots>
+or is a dot-folder stops the start.  Whatever is set, an export never replaces
+a link, a folder or anything else that is not a plain file, so a link inside
+the allowed folders cannot carry it outside them; it is written beside its name
+and renamed into place, so nobody reads half a file, and a file it replaces
+keeps its permissions.
+
 =head2 Requests from other sites
 
 Unless a password is set (see L</Logging in>), there is no login: whatever can
@@ -1517,6 +1534,7 @@ start.
 
     {
         password_hash    => 'pbkdf2-sha256$200000$...',
+        export_dirs      => ['/srv/reports/exports'],   # required with a password
         login_expiration => 8 * 60 * 60,   # seconds idle before logging out; the default
         secrets          => ['a long random string'],  # or each restart logs everyone out
     }
@@ -1787,7 +1805,7 @@ Nothing useful is returned.  By the time it returns, the application has:
 front of every route but the login, share and embed links (see
 L</Logging in>); a C<password_hash> that is not a hash, or a C<login_expiration>
 under 60 seconds, croaks; so does a C<listen> other machines could reach when
-there is no password;
+there is no password, and a password without C<export_dirs>;
 
 =item * a C<file_roots> that is not a list of folders that exist croaks (see
 L</Which folders it may use>); so does a C<url_private_hosts> that is not a
@@ -1995,7 +2013,8 @@ run the server from.  An absolute path works on any system:
 =item B<The download_dir default is computed once at startup>
 
 When the application starts, it picks the export directory in this order:
-C<~/Downloads> (if it exists), then C<$HOME>, then the system temp directory.
+the first of C<export_dirs> (if set), C<~/Downloads> (if it exists), then
+C<$HOME>, then the system temp directory.
 This value is fixed for the life of the process.  Renaming or creating
 C<~/Downloads> after the server starts has no effect.  To force a different
 default, set it before starting:
@@ -2257,9 +2276,11 @@ sub startup ($self) {
 	_check_file_roots($self->config('file_roots'), $self->home);
 	_check_url_private_hosts($self->config('url_private_hosts'));
 	_check_share_secret($self->config('share_secret'));
+	_check_export_dirs($self, $self->config('export_dirs'));
 	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
 		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A\d+\z/;
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
+	_require_export_dirs_with_password($self->config('password_hash'), $self->config('export_dirs'));
 
 	# Only this machine can reach a server unless the configuration says
 	# otherwise.  Mojolicious's own default is every interface, which put an
@@ -2297,9 +2318,15 @@ sub startup ($self) {
 	# Default export/save directory: ~/Downloads when it exists, else HOME,
 	# else system tmpdir.  Resolved once per process and stored as a stash
 	# default so every action can read $self->stash('download_dir').
+	# With export_dirs, the first of them: the panel would open on a refusal.
 	my $home   = $ENV{HOME} // '';
 	my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
 	           : ($home || File::Spec->tmpdir());
+	my $exports = $self->config('export_dirs');
+	if (ref($exports) eq 'ARRAY' && @{$exports}) {
+		my $first = $exports->[0];
+		$dl_dir = File::Spec->file_name_is_absolute($first) ? $first : $self->home->child($first)->to_string;
+	}
 	$self->defaults(download_dir => $dl_dir);
 
 	# Register the TT plugin as 'tt' (not the default 'tt2') so that template
@@ -2919,6 +2946,23 @@ sub _check_strict_transport_security {
 		. ' (optionally with includeSubDomains and preload), or 0 for none', ref $value ? ref $value : $value);
 }
 
+# _require_export_dirs_with_password( $hash, $export_dirs ) -> void
+#
+# Purpose: A server with a login is one other people use, so their exports
+#          must be kept to folders of their own.  Anywhere else, an export can
+#          replace a .json or .csv another program obeys (a project's
+#          package.json names commands npm runs) as the account running the
+#          server.
+# Entry:   Config password_hash and export_dirs (already checked).
+# Exit:    Returns; croaks when there is a password and no export_dirs.
+sub _require_export_dirs_with_password {
+	my ($hash, $dirs) = @_;
+	return unless defined $hash && !ref $hash && length $hash;
+	return if ref($dirs) eq 'ARRAY' && @{$dirs};
+	croak "export_dirs: with password_hash set, other people can save exports, so keep them to folders of their own: "
+		. "add export_dirs => ['/srv/reports/exports'] to database_bi.conf (see \"Which folders it may use\" in perldoc Database::BI)";
+}
+
 # _check_login( $hash, $expiration ) -> void
 #
 # Purpose: Refuse a login configuration that would not do what it says.
@@ -3031,6 +3075,36 @@ sub _check_file_roots {
 			unless defined $root && !ref $root && length $root;
 		my $dir = File::Spec->file_name_is_absolute($root) ? $root : $home->child($root)->to_string;
 		croak "file_roots: '$root' is not a folder that exists" unless -d $dir;
+	}
+	return;
+}
+
+# _check_export_dirs( $app, $value ) -> void
+#
+# Purpose: Refuse an export_dirs that would not confine exports as it says.
+# Entry:   Config export_dirs: undef or [] (anywhere file_roots allows), or a
+#          list of folders, relative ones under the application home.
+# Exit:    Returns; croaks on what is not such a list, a folder that does not
+#          exist, or one outside file_roots, where nothing could be saved.
+sub _check_export_dirs {
+	my ($app, $value) = @_;
+	return unless defined $value;
+	croak "export_dirs: give a list of folders, such as ['/srv/exports']" unless ref($value) eq 'ARRAY';
+	for my $dir (@{$value}) {
+		croak sprintf("export_dirs: '%s' is not a folder name", ref($dir) || $dir // 'undef')
+			unless defined $dir && !ref $dir && length $dir;
+		my $path = File::Spec->file_name_is_absolute($dir) ? $dir : $app->home->child($dir)->to_string;
+		croak "export_dirs: '$dir' is not a folder that exists" unless -d $path;
+		require Database::BI::Controller::Dashboard;
+		my $roots = $app->config('file_roots');
+		if (ref($roots) eq 'ARRAY' && @{$roots}) {
+			my @real = Database::BI::Controller::Dashboard::_real_folders($app->build_controller, $roots,
+				Database::BI::Controller::Dashboard::_data_dir_for($app), $app->_uploads_dir);
+			croak "export_dirs: '$dir' is outside file_roots, so nothing could be saved there"
+				unless Database::BI::Controller::Dashboard::_inside_any($path, @real);
+		}
+		croak "export_dirs: '$dir' is a dot-folder, where exports are never saved"
+			if grep { /\A\./ && $_ ne '.' && $_ ne '..' } File::Spec->splitdir(Mojo::File->new($path)->realpath->to_string);
 	}
 	return;
 }

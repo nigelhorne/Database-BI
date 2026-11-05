@@ -24,8 +24,11 @@ my $PASSWORD = 'correct horse';
 my $HASH     = hash_password($PASSWORD, rounds => 10_000);
 my $HTML     = { Accept => 'text/html' };
 
+# A password needs export_dirs (see 'a password keeps exports to their
+# folders'), so an app with one gets a folder unless the test names its own.
 sub app_with {
 	my (%config) = @_;
+	$config{export_dirs} //= [ tempdir(CLEANUP => 1) ] if $config{password_hash} && !exists $config{export_dirs};
 	return Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1), %config });
 }
 
@@ -246,6 +249,20 @@ subtest 'a share link cannot be made without the key' => sub {
 	$u->post_ok('/logout');
 	$u->get_ok("/share/$id?token=" . $sign->($id, 'sixteen chars ok'), $HTML)
 		->status_is(200, 'share_secret is the key, as before, so links made with it still work');
+};
+
+subtest 'a password keeps exports to their folders' => sub {
+	throws_ok { app_with(password_hash => $HASH, export_dirs => undef) }
+		qr/export_dirs: with password_hash set, other people can save exports.*add export_dirs =>/,
+		'a password without export_dirs stops the start, saying what to add';
+	throws_ok { app_with(password_hash => $HASH, export_dirs => []) } qr/export_dirs: with password_hash/, 'so does an empty list';
+	my $exports = tempdir(CLEANUP => 1);
+	my $t = app_with(password_hash => $HASH, export_dirs => [$exports]);
+	log_in($t, $PASSWORD);
+	$t->post_ok('/export' => form => { l => 'table:sales', dir => $exports, filename => 'a.csv' })->status_is(200);
+	$t->post_ok('/export' => form => { l => 'table:sales', dir => tempdir(CLEANUP => 1), filename => 'a.csv' })
+		->status_is(403, 'and anywhere else is refused');
+	lives_ok { app_with(export_dirs => undef) } 'without a password, nothing changes';
 };
 
 subtest 'startup' => sub {

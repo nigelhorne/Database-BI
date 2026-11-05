@@ -144,6 +144,8 @@ Readonly my %MESSAGES => (
 	error_login_locked     => 'Too many wrong passwords from this address. Try again in %d minutes.',
 	error_hidden_target    => 'Refused to save into "%s": a hidden file or folder (one whose name starts with a dot) holds settings, not exports.',
 	error_outside_roots    => 'Refused: "%s" is outside the folders this server may use (file_roots in database_bi.conf).',
+	error_outside_export_dirs => 'Refused: exports are saved only in the export folders (export_dirs in database_bi.conf), and "%s" is not one of them.',
+	error_export_not_file  => 'Refused: "%s" is already there and is not a plain file, so an export does not replace it.',
 	error_remote_needs_password => 'Refused: this server has no password, so it answers only the machine it runs on. Whoever runs it can set one with "script/database-bi password".',
 	error_cross_site       => 'Refused: this request came from another site (%s). Only pages of this application can change what it keeps or write files.',
 	error_host_refused     => 'Refused: this server does not answer to the name "%s". Open it as localhost or by its IP address, or add the name to allowed_hosts in database_bi.conf.',
@@ -537,16 +539,62 @@ sub _i18n :Protected ($self, $key, @args) {
 sub _file_roots :Protected ($self) {
 	my $roots = $self->app->config('file_roots');
 	return () unless ref($roots) eq 'ARRAY' && @{$roots};
+	return _real_folders($self, $roots, _data_dir_for($self->app), $self->app->_uploads_dir);
+}
+
+# _export_dirs($self) -> @realpaths
+#
+# Config export_dirs, as realpaths: the only folders POST /export may write
+# in, and the Export panel may list, when set.  Empty when unset.
+sub _export_dirs :Protected ($self) {
+	my $dirs = $self->app->config('export_dirs');
+	return () unless ref($dirs) eq 'ARRAY' && @{$dirs};
+	return _real_folders($self, $dirs);
+}
+
+# _real_folders($self, \@configured, @always) -> @realpaths
+#
+# The configured folders (relative ones under the application home) and
+# @always, resolved, without repeats.  A list none of which resolves gives a
+# folder that cannot exist, so that it fences everything out rather than
+# nothing.
+sub _real_folders {
+	my ($self, $list, @always) = @_;
 	my $home = $self->app->home;
 	my @dirs = map { File::Spec->file_name_is_absolute($_) ? Mojo::File->new($_) : $home->child($_) }
-		grep { defined && !ref && length } @{$roots};
-	push @dirs, _data_dir_for($self->app), $self->app->_uploads_dir;
+		grep { defined && !ref && length } @{$list};
 	my (%seen, @real);
-	for my $dir (@dirs) {
+	for my $dir (@dirs, @always) {
 		my $real = eval { $dir->realpath->to_string } // next;
 		push @real, $real unless $seen{$real}++;
 	}
 	return @real ? @real : ('/nonexistent-file-root');
+}
+
+# _inside_any($path, @folders) -> 1 | 0
+#
+# Whether a path, resolved as _resolved_path does, is one of the folders or
+# inside one.
+sub _inside_any {
+	my ($path, @folders) = @_;
+	my $abs = defined $path && length $path ? _resolved_path($path) : undef;
+	return 0 unless defined $abs;
+	my $sep = $^O eq 'MSWin32' ? '\\' : '/';
+	for my $root (@folders) {
+		return 1 if $root eq File::Spec->rootdir || $abs eq $root
+			|| index($abs, $root =~ m{[/\\]\z} ? $root : $root . $sep) == 0;
+	}
+	return 0;
+}
+
+# _outside_export_dirs($self, $path) -> $message | undef
+#
+# Purpose: Refuse an export folder outside config export_dirs.
+# Exit:    undef when export_dirs is unset or the folder is inside one.
+sub _outside_export_dirs :Protected ($self, $path) {
+	my @dirs = _export_dirs($self) or return undef;
+	return undef if _inside_any($path, @dirs);
+	return sprintf($MESSAGES{error_outside_export_dirs}, $path // '');
 }
 
 # _resolved_path($path) -> $absolute | undef
@@ -583,14 +631,7 @@ sub _resolved_path {
 #          error_outside_roots naming the path as it was given.
 sub _outside_roots :Protected ($self, $path) {
 	my @roots = _file_roots($self) or return undef;
-	my $abs   = defined $path && length $path ? _resolved_path($path) : undef;
-	if (defined $abs) {
-		my $sep = $^O eq 'MSWin32' ? '\\' : '/';
-		for my $root (@roots) {
-			return undef if $root eq File::Spec->rootdir || $abs eq $root
-				|| index($abs, $root =~ m{[/\\]\z} ? $root : $root . $sep) == 0;
-		}
-	}
+	return undef if _inside_any($path, @roots);
 	return sprintf($MESSAGES{error_outside_roots}, $path // '');
 }
 
@@ -8913,7 +8954,7 @@ sub export_write ($self) {
 	my $dir      = $self->param('dir')      // '';
 	my $filename = $self->param('filename') // '';
 
-	if (my $refusal = _outside_roots($self, $dir)) {
+	if (my $refusal = _outside_roots($self, $dir) // _outside_export_dirs($self, $dir)) {
 		return $self->render(json => { error => $refusal }, status => 403);
 	}
 	my $dest_dir = eval { Mojo::File->new($dir)->realpath };
@@ -8957,21 +8998,38 @@ sub export_write ($self) {
 		unless $records;
 
 	my $dest = $dest_dir->child($filename);
-	eval {
-		if ($format eq 'csv') {
-			$dest->spurt(_serialize_csv($records, $columns));
-		}
-		elsif ($format eq 'json') {
-			$dest->spurt(encode_json($records));
-		}
-		else {
-			$dest->spurt($self->_write_sqlite_db($records, $columns));
-		}
+	# A link (or a folder, a pipe) already at the name is not replaced: written
+	# through, a link inside the folders would put the export wherever it
+	# points, outside file_roots or export_dirs, or into a dot-file.
+	if (-l $dest || (-e $dest && !-f $dest)) {
+		return $self->render(json => { error => sprintf($MESSAGES{error_export_not_file}, $dest->to_string) }, status => 403);
+	}
+	my $tmp;
+	my $ok = eval {
+		my $bytes = $format eq 'csv' ? _serialize_csv($records, $columns)
+		          : $format eq 'json' ? encode_json($records)
+		          : $self->_write_sqlite_db($records, $columns);
+		# Written beside it and renamed over it: a rename replaces whatever
+		# is at the name, a link made since the check included, and never
+		# follows it, and a reader never sees half a file.
+		(my $fh, $tmp) = tempfile('.bi-export-XXXXXXXX', DIR => $dest_dir->to_string, UNLINK => 0);
+		binmode $fh;
+		print {$fh} $bytes or croak "$tmp: $!";
+		close $fh or croak "$tmp: $!";
+		# tempfile makes it 0600: give it the mode of the file it replaces, as
+		# writing over that one did, or the mode a new file gets.
+		my @old = stat $dest->to_string;
+		chmod(@old ? $old[2] & oct('7777') : 0666 & ~umask(), $tmp);
+		rename $tmp, $dest->to_string or croak "$dest: $!";
+		undef $tmp;
+		1;
 	};
+	my $err = $@;
+	unlink $tmp if defined $tmp;
 	return $self->render(
-		json   => { error => $self->_i18n('error_write_failed', _tidy_error($@)) },
+		json   => { error => $self->_i18n('error_write_failed', _tidy_error($err)) },
 		status => 500,
-	) if $@;
+	) unless $ok;
 
 	$self->render(json => { saved => $dest->to_string });
 }
@@ -9017,8 +9075,8 @@ None beyond the 404 response.
 =cut
 
 sub dirs_api ($self) {
-	my $raw = $self->param('path') // _first_root($self);
-	if (my $refusal = _outside_roots($self, $raw)) {
+	my $raw = $self->param('path') // (_export_dirs($self))[0] // _first_root($self);
+	if (my $refusal = _outside_roots($self, $raw) // _outside_export_dirs($self, $raw)) {
 		return $self->render(json => { error => $refusal }, status => 403);
 	}
 	my $dir = eval { Mojo::File->new($raw)->realpath };
@@ -9027,7 +9085,8 @@ sub dirs_api ($self) {
 
 	my $listing = $self->_list_dir($dir, 0);
 	my $parent  = $dir->dirname;
-	my $up      = $parent->to_string ne $dir->to_string && !_outside_roots($self, $parent->to_string);
+	my $up      = $parent->to_string ne $dir->to_string && !_outside_roots($self, $parent->to_string)
+		&& !_outside_export_dirs($self, $parent->to_string);
 
 	$self->render(json => {
 		path   => $dir->to_string,

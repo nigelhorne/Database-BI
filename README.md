@@ -1340,6 +1340,25 @@ past what exists is refused too.  A root that is not a folder that exists stops
 the start.  Remote files (`/../host/...`), Redis and MariaDB are not files on
 this machine, and are not affected; neither are the command-line tools.
 
+Saving is the riskier half: an export replaces a `.csv`, `.json` or `.sql`
+file of the same name, and some such files are settings another program obeys
+(a project's `package.json` names commands that `npm` runs).  A server other
+people use keeps exports to folders of their own, so with `password_hash` set,
+`export_dirs` is required, and the start stops without it:
+
+```perl
+{ export_dirs => ['/srv/reports/exports'] }   # a relative one is under the application home
+```
+
+`POST /export` then saves only in them (or below them), and the Export panel
+opens on the first and lists no other.  Reading is unaffected: that is
+`file_roots`.  An export folder that does not exist, is outside `file_roots`
+or is a dot-folder stops the start.  Whatever is set, an export never replaces
+a link, a folder or anything else that is not a plain file, so a link inside
+the allowed folders cannot carry it outside them; it is written beside its name
+and renamed into place, so nobody reads half a file, and a file it replaces
+keeps its permissions.
+
 ### Requests From Other Sites
 
 Unless a password is set (see ["Logging in"](#logging-in)), there is no login: whatever can
@@ -1446,6 +1465,7 @@ start.
 ```perl
 {
     password_hash    => 'pbkdf2-sha256$200000$...',
+    export_dirs      => ['/srv/reports/exports'],   # required with a password
     login_expiration => 8 * 60 * 60,   # seconds idle before logging out; the default
     secrets          => ['a long random string'],  # or each restart logs everyone out
 }
@@ -1731,7 +1751,7 @@ Nothing useful is returned.  By the time it returns, the application has:
 front of every route but the login, share and embed links (see
 ["Logging in"](#logging-in)); a `password_hash` that is not a hash, or a `login_expiration`
 under 60 seconds, croaks; so does a `listen` other machines could reach when
-there is no password;
+there is no password, and a password without `export_dirs`;
 - a `file_roots` that is not a list of folders that exist croaks (see
 ["Which folders it may use"](#which-folders-it-may-use)); so does a `url_private_hosts` that is not a
 list of host names (see ["Which addresses it may fetch"](#which-addresses-it-may-fetch));
@@ -1941,7 +1961,8 @@ the same and shows that database, with a command word it runs that command, and 
 - **The download\_dir default is computed once at startup**
 
     When the application starts, it picks the export directory in this order:
-    `~/Downloads` (if it exists), then `$HOME`, then the system temp directory.
+    the first of `export_dirs` (if set), `~/Downloads` (if it exists), then
+    `$HOME`, then the system temp directory.
     This value is fixed for the life of the process.  Renaming or creating
     `~/Downloads` after the server starts has no effect.  To force a different
     default, set it before starting:

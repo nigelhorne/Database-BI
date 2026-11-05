@@ -325,7 +325,7 @@ subtest 'where a server listens' => sub {
 
 	# Every interface needs a password (t/login.t checks the refusal).
 	my $hash = do { require Database::BI::Password; Database::BI::Password::hash_password('pw', rounds => 10_000) };
-	($env) = $listen_of->({ listen => 'http://*:3000', password_hash => $hash });
+	($env) = $listen_of->({ listen => 'http://*:3000', password_hash => $hash, export_dirs => [$tmp] });
 	is $env, 'http://*:3000', 'listen opens it to every machine';
 	($env) = $listen_of->({ listen => ['http://127.0.0.1:4000', 'http://[::1]:4000'] });
 	is $env, 'http://127.0.0.1:4000,http://[::1]:4000', 'or names several places';
@@ -340,7 +340,7 @@ subtest 'where a server listens' => sub {
 
 	{
 		local $ENV{MOJO_LISTEN} = 'http://127.0.0.1:4001';
-		Test::Mojo->new('Database::BI', { listen => 'http://*:3000', password_hash => $hash });
+		Test::Mojo->new('Database::BI', { listen => 'http://*:3000', password_hash => $hash, export_dirs => [$tmp] });
 		is $ENV{MOJO_LISTEN}, 'http://127.0.0.1:4001', 'MOJO_LISTEN beats the configuration';
 	}
 
@@ -376,7 +376,7 @@ SKIP: {
 		my $port   = Mojo::IOLoop::Server->generate_port;
 		my $config = File::Spec->catfile($tmp, 'listen.conf');
 		open my $cfh, '>', $config or BAIL_OUT("cannot write $config: $!");
-		print {$cfh} "{ listen => ['http://$where:$port']", ($password ? ", password_hash => '$hash'" : ''), " }\n";
+		print {$cfh} "{ listen => ['http://$where:$port']", ($password ? ", password_hash => '$hash', export_dirs => ['$tmp']" : ''), " }\n";
 		close $cfh;
 
 		local $ENV{MOJO_CONFIG}    = $config;

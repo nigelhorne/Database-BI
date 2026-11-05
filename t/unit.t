@@ -3162,7 +3162,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 
 		# The login, on only with password_hash.
 		require Database::BI::Password;
-		my $tl = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1),
+		my $tl = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1), export_dirs => [ tempdir(CLEANUP => 1) ],
 			password_hash => Database::BI::Password::hash_password('pw', rounds => 10_000) });
 		$tl->get_ok('/calc/list')->status_is(401);
 		message_ok(Dashboard => 'error_login_required', $tl->tx->res->json->{error});
@@ -3378,11 +3378,21 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(Dashboard => 'error_url_fetch', $tm->tx->res->body, ['http://example.invalid/t.html', undef], 1);
 		restore_all();
 
-		mock('Mojo::File::spurt' => $boom);
+		# The export is written to a temporary file beside its name, then renamed.
+		mock('Database::BI::Controller::Dashboard::tempfile' => $boom);
 		my $outdir = tempdir(CLEANUP => 1);
 		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=x.csv')->status_is(500);
 		message_ok(Dashboard => 'error_write_failed', $tm->tx->res->json->{error}, [undef]);
 		restore_all();
+		SKIP: {
+			skip 'no symlinks here', 2 unless eval { symlink("$outdir/elsewhere.csv", "$outdir/link.csv") };
+			$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=link.csv')->status_is(403);
+			message_ok(Dashboard => 'error_export_not_file', $tm->tx->res->json->{error}, ["$outdir/link.csv"]);
+		}
+		$tm->app->config->{export_dirs} = [ tempdir(CLEANUP => 1) ];
+		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=x.csv')->status_is(403);
+		message_ok(Dashboard => 'error_outside_export_dirs', $tm->tx->res->json->{error}, [$outdir]);
+		delete $tm->app->config->{export_dirs};
 
 		mock('Mojo::Upload::move_to' => $boom);
 		$tm->post_ok('/upload' => form => { file => { content => "a,b\n1,2\n", filename => 'x.csv' } })->status_is(500);

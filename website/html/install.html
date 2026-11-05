@@ -205,6 +205,7 @@ hypnotoad -s script/database-bi</code></pre>
 </p>
 <pre><code>{
     password_hash    =&gt; 'pbkdf2-sha256$200000$...',
+    export_dirs      =&gt; ['/srv/reports/exports'],  # required with a password
     login_expiration =&gt; 8 * 60 * 60,            # seconds idle before logging out (the default)
     secrets          =&gt; ['a long random string'], # or each restart logs everyone out
 }</code></pre>
@@ -259,6 +260,17 @@ hypnotoad -s script/database-bi</code></pre>
 	not, so nothing is learnt about it; a link inside that points outside counts as
 	outside. A root that is not an existing folder stops the start. Remote files,
 	Redis and MariaDB are not affected.
+</p>
+<p>
+	Saving replaces a file of the same name, and some <code>.json</code> files are
+	settings other programs obey, such as a project's <code>package.json</code>. A
+	server other people use keeps exports to folders of their own, so with a
+	password set this is required, and the server does not start without it:
+</p>
+<pre><code>{ export_dirs =&gt; ['/srv/reports/exports'] }</code></pre>
+<p>
+	Exports are then saved only there, and the Export panel opens there. An export
+	never replaces a link or a folder, so a link cannot carry it elsewhere.
 </p>
 <p>
 	Export also refuses a folder or file whose name starts with a dot, such as
@@ -409,7 +421,7 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td>unset</td>
 			<td>
 				Turns on the login. Made by <code>script/database-bi password</code>;
-				see <a href="#login">Logging in</a>.
+				needs <code>export_dirs</code>. See <a href="#login">Logging in</a>.
 			</td>
 		</tr>
 		<tr>
@@ -425,6 +437,15 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td><code>login_expiration</code></td>
 			<td><code>28800</code></td>
 			<td>Seconds a login lasts after the last request (at least 60).</td>
+		</tr>
+		<tr>
+			<td><code>export_dirs</code></td>
+			<td>unset</td>
+			<td>
+				The only folders exports are saved in, such as
+				<code>['/srv/reports/exports']</code>. Unset, any folder
+				<code>file_roots</code> allows. Required when <code>password_hash</code> is set. See <a href="#file-roots">Which folders it may use</a>.
+			</td>
 		</tr>
 		<tr>
 			<td><code>allowed_hosts</code></td>

@@ -99,6 +99,73 @@ subtest 'saving' => sub {
 	ok -e "$inner/x.csv", 'written inside';
 };
 
+subtest 'saving does not write through a link' => sub {
+	my $dir    = Mojo::File->new(tempdir(CLEANUP => 1))->realpath;
+	my $target = $out->child('victim.json');
+	$target->spew("untouched\n");
+	SKIP: {
+		skip 'no symlinks here', 4 unless eval { symlink("$target", "$dir/report.json") };
+		my $u = app_with();
+		$u->post_ok('/export' => form => { l => 'table:sales', dir => "$dir", filename => 'report.json' })
+			->status_is(403)->json_like('/error' => qr/not a plain file/);
+		is $target->slurp, "untouched\n", 'the file the link points to is unchanged';
+		ok -l "$dir/report.json", 'and the link is left as it was';
+	}
+	my $u = app_with();
+	$dir->child('plain.csv')->spew("old\n");
+	$u->post_ok('/export' => form => { l => 'table:sales', dir => "$dir", filename => 'plain.csv' })->status_is(200);
+	like $dir->child('plain.csv')->slurp, qr/region/, 'a plain file is replaced, as before';
+	SKIP: {
+		skip 'mode bits mean little here', 2 if $^O eq 'MSWin32' || $^O eq 'cygwin';
+		my $want = sprintf '%04o', 0666 & ~umask();
+		$u->post_ok('/export' => form => { l => 'table:sales', dir => "$dir", filename => 'new.csv' });
+		is sprintf('%04o', (stat "$dir/new.csv")[2] & 07777), $want,
+			'a new export has the mode any new file would, not a temporary file\'s 0600';
+		chmod 0640, "$dir/plain.csv";
+		$u->post_ok('/export' => form => { l => 'table:sales', dir => "$dir", filename => 'plain.csv' });
+		is sprintf('%04o', (stat "$dir/plain.csv")[2] & 07777), '0640', 'a replaced one keeps its own, as before';
+	}
+	is_deeply [ grep { /\.bi-export-/ } map { $_->basename } $dir->list->each ], [], 'no temporary file is left behind';
+	$dir->child('sub.csv')->make_path;
+	$u->post_ok('/export' => form => { l => 'table:sales', dir => "$dir", filename => 'sub.csv' })
+		->status_is(403, 'nor is a folder replaced');
+};
+
+subtest 'export_dirs' => sub {
+	my $exports = $root->child('exports');
+	$exports->child('deeper')->make_path;
+	my $u = app_with(file_roots => ["$root"], export_dirs => ["$exports"]);
+	$u->post_ok('/export' => form => { l => 'table:sales', dir => "$exports", filename => 'a.csv' })->status_is(200);
+	ok -e "$exports/a.csv", 'saved in the export folder';
+	$u->post_ok('/export' => form => { l => 'table:sales', dir => "$exports/deeper", filename => 'a.csv' })
+		->status_is(200, 'and below it');
+	for my $dir ("$inner", "$root", 'data', "$exports/../sub", "$out") {
+		$u->post_ok('/export' => form => { l => 'table:sales', dir => $dir, filename => 'b.csv' })
+			->status_is(403, "not in $dir")->json_like('/error' => qr/export folders \(export_dirs|outside the folders/);
+	}
+	ok !-e "$inner/b.csv", 'nothing written elsewhere, even inside file_roots';
+	$u->get_ok('/api/dirs')->json_is('/path' => "$exports", 'the folder list starts there')
+		->json_is('/parent' => undef, 'and goes no higher');
+	$u->get_ok('/api/dirs?path=' . $e->("$exports/deeper"))->json_is('/parent' => "$exports");
+	$u->get_ok('/api/dirs?path=' . $e->("$inner"))->status_is(403, 'nor lists another folder');
+	$u->get_ok('/open?path=' . $e->("$inner/in.csv"))->status_is(200, 'reading is still file_roots\' business');
+	$u->get_ok('/view/sales', $HTML)->element_exists(qq{[data-default-dir="$exports"]}, 'the Export panel opens on it');
+
+	my $alone = app_with(export_dirs => ["$exports"]);
+	$alone->post_ok('/export' => form => { l => 'table:sales', dir => "$out", filename => 'c.csv' })
+		->status_is(403, 'without file_roots too');
+
+	for my $bad ('/srv', [undef], [''], ['/no/such/folder'], ["$inner/in.csv"], [[]]) {
+		throws_ok { app_with(export_dirs => $bad) } qr/export_dirs/, 'refuses ' . Mojo::JSON::encode_json($bad);
+	}
+	throws_ok { app_with(file_roots => ["$inner"], export_dirs => ["$out"]) } qr/export_dirs: .* is outside file_roots/,
+		'one outside file_roots, where nothing could be saved';
+	my $dot = $root->child('.hidden');
+	$dot->make_path;
+	throws_ok { app_with(export_dirs => ["$dot"]) } qr/dot-folder/, 'a dot-folder, where exports are never saved';
+	lives_ok { app_with(export_dirs => []) } '[] is as unset';
+};
+
 subtest 'a canvas' => sub {
 	$t->post_ok('/api/analyses' => json => {
 		name     => 'Outside',
