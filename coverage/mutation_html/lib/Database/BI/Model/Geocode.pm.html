@@ -1067,7 +1067,7 @@ Approximate LCSAJ segments: 229<br>
 </span><span class="">  714: my $default_cache;
 </span><span class="">  715: 
 </span><span class="">  716: sub _default_cache {
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  717: 	require CHI;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  717: 	require CHI;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1132,7 +1132,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  752: 			keep_alive =&gt; 1,
 </span><span class="">  753: 		);
 </span><span class="">  754: 		$ua-&gt;env_proxy();
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  755: 		$ua-&gt;throttle({ $NOMINATIM_HOST =&gt; $NOMINATIM_GAP });
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  755: 		$ua-&gt;throttle({ $NOMINATIM_HOST =&gt; $NOMINATIM_GAP });
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1530,7 +1530,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class=""> 1123: # The chain&#39;s log says which geocoders a place reached, which is how the
 </span><span class=""> 1124: # lookups that went online are counted, and how a Nominatim that did not answer
 </span><span class=""> 1125: # is told apart from a place it does not know: Geo::Coder::OSM answers nothing
-</span><span class="survived-3 tooltip" data-tooltip="Mutation survived. Add targeted tests to validate this branch. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one)."> 1126: # in both cases, and only its last response says which.
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Mutation survived. Add targeted tests to validate this branch."> 1126: # in both cases, and only its last response says which.
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 4, Killed: 0, Survived: 4)</summary>
