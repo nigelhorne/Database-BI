@@ -457,5 +457,43 @@ subtest 'embed_frame_ancestors' => sub {
 		'and starts with an origin';
 };
 
+# Specs, filter values and share tokens travel in query strings, so a reply
+# says how much of its URL a request it starts may send on: all of it to this
+# site, the origin alone to another (OpenStreetMap's tiles ask for one), and
+# nothing from https to http.  It is on every reply, not only pages.
+subtest 'Referrer-Policy' => sub {
+	restore();
+	my $sales = url_escape('table:sales');
+	my $id = $t->post_ok('/api/analyses' => json => {
+		name     => 'Referrer',
+		datasets => [ { spec => 'table:sales', alias => 'left' } ],
+		visuals  => [ { kind => 'bar', title => 'Bar', encode => { cat => 'region', val => 'amount' } } ],
+	})->status_is(201)
+	  ->header_is('Referrer-Policy' => 'strict-origin-when-cross-origin', 'a JSON reply')
+	  ->tx->res->json('/id');
+	my $token = $t->post_ok("/api/analyses/$id/share")->status_is(200)->tx->res->json('/token');
+
+	my %replies = (
+		'/'                                       => 'home',
+		"/bar?l=$sales&cat=region&val=amount"     => 'chart',
+		"/share/$id?token=" . url_escape($token)  => 'shared canvas, whose URL holds a token',
+		"/embed/$id?token=" . url_escape($token)  => 'embedded canvas',
+		'/no/such/page'                           => '404 page',
+		"/bar?l=$sales&cat=nosuch&val=amount"     => '400 page',
+		"/export?l=$sales&format=csv"             => 'CSV download',
+		"/calc/list?l=$sales"                     => 'JSON',
+		'/favicon.ico'                            => 'static file',
+	);
+	for my $url (sort keys %replies) {
+		$t->get_ok($url, { Accept => 'text/html' })
+			->header_is('Referrer-Policy' => 'strict-origin-when-cross-origin', $replies{$url});
+	}
+
+	# Whatever the policy keys say: it is not part of the policy.
+	$config->{content_security_policy} = '';
+	$t->get_ok('/')->header_is('Referrer-Policy' => 'strict-origin-when-cross-origin', 'with no policy too');
+	restore();
+};
+
 restore();
 done_testing();

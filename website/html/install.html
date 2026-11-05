@@ -337,6 +337,13 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	policy, a policy of your own, or none, and in browsers that read only that header.
 </p>
 <p>
+	Every reply also carries <code>Referrer-Policy: strict-origin-when-cross-origin</code>.
+	Table specs, filter values and share tokens travel in the address, so another
+	site, a CDN or the tile server is sent only this server's origin, never the
+	whole address. It is not <code>no-referrer</code>, because OpenStreetMap asks
+	pages that use its tiles to send one.
+</p>
+<p>
 	An inline script runs only if it carries the request's nonce, a random value
 	made for each request and named in the policy. Every <code>&lt;script&gt;</code>
 	the pages write carries it, and so do those HTML::D3 and HTML::OSM write. A

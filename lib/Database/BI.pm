@@ -37,6 +37,13 @@ Readonly my $DEFAULT_TILE_URL    => 'https://{s}.tile.openstreetmap.org/{z}/{x}/
 # anything else reaching the policy is dropped.
 Readonly my $NONCE_RE => qr{\A[A-Za-z0-9+/_=-]+\z};
 
+# The Referer a page sends: the whole URL to this site, only the origin to
+# another, and nothing from https to http.  Specs, filter values and share
+# tokens travel in the query string, and an older browser's default sends all
+# of it to the CDNs, the tile servers and any site a reader follows a link to.
+# OpenStreetMap's tile policy asks pages for a Referer, so it is not none.
+Readonly my $REFERRER_POLICY => 'strict-origin-when-cross-origin';
+
 # Transport-layer upload size cap (bytes).  Mojolicious enforces this before
 # the request body is read into memory, so an oversized upload never reaches
 # the controller.  Must match $MAX_UPLOAD_BYTES in Dashboard.pm.
@@ -1418,6 +1425,14 @@ policy keys below say.  A report-only policy only reports C<frame-ancestors>,
 a policy written out in full may leave it out, and older browsers read only
 this header, so framing by another site is refused in each of those cases.
 
+Every reply carries C<Referrer-Policy: strict-origin-when-cross-origin>.  A
+request a page starts sends its whole URL to this site, only the origin to
+another, and nothing from https to http.  Specs, filter values and share
+tokens travel in the query string, and an older browser's default would send
+all of it to the CDNs, the tile servers and any site a reader follows a link
+to.  It is not C<no-referrer>, because OpenStreetMap's tile policy asks pages
+for a C<Referer>.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (C<'nonce-...'>).  Every
 C<E<lt>scriptE<gt>> the templates write carries it, and so do those that
@@ -2025,6 +2040,12 @@ sub startup ($self) {
 		my $c = shift;
 
 		my $headers = $c->res->headers;
+
+		# On every reply, not only pages: a download opened in the browser, or
+		# a JSON reply viewed there, can follow a link too.
+		$headers->header('Referrer-Policy' => $REFERRER_POLICY)
+			unless defined $headers->header('Referrer-Policy');
+
 		return unless ($headers->content_type // '') =~ m{\Atext/html\b}i;
 
 		# Framing is refused whatever the policy says.  frame-ancestors does

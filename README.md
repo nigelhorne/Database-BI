@@ -1387,6 +1387,14 @@ policy keys below say.  A report-only policy only reports `frame-ancestors`,
 a policy written out in full may leave it out, and older browsers read only
 this header, so framing by another site is refused in each of those cases.
 
+Every reply carries `Referrer-Policy: strict-origin-when-cross-origin`.  A
+request a page starts sends its whole URL to this site, only the origin to
+another, and nothing from https to http.  Specs, filter values and share
+tokens travel in the query string, and an older browser's default would send
+all of it to the CDNs, the tile servers and any site a reader follows a link
+to.  It is not `no-referrer`, because OpenStreetMap's tile policy asks pages
+for a `Referer`.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (`'nonce-...'`).  Every
 `<script>` the templates write carries it, and so do those that

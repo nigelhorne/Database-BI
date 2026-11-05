@@ -36,6 +36,12 @@ Revision history for Database-BI
 	  frame-ancestors, with content_security_policy set to '' or to a policy
 	  without frame-ancestors, and in browsers that read only that header,
 	  another site could frame any page and lure a reader into clicking it.
+	- Every reply carries Referrer-Policy: strict-origin-when-cross-origin.
+	  Specs, filter values and share tokens travel in query strings, and
+	  without it an older browser sent the whole URL, a share link's token
+	  among it, to the CDNs, OpenStreetMap's tile servers and any site a
+	  reader followed a link to.  Now another site gets the origin alone,
+	  which OpenStreetMap's tile policy asks for.
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
 	[ Tests ]
@@ -45,7 +51,8 @@ Revision history for Database-BI
 	  checks that each <script> carries the nonce and that nothing has an on*
 	  attribute; it reads every template for the same; and it checks that a
 	  page served from the page cache keeps a nonce matching its header.  It
-	  checks X-Frame-Options under each policy setting, and that
+	  checks X-Frame-Options under each policy setting, Referrer-Policy on
+	  every kind of reply, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
 
