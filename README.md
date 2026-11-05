@@ -1303,6 +1303,32 @@ proxy can still bring other machines' requests in, so without a password a
 request from an address that is not loopback is refused (`403`), including one
 a trusted proxy names in `X-Forwarded-For`.  For the public, set a password.
 
+**This machine is not one person.**  Loopback keeps other machines out, not
+other people on this one: any account on the same machine, or a container that
+shares its network, can reach `127.0.0.1:3000`, and read, list and save files
+as the account running the server.  On a machine with other users, set a
+password even when it listens on this machine only.
+
+### Which Folders It May Use
+
+`/browse`, `/open`, the Export panel's folder list (`/api/dirs`), a `path:`
+data source anywhere (a table, a chart, a merge, a canvas card) and
+`POST /export` reach the whole filesystem, as far as the account running the
+server can.  `file_roots` fences them in:
+
+```perl
+{ file_roots => ['/srv/reports', 'shared'] }   # 'shared' is under the application home
+```
+
+`data_dir` and `uploads_dir` are always among them.  Browsing starts at the
+home folder if it is inside, else at the first root, and stops at the roots.  A
+folder or file outside is refused (`403`, or a `path:` source is not found),
+whether or not it is there, so the refusal says nothing about what is outside;
+a link inside that leads outside is outside.  A path that climbs out with `..`
+past what exists is refused too.  A root that is not a folder that exists stops
+the start.  Remote files (`/../host/...`), Redis and MariaDB are not files on
+this machine, and are not affected; neither are the command-line tools.
+
 ### Requests From Other Sites
 
 Unless a password is set (see ["Logging in"](#logging-in)), there is no login: whatever can
@@ -1652,6 +1678,8 @@ front of every route but the login, share and embed links (see
 ["Logging in"](#logging-in)); a `password_hash` that is not a hash, or a `login_expiration`
 under 60 seconds, croaks; so does a `listen` other machines could reach when
 there is no password;
+- a `file_roots` that is not a list of folders that exist croaks (see
+["Which folders it may use"](#which-folders-it-may-use));
 - the `before_dispatch` hook that refuses requests from other sites (see
 ["Requests from other sites"](#requests-from-other-sites)); an `allowed_hosts` that is not a list of host
 names croaks;

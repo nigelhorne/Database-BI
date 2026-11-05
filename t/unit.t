@@ -3153,6 +3153,13 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			message_ok(Dashboard => 'error_remote_needs_password', $tr->tx->res->body);
 		}
 
+		{
+			my $root = tempdir(CLEANUP => 1);
+			my $tf = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1), file_roots => [$root] });
+			$tf->get_ok('/api/dirs?path=/etc')->status_is(403);
+			message_ok(Dashboard => 'error_outside_roots', $tf->tx->res->json->{error}, ['/etc']);
+		}
+
 		# The login, on only with password_hash.
 		require Database::BI::Password;
 		my $tl = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1),

@@ -1380,6 +1380,30 @@ proxy can still bring other machines' requests in, so without a password a
 request from an address that is not loopback is refused (C<403>), including one
 a trusted proxy names in C<X-Forwarded-For>.  For the public, set a password.
 
+B<This machine is not one person.>  Loopback keeps other machines out, not
+other people on this one: any account on the same machine, or a container that
+shares its network, can reach C<127.0.0.1:3000>, and read, list and save files
+as the account running the server.  On a machine with other users, set a
+password even when it listens on this machine only.
+
+=head2 Which folders it may use
+
+C</browse>, C</open>, the Export panel's folder list (C</api/dirs>), a C<path:>
+data source anywhere (a table, a chart, a merge, a canvas card) and
+C<POST /export> reach the whole filesystem, as far as the account running the
+server can.  C<file_roots> fences them in:
+
+    { file_roots => ['/srv/reports', 'shared'] }   # 'shared' is under the application home
+
+C<data_dir> and C<uploads_dir> are always among them.  Browsing starts at the
+home folder if it is inside, else at the first root, and stops at the roots.  A
+folder or file outside is refused (C<403>, or a C<path:> source is not found),
+whether or not it is there, so the refusal says nothing about what is outside;
+a link inside that leads outside is outside.  A path that climbs out with C<..>
+past what exists is refused too.  A root that is not a folder that exists stops
+the start.  Remote files (C</../host/...>), Redis and MariaDB are not files on
+this machine, and are not affected; neither are the command-line tools.
+
 =head2 Requests from other sites
 
 Unless a password is set (see L</Logging in>), there is no login: whatever can
@@ -1712,6 +1736,9 @@ front of every route but the login, share and embed links (see
 L</Logging in>); a C<password_hash> that is not a hash, or a C<login_expiration>
 under 60 seconds, croaks; so does a C<listen> other machines could reach when
 there is no password;
+
+=item * a C<file_roots> that is not a list of folders that exist croaks (see
+L</Which folders it may use>);
 
 =item * the C<before_dispatch> hook that refuses requests from other sites (see
 L</Requests from other sites>); an C<allowed_hosts> that is not a list of host
@@ -2174,6 +2201,7 @@ sub startup ($self) {
 	_check_permissions_policy($self->config('permissions_policy'));
 	_check_cross_origin_opener_policy($self->config('cross_origin_opener_policy'));
 	_check_allowed_hosts($self->config('allowed_hosts'));
+	_check_file_roots($self->config('file_roots'), $self->home);
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
 
 	# Only this machine can reach a server unless the configuration says
@@ -2453,12 +2481,13 @@ sub startup ($self) {
 		# scripts do not send -- gets the error page instead: the trail back to
 		# the table, and the reason, escaped by the template.  Everything else
 		# keeps the plain text below.
-		if (defined $args->{text} && ($args->{status} // 0) == 400
+		my $status = $args->{status} // 0;
+		if (defined $args->{text} && ($status == 400 || $status == 403)
 			&& $c->req->method eq 'GET'
 			&& ($c->req->headers->accept // '') =~ m{\btext/html\b}
 			&& $c->req->url->path->to_string !~ m{\A/api/}) {
 			$c->stash(
-				title     => 'This page cannot be drawn',
+				title     => $status == 403 ? 'This is not available here' : 'This page cannot be drawn',
 				error_msg => delete $args->{text},
 				error_400 => 1,
 			);
@@ -2882,6 +2911,27 @@ sub _require_password_if_open {
 			. 'Set password_hash (make it with "script/database-bi password"), '
 			. 'or listen on this machine only: listen => \'http://127.0.0.1:3000\' '
 			. '(for hypnotoad, hypnotoad => { listen => [\'http://127.0.0.1:8080\'] }; for morbo, -l http://127.0.0.1:3000)';
+	}
+	return;
+}
+
+# _check_file_roots( $value, $home ) -> void
+#
+# Purpose: Refuse a file_roots that would not fence what it says.
+# Entry:   Config file_roots: undef or [] (the whole filesystem), or a list of
+#          folders, each absolute or relative to the application home.
+# Exit:    Returns; croaks on anything but a list of folders that exist, since
+#          a mistyped root would otherwise leave readers with nothing, or a
+#          list that is not one would leave them everything.
+sub _check_file_roots {
+	my ($value, $home) = @_;
+	return unless defined $value;
+	croak "file_roots: give a list of folders, such as ['/srv/data']" unless ref($value) eq 'ARRAY';
+	for my $root (@{$value}) {
+		croak sprintf("file_roots: '%s' is not a folder name", ref($root) || $root // 'undef')
+			unless defined $root && !ref $root && length $root;
+		my $dir = File::Spec->file_name_is_absolute($root) ? $root : $home->child($root)->to_string;
+		croak "file_roots: '$root' is not a folder that exists" unless -d $dir;
 	}
 	return;
 }

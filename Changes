@@ -13,6 +13,16 @@ Revision history for Database-BI
 	  logs every session out.  Ten wrong passwords from one address in 15
 	  minutes lock it out for the rest of them.  Share and embed links still
 	  open without it.  Without password_hash nothing changes.
+	- file_roots => [ '/srv/reports', ... ] fences in the folders readers may
+	  use: /browse, /open, the Export panel's folder list (/api/dirs), /tables,
+	  /api/columns, /api/stat, a path: source anywhere (tables, charts,
+	  merges, canvas cards, accelerated copies) and POST /export.  data_dir
+	  and uploads_dir are always among them.  Anything outside is refused
+	  (403; a path: source is not found) whether or not it exists, a link
+	  that leads outside is outside, and browsing goes no higher than a
+	  root.  Unset, the whole filesystem, as before.  A root that is not an
+	  existing folder stops the start.  A refused page a browser opened gets
+	  the error page with a way back, not plain text.
 	- A server other machines could reach must have a password.  Without
 	  password_hash, a listen (or MOJO_LISTEN, -l, or hypnotoad's listen)
 	  that is not loopback stops the start, saying what to change; a bare
@@ -131,6 +141,12 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/file-roots.t checks that with file_roots each route that takes a
+	  local path keeps to them and without it nothing changes; that what is
+	  outside is refused the same whether or not it exists, through '..' and
+	  through a link; that a merge or canvas card over a file outside shows
+	  none of it; that browsing stops at a root; that the refusal page
+	  escapes the path; and the startup checks.
 	- t/login.t checks the password hash against the RFC test vectors; that
 	  with password_hash every page, download, write and /api/ route waits
 	  for the login while /login, share and embed links do not; the redirect

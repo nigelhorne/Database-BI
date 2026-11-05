@@ -144,6 +144,7 @@ Readonly my %MESSAGES => (
 	error_login_failed     => 'That is not the password.',
 	error_login_locked     => 'Too many wrong passwords from this address. Try again in %d minutes.',
 	error_hidden_target    => 'Refused to save into "%s": a hidden file or folder (one whose name starts with a dot) holds settings, not exports.',
+	error_outside_roots    => 'Refused: "%s" is outside the folders this server may use (file_roots in database_bi.conf).',
 	error_remote_needs_password => 'Refused: this server has no password, so it answers only the machine it runs on. Whoever runs it can set one with "script/database-bi password".',
 	error_cross_site       => 'Refused: this request came from another site (%s). Only pages of this application can change what it keeps or write files.',
 	error_host_refused     => 'Refused: this server does not answer to the name "%s". Open it as localhost or by its IP address, or add the name to allowed_hosts in database_bi.conf.',
@@ -515,6 +516,84 @@ sub _pagination {
 sub _i18n :Protected ($self, $key, @args) {
 	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
+}
+
+# _file_roots($self) -> @roots
+#
+# Purpose: The folders a reader may browse, open files in and export to.
+# Entry:   Config file_roots: unset or [] for the whole filesystem, else a list
+#          of folders (a relative one is under the application home).
+# Exit:    () when unrestricted; otherwise the realpath of each root that
+#          exists, plus data_dir and uploads_dir, which the application itself
+#          uses (the home page lists data_dir; dropped files go to uploads_dir).
+sub _file_roots :Protected ($self) {
+	my $roots = $self->app->config('file_roots');
+	return () unless ref($roots) eq 'ARRAY' && @{$roots};
+	my $home = $self->app->home;
+	my @dirs = map { File::Spec->file_name_is_absolute($_) ? Mojo::File->new($_) : $home->child($_) }
+		grep { defined && !ref && length } @{$roots};
+	push @dirs, _data_dir_for($self->app), $self->app->_uploads_dir;
+	my (%seen, @real);
+	for my $dir (@dirs) {
+		my $real = eval { $dir->realpath->to_string } // next;
+		push @real, $real unless $seen{$real}++;
+	}
+	return @real ? @real : ('/nonexistent-file-root');
+}
+
+# _resolved_path($path) -> $absolute | undef
+#
+# Purpose: Where a path really leads, whether or not it exists, so that a
+#          path outside the roots is refused the same way whether it names
+#          something or not (else the refusal would say what exists there).
+# Entry:   A path as given.
+# Exit:    The realpath of its longest existing part, with the rest appended;
+#          undef when the rest climbs with '..', which cannot be followed
+#          without the folders it would climb out of.
+sub _resolved_path {
+	my ($path) = @_;
+	my @parts = File::Spec->splitdir(File::Spec->rel2abs($path));
+	my @rest;
+	while (@parts) {
+		my $try = File::Spec->catdir(@parts);
+		$try = File::Spec->rootdir unless length $try;
+		if (-e $try) {
+			my $real = eval { Mojo::File->new($try)->realpath->to_string } // return undef;
+			return undef if grep { $_ eq '..' } @rest;
+			return @rest ? File::Spec->catdir($real, @rest) : $real;
+		}
+		unshift @rest, pop @parts;
+	}
+	return undef;
+}
+
+# _outside_roots($self, $path) -> $message | undef
+#
+# Purpose: Refuse a local path outside config file_roots.
+# Entry:   A path a request named (a file or a folder).
+# Exit:    undef when there are no roots or the path is inside one; otherwise
+#          error_outside_roots naming the path as it was given.
+sub _outside_roots :Protected ($self, $path) {
+	my @roots = _file_roots($self) or return undef;
+	my $abs   = defined $path && length $path ? _resolved_path($path) : undef;
+	if (defined $abs) {
+		my $sep = $^O eq 'MSWin32' ? '\\' : '/';
+		for my $root (@roots) {
+			return undef if $root eq File::Spec->rootdir || $abs eq $root
+				|| index($abs, $root =~ m{[/\\]\z} ? $root : $root . $sep) == 0;
+		}
+	}
+	return sprintf($MESSAGES{error_outside_roots}, $path // '');
+}
+
+# _first_root($self) -> $folder
+#
+# Where /browse and /api/dirs start with no path=: the home folder, unless
+# that is outside the roots, when the first root is.
+sub _first_root :Protected ($self) {
+	my $home = $ENV{HOME} // File::Spec->rootdir;
+	return $home unless _outside_roots($self, $home);
+	return (_file_roots($self))[0];
 }
 
 # request_refusal($c) -> $message | undef
@@ -1190,6 +1269,7 @@ sub _accel_file :Protected ($self, $spec) {
 		return $file;
 	}
 	if ($spec =~ m{\Apath:(?!/\.\./)(.+)\z}) {
+		return undef if _outside_roots($self, $1);
 		my $file = eval { Mojo::File->new($1)->realpath };
 		return (defined $file && -f $file && $file->basename =~ $EXT_RE) ? $file->to_string : undef;
 	}
@@ -1372,6 +1452,7 @@ sub _open_spec :Protected ($self, $spec) {
 			return ($src, $file) if $src && !$@;
 			return ();
 		}
+		return () if _outside_roots($self, $path_arg);
 		my $file = eval { Mojo::File->new($path_arg)->realpath };
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
@@ -7650,7 +7731,10 @@ None; errors render as 404.
 sub browse ($self) {
 	my ($platform, $language) = $self->_resolve_template;
 
-	my $raw_path = $self->param('path') // $ENV{HOME} // '/';
+	my $raw_path = $self->param('path') // _first_root($self);
+	if (my $refusal = _outside_roots($self, $raw_path)) {
+		return $self->render(text => $refusal, status => 403);
+	}
 	my $dir      = eval { Mojo::File->new($raw_path)->realpath };
 	return $self->reply->not_found unless defined $dir && -d $dir;
 
@@ -7675,12 +7759,13 @@ sub browse ($self) {
 			unshift @crumbs, { name => $name, href => '/browse?path=' . url_escape($f->to_string) };
 			my $parent = $f->dirname;
 			last if $parent->to_string eq $f->to_string;
+			last if _outside_roots($self, $parent->to_string);
 			$f = $parent;
 		}
 	}
 
 	my $parent      = $dir->dirname;
-	my $parent_href = $parent->to_string ne $dir->to_string
+	my $parent_href = $parent->to_string ne $dir->to_string && !_outside_roots($self, $parent->to_string)
 		? '/browse?path=' . url_escape($parent->to_string)
 		: undef;
 
@@ -7939,6 +8024,9 @@ sub open_file ($self) {
 		);
 	}
 
+	if (my $refusal = _outside_roots($self, $file_path)) {
+		return $self->render(text => $refusal, status => 403);
+	}
 	my $file = eval { Mojo::File->new($file_path)->realpath };
 	return $self->reply->not_found
 		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
@@ -8246,6 +8334,8 @@ sub columns_api ($self) {
 				$source = eval { $self->open_table($tbl, directory => $dir_part, host => $host,
 					defined $ext ? (file_ext => $ext) : ()) };
 			}
+		} elsif (my $refusal = _outside_roots($self, $path)) {
+			return $self->render(json => { error => $refusal }, status => 403);
 		} else {
 			my $file = eval { Mojo::File->new($path)->realpath };
 			if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
@@ -8834,6 +8924,9 @@ sub export_write ($self) {
 	my $dir      = $self->param('dir')      // '';
 	my $filename = $self->param('filename') // '';
 
+	if (my $refusal = _outside_roots($self, $dir)) {
+		return $self->render(json => { error => $refusal }, status => 403);
+	}
 	my $dest_dir = eval { Mojo::File->new($dir)->realpath };
 	unless (defined $dest_dir && -d $dest_dir) {
 		return $self->render(
@@ -8935,17 +9028,21 @@ None beyond the 404 response.
 =cut
 
 sub dirs_api ($self) {
-	my $raw = $self->param('path') // $ENV{HOME} // '/';
+	my $raw = $self->param('path') // _first_root($self);
+	if (my $refusal = _outside_roots($self, $raw)) {
+		return $self->render(json => { error => $refusal }, status => 403);
+	}
 	my $dir = eval { Mojo::File->new($raw)->realpath };
 	return $self->render(json => { error => 'Not a directory' }, status => 404)
 		unless defined $dir && -d $dir;
 
 	my $listing = $self->_list_dir($dir, 0);
 	my $parent  = $dir->dirname;
+	my $up      = $parent->to_string ne $dir->to_string && !_outside_roots($self, $parent->to_string);
 
 	$self->render(json => {
 		path   => $dir->to_string,
-		parent => ($parent->to_string ne $dir->to_string ? $parent->to_string : undef),
+		parent => ($up ? $parent->to_string : undef),
 		dirs   => $listing->{dirs},
 	});
 }
@@ -9012,9 +9109,10 @@ sub stat_api ($self) {
 
 	my $file = eval { Mojo::File->new($path)->realpath };
 	# Restrict to files with a supported data extension so stat_api cannot be
-	# used as a filesystem oracle to probe /etc/shadow, /root/.ssh/, etc.
+	# used as a filesystem oracle to probe /etc/shadow, /root/.ssh/, etc.; and,
+	# with file_roots, to files inside them, said the same way.
 	return $self->render(json => { exists => \0, path => $path })
-		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
+		unless defined $file && -f $file && $file->basename =~ $EXT_RE && !_outside_roots($self, $path);
 
 	my @s = stat $file->to_string;
 
@@ -10288,6 +10386,9 @@ sub tables_view ($self) {
 		$back_label = 'Home';
 	} elsif ($spec =~ /\Apath:(.+)\z/) {
 		my $path_arg = $1;
+		if (my $refusal = _outside_roots($self, $path_arg)) {
+			return $self->render(text => $refusal, status => 403);
+		}
 		my $file = eval { Mojo::File->new($path_arg)->realpath };
 		return $self->reply->not_found
 			unless defined $file && -f $file && $file->basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/i;

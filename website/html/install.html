@@ -236,6 +236,28 @@ hypnotoad -s script/database-bi</code></pre>
 		<code>['*']</code> for any. Behind a trusted reverse proxy only that list
 		is checked, so set it there too.</li>
 </ul>
+<p id="local-users">
+	Listening on <code>127.0.0.1</code> keeps other machines out, not other people
+	on this one. Any account on the same machine, or a container sharing its
+	network, can reach the server and read, list and save files as you. On a
+	machine with other users, <a href="#login">set a password</a> even when it
+	listens on this machine only.
+</p>
+<h3 id="file-roots">Which folders it may use</h3>
+<p>
+	Browsing, opening files, the Export panel's folder list, a <code>path:</code>
+	source in a table, chart, merge or canvas, and saving an export reach the whole
+	filesystem, as far as the account running the server can. To fence them in:
+</p>
+<pre><code>{ file_roots =&gt; ['/srv/reports', 'shared'] }   # 'shared' is under the application home</code></pre>
+<p>
+	<code>data_dir</code> and <code>uploads_dir</code> are always included.
+	Browsing starts at your home folder if it is inside, else at the first root,
+	and goes no higher. Anything outside is refused (403), whether it is there or
+	not, so nothing is learnt about it; a link inside that points outside counts as
+	outside. A root that is not an existing folder stops the start. Remote files,
+	Redis and MariaDB are not affected.
+</p>
 <p>
 	Export also refuses a folder or file whose name starts with a dot, such as
 	<code>~/.config</code>: those hold other programs' settings.
@@ -353,6 +375,15 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td>
 				Keeps <code>/catalog</code> and <code>/tutorial</code> on disc. Data
 				pages are never cached, because the files behind them change.
+			</td>
+		</tr>
+		<tr>
+			<td><code>file_roots</code></td>
+			<td>unset (everything)</td>
+			<td>
+				The folders readers may browse, open and save into, besides
+				<code>data_dir</code> and <code>uploads_dir</code>. See
+				<a href="#file-roots">Which folders it may use</a>.
 			</td>
 		</tr>
 		<tr>

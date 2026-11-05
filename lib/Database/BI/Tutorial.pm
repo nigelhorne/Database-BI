@@ -1062,6 +1062,10 @@ my @FAQ = (
 		answer   => 'Open it as localhost or by its number address instead. To use a name, whoever runs the program adds it to allowed_hosts in the configuration file.',
 	},
 	{
+		question => 'A folder or file says it is not available here.',
+		answer   => 'Whoever runs the program has chosen which folders it may use, and that one is outside them. Choose a file or folder inside, or ask them to add it.',
+	},
+	{
 		question => 'Export will not save into a folder whose name starts with a dot.',
 		answer   => 'Those folders hold settings for other programs, so saving there is refused. Choose another folder.',
 	},
