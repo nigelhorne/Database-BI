@@ -4254,6 +4254,13 @@ sub canonical_spec {
 	my ($spec) = @_;
 	return $spec unless defined $spec && $spec =~ m{\Apath:(?!/\.\./)([^\n]+)\z};
 	my $path = $1;
+	# Windows' realpath leaves a symlink as it is, so a file reached through
+	# one would be filed under a second key; follow the links first, as
+	# _canonical_path does.
+	if ($^O eq 'MSWin32') {
+		my $followed = eval { _follow_links(Mojo::File->new($path)->to_abs->to_string) };
+		$path = $followed if defined $followed;
+	}
 	return $spec unless -e $path;
 	my $real = eval { Mojo::File->new($path)->realpath->to_string };
 	return (defined $real && length $real) ? "path:$real" : $spec;

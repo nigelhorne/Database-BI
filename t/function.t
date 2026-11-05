@@ -9725,6 +9725,19 @@ sub croak_rethrow {
 			skip 'no symlinks here', 1 unless eval { symlink($file, $link) };
 			is $H{canonical_spec}->("path:$link"), "path:$real", 'a symlink resolves to the file';
 		}
+		SKIP: {
+			# Windows' realpath does not follow links (a CI failure on Windows):
+			# with a realpath that leaves the link alone, the link must still
+			# be filed under the file's own name.
+			skip 'no symlinks here', 1 unless -l $link;
+			my $realpath = \&Mojo::File::realpath;
+			mock 'Mojo::File::realpath' => sub { my $p = shift; -l $p ? Mojo::File->new("$p") : $realpath->($p, @_) };
+			{
+				local $^O = 'MSWin32';
+				is $H{canonical_spec}->("path:$link"), "path:$real", 'the link is followed where realpath will not';
+			}
+			unmock 'Mojo::File::realpath';
+		}
 		is $H{canonical_spec}->("path:$file"), "path:$real", 'a plain path is its realpath';
 		is $H{canonical_spec}->($_), $_, "'$_' is left alone"
 			for 'table:sales', 'url:http://x/y.csv', "path:$dir/none.csv", 'path:/../host/a.csv', "path:$file\nx", 'nonsense';
@@ -10071,7 +10084,8 @@ sub croak_rethrow {
 	subtest 'Dashboard::_lookup_file -- only files under data_dir' => sub {
 		my ($tm, $dir) = $fixture_app->();
 		my $c = dash_controller($tm->app, '/');
-		my $real = Mojo::File->new($dir)->child('codes.csv')->realpath->to_string;
+		# The guard's own form: canonpath, so backslashes on Windows.
+		my $real = File::Spec->canonpath(Mojo::File->new($dir)->child('codes.csv')->realpath->to_string);
 		is $c->_lookup_file('L', 'codes.csv'), $real, 'a relative name is under data_dir';
 		is $c->_lookup_file('L', $real), $real, 'an absolute one inside it';
 		for my $remote ('http://x/a.csv', 'url:http://x', 'table:codes', '/../host/a.csv', 'redis:k') {

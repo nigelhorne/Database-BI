@@ -89,6 +89,10 @@ Revision history for Database-BI
 	- DataSource read no rows when its caller had set $/ (slurp mode, or a
 	  record length): the header was read as the whole file.  The methods
 	  that read a file now use "\n" whatever the caller's $/ is.
+	- On Windows a path: spec reached through a symlink was filed in the
+	  model store under the link's name, not the file's, because realpath
+	  there leaves links alone: definitions saved through the link were not
+	  found from the file.  canonical_spec now follows the links first.
 	- Deleting a canvas card rewrote a bookmark's cv= of more than nine
 	  digits, which names no card, as cv=1e+20.  It is left alone, and a
 	  search or card index that is not one is no longer renumbered.
