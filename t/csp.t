@@ -547,6 +547,8 @@ subtest 'Strict-Transport-Security' => sub {
 	my $https = { %{$host}, 'X-Forwarded-Proto' => 'https' };
 
 	restore();
+	# A name reaching the server directly must be listed (DNS rebinding).
+	local $t->app->config->{allowed_hosts} = ['bi.example.com'];
 	$t->get_ok('/', $host)->status_is(200)->header_exists_not($HSTS, 'plain http: none');
 	$t->get_ok('/', $https)->status_is(200)
 		->header_exists_not($HSTS, 'X-Forwarded-Proto from a proxy nobody said to trust: none');
@@ -580,7 +582,7 @@ subtest 'Strict-Transport-Security' => sub {
 		skip 'IO::Socket::SSL 2.009 is needed for an https test server', 2
 			unless eval { require IO::Socket::SSL; IO::Socket::SSL->VERSION(2.009); 1 };
 		local $ENV{MOJO_REVERSE_PROXY} = 0;
-		my $ts = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1) });
+		my $ts = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1), allowed_hosts => ['bi.example.com'] });
 		$ts->ua->insecure(1);
 		$ts->ua->server->url('https');
 		$ts->get_ok('/', $host)->status_is(200)->header_is($HSTS => 'max-age=31536000', 'over TLS');
@@ -681,4 +683,97 @@ subtest 'Cross-Origin-Opener-Policy' => sub {
 };
 
 restore();
+# The application has no login, so another site's page must not be able to use
+# the reader's browser against it: POST /export writes files, and /open reads
+# them.  A form posted from another site needs no preflight, and a page whose
+# name is made to resolve to 127.0.0.1 (DNS rebinding) is the same origin as
+# this server to the browser.
+subtest 'requests from other sites' => sub {
+	restore();
+	my $dir   = tempdir(CLEANUP => 1);
+	my %form  = (l => 'table:sales', dir => $dir, filename => 'out.csv');
+	my $base  = $t->ua->server->url->to_abs;
+	my $self  = $base->scheme . '://' . $base->host_port;
+
+	$t->post_ok('/export' => form => \%form)->status_is(200, 'a script (no Origin, no Sec-Fetch-Site) may write');
+	$t->post_ok('/export' => { Origin => $self } => form => \%form)->status_is(200, 'so may a page of this site');
+	for my $site ('same-origin', 'none') {
+		$t->post_ok('/export' => { 'Sec-Fetch-Site' => $site } => form => \%form)->status_is(200, "Sec-Fetch-Site: $site");
+	}
+	for my $site ('cross-site', 'same-site') {
+		$t->post_ok('/export' => { 'Sec-Fetch-Site' => $site, Origin => $self } => form => \%form)
+			->status_is(403, "Sec-Fetch-Site: $site is refused, whatever Origin says")
+			->json_like('/error' => qr/another site/);
+	}
+	for my $origin ('https://evil.example', 'null', 'http://localhost:1', $base->scheme . '://evil.example:' . $base->port) {
+		unlink "$dir/out.csv";
+		$t->post_ok('/export' => { Origin => $origin } => form => \%form)
+			->status_is(403, "Origin $origin is refused")->json_like('/error' => qr/another site/);
+		ok(!-e "$dir/out.csv", '... and nothing is written');
+	}
+	$t->post_ok('/calc/save' => { Origin => 'https://evil.example' } => form => { l => 'table:sales', name => 'x', expr => '1' })
+		->status_is(403, 'every write is guarded, not only /export');
+	$t->put_ok('/api/analyses/x' => { Origin => 'https://evil.example' } => json => {})
+		->status_is(403, 'and every method that is not GET, HEAD or OPTIONS');
+	$t->get_ok('/preferences' => { Origin => 'https://evil.example', 'Sec-Fetch-Site' => 'cross-site' })
+		->status_is(200, 'a GET from another site is left to the same-origin policy');
+	$t->get_ok('/', { Origin => 'https://evil.example' })->header_is('X-Content-Type-Options' => 'nosniff',
+		'and the security headers are still sent');
+
+	# DNS rebinding: the Host names the attacker's domain.
+	for my $host ('localhost', 'localhost:3000', 'app.localhost', '127.0.0.1:3000', '192.168.1.20', '[::1]:3000') {
+		$t->get_ok('/preferences', { Host => $host })->status_is(200, "Host $host is answered");
+	}
+	for my $host ('evil.example', 'evil.example:3000', 'localhost.evil.example') {
+		$t->get_ok('/preferences', { Host => $host })->status_is(403, "Host $host is refused")
+			->content_type_is('text/plain; charset=utf-8')->content_like(qr/does not answer/);
+		$t->post_ok('/export', { Host => $host } => form => \%form)->status_is(403, '... for a write too')
+			->json_like('/error' => qr/does not answer/);
+	}
+	$t->get_ok('/preferences', { Host => '<b>x</b>' })->status_is(403)->content_type_is('text/plain; charset=utf-8',
+		'a refusal is never HTML');
+
+	$config->{allowed_hosts} = ['bi.example.com', '*.corp.example'];
+	$t->get_ok('/preferences', { Host => 'bi.example.com' })->status_is(200, 'allowed_hosts lets a name in');
+	$t->get_ok('/preferences', { Host => 'a.b.corp.example' })->status_is(200, '*. lets its subdomains in');
+	$t->get_ok('/preferences', { Host => 'corp.example' })->status_is(403, 'but not the name itself');
+	$t->get_ok('/preferences', { Host => 'other.example' })->status_is(403, 'nor another name');
+	$t->get_ok('/preferences', { Host => 'localhost' })->status_is(200, 'localhost still answers');
+	$config->{allowed_hosts} = ['*'];
+	$t->get_ok('/preferences', { Host => 'other.example' })->status_is(200, "['*'] lets every name in");
+	restore();
+
+	# Behind a trusted proxy the Host is whatever the proxy sends, so only a
+	# configured allowed_hosts is checked, and the Origin may match the
+	# forwarded host.
+	{
+		local $ENV{MOJO_REVERSE_PROXY} = 1;
+		my $tp = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1) });
+		$tp->get_ok('/preferences', { Host => 'bi.example.com' })->status_is(200, 'behind a proxy any name is answered');
+		$tp->post_ok('/export', { Host => '127.0.0.1:8080', 'X-Forwarded-Host' => 'bi.example.com',
+			Origin => 'https://bi.example.com' } => form => \%form)->status_is(200, 'an Origin matching X-Forwarded-Host');
+		$tp->post_ok('/export', { Host => '127.0.0.1:8080', Origin => 'https://evil.example' } => form => \%form)
+			->status_is(403, 'another Origin is still refused');
+		$tp->app->config->{allowed_hosts} = ['bi.example.com'];
+		$tp->get_ok('/preferences', { Host => 'evil.example' })->status_is(403, 'allowed_hosts is checked when set');
+		$tp->get_ok('/preferences', { Host => 'bi.example.com' })->status_is(200, '... and lets its names in');
+	}
+
+	# A file another program reads its settings from is not an export.
+	my $hidden = File::Spec->catdir($dir, '.vscode');
+	mkdir $hidden or BAIL_OUT("cannot make $hidden: $!");
+	$t->post_ok('/export' => form => { %form, dir => $hidden, filename => 'settings.json' })
+		->status_is(403, 'no export into a dot-folder')->json_like('/error' => qr/hidden/);
+	ok(!-e "$hidden/settings.json", '... nothing written');
+	$t->post_ok('/export' => form => { %form, filename => '.settings.json' })->status_is(403, 'nor as a dot-file');
+	$t->post_ok('/export' => form => { %form, dir => "$hidden/.." })->status_is(200, 'a path through .. is fine');
+
+	for my $bad ('bi.example.com', [undef], ['bad name'], ['a..b'], [{}], ['*.']) {
+		throws_ok { Test::Mojo->new('Database::BI', { allowed_hosts => $bad }) } qr/allowed_hosts/,
+			'startup refuses allowed_hosts => ' . encode_json($bad);
+	}
+	lives_ok { Test::Mojo->new('Database::BI', { allowed_hosts => ['bi.example.com', '*.example.org', '*'] }) }
+		'and starts with names';
+};
+
 done_testing();

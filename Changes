@@ -52,6 +52,21 @@ Revision history for Database-BI
 	  value ('' or 0 for none); an unknown one stops the start.  The footer's
 	  link to GitHub, the one target=_blank link without it, is now
 	  rel="noopener".
+	- POST /export could be used by any web page the reader had open: a form
+	  posted from another site needs no permission, and the application has
+	  no login, so a page anywhere could write a .csv, .json or .sql file of
+	  its choosing into any folder the server can write.  Every write (any
+	  method but GET, HEAD and OPTIONS) is now refused with 403 when the
+	  browser's Sec-Fetch-Site says another site sent it, or, without that,
+	  when its Origin is not this server.  Scripts, which send neither, still
+	  work.  Every request is also refused when its Host is a name other than
+	  localhost or *.localhost and not an IP address, which stops a page
+	  whose name was made to resolve to 127.0.0.1 (DNS rebinding) from
+	  reading or writing as if it were this site.  allowed_hosts lists the
+	  names it may be reached by ('*.example.com', or '*' for any); behind a
+	  trusted proxy only that list is checked.  POST /export also refuses a
+	  folder or file whose name starts with a dot, where other programs keep
+	  their settings.
 	- A server listens on this machine only: script/database-bi, daemon and
 	  prefork on http://127.0.0.1:3000, hypnotoad on http://127.0.0.1:8080.
 	  Mojolicious's default is every interface, which put an application with
@@ -97,6 +112,13 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/csp.t checks that a write from another site (by Sec-Fetch-Site or
+	  Origin) is refused and writes nothing, on every write route and method,
+	  while this site's pages and scripts still write; that a Host other than
+	  localhost or an address is refused unless allowed_hosts lists it, as
+	  text, never HTML; how a trusted proxy changes both; that no export goes
+	  into a dot-folder or dot-file; and that a bad allowed_hosts stops the
+	  start.
 	- t/launcher.t checks where a server listens by default and with listen,
 	  that MOJO_LISTEN and hypnotoad's own listen are kept, that a bad listen
 	  stops the start, and that the launcher and daemon on 127.0.0.1 answer

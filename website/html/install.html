@@ -181,6 +181,27 @@ hypnotoad -s script/database-bi</code></pre>
 	A <code>listen</code> that is not an <code>http://</code> or
 	<code>https://</code> location stops the start.
 </p>
+<p id="other-sites">
+	There is no login, so whatever reaches the server can read files and save
+	exports wherever it can. Listening on <code>127.0.0.1</code> keeps other
+	machines out, but not other sites' pages open in your browser, so each
+	request is checked first and refused (403) when another site made it:
+</p>
+<ul>
+	<li>A save or other change is refused when the browser says another site
+		sent it (<code>Sec-Fetch-Site</code>, or else <code>Origin</code>). Scripts
+		such as <code>curl</code> send neither, and still work.</li>
+	<li>Any request is refused when it names the server by a host name other than
+		<code>localhost</code>; an IP address is fine. This stops a site whose name
+		has been pointed at <code>127.0.0.1</code> (DNS rebinding). To use a name,
+		list it: <code>{ allowed_hosts =&gt; ['bi.example.com'] }</code>, or
+		<code>['*']</code> for any. Behind a trusted reverse proxy only that list
+		is checked, so set it there too.</li>
+</ul>
+<p>
+	Export also refuses a folder or file whose name starts with a dot, such as
+	<code>~/.config</code>: those hold other programs' settings.
+</p>
 <p>
 	<code>script/database-bi daemon</code>
 	ignores a file named after it, and so does <code>hypnotoad</code>; to show a
@@ -294,6 +315,15 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td>
 				Keeps <code>/catalog</code> and <code>/tutorial</code> on disc. Data
 				pages are never cached, because the files behind them change.
+			</td>
+		</tr>
+		<tr>
+			<td><code>allowed_hosts</code></td>
+			<td>unset</td>
+			<td>
+				Host names the server answers to besides <code>localhost</code> and IP
+				addresses, such as <code>['bi.example.com', '*.corp.example']</code>, or
+				<code>['*']</code> for any. See <a href="#other-sites">Requests from other sites</a>.
 			</td>
 		</tr>
 		<tr>

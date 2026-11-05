@@ -1357,6 +1357,39 @@ C<http://127.0.0.1:8080>, this machine only:
 
 Behind a reverse proxy on the same machine, leave both at their defaults.
 
+=head2 Requests from other sites
+
+There is no login: whatever can reach the server can read any file it can
+(C</open>) and write exports into any folder it can (C<POST /export>).  Listening
+on this machine only keeps other machines out, but not the pages of other
+sites open in the reader's browser.  So every request is checked first, and
+refused with C<403> when another site's page made it:
+
+=over 4
+
+=item * A write (any method but C<GET>, C<HEAD> and C<OPTIONS>) is refused when
+the browser's C<Sec-Fetch-Site> says it came from another site, or, without
+that header, when its C<Origin> is not this server.  A form posted from
+another site needs no permission from this one, so this is what stops it.  A
+script such as C<curl> sends neither header and is let through.
+
+=item * Any request is refused when its C<Host> is a name other than
+C<localhost> or C<*.localhost>, and is not an IP address.  A page whose own
+name has been made to resolve to C<127.0.0.1> (DNS rebinding) counts as this
+server to the browser, but it still sends its own name.  To reach the server
+by a name, list it:
+
+    { allowed_hosts => ['bi.example.com', '*.corp.example'] }   # '*' for any name
+
+Behind a trusted reverse proxy, the C<Host> is whatever the proxy sends, so it
+is checked only when C<allowed_hosts> is set; set it there too.
+
+=back
+
+C<POST /export> also refuses a folder or file whose name starts with a dot
+(F<~/.config>, F<.vscode/settings.json>), since those hold other programs'
+settings.  The folder list in the Export panel leaves them out already.
+
 =head2 MariaDB and MySQL servers
 
 A server is opened by name.  Each entry of C<mariadb_servers> is one database:
@@ -1610,6 +1643,10 @@ public D3 URL.
 Nothing useful is returned.  By the time it returns, the application has:
 
 =over 4
+
+=item * the C<before_dispatch> hook that refuses requests from other sites (see
+L</Requests from other sites>); an C<allowed_hosts> that is not a list of host
+names croaks;
 
 =item * C<MOJO_LISTEN> set from C<listen> (default C<http://127.0.0.1:3000>) when it
 was unset, and C<< hypnotoad => { listen } >> defaulted to C<http://127.0.0.1:8080>
@@ -2057,6 +2094,7 @@ sub startup ($self) {
 	_check_strict_transport_security($self->config('strict_transport_security'));
 	_check_permissions_policy($self->config('permissions_policy'));
 	_check_cross_origin_opener_policy($self->config('cross_origin_opener_policy'));
+	_check_allowed_hosts($self->config('allowed_hosts'));
 
 	# Only this machine can reach a server unless the configuration says
 	# otherwise.  Mojolicious's own default is every interface, which put an
@@ -2137,6 +2175,22 @@ sub startup ($self) {
 	# request: markup that reached a page through its data cannot know it.
 	$self->hook(before_dispatch => sub {
 		shift->stash(csp_nonce => _new_nonce());
+	});
+	# Refuse what another site's page asks of this one through the reader's
+	# browser: a form posted from there, or a page whose name was made to
+	# resolve to this machine (DNS rebinding).  Nothing here asks who the
+	# reader is, so this is what stands between another site and POST /export,
+	# which writes files, and /open, which reads them.  A refusal is 403, as
+	# JSON for a write (the panels read JSON back) and as text otherwise.
+	$self->hook(before_dispatch => sub {
+		my $c = shift;
+		require Database::BI::Controller::Dashboard;
+		my $refusal = Database::BI::Controller::Dashboard::request_refusal($c) // return;
+		$c->stash(buffer => 0);
+		return $c->render(json => { error => $refusal }, status => 403)
+			if $c->req->method !~ /\A(?:GET|HEAD)\z/;
+		$c->res->headers->content_type('text/plain; charset=utf-8');
+		return $c->render(data => Mojo::Util::encode('UTF-8', $refusal), status => 403);
 	});
 	$self->helper(csp_nonce => sub {
 		my $c = shift;
@@ -2672,6 +2726,28 @@ sub _check_strict_transport_security {
 	return if !ref $value && $value =~ $HSTS_RE;
 	croak sprintf("strict_transport_security: '%s' is not a header value such as 'max-age=31536000'"
 		. ' (optionally with includeSubDomains and preload), or 0 for none', ref $value ? ref $value : $value);
+}
+
+# _check_allowed_hosts( $value ) -> void
+#
+# Purpose: Refuse an allowed_hosts the request check could not use.
+# Entry:   Config allowed_hosts: undef, or a list of host names, each a name
+#          such as 'bi.example.com', '*.example.com' for its subdomains, or
+#          '*' for every name.
+# Exit:    Returns; croaks on anything else, since a list that does not say
+#          what was meant either locks everyone out or lets the wrong site in.
+sub _check_allowed_hosts {
+	my ($value) = @_;
+	return unless defined $value;
+	croak "allowed_hosts: give a list of host names, such as ['bi.example.com']"
+		unless ref($value) eq 'ARRAY';
+	for my $name (@{$value}) {
+		croak sprintf("allowed_hosts: '%s' is not a host name such as 'bi.example.com', '*.example.com' or '*'",
+			ref($name) || $name // 'undef')
+			unless defined $name && !ref $name
+				&& $name =~ /\A(?:\*|(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*)\z/;
+	}
+	return;
 }
 
 # _listen_locations( $value ) -> @locations

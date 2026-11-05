@@ -1041,6 +1041,14 @@ my @FAQ = (
 		answer   => 'Not at first: the program answers only the computer it runs on. Whoever runs it can open it to others by setting listen in the configuration file.',
 	},
 	{
+		question => 'The page says the server does not answer to that name.',
+		answer   => 'Open it as localhost or by its number address instead. To use a name, whoever runs the program adds it to allowed_hosts in the configuration file.',
+	},
+	{
+		question => 'Export will not save into a folder whose name starts with a dot.',
+		answer   => 'Those folders hold settings for other programs, so saving there is refused. Choose another folder.',
+	},
+	{
 		question => 'A chart says it cannot be drawn.',
 		answer   => 'The page says why, for example a column that the view does not have. Click Back, then choose other columns.',
 	},

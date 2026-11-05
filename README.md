@@ -1285,6 +1285,36 @@ it does not read `listen`; give it `-l`, or run `script/database-bi`.
 
 Behind a reverse proxy on the same machine, leave both at their defaults.
 
+### Requests From Other Sites
+
+There is no login: whatever can reach the server can read any file it can
+(`/open`) and write exports into any folder it can (`POST /export`).  Listening
+on this machine only keeps other machines out, but not the pages of other
+sites open in the reader's browser.  So every request is checked first, and
+refused with `403` when another site's page made it:
+
+- A write (any method but `GET`, `HEAD` and `OPTIONS`) is refused when
+the browser's `Sec-Fetch-Site` says it came from another site, or, without
+that header, when its `Origin` is not this server.  A form posted from
+another site needs no permission from this one, so this is what stops it.  A
+script such as `curl` sends neither header and is let through.
+- Any request is refused when its `Host` is a name other than
+`localhost` or `*.localhost`, and is not an IP address.  A page whose own
+name has been made to resolve to `127.0.0.1` (DNS rebinding) counts as this
+server to the browser, but it still sends its own name.  To reach the server
+by a name, list it:
+
+    ```perl
+    { allowed_hosts => ['bi.example.com', '*.corp.example'] }   # '*' for any name
+    ```
+
+    Behind a trusted reverse proxy, the `Host` is whatever the proxy sends, so it
+    is checked only when `allowed_hosts` is set; set it there too.
+
+`POST /export` also refuses a folder or file whose name starts with a dot
+(`~/.config`, `.vscode/settings.json`), since those hold other programs'
+settings.  The folder list in the Export panel leaves them out already.
+
 ### MariaDB and MySQL Servers
 
 A server is opened by name.  Each entry of `mariadb_servers` is one database:
@@ -1553,6 +1583,9 @@ public D3 URL.
 
 Nothing useful is returned.  By the time it returns, the application has:
 
+- the `before_dispatch` hook that refuses requests from other sites (see
+["Requests from other sites"](#requests-from-other-sites)); an `allowed_hosts` that is not a list of host
+names croaks;
 - `MOJO_LISTEN` set from `listen` (default `http://127.0.0.1:3000`) when it
 was unset, and `hypnotoad => { listen }` defaulted to `http://127.0.0.1:8080`
 (see ["Who can reach the server"](#who-can-reach-the-server)); a `listen` that is not a location croaks;

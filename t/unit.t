@@ -2652,7 +2652,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		};
 		my $res = $geo->resolve_column([ { c => 'Paris' }, { c => '' }, { c => '12' } ], 'c');
 		my %by  = map { $_->{key} => $_->{text} } grep { ref } @{ $res->{messages} // [] };
-		my $why = join ', ',
+		$why = join ', ',
 			sprintf($DICTIONARY{Geocode}{warn_map_rows_why_empty}, 1),
 			sprintf($DICTIONARY{Geocode}{warn_map_rows_why_refused}, 1);
 		message_ok(Geocode => 'warn_map_rows_skipped', $by{warn_map_rows_skipped}, [1, 3, 2, $why]);
@@ -3135,6 +3135,16 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my $outdir = tempdir(CLEANUP => 1);
 		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=x.txt')->status_is(415);
 		message_ok(Dashboard => 'error_ext_required', $tm->tx->res->json->{error});
+		my $hidden = File::Spec->catdir($outdir, '.settings');
+		mkdir $hidden or BAIL_OUT("cannot make $hidden: $!");
+		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($hidden) . '&filename=x.json')->status_is(403);
+		message_ok(Dashboard => 'error_hidden_target', $tm->tx->res->json->{error},
+			[Mojo::File->new($hidden)->realpath->child('x.json')->to_string]);
+		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=x.csv', { Origin => 'https://evil.example' })
+			->status_is(403);
+		message_ok(Dashboard => 'error_cross_site', $tm->tx->res->json->{error}, ['https://evil.example']);
+		$tm->get_ok('/preferences', { Host => 'evil.example' })->status_is(403);
+		message_ok(Dashboard => 'error_host_refused', $tm->tx->res->body, ['evil.example']);
 
 		$tm->get_ok('/import')->status_is(200);
 		message_ok(Dashboard => 'error_url_required', $tm->tx->res->body, [], 1);

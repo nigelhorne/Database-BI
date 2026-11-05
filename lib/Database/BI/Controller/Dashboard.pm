@@ -137,6 +137,9 @@ Readonly my %MESSAGES => (
 	error_no_path          => 'No path specified',
 	error_not_found        => 'File or directory not found: %s',
 	error_dir_not_found    => 'Directory not found: %s',
+	error_hidden_target    => 'Refused to save into "%s": a hidden file or folder (one whose name starts with a dot) holds settings, not exports.',
+	error_cross_site       => 'Refused: this request came from another site (%s). Only pages of this application can change what it keeps or write files.',
+	error_host_refused     => 'Refused: this server does not answer to the name "%s". Open it as localhost or by its IP address, or add the name to allowed_hosts in database_bi.conf.',
 	error_write_failed     => 'Write failed: %s',
 	error_ext_required     => 'Use a .csv, .sql, or .json filename extension',
 	error_upload_none      => 'No file received',
@@ -505,6 +508,60 @@ sub _pagination {
 sub _i18n :Protected ($self, $key, @args) {
 	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
+}
+
+# request_refusal($c) -> $message | undef
+#
+# Purpose: Refuse a request that a hostile web page made through the reader's
+#          browser.  The application has no login, so whatever can reach it
+#          can write files (POST /export) and read any file (/open); listening
+#          on 127.0.0.1 keeps other machines out but not other sites' pages.
+# Entry:   A controller of the application, before dispatch.
+# Exit:    The refusal message, or undef to let the request through.
+#
+# Two checks:
+#   * DNS rebinding.  A page on evil.example whose name is made to resolve to
+#     127.0.0.1 is the same origin as this server to the browser, so it can
+#     read the replies too.  It still names its own host, so the Host must be
+#     localhost, *.localhost, an IP address, or a name in config allowed_hosts
+#     (['*'] lets every name in).  Behind a trusted reverse proxy, whose Host is
+#     whatever the proxy sends, only allowed_hosts is checked, when it is set.
+#   * Cross-site writes.  A form POST from another site needs no preflight.
+#     For any method but GET, HEAD and OPTIONS, Sec-Fetch-Site (set by the
+#     browser, not the page) must be same-origin or none; without it, an
+#     Origin must name this host and port.  A request with neither is a
+#     script or an old browser, and is let through: it is not a page of
+#     another site acting with the reader's browser.
+sub request_refusal {
+	my ($c) = @_;
+	my $req = $c->req;
+
+	my $host = lc($req->url->to_abs->host // '');
+	if (length $host) {
+		my $allowed = $c->app->config('allowed_hosts');
+		my @allowed = ref($allowed) eq 'ARRAY' ? map { lc } grep { defined && !ref } @{$allowed} : ();
+		my $listed  = grep { $_ eq '*' || $_ eq $host || (/\A\*(\..+)\z/ && substr($host, -length $1) eq $1) } @allowed;
+		my $local   = $host eq 'localhost' || $host =~ /\.localhost\z/
+			|| $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/ || $host =~ /[:\[]/;
+		my $ok = $req->reverse_proxy ? (!@allowed || $listed) : ($local || $listed);
+		return sprintf($MESSAGES{error_host_refused}, $host) unless $ok;
+	}
+
+	return if $req->method =~ /\A(?:GET|HEAD|OPTIONS)\z/;
+
+	my $headers = $req->headers;
+	my $site    = lc($headers->header('Sec-Fetch-Site') // '');
+	if (length $site) {
+		return if $site eq 'same-origin' || $site eq 'none';
+		return sprintf($MESSAGES{error_cross_site}, $site);
+	}
+	my $origin = $headers->origin;
+	return unless defined $origin;
+	my $from = lc(Mojo::URL->new($origin)->host_port // '');
+	my $to   = lc($req->url->to_abs->host_port // '');
+	my $fwd  = $req->reverse_proxy ? lc($headers->header('X-Forwarded-Host') // '') : '';
+	return if length($from) && ($from eq $to || (length($fwd) && $from eq $fwd));
+	return sprintf($MESSAGES{error_cross_site}, $origin);
 }
 
 # _is_safe_url($url) -> bool
@@ -8563,6 +8620,8 @@ C<report.txt>, C<report> (no extension), empty string.
 =head4 OUTPUT
 
   200 application/json   { "saved": "/abs/path/to/file" }
+  403 application/json   { "error": "..." }  -- a hidden target, or a request
+                                                  another site's page made
   404 application/json   { "error": "..." }  -- bad dir or table not found
   415 application/json   { "error": "..." }  -- unsupported extension
   500 application/json   { "error": "..." }  -- write failure
@@ -8570,7 +8629,13 @@ C<report.txt>, C<report> (no extension), empty string.
 =head3 MESSAGES
 
   error_dir_not_found   -- realpath of dir failed or result is not a directory.
-  error_ext_required    -- filename extension is not .csv or .sql.
+  error_ext_required    -- filename extension is not .csv, .sql or .json.
+  error_hidden_target   -- the directory, after realpath, or the filename has a
+                           part starting with a dot (~/.config, .vscode/,
+                           .profile.json): those hold settings, and
+                           GET /api/dirs never offers them.
+  error_cross_site, error_host_refused
+                        -- from request_refusal, before this action runs.
   error_write_failed    -- DBI or filesystem write threw.
 
 =head3 FORMAL SPECIFICATION
@@ -8608,6 +8673,17 @@ sub export_write ($self) {
 
 	# Strip any path separators the browser might include.
 	($filename) = $filename =~ m{([^/\\]+)\z};
+
+	# A dot-folder or dot-file holds some program's settings (~/.config, a
+	# .vscode/settings.json), which a .json export could replace.  The folder
+	# list the panel offers (GET /api/dirs) leaves them out too.
+	my @names = (File::Spec->splitdir($dest_dir->to_string), $filename // '');
+	if (grep { /\A\./ && $_ ne '.' && $_ ne '..' } @names) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_hidden_target', $dest_dir->child($filename // '')->to_string) },
+			status => 403,
+		);
+	}
 	my $format;
 	if    ($filename && $filename =~ /\.csv\z/i)  { $format = 'csv';    }
 	elsif ($filename && $filename =~ /\.sql\z/i)  { $format = 'sqlite'; }
@@ -15099,6 +15175,45 @@ the extract it replaces.  The extract's table is C<extract>, not C<data>:
 L<Database::Abstraction> cannot read a table called C<data>.  The file's column
 order is stored with it and passed back as C<column_order>, because a SQLite
 backend lists columns alphabetically.
+
+=cut
+
+=head2 request_refusal
+
+A package function, not a route: the first C<before_dispatch> hook in
+L<Database::BI> calls it for every request, and answers C<403> with its message
+when it returns one.  The application has no login, so this is what keeps
+another site's page, acting through the reader's browser, away from
+C<POST /export> (which writes files), C</open> (which reads them) and every
+other route.
+
+=over 4
+
+=item * B<DNS rebinding.>  The C<Host> must be C<localhost>, a name ending in
+C<.localhost>, an IP address, or a name in config C<allowed_hosts>
+(C<*.example.com> for its subdomains, C<*> for every name).  Behind a trusted
+reverse proxy (C<MOJO_REVERSE_PROXY>, hypnotoad's C<proxy>), only a configured
+C<allowed_hosts> is checked.
+
+=item * B<Cross-site writes.>  For every method but C<GET>, C<HEAD> and
+C<OPTIONS>: a C<Sec-Fetch-Site> must be C<same-origin> or C<none>; without one,
+an C<Origin> must name this host and port (or, behind a trusted proxy,
+C<X-Forwarded-Host>).  A request with neither header did not come from a page,
+and is let through.
+
+=back
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+	($c)   # a controller of the application
+
+=head4 OUTPUT
+
+	undef                       # let the request through
+	error_host_refused (string) # the Host is not one this server answers to
+	error_cross_site (string)   # another site's page sent a write
 
 =cut
 
