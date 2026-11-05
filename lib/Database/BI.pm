@@ -2175,7 +2175,7 @@ sub startup ($self) {
 	my @listen = _listen_locations($self->config('listen'));
 	$ENV{MOJO_LISTEN} = join(',', @listen) unless length($ENV{MOJO_LISTEN} // '');
 	_default_hypnotoad_listen($self->config);
-	_warn_if_open($self, $ENV{MOJO_LISTEN}, $self->config->{hypnotoad});
+	_require_password_if_open($self, $ENV{MOJO_LISTEN}, $self->config->{hypnotoad});
 
 	# script/database-bi password makes the password_hash line.
 	push @{ $self->commands->namespaces }, 'Database::BI::Command';
@@ -2843,15 +2843,19 @@ sub _check_login {
 	return;
 }
 
-# _warn_if_open( $app, $listen, $hypnotoad ) -> void
+# _require_password_if_open( $app, $listen, $hypnotoad ) -> void
 #
-# Purpose: Say so when the server can be reached from other machines with no
-#          password: everything it can read and write is then theirs.
+# Purpose: Refuse to start where other machines could reach the server with no
+#          password: everything it can read and write would then be theirs.
 # Entry:   The application, MOJO_LISTEN as startup left it, and the hypnotoad
 #          settings (used instead under hypnotoad).
-# Exit:    Logs a warning when a location is not loopback and no
-#          password_hash is set.
-sub _warn_if_open {
+# Exit:    Returns when every location is loopback or a password_hash is set;
+#          croaks otherwise.  The defaults (127.0.0.1, no password) start.
+#
+# A bare "morbo script/database-bi" listens on every interface (morbo opens
+# the port before it loads the application, so config listen never reaches
+# it), and now stops here; the message says to give it -l.
+sub _require_password_if_open {
 	my ($app, $listen, $hypnotoad) = @_;
 	my $hash = $app->config('password_hash');
 	return if defined $hash && length $hash;
@@ -2864,9 +2868,11 @@ sub _warn_if_open {
 	for my $place (@places) {
 		my $host = lc(Mojo::URL->new($place)->host // '');
 		next if $host eq 'localhost' || $host =~ /\A127\./ || $host eq '[::1]' || $host eq '::1';
-		$app->log->warn("Listening on $place, where other machines can reach it, with no password: "
-			. 'set password_hash (script/database-bi password) or listen on 127.0.0.1');
-		return;
+		(my $shown = $place) =~ s/\?.*//;
+		croak "listen: $shown can be reached from other machines, and there is no password. "
+			. 'Set password_hash (make it with "script/database-bi password"), '
+			. 'or listen on this machine only: listen => \'http://127.0.0.1:3000\' '
+			. '(for hypnotoad, hypnotoad => { listen => [\'http://127.0.0.1:8080\'] }; for morbo, -l http://127.0.0.1:3000)';
 	}
 	return;
 }

@@ -3146,6 +3146,13 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->get_ok('/preferences', { Host => 'evil.example' })->status_is(403);
 		message_ok(Dashboard => 'error_host_refused', $tm->tx->res->body, ['evil.example']);
 
+		{
+			local $ENV{MOJO_REVERSE_PROXY} = 1;
+			my $tr = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1) });
+			$tr->get_ok('/preferences', { 'X-Forwarded-For' => '192.168.1.20' })->status_is(403);
+			message_ok(Dashboard => 'error_remote_needs_password', $tr->tx->res->body);
+		}
+
 		# The login, on only with password_hash.
 		require Database::BI::Password;
 		my $tl = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1),

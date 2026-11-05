@@ -323,7 +323,9 @@ subtest 'where a server listens' => sub {
 	is $env, 'http://127.0.0.1:3000', 'morbo, daemon and prefork: this machine only, port 3000';
 	is_deeply $hypnotoad, { listen => ['http://127.0.0.1:8080'] }, 'hypnotoad: this machine only, port 8080';
 
-	($env) = $listen_of->({ listen => 'http://*:3000' });
+	# Every interface needs a password (t/login.t checks the refusal).
+	my $hash = do { require Database::BI::Password; Database::BI::Password::hash_password('pw', rounds => 10_000) };
+	($env) = $listen_of->({ listen => 'http://*:3000', password_hash => $hash });
 	is $env, 'http://*:3000', 'listen opens it to every machine';
 	($env) = $listen_of->({ listen => ['http://127.0.0.1:4000', 'http://[::1]:4000'] });
 	is $env, 'http://127.0.0.1:4000,http://[::1]:4000', 'or names several places';
@@ -338,7 +340,7 @@ subtest 'where a server listens' => sub {
 
 	{
 		local $ENV{MOJO_LISTEN} = 'http://127.0.0.1:4001';
-		Test::Mojo->new('Database::BI', { listen => 'http://*:3000' });
+		Test::Mojo->new('Database::BI', { listen => 'http://*:3000', password_hash => $hash });
 		is $ENV{MOJO_LISTEN}, 'http://127.0.0.1:4001', 'MOJO_LISTEN beats the configuration';
 	}
 
@@ -368,12 +370,13 @@ SKIP: {
 	skip 'this machine has no address but loopback', 1 unless $address;
 
 	# Started with no -l and no MOJO_LISTEN; the configuration names the port.
+	my $hash = do { require Database::BI::Password; Database::BI::Password::hash_password('pw', rounds => 10_000) };
 	my $reaches = sub {
-		my ($command, $where) = @_;
+		my ($command, $where, $password) = @_;
 		my $port   = Mojo::IOLoop::Server->generate_port;
 		my $config = File::Spec->catfile($tmp, 'listen.conf');
 		open my $cfh, '>', $config or BAIL_OUT("cannot write $config: $!");
-		print {$cfh} "{ listen => ['http://$where:$port'] }\n";
+		print {$cfh} "{ listen => ['http://$where:$port']", ($password ? ", password_hash => '$hash'" : ''), " }\n";
 		close $cfh;
 
 		local $ENV{MOJO_CONFIG}    = $config;
@@ -387,12 +390,14 @@ SKIP: {
 		}
 
 		my $ua = Mojo::UserAgent->new(connect_timeout => 1, inactivity_timeout => 30);
-		my ($local, $remote);
+		my ($local, $remote, $exited);
 		for (1 .. 60) {
 			$local = eval { $ua->head("http://127.0.0.1:$port/preferences")->res->code };
 			last if $local;
+			if (waitpid($pid, WNOHANG) == $pid) { $exited = 1; last }
 			select undef, undef, undef, 0.5;
 		}
+		return (undef, undef, 1) if $exited;
 		$remote = eval { $ua->head("http://$address:$port/preferences")->res->code };
 
 		kill 'TERM', $pid;
@@ -410,9 +415,14 @@ SKIP: {
 		is $local, 200, "$name on 127.0.0.1 answers this machine";
 		ok !$remote, "and not $address";
 
-		($local, $remote) = $reaches->($command, '*');
-		is $local,  200, "$name on * answers this machine";
-		is $remote, 200, "and $address";
+		# Every interface needs a password: without one the server does not start.
+		my $exited;
+		($local, $remote, $exited) = $reaches->($command, '*');
+		ok $exited && !$local, "$name on * with no password does not start";
+
+		($local, $remote) = $reaches->($command, '*', 1);
+		is $local,  401, "$name on * with a password answers this machine, and asks for the password";
+		is $remote, 401, "and $address, the same way";
 	}
 }
 

@@ -144,6 +144,7 @@ Readonly my %MESSAGES => (
 	error_login_failed     => 'That is not the password.',
 	error_login_locked     => 'Too many wrong passwords from this address. Try again in %d minutes.',
 	error_hidden_target    => 'Refused to save into "%s": a hidden file or folder (one whose name starts with a dot) holds settings, not exports.',
+	error_remote_needs_password => 'Refused: this server has no password, so it answers only the machine it runs on. Whoever runs it can set one with "script/database-bi password".',
 	error_cross_site       => 'Refused: this request came from another site (%s). Only pages of this application can change what it keeps or write files.',
 	error_host_refused     => 'Refused: this server does not answer to the name "%s". Open it as localhost or by its IP address, or add the name to allowed_hosts in database_bi.conf.',
 	error_write_failed     => 'Write failed: %s',
@@ -525,7 +526,9 @@ sub _i18n :Protected ($self, $key, @args) {
 # Entry:   A controller of the application, before dispatch.
 # Exit:    The refusal message, or undef to let the request through.
 #
-# Two checks:
+# Three checks:
+#   * No password, so only this machine: a request from an address that is
+#     not loopback (as a trusted proxy reports it) is refused.
 #   * DNS rebinding.  A page on evil.example whose name is made to resolve to
 #     127.0.0.1 is the same origin as this server to the browser, so it can
 #     read the replies too.  It still names its own host, so the Host must be
@@ -541,6 +544,18 @@ sub _i18n :Protected ($self, $key, @args) {
 sub request_refusal {
 	my ($c) = @_;
 	my $req = $c->req;
+
+	# With no password, only this machine.  Startup already refuses to listen
+	# anywhere else, but a reverse proxy on this machine can still bring other
+	# machines' requests in; trusted, it names them in X-Forwarded-For, which
+	# is what remote_address then reads.  A Unix socket has no address, and is
+	# this machine.
+	my $hash = $c->app->config('password_hash');
+	unless (defined $hash && length $hash) {
+		my $from = $c->tx->remote_address // '';
+		return $MESSAGES{error_remote_needs_password}
+			unless $from eq '' || $from =~ /\A(?:::ffff:)?127\./i || $from eq '::1';
+	}
 
 	my $host = lc($req->url->to_abs->host // '');
 	if (length $host) {
@@ -15341,12 +15356,18 @@ backend lists columns alphabetically.
 
 A package function, not a route: the first C<before_dispatch> hook in
 L<Database::BI> calls it for every request, and answers C<403> with its message
-when it returns one.  The application has no login, so this is what keeps
-another site's page, acting through the reader's browser, away from
-C<POST /export> (which writes files), C</open> (which reads them) and every
-other route.
+when it returns one.  It keeps other machines away when there is no password,
+and keeps another site's page, acting through the reader's browser (where a
+logged-in session goes with it), away from C<POST /export> (which writes
+files), C</open> (which reads them) and every other route.
 
 =over 4
+
+=item * B<No password, this machine only.>  With no C<password_hash>, a request
+whose remote address is not loopback (C<127.0.0.0/8>, C<::1>) is refused, as is
+one a trusted reverse proxy says came from such an address.  Startup already
+refuses to listen anywhere else without a password; this catches a proxy on
+this machine that brings other machines' requests in.
 
 =item * B<DNS rebinding.>  The C<Host> must be C<localhost>, a name ending in
 C<.localhost>, an IP address, or a name in config C<allowed_hosts>
@@ -15371,6 +15392,7 @@ and is let through.
 =head4 OUTPUT
 
 	undef                       # let the request through
+	error_remote_needs_password (string) # no password, and not from this machine
 	error_host_refused (string) # the Host is not one this server answers to
 	error_cross_site (string)   # another site's page sent a write
 
