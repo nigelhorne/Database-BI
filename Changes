@@ -83,7 +83,15 @@ Revision history for Database-BI
 	  first transaction had a cheque number showed 4 of its 362 rows.  The
 	  column rows are keyed on was the first one filled in the first row,
 	  and Database::Abstraction drops a row whose key is empty.  It is now
-	  the column with the fewest empty cells in the whole file.
+	  the column with the fewest empty cells in the whole file, read as
+	  Database::Abstraction reads it: a row such as "Joe\"s Bar" no longer
+	  ends the count, and a line that will not parse is skipped.
+	- DataSource read no rows when its caller had set $/ (slurp mode, or a
+	  record length): the header was read as the whole file.  The methods
+	  that read a file now use "\n" whatever the caller's $/ is.
+	- Deleting a canvas card rewrote a bookmark's cv= of more than nine
+	  digits, which names no card, as cv=1e+20.  It is left alone, and a
+	  search or card index that is not one is no longer renumbered.
 	- A map marker's popup showed only the first of the rows at its place:
 	  "3 rows" and one event.  It now lists them all, a value every row
 	  shares once and the columns that differ as a small table.  Past
@@ -124,6 +132,11 @@ Revision history for Database-BI
 	  N" of a rethrown error; it now goes through the same tidying as every
 	  other error shown to a reader.
 	[ Tests ]
+	- t/edge_cases.t attacks the id choice (escaped quotes, unparseable and
+	  stuck reads, a read failing mid-file, 50,000 rows, 2,000 columns, a
+	  megabyte of quotes, the caller's $/, descriptor leaks and a full
+	  descriptor table), bookmark renumbering, cv= values, stored cards of the
+	  wrong shape and map popups (hostile cells, 100,000 rows at a marker).
 	- t/function.t covers the geocoding progress run, the remaining
 	  DataSource, Calc and Geocode helpers, and the Dashboard helpers and
 	  canvas, lookup, extraction and /geo/lookup routes no part reached.

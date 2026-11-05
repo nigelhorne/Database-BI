@@ -483,6 +483,7 @@ sub new {
 	# Opening a file tries several drivers in turn; what they leave in $@ and $! is
 	# of no interest to a caller, who may be holding its own.
 	local ($@, $!);
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	my $raw   = Params::Get::get_params(undef, \@_) // {};
 	return $class->_new_from_url($raw)   if exists $raw->{url};
 	return $class->_new_from_redis($raw) if exists $raw->{redis};
@@ -812,17 +813,30 @@ sub _new_from_mariadb :Protected {
 # Exit:    The safe-identifier column with the fewest rows D::A would drop
 #          (an empty cell, or one starting with '#', which D::A reads as a
 #          comment), the earliest on a tie; undef when no header name is safe.
-#          Reads $fh to its end.
+#          Reads $fh to its end.  The file is parsed as D::A's slurp parses it
+#          (escape_char '\\'), or a row like "Joe\"s Bar" would end the count
+#          there; a line that still will not parse is skipped, not the end.
 sub _best_id_column {
 	my ($fh, $sep, $fields) = @_;
 
-	my @safe = grep { $fields->[$_] =~ $TABLE_NAME_RE } 0 .. $#{$fields};
+	my @safe = grep { defined($fields->[$_]) && $fields->[$_] =~ $TABLE_NAME_RE } 0 .. $#{$fields};
 	return undef unless @safe;
 
 	require Text::CSV;
-	my $csv = Text::CSV->new({ binary => 1, sep_char => $sep, allow_loose_quotes => 1, allow_whitespace => 1 });
+	my $csv = Text::CSV->new({
+		binary => 1, sep_char => $sep, escape_char => '\\',
+		allow_loose_quotes => 1, allow_whitespace => 1,
+	});
 	my %dropped = map { $_ => 0 } @safe;
-	while (my $row = $csv->getline($fh)) {
+	while (1) {
+		my $at = tell($fh);
+		my $row = $csv->getline($fh);
+		if (!$row) {
+			# The end, or a line that will not parse: go on from the next one,
+			# unless nothing was read, which would loop for ever.
+			last if $csv->eof() || eof($fh) || tell($fh) == $at;
+			next;
+		}
 		next unless grep { defined($_) && length($_) } @{$row};	# a blank line is not a row
 		for my $i (@safe) {
 			my $cell = $row->[$i];
@@ -1748,6 +1762,7 @@ None.
 sub columns {
 	my $self = shift;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	return $self->{_columns} if defined $self->{_columns};
 	# A caller that knows the order (an extract, which records its file's) says
 	# so; a SQLite backend would otherwise list the columns alphabetically.
@@ -1864,6 +1879,7 @@ None.
 sub aggregate {
 	my ($self, @args) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	return [] if $self->{_file_is_empty};
 	return [] unless $self->{_db};
 	return [] unless $self->{_db}->can('aggregate');
@@ -1930,6 +1946,7 @@ C<error_mariadb_no_driver> or C<error_mariadb_connect>.
 sub mariadb_tables {
 	my ($class, $server, $settings) = @_;
 	local ($@, $!);
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 
 	my ($dbh) = _mariadb_connect($server, $settings);
 	my $rows = eval {
@@ -2088,6 +2105,7 @@ None.
 sub schema {
 	my $self = shift;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 
 	return {} unless $self->{_db} && $self->{_db}->can('schema');
 
@@ -2217,6 +2235,7 @@ calls in C<eval> if you need to recover.
 sub selectall_arrayref {
 	my ($self, @args) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	return [] if $self->{_file_is_empty};
 
 	# A server gives LIMIT rows in no promised order, so pages could overlap.
@@ -2264,6 +2283,7 @@ sub selectall_arrayref {
 sub fetch_all {
 	my $self  = shift;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	my $table = $self->{_table};
 
 	# 0-byte file: no backend was created; nothing to fetch.
@@ -2354,6 +2374,7 @@ None.
 sub count {
 	my ($self) = @_;
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
+	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	return 0 if $self->{_file_is_empty};
 	return $self->{_db}->count();
 }

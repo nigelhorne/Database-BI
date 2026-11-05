@@ -5132,11 +5132,18 @@ sub analyses_delete_visual ($self) {
 # A saved query string with its cv= moved down if the card it names came after
 # the one removed.  The canvas never makes a text card a cross-filter's source,
 # but a bookmark is stored as PATCHed, so a cv= naming the removed card is
-# dropped: kept, it would name the card that moved into its place.
+# dropped: kept, it would name the card that moved into its place.  A cv= of
+# more than nine digits names no card (_cross_filter_source), so it is left
+# as it is: arithmetic on it came back as cv=1e+20.  A search or index that is
+# not one is returned unchanged.
 sub _shift_card_param {
 	my ($search, $removed) = @_;
+	return $search unless defined($search) && !ref($search)
+		&& defined($removed) && !ref($removed) && $removed =~ /\A[0-9]{1,9}\z/;
 	$search =~ s{(?<![^?&])cv=(\d+)(&?)}{
-		$1 == $removed ? '' : ('cv=' . ($1 > $removed ? $1 - 1 : $1) . $2)
+		length($1) > 9 ? "cv=$1$2"
+			: $1 == $removed ? ''
+			: ('cv=' . ($1 > $removed ? $1 - 1 : $1) . $2)
 	}ge;
 	$search =~ s{&\z}{};
 	return $search;
