@@ -4,7 +4,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 ## Version
 
-0.020.0
+0.020.1
 
 ## Description
 
@@ -1366,6 +1366,30 @@ which the legend shows as "Other".  `series=` is the categorical
 alternative: each distinct value takes the next colour from `scheme=`,
 cycling through the palette, and the legend lists the categories.  `color=`
 and `series=` are mutually exclusive.
+
+### Content-Security-Policy
+
+Every HTML page is sent with a `Content-Security-Policy` header.  The pages
+show cells from files this application did not write, so the policy backs up
+the escaping.  Scripts, stylesheets and images may come only from this site
+and from the hosts that `d3_url`, the `leaflet_*_url` keys, `tile_url` and
+`tile_sources` name.  The defaults allow cdnjs.cloudflare.com, unpkg.com and
+OpenStreetMap's tile servers.  A page's scripts may talk only to this site
+(`connect-src 'self'`), and no other site may show a page in a frame
+(`frame-ancestors 'self'`).  JSON replies and downloads carry no policy.
+
+The policy still allows inline script, which the pages and the chart and map
+libraries write.  Two keys change it:
+
+```perl
+{
+    content_security_policy_report_only => 1,  # report breaches, block nothing
+    content_security_policy => "default-src 'self'; ...",  # the whole policy
+}
+```
+
+`content_security_policy` set to `''` or `0` sends no header.  A policy
+written out in full is not updated when the library keys change.
 
 ## Methods
 

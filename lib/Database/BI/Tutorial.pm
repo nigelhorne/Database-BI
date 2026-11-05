@@ -3,7 +3,7 @@ package Database::BI::Tutorial;
 use strict;
 use warnings;
 
-our $VERSION = '0.020.0';
+our $VERSION = '0.020.1';
 
 # ---------------------------------------------------------------------------
 # The tutorial that the application shows at GET /tutorial.
@@ -877,7 +877,7 @@ my @CHAPTERS = (
 			'Click Share... in the canvas toolbar.',
 			'Click Make a link, then Copy link. The link is now on your clipboard.',
 			'Send the link by email or in a message.',
-			'To show the canvas inside another page of this site, click Copy embed code instead.',
+			'To show the canvas inside another page of this site, click Copy embed code instead. Other sites cannot show it.',
 			'The link stops working after 30 days. Click Make a new link to create another.',
 		],
 		tip   => 'The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the Canvases page reads it back.',
@@ -1027,6 +1027,14 @@ my @FAQ = (
 	{
 		question => 'The table says its saved columns could not be added.',
 		answer   => 'The file has changed, and a saved column can no longer be worked out. The note names it. Click the panel the note names, then correct or delete it.',
+	},
+	{
+		question => 'A chart or map is blank after D3 or Leaflet was moved to another server.',
+		answer   => 'The pages only load scripts from the servers in the configuration. Set d3_url or the leaflet keys to the new address, and the page allows it.',
+	},
+	{
+		question => 'Can I show a canvas on another web site?',
+		answer   => 'No. The pages refuse to be shown in a frame on another site, so nobody can dress them up as their own. Send the share link instead.',
 	},
 	{
 		question => 'A chart says it cannot be drawn.',

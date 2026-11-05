@@ -309,6 +309,34 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	needed to draw a map can stay on the local network.
 </p>
 
+<h2 id="csp">Content-Security-Policy</h2>
+<p>
+	Every HTML page is sent with a <code>Content-Security-Policy</code> header.
+	The pages show cells from files this application did not write, so the policy
+	backs up the escaping. Scripts, stylesheets and images may come only from this
+	site and from the hosts named by <code>d3_url</code>, the
+	<code>leaflet_*_url</code> keys, <code>tile_url</code> and
+	<code>tile_sources</code>. With the defaults those are cdnjs.cloudflare.com,
+	unpkg.com and OpenStreetMap's tile servers, so moving a library with the keys
+	above moves the policy with it.
+</p>
+<p>
+	A page's scripts may talk only to this site (<code>connect-src 'self'</code>),
+	and no other site may show a page in a frame
+	(<code>frame-ancestors 'self'</code>). Inline script is still allowed, because
+	the pages and the chart and map libraries write it. JSON replies and downloads
+	carry no policy. Two keys change it:
+</p>
+<pre><code>{
+    content_security_policy_report_only => 1,   # report breaches, block nothing
+    content_security_policy => "default-src 'self'; ...",   # the whole policy
+}</code></pre>
+<p>
+	<code>content_security_policy</code> set to <code>''</code> or <code>0</code>
+	sends no header. A policy written out in full is not updated when the library
+	keys change.
+</p>
+
 <h2>Command-line tools</h2>
 
 <h3><code>script/bi-geocode</code></h3>

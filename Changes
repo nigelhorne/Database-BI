@@ -1,5 +1,25 @@
 Revision history for Database-BI
 
+0.020.1	Thu Nov  5 10:06:18 AM EST 2026
+	[ Bug fixes ]
+	- Every HTML page is sent with a Content-Security-Policy.  The pages show
+	  cells from files the application did not write, and HTML::D3 before 0.27
+	  and 0.29 let such a cell run script; the policy backs up the escaping.
+	  Scripts, stylesheets and images come only from this site and the hosts
+	  named by d3_url, the leaflet_*_url keys, tile_url and tile_sources (by
+	  default cdnjs.cloudflare.com, unpkg.com and OpenStreetMap's tiles).  A
+	  page's scripts may talk only to this site (connect-src 'self'), and no
+	  other site may frame a page (frame-ancestors 'self'); before, only
+	  /embed/ refused that.  Inline script is still allowed.  JSON replies and
+	  downloads carry no policy.
+	- content_security_policy_report_only => 1 sends the policy as
+	  Content-Security-Policy-Report-Only, and content_security_policy sets
+	  the whole policy ('' or 0 sends none).
+	[ Tests ]
+	- t/csp.t checks the policy, the config keys, which replies carry it, and
+	  that every script and stylesheet the bar, line and map pages load is
+	  allowed by it.
+
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026
 	[ Enhancements ]
 	- The line graph panel has Lines by, which draws one line for each value of a

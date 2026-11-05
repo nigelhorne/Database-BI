@@ -13,7 +13,7 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
-use version; our $VERSION = version->declare('0.020.0');
+use version; our $VERSION = version->declare('0.020.1');
 
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
@@ -28,6 +28,11 @@ Readonly my $DEFAULT_CACHE_TTL_URL => '15 min';
 # (leaflet_*_url), so an offline installation can point them at its own copies.
 Readonly my $DEFAULT_D3_URL => 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js';
 
+# Where HTML::OSM fetches Leaflet and its tiles when the config names no
+# other.  Only their origins matter: they go into the Content-Security-Policy.
+Readonly my $DEFAULT_LEAFLET_URL => 'https://unpkg.com/';
+Readonly my $DEFAULT_TILE_URL    => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
 # Transport-layer upload size cap (bytes).  Mojolicious enforces this before
 # the request body is read into memory, so an oversized upload never reaches
 # the controller.  Must match $MAX_UPLOAD_BYTES in Dashboard.pm.
@@ -40,7 +45,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.020.0
+0.020.1
 
 =head1 DESCRIPTION
 
@@ -1389,6 +1394,28 @@ alternative: each distinct value takes the next colour from C<scheme=>,
 cycling through the palette, and the legend lists the categories.  C<color=>
 and C<series=> are mutually exclusive.
 
+=head2 Content-Security-Policy
+
+Every HTML page is sent with a C<Content-Security-Policy> header.  The pages
+show cells from files this application did not write, so the policy backs up
+the escaping.  Scripts, stylesheets and images may come only from this site
+and from the hosts that C<d3_url>, the C<leaflet_*_url> keys, C<tile_url> and
+C<tile_sources> name.  The defaults allow cdnjs.cloudflare.com, unpkg.com and
+OpenStreetMap's tile servers.  A page's scripts may talk only to this site
+(C<connect-src 'self'>), and no other site may show a page in a frame
+(C<frame-ancestors 'self'>).  JSON replies and downloads carry no policy.
+
+The policy still allows inline script, which the pages and the chart and map
+libraries write.  Two keys change it:
+
+    {
+        content_security_policy_report_only => 1,  # report breaches, block nothing
+        content_security_policy => "default-src 'self'; ...",  # the whole policy
+    }
+
+C<content_security_policy> set to C<''> or C<0> sends no header.  A policy
+written out in full is not updated when the library keys change.
+
 =head1 METHODS
 
 =head2 startup
@@ -1912,6 +1939,25 @@ sub startup ($self) {
 		) : ()),
 	});
 
+	# A Content-Security-Policy on every HTML reply.  The pages draw cells from
+	# files nobody here wrote, so the policy is the second line behind the
+	# escaping: script, style and images come only from this site and the hosts
+	# the configuration names, nothing a page runs may send data to another
+	# server, and no other site may frame a page.  It still allows inline
+	# script, which the templates, HTML::D3 and HTML::OSM all write.  Built per
+	# reply from the config, as d3_url is, so a test can change it.
+	$self->hook(after_dispatch => sub {
+		my $c = shift;
+
+		my $headers = $c->res->headers;
+		return unless ($headers->content_type // '') =~ m{\Atext/html\b}i;
+		my $policy = _content_security_policy($c->app->config);
+		return unless defined $policy;
+		my $name = $c->app->config('content_security_policy_report_only')
+			? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
+		$headers->header($name => $policy) unless defined $headers->header($name);
+	});
+
 	# A relative time range named in the URL (?range=last_30_days&rcol=when)
 	# becomes the f= filters every data route already applies, so the table
 	# view, every chart, the pivot, stats, insights, the exports and a saved
@@ -2257,6 +2303,108 @@ sub _evict_old_uploads {
 			unlink $entry->to_string;
 		}
 	});
+}
+
+# _content_security_policy( \%config ) -> $policy | undef
+#
+# Purpose: The Content-Security-Policy header every HTML reply carries.
+# Entry:   The application's config.  content_security_policy, when set to a
+#          string, is the whole policy, sent as written; set to '' or 0 it
+#          turns the header off.  Otherwise the policy is built from d3_url,
+#          the five leaflet_*_url keys, tile_url and tile_sources.
+# Exit:    The header's value, or undef for none.
+#
+# Leaflet's marker images are found beside its stylesheet, so the stylesheet's
+# host is allowed images too.  unpkg.com stays in script-src even when the
+# Leaflet keys point elsewhere: HTML::OSM loads leaflet.heat from there, and
+# no key moves it.  The pins themselves are data: URIs (_marker_icon in the controller), and a
+# chart export draws its copy through a data: or blob: image.
+sub _content_security_policy {
+	my ($config) = @_;
+	$config //= {};
+
+	my $set = $config->{content_security_policy};
+	if (defined $set && !ref $set) {
+		return length($set) && $set ne '0' ? $set : undef;
+	}
+
+	my $from = sub {
+		my ($key, $default) = @_;
+		my $url = $config->{$key};
+		$url = $default unless defined $url && !ref $url && length $url;
+		return _csp_source($url);
+	};
+
+	my @script = ($from->('d3_url', $DEFAULT_D3_URL),
+		map { $from->($_, $DEFAULT_LEAFLET_URL) } qw(leaflet_js_url leaflet_cluster_js_url));
+	push @script, _csp_source($DEFAULT_LEAFLET_URL);
+	my @style = map { $from->($_, $DEFAULT_LEAFLET_URL) }
+		qw(leaflet_css_url leaflet_cluster_css_url leaflet_cluster_default_css_url);
+	my $sources = $config->{tile_sources};
+	my @tiles = ($from->('tile_url', $DEFAULT_TILE_URL),
+		ref $sources eq 'HASH'
+			? map { _csp_source(ref $_ eq 'HASH' ? $_->{url} : undef) } @{$sources}{sort keys %{$sources}}
+			: ());
+
+	my $list = sub {
+		my %seen;
+		return join ' ', grep { defined && !$seen{$_}++ } @_;
+	};
+
+	return join '; ',
+		"default-src 'self'",
+		'script-src ' . $list->("'self'", "'unsafe-inline'", @script),
+		'style-src '  . $list->("'self'", "'unsafe-inline'", @style),
+		'img-src '    . $list->("'self'", 'data:', 'blob:', @tiles, @style),
+		"font-src 'self' data:",
+		"connect-src 'self'",
+		"object-src 'none'",
+		"base-uri 'self'",
+		"form-action 'self'",
+		"frame-ancestors 'self'";
+}
+
+# _csp_source( $url ) -> $source | undef
+#
+# Purpose: The CSP source expression that allows $url.
+# Entry:   A URL from the config: absolute (http, https or scheme-relative), or
+#          a path, which is this site.
+# Exit:    "https://host[:port]", "'self'", or undef when it names nothing a
+#          policy can allow.
+#
+# Only the origin is kept: a source with a path would allow that one file, and
+# tile URLs carry {z}/{x}/{y}.  A placeholder in the first label of the host
+# ({s}.tile.openstreetmap.org) becomes CSP's wildcard; one anywhere else cannot
+# be written as a host, so the whole scheme is allowed rather than the tiles
+# broken.
+sub _csp_source {
+	my ($url) = @_;
+	return unless defined $url && !ref $url && length $url;
+
+	if ($url !~ m{\A(?:[A-Za-z][A-Za-z0-9+.-]*:)?//}) {
+		# A path on this site; any other scheme (data:, javascript:) is none.
+		return $url =~ m{\A[A-Za-z][A-Za-z0-9+.-]*:} ? undef : "'self'";
+	}
+	my ($scheme, $authority) = $url =~ m{\A(?:([A-Za-z][A-Za-z0-9+.-]*):)?//([^/?#]*)};
+	$scheme = lc($scheme // '');
+	return if length $scheme && $scheme !~ /\Ahttps?\z/;
+	my $prefix = length $scheme ? "$scheme://" : '';
+	my $whole  = length $scheme ? "$scheme:" : undef;
+
+	$authority =~ s/\A.*@//;
+	my ($host, $port) = $authority =~ /\A([^:]+)(?::(.*))?\z/
+		or return $whole;
+	my @labels = split /\./, $host, -1;
+	$labels[0] = '*' if @labels > 1 && $labels[0] =~ /\{/;
+	for my $i (0 .. $#labels) {
+		next if $i == 0 && $labels[0] eq '*';
+		return $whole unless $labels[$i] =~ /\A[A-Za-z0-9-]+\z/;
+	}
+	if (defined $port) {
+		return $whole unless $port =~ /\A(?:\d{1,5}|\{[^}]*\})\z/;
+		$port = $port =~ /\{/ ? '*' : $port;
+	}
+	return $prefix . lc(join '.', @labels) . (defined $port ? ":$port" : '');
 }
 
 =head1 SEE ALSO
