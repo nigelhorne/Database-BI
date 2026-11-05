@@ -879,6 +879,7 @@ my @CHAPTERS = (
 			'Send the link by email or in a message.',
 			'To show the canvas inside another page of this site, click Copy embed code instead. The panel names any other sites where it works.',
 			'The link stops working after 30 days. Click Make a new link to create another.',
+			'If the panel says a restart ends the link, the server forgets its links when it stops.',
 		],
 		tip   => 'The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the Canvases page reads it back.',
 		routes => [],

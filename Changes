@@ -123,6 +123,16 @@ Revision history for Database-BI
 	  trusts the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's proxy => 1).
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
+	- Share and embed links could be forged.  Without share_secret, which was
+	  not documented, tokens were signed with a fixed string that is the same
+	  on every install and in the source, so with a password set anyone who
+	  knew a canvas's id could sign a link to it, with any expiry, and read it
+	  without logging in.  The key is now share_secret, else one derived from
+	  secrets (not the session key itself); with neither, it is new at each
+	  start, so a restart ends the links, and the Share panel says so.  A
+	  share_secret shorter than 16 characters, not a string, or the old fixed
+	  string stops the start.  Signatures are compared in constant time.
+	  share_secret set as before keeps its links.
 	- /import and url: sources could be pointed at this machine or a private
 	  network.  Only a dotted IPv4 address in the URL was checked, so a name
 	  whose DNS answers 127.0.0.1 (localtest.me, 127.0.0.1.nip.io), an
@@ -157,6 +167,10 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/login.t checks that a share or embed token signed with the old fixed
+	  key, or with the session key, is refused, that the real one opens the
+	  canvas, that the Share panel is told whether links outlive a restart,
+	  that share_secret still signs as before, and the startup checks.
 	- t/safe-ua.t checks, with no network, that names resolving to this
 	  machine, a private network or the metadata service are refused and
 	  nothing is sent; that every written form of such an address is refused

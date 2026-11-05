@@ -13863,13 +13863,30 @@ sub canvases_view ($self) {
 }
 
 # _share_secret($self) -> $secret_string
+#
+# The key share and embed tokens are signed with: config share_secret, else
+# one derived from the application's first secret.  It used to fall back to a
+# fixed string, the same on every install, so anyone could sign a token for
+# any canvas, with any expiry, and read it without the password.  The first
+# secret is random for each start unless config secrets sets it, so without
+# either a restart ends every link (_share_links_last says which).  It is
+# derived, not the secret itself, so a token is never a signature that the
+# session cookie or a map list would also accept.
 sub _share_secret :Protected ($self) {
 	my $s = $self->app->config('share_secret') // '';
-	unless (length $s) {
-		carp 'share_secret not configured; using insecure default';
-		$s = 'BI_DEFAULT_INSECURE_SECRET';
-	}
-	return $s;
+	return $s if !ref($s) && length $s;
+	require Digest::SHA;
+	return Digest::SHA::hmac_sha256_hex('Database::BI share tokens', $self->app->secrets->[0]);
+}
+
+# _share_links_last($self) -> 1 | 0
+#
+# Whether a share link outlives a restart: true when share_secret or secrets
+# is configured, so the key is the same next time.
+sub _share_links_last :Protected ($self) {
+	my $s       = $self->app->config('share_secret') // '';
+	my $secrets = $self->app->config('secrets');
+	return (!ref($s) && length $s) || (ref($secrets) eq 'ARRAY' && @{$secrets}) ? 1 : 0;
 }
 
 # _make_share_token($self, $id, $expires) -> $token_string
@@ -13897,7 +13914,12 @@ sub _verify_share_token :Protected ($self, $id, $token) {
 	require Digest::SHA;
 	my $secret   = $self->_share_secret;
 	my $expected = Digest::SHA::hmac_sha256_hex("$id|$expires", $secret);
-	return undef unless $hmac eq $expected;
+	return undef unless length($hmac) == length($expected);
+	# Every character is compared, so the time taken says nothing about how
+	# much of a guessed signature was right.
+	my $diff = 0;
+	$diff |= ord(substr($hmac, $_, 1)) ^ ord(substr($expected, $_, 1)) for 0 .. length($expected) - 1;
+	return undef if $diff;
 	return 1;
 }
 
@@ -13915,7 +13937,10 @@ sub analyses_share ($self) {
 	my $token   = $self->_make_share_token($id, $expires);
 	my $url     = $self->req->url->base->to_string . "/share/$id?token=" . url_escape($token);
 
-	$self->render(json => { token => $token, url => $url, expires => $expires });
+	$self->render(json => {
+		token => $token, url => $url, expires => $expires,
+		lasts_restart => $self->_share_links_last ? Mojo::JSON::true() : Mojo::JSON::false(),
+	});
 }
 
 # GET /share/:id?token=...

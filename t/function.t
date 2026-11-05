@@ -8596,7 +8596,17 @@ sub croak_rethrow {
 		is $vf->(dash_controller($other->app, '/'), 'abc', $tok), undef, 'signed with another secret';
 
 		delete $tm->app->config->{share_secret};
-		warning_like { Database::BI::Controller::Dashboard::_share_secret($c) } qr/share_secret not configured/, 'running with no secret is announced';
+		my $derived;
+		warning_is { $derived = Database::BI::Controller::Dashboard::_share_secret($c) } undef, 'no share_secret: nothing to warn of';
+		isnt $derived, 'BI_DEFAULT_INSECURE_SECRET', 'and not the fixed key every install once shared';
+		isnt $derived, $tm->app->secrets->[0], 'nor the session key itself';
+		like $derived, qr/\A[0-9a-f]{64}\z/, 'but one derived from it';
+		my $fresh = isolated_app();
+		delete $fresh->app->config->{share_secret};
+		isnt Database::BI::Controller::Dashboard::_share_secret(dash_controller($fresh->app, '/')), $derived,
+			'another start (another random secret) has another key';
+		$tm->app->config->{share_secret} = [];
+		is Database::BI::Controller::Dashboard::_share_secret($c), $derived, 'a share_secret that is not a string is not used';
 	};
 
 	# ------------------------------------------------------------------------

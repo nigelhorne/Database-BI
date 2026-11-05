@@ -204,10 +204,59 @@ subtest 'share and embed links need no login' => sub {
 	$t->get_ok("/share/$id$q", $HTML)->element_exists_not('#site-nav-logout');
 };
 
+subtest 'a share link cannot be made without the key' => sub {
+	require Digest::SHA;
+	require MIME::Base64;
+	my $sign = sub {
+		my ($id, $key) = @_;
+		my $payload = "$id|" . (time() + 86_400 * 3650);
+		return url_escape(MIME::Base64::encode_base64url("$payload|" . Digest::SHA::hmac_sha256_hex($payload, $key)));
+	};
+	for my $config ([], [ secrets => ['a long secret for the tests'] ]) {
+		my $t = app_with(password_hash => $HASH, @{$config});
+		log_in($t, $PASSWORD);
+		$t->post_ok('/api/analyses' => json => {
+			name     => 'Private',
+			datasets => [ { spec => 'table:sales' } ],
+			visuals  => [ { kind => 'bar', encode => { cat => 'region', value => 'amount' } } ],
+		})->status_is(201);
+		my $id = $t->tx->res->json->{id};
+		my $reply = $t->post_ok("/api/analyses/$id/share")->tx->res->json;
+		is !!$reply->{lasts_restart}, !!@{$config}, @{$config}
+			? 'with secrets set, a link outlives a restart' : 'without, the panel is told a restart ends it';
+		$t->post_ok('/logout');
+		# Versions before 0.021.0 signed with this, the same on every install.
+		$t->get_ok("/share/$id?token=" . $sign->($id, 'BI_DEFAULT_INSECURE_SECRET'), $HTML)
+			->status_is(403, 'a token signed with the old fixed key is refused');
+		$t->get_ok("/embed/$id?token=" . $sign->($id, 'BI_DEFAULT_INSECURE_SECRET'), $HTML)->status_is(403, '... by embed too');
+		$t->get_ok("/share/$id?token=" . $sign->($id, $t->app->secrets->[0]), $HTML)
+			->status_is(403, 'and so is one signed with the session key itself');
+		$t->get_ok('/share/' . $id . '?token=' . url_escape($reply->{token}), $HTML)->status_is(200, 'the real one works');
+		unlike $t->tx->res->body, qr/share_secret not configured/, 'and nothing is said about a default';
+	}
+
+	my $u = app_with(password_hash => $HASH, share_secret => 'sixteen chars ok');
+	log_in($u, $PASSWORD);
+	$u->post_ok('/api/analyses' => json => {
+		name => 'Keyed', datasets => [ { spec => 'table:sales' } ],
+		visuals => [ { kind => 'bar', encode => { cat => 'region', value => 'amount' } } ],
+	});
+	my $id = $u->tx->res->json->{id};
+	ok $u->post_ok("/api/analyses/$id/share")->tx->res->json->{lasts_restart}, 'share_secret keeps links too';
+	$u->post_ok('/logout');
+	$u->get_ok("/share/$id?token=" . $sign->($id, 'sixteen chars ok'), $HTML)
+		->status_is(200, 'share_secret is the key, as before, so links made with it still work');
+};
+
 subtest 'startup' => sub {
 	throws_ok { app_with(password_hash => 'secret') } qr/password_hash: not a hash made by "script\/database-bi password"/,
 		'a plain password is refused, not used';
 	throws_ok { app_with(password_hash => [$HASH]) } qr/password_hash/, 'so is a list';
+	throws_ok { app_with(share_secret => 'BI_DEFAULT_INSECURE_SECRET') } qr/share_secret: that is the default/,
+		'share_secret as the old default, which is in the source';
+	throws_ok { app_with(share_secret => 'short') } qr/share_secret: give at least 16/, 'share_secret too short to resist guessing';
+	throws_ok { app_with(share_secret => ['a list of secrets']) } qr/share_secret/, 'share_secret as a list';
+	lives_ok { app_with(share_secret => '') } 'share_secret empty is as unset';
 	for my $bad ('ten', 59, -1, [3600]) {
 		throws_ok { app_with(login_expiration => $bad) } qr/login_expiration/, 'login_expiration ' . (ref $bad ? 'list' : $bad);
 	}

@@ -1421,7 +1421,18 @@ sent to `/login` and, once the password is right, back to that page; any other
 request (a script, a panel's request, a download) gets `401` until it carries a
 logged-in session.  `POST /logout`, the Log out button at the top of each page,
 ends it.  `/share/:id` and `/embed/:id` need no login: their signed, expiring
-token is their permission, so anyone holding the link sees that canvas.
+token is their permission, so anyone holding the link sees that canvas, and
+only that one, for 30 days.  The canvas itself (`/a/:id`) and the rest still
+ask for the password.
+
+The token is signed with `share_secret` when it is set (at least 16
+characters), else with a key derived from `secrets`.  Without either, the key
+is new at each start, so a restart ends every share link, and the Share panel
+says so; set `secrets` (which keeps logins too) or `share_secret` to keep
+them.  Changing either ends the links made with the old one.  Before 0.021.0 a
+missing `share_secret` meant a fixed key, the same on every install, with which
+anyone could sign a link to any canvas; that key in `share_secret` stops the
+start.
 
 ```perl
 {

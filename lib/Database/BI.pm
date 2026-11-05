@@ -1493,7 +1493,18 @@ sent to C</login> and, once the password is right, back to that page; any other
 request (a script, a panel's request, a download) gets C<401> until it carries a
 logged-in session.  C<POST /logout>, the Log out button at the top of each page,
 ends it.  C</share/:id> and C</embed/:id> need no login: their signed, expiring
-token is their permission, so anyone holding the link sees that canvas.
+token is their permission, so anyone holding the link sees that canvas, and
+only that one, for 30 days.  The canvas itself (C</a/:id>) and the rest still
+ask for the password.
+
+The token is signed with C<share_secret> when it is set (at least 16
+characters), else with a key derived from C<secrets>.  Without either, the key
+is new at each start, so a restart ends every share link, and the Share panel
+says so; set C<secrets> (which keeps logins too) or C<share_secret> to keep
+them.  Changing either ends the links made with the old one.  Before 0.021.0 a
+missing C<share_secret> meant a fixed key, the same on every install, with which
+anyone could sign a link to any canvas; that key in C<share_secret> stops the
+start.
 
     {
         password_hash    => 'pbkdf2-sha256$200000$...',
@@ -2236,6 +2247,7 @@ sub startup ($self) {
 	_check_allowed_hosts($self->config('allowed_hosts'));
 	_check_file_roots($self->config('file_roots'), $self->home);
 	_check_url_private_hosts($self->config('url_private_hosts'));
+	_check_share_secret($self->config('share_secret'));
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
 
 	# Only this machine can reach a server unless the configuration says
@@ -2969,6 +2981,25 @@ sub _check_url_private_hosts {
 			unless defined $name && !ref $name
 				&& $name =~ /\A(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\z/;
 	}
+	return;
+}
+
+# _check_share_secret( $value ) -> void
+#
+# Purpose: Refuse a share_secret that would not keep share links private.
+# Entry:   Config share_secret: undef or '' (a key derived from secrets), or
+#          the key share and embed tokens are signed with.
+# Exit:    Returns; croaks on a reference, fewer than 16 characters, or the
+#          fixed string versions before 0.021.0 used when none was set, which
+#          anyone can read in the source.
+sub _check_share_secret {
+	my ($value) = @_;
+	return unless defined $value && (ref $value || length $value);
+	croak 'share_secret: give a string of at least 16 characters, or leave it out' if ref $value;
+	croak 'share_secret: that is the default from the source, which anyone can read; choose another'
+		if $value eq 'BI_DEFAULT_INSECURE_SECRET';
+	croak 'share_secret: give at least 16 characters, so a share link cannot be forged by guessing it'
+		if length($value) < 16;
 	return;
 }
 

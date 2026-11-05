@@ -212,7 +212,9 @@ hypnotoad -s script/database-bi</code></pre>
 	There is one password, not one per person. A browser is sent to the Log in
 	page and then back to the page it asked for; a script or download gets 401.
 	Log out is at the top of every page. Share and embed links still work without
-	it, since their signed, expiring token is their permission. The session cookie
+	it, since their signed, expiring token is their permission. They are signed
+	with <code>share_secret</code> if set (16 characters or more), else with a key
+	made from <code>secrets</code>; with neither, a restart ends every link. The session cookie
 	is HttpOnly, SameSite=Lax, and Secure over https. Over plain http the password
 	crosses the network as it is typed, so put a server that other machines reach
 	behind https. Ten wrong passwords from one address in 15 minutes lock it out for
@@ -408,6 +410,15 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td>
 				Turns on the login. Made by <code>script/database-bi password</code>;
 				see <a href="#login">Logging in</a>.
+			</td>
+		</tr>
+		<tr>
+			<td><code>share_secret</code></td>
+			<td>unset</td>
+			<td>
+				The key share and embed links are signed with, at least 16 characters.
+				Unset, a key made from <code>secrets</code>; with neither, a restart
+				ends every link.
 			</td>
 		</tr>
 		<tr>
