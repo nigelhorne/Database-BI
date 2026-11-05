@@ -3146,6 +3146,18 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->get_ok('/preferences', { Host => 'evil.example' })->status_is(403);
 		message_ok(Dashboard => 'error_host_refused', $tm->tx->res->body, ['evil.example']);
 
+		# The login, on only with password_hash.
+		require Database::BI::Password;
+		my $tl = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1),
+			password_hash => Database::BI::Password::hash_password('pw', rounds => 10_000) });
+		$tl->get_ok('/calc/list')->status_is(401);
+		message_ok(Dashboard => 'error_login_required', $tl->tx->res->json->{error});
+		$tl->post_ok('/login' => form => { password => 'no' })->status_is(401);
+		message_ok(Dashboard => 'error_login_failed', $tl->tx->res->dom->at('#login-error')->text);
+		$tl->post_ok('/login' => form => { password => 'no' }) for 2 .. 10;
+		$tl->post_ok('/login' => form => { password => 'pw' })->status_is(429);
+		message_ok(Dashboard => 'error_login_locked', $tl->tx->res->dom->at('#login-error')->text, [15]);
+
 		$tm->get_ok('/import')->status_is(200);
 		message_ok(Dashboard => 'error_url_required', $tm->tx->res->body, [], 1);
 		$tm->get_ok('/import?url=' . $e->('ftp://x/y'))->status_is(200);

@@ -919,6 +919,23 @@ my @CHAPTERS = (
 		try   => { href => '/preferences', label => 'Open your preferences' },
 		routes => [ '/preferences' ],
 	},
+	{
+		id    => 'log-in',
+		part  => 'Help',
+		title => 'Log in',
+		lead  => 'A program shared by several people can ask for a password before it shows anything.',
+		steps => [
+			'If a Log in page appears, type the password and click Log in.',
+			'Whoever runs the program chose the password. Ask them for it.',
+			'After you log in, the page you asked for opens.',
+			'Click Log out at the top of any page when you have finished.',
+			'If you do nothing for a working day, you are logged out by yourself.',
+			'After ten wrong passwords, the page asks you to wait a few minutes.',
+		],
+		tip   => 'Share and embed links still work without the password, until they expire. Anyone holding one sees that canvas.',
+		try   => { href => '/login', label => 'Open the Log in page' },
+		routes => [ '/login' ],
+	},
 
 	# ---------------------------------------------------------------
 	# For maintainers
@@ -1178,6 +1195,7 @@ my %ACTION_CHAPTERS = (
 	catalog_view   => 'catalog',
 	canvases_view  => 'canvas',
 	preferences    => 'preferences',
+	login_form     => 'log-in',
 );
 
 my %EXEMPT_ROUTES = (

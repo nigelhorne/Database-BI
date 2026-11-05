@@ -254,6 +254,13 @@ perl Makefile.PL
     Renders the tutorial that is part of the application.  The chapters are data
     in [Database::BI::Tutorial](https://metacpan.org/pod/Database%3A%3ABI%3A%3ATutorial), not in this POD.
 
+- `GET /login`, `POST /login`, `POST /logout`
+
+    The login, when `password_hash` is set (see ["Logging in"](#logging-in)).  `GET /login`
+    shows the form (with `return=`, the page to go back to: a path on this site),
+    `POST /login` takes `password=` and `return=`, and `POST /logout` ends the
+    session.  With no password set, `/login` says there is nothing to log in to.
+
 - `GET /preferences`
 
     Sets the reader's preferences: the theme, one of light, dark or the same as the
@@ -1261,8 +1268,9 @@ application directory is read-only can stage uploads somewhere writable:
 
 A server started by `script/database-bi` (with no arguments, a database, or
 `daemon` or `prefork`) listens on `http://127.0.0.1:3000`, so only this
-machine can reach it: the application has no login, and Mojolicious on its own
-would listen on every interface.  `listen` changes that:
+machine can reach it: unless a password is set (see ["Logging in"](#logging-in)), there
+is no login, and Mojolicious on its own would listen on every interface.
+`listen` changes that:
 
 ```perl
 { listen => 'http://127.0.0.1:8000' }             # another port, still this machine only
@@ -1283,12 +1291,16 @@ it does not read `listen`; give it `-l`, or run `script/database-bi`.
 { hypnotoad => { listen => ['http://*:8080'] } }  # every machine
 ```
 
-Behind a reverse proxy on the same machine, leave both at their defaults.
+Behind a reverse proxy on the same machine, leave both at their defaults.  A
+server that other machines can reach and that has no `password_hash` logs a
+warning at startup.
 
 ### Requests From Other Sites
 
-There is no login: whatever can reach the server can read any file it can
-(`/open`) and write exports into any folder it can (`POST /export`).  Listening
+Unless a password is set (see ["Logging in"](#logging-in)), there is no login: whatever can
+reach the server can read any file it can (`/open`) and write exports into
+any folder it can (`POST /export`).  Even with one, a logged-in reader's
+browser carries the login to every request it sends here.  Listening
 on this machine only keeps other machines out, but not the pages of other
 sites open in the reader's browser.  So every request is checked first, and
 refused with `403` when another site's page made it:
@@ -1314,6 +1326,49 @@ by a name, list it:
 `POST /export` also refuses a folder or file whose name starts with a dot
 (`~/.config`, `.vscode/settings.json`), since those hold other programs'
 settings.  The folder list in the Export panel leaves them out already.
+
+### Logging In
+
+With `password_hash` set, every page asks for a password first.  Make the line
+with
+
+```
+script/database-bi password
+```
+
+which asks for the password twice (without showing it) and prints
+
+```perl
+password_hash => 'pbkdf2-sha256$200000$...',
+```
+
+to put in `database_bi.conf`.  Only the hash is kept: PBKDF2-HMAC-SHA256 with
+a random salt ([Database::BI::Password](https://metacpan.org/pod/Database%3A%3ABI%3A%3APassword)).  A plain password there stops the
+start, so it is never left in the file by mistake.  To change the password,
+make a new line; every session is then logged out.
+
+There is one password, not one per person.  A browser asking for a page is
+sent to `/login` and, once the password is right, back to that page; any other
+request (a script, a panel's request, a download) gets `401` until it carries a
+logged-in session.  `POST /logout`, the Log out button at the top of each page,
+ends it.  `/share/:id` and `/embed/:id` need no login: their signed, expiring
+token is their permission, so anyone holding the link sees that canvas.
+
+```perl
+{
+    password_hash    => 'pbkdf2-sha256$200000$...',
+    login_expiration => 8 * 60 * 60,   # seconds idle before logging out; the default
+    secrets          => ['a long random string'],  # or each restart logs everyone out
+}
+```
+
+The session is a cookie signed with `secrets`: `HttpOnly`, `SameSite=Lax`,
+and `Secure` whenever the request came over https (directly, or through a
+trusted proxy that says so), so it is never sent back over plain http.  Over
+plain http anyone on the network path can read the password and the cookie: a
+server other machines reach should be behind https.  Ten wrong passwords from
+one address within 15 minutes lock that address out for the rest of the 15
+minutes (`429`); each server process counts its own.
 
 ### MariaDB and MySQL Servers
 
@@ -1583,6 +1638,11 @@ public D3 URL.
 
 Nothing useful is returned.  By the time it returns, the application has:
 
+- the login session ([Database::BI::Sessions](https://metacpan.org/pod/Database%3A%3ABI%3A%3ASessions)), and `require_login` in
+front of every route but the login, share and embed links (see
+["Logging in"](#logging-in)); a `password_hash` that is not a hash, or a `login_expiration`
+under 60 seconds, croaks; a warning in the log when the server can be reached
+from other machines with no password;
 - the `before_dispatch` hook that refuses requests from other sites (see
 ["Requests from other sites"](#requests-from-other-sites)); an `allowed_hosts` that is not a list of host
 names croaks;
@@ -1606,6 +1666,11 @@ the application does not start.
 
 Two maintenance scripts ship in `script/`; both use the same data and model
 directories as the web application and are safe to run from cron.
+
+### Script/Database-Bi Password
+
+Asks for a password (twice, without echo, at a terminal; once from a pipe) and
+prints the `password_hash` line for `database_bi.conf`.  See ["Logging in"](#logging-in).
 
 ### Script/Bi-Geocode
 
@@ -1849,6 +1914,8 @@ the same and shows that database, with a command word it runs that command, and 
 
 ## Limitations
 
+- The login is one shared password.  There are no accounts, so every reader who
+knows it can do everything, and the log cannot say who did what.
 - Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.

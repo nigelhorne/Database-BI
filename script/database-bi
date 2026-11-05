@@ -31,7 +31,7 @@ sub _names_a_database {
 
 	return 0 if $arg =~ /\A-/;
 	(my $name = $arg) =~ s/-/_/g;
-	for my $namespace (@{ Mojolicious::Commands->new->namespaces }) {
+	for my $namespace (@{ Mojolicious::Commands->new->namespaces }, 'Database::BI::Command') {
 		my $class = "${namespace}::$name";
 		return 0 if $name =~ /\A\w+\z/ && !Mojo::Loader::load_class($class);
 	}

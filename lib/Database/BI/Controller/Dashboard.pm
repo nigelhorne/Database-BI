@@ -19,6 +19,9 @@ use Mojo::JSON		qw(encode_json decode_json from_json to_json);
 use Mojo::Parameters;
 use Mojo::URL;
 use Mojo::Util		qw(url_escape encode xml_escape hmac_sha1_sum secure_compare);
+use Digest::SHA ();
+use Scalar::Util ();
+use Database::BI::Password ();
 use File::Path		qw(remove_tree);
 use File::Spec;
 use File::Temp		qw(tempfile tempdir);
@@ -137,6 +140,9 @@ Readonly my %MESSAGES => (
 	error_no_path          => 'No path specified',
 	error_not_found        => 'File or directory not found: %s',
 	error_dir_not_found    => 'Directory not found: %s',
+	error_login_required   => 'Log in first: this server asks for a password.',
+	error_login_failed     => 'That is not the password.',
+	error_login_locked     => 'Too many wrong passwords from this address. Try again in %d minutes.',
 	error_hidden_target    => 'Refused to save into "%s": a hidden file or folder (one whose name starts with a dot) holds settings, not exports.',
 	error_cross_site       => 'Refused: this request came from another site (%s). Only pages of this application can change what it keeps or write files.',
 	error_host_refused     => 'Refused: this server does not answer to the name "%s". Open it as localhost or by its IP address, or add the name to allowed_hosts in database_bi.conf.',
@@ -811,6 +817,7 @@ sub _crumb_label :Protected ($self, $url) {
 	return 'Canvases' if $path eq '/canvases';
 	return 'Tutorial' if $path eq '/tutorial';
 	return 'Preferences' if $path eq '/preferences';
+	return 'Log in'      if $path eq '/login';
 	if ($path =~ m{\A/a/([A-Za-z0-9_-]+)}) {
 		my $a = $self->_read_analyses->{$1};
 		return (ref $a eq 'HASH' && length($a->{name} // '')) ? $a->{name} : 'Canvas';
@@ -7169,6 +7176,158 @@ None.
 
 sub is_supported_file ($path) {
 	return (defined $path && $path =~ $EXT_RE) ? 1 : 0;
+}
+
+=head2 require_login / login_form / login / logout
+
+The login, on only when config C<password_hash> is set (see
+L<Database::BI/Logging in>).  C<require_login> is the C<under> every route but
+C</login>, C</logout>, C</share/:id> and C</embed/:id> passes through; the
+others are C<GET /login>, C<POST /login> and C<POST /logout>.
+
+A session is logged in when its C<login> value is this password's mark (an
+HMAC of the hash, keyed by the first secret), so a new password logs every
+session out.  Wrong passwords are counted per remote address, in each server
+process: the tenth within 15 minutes locks that address out for the rest of
+the 15 minutes (C<429>), whether or not the next one is right.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  require_login:  any request
+  GET  /login:    return=  string, optional; a path on this site (default /)
+  POST /login:    password= string; return= as above
+  POST /logout:   none
+
+=head4 OUTPUT
+
+  require_login:  true when login is off or the session is logged in.  Otherwise
+                  a browser's GET for a page is redirected (302) to
+                  /login?return=<the page>, and anything else gets
+                  401 application/json { "error": error_login_required }.
+  GET  /login:    200 text/html, the form; 302 to return= when logged in; with
+                  login off, 200 and a page that says no password is set.
+  POST /login:    302 to return= when the password is right; 401 text/html, the
+                  form with error_login_failed, when not; 429 with
+                  error_login_locked after too many.
+  POST /logout:   302 to /login (to / when login is off), the session ended.
+
+return= is followed only when it is a path on this site (one /, not // or /\);
+anything else goes to /.
+
+=cut
+
+# Wrong passwords per application (a test runs several) and remote address:
+# epoch seconds of each, newest last.
+my %LOGIN_FAILURES;
+Readonly my $LOGIN_WINDOW   => 15 * 60;
+Readonly my $LOGIN_ATTEMPTS => 10;
+
+# _login_mark($self, $hash) -> $mark
+#
+# What a logged-in session holds: not the hash, which the readable cookie
+# would hand to anyone who saw it, but an HMAC of it keyed by the secret.
+sub _login_mark ($self, $hash) {
+	return Digest::SHA::hmac_sha256_hex($hash, $self->app->secrets->[0]);
+}
+
+# _login_return($value) -> $path
+#
+# Where to go after logging in: a path on this site, never another site
+# (//evil.example and /\evil.example are other sites to a browser).
+sub _login_return {
+	my ($value) = @_;
+	return '/' unless defined $value && $value =~ m{\A/(?![/\\])} && $value !~ /[\x00-\x20\x7f\\]/;
+	return '/' if $value =~ m{\A/log(?:in|out)\b};
+	return $value;
+}
+
+# _login_hash($self) -> $hash | undef
+sub _login_hash ($self) {
+	my $hash = $self->app->config('password_hash');
+	return (defined $hash && length $hash) ? $hash : undef;
+}
+
+sub _logged_in ($self) {
+	my $hash = $self->_login_hash // return 1;
+	return secure_compare($self->session('login') // '', $self->_login_mark($hash)) ? 1 : 0;
+}
+
+sub require_login ($self) {
+	return 1 unless defined $self->_login_hash;
+	if ($self->_logged_in) {
+		$self->stash(logged_in => 1);
+		return 1;
+	}
+
+	my $req = $self->req;
+	$self->stash(buffer => 0);
+	if ($req->method =~ /\A(?:GET|HEAD)\z/ && ($req->headers->accept // '') =~ m{text/html}
+			&& $req->url->path->to_string !~ m{\A/api/}) {
+		my $url = Mojo::URL->new('/login')->query(return => $req->url->path_query);
+		$self->redirect_to($url);
+		return undef;
+	}
+	$self->render(json => { error => $MESSAGES{error_login_required} }, status => 401);
+	return undef;
+}
+
+sub _render_login ($self, %args) {
+	my ($platform, $language) = $self->_resolve_template;
+	$self->stash(buffer => 0);
+	return $self->render(
+		template    => "$platform/$language/login",
+		handler     => 'tt',
+		format      => 'html',
+		title       => 'Log in',
+		language    => $language,
+		return_to   => _login_return(scalar $self->param('return')),
+		login_error => $args{error} // '',
+		login_off   => $args{login_off} ? 1 : 0,
+		status      => $args{status} // 200,
+	);
+}
+
+sub login_form ($self) {
+	# With no password set the page says so, rather than offering a form that
+	# could never succeed.
+	return $self->_render_login(login_off => 1) unless defined $self->_login_hash;
+	return $self->redirect_to(_login_return(scalar $self->param('return'))) if $self->_logged_in;
+	return $self->_render_login;
+}
+
+sub login ($self) {
+	my $hash = $self->_login_hash;
+	return $self->redirect_to('/') unless defined $hash;
+
+	my $who      = $self->tx->remote_address // '';
+	my $now      = time;
+	my $failures = $LOGIN_FAILURES{ Scalar::Util::refaddr($self->app) } //= {};
+	for my $addr (keys %{$failures}) {
+		$failures->{$addr} = [ grep { $_ > $now - $LOGIN_WINDOW } @{ $failures->{$addr} } ];
+		delete $failures->{$addr} unless @{ $failures->{$addr} };
+	}
+	my $seen = $failures->{$who} // [];
+	if (@{$seen} >= $LOGIN_ATTEMPTS) {
+		my $minutes = int(($seen->[0] + $LOGIN_WINDOW - $now + 59) / 60) || 1;
+		return $self->_render_login(error => sprintf($MESSAGES{error_login_locked}, $minutes), status => 429);
+	}
+
+	unless (Database::BI::Password::verify_password(scalar($self->param('password')) // '', $hash)) {
+		push @{ $failures->{$who} //= [] }, $now;
+		$self->app->log->warn("Wrong password from $who");
+		return $self->_render_login(error => $MESSAGES{error_login_failed}, status => 401);
+	}
+
+	delete $failures->{$who};
+	$self->session(login => $self->_login_mark($hash));
+	return $self->redirect_to(_login_return(scalar $self->param('return')));
+}
+
+sub logout ($self) {
+	$self->session(expires => 1);
+	return $self->redirect_to(defined $self->_login_hash ? '/login' : '/');
 }
 
 =head2 preferences

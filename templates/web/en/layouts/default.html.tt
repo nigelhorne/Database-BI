@@ -63,6 +63,17 @@
     }
 
     .site-nav a:hover { text-decoration: underline; }
+    .site-nav-logout { display: inline; margin: 0; }
+    .site-nav-logout button {
+      background: none;
+      border: 0;
+      padding: 0;
+      font: inherit;
+      font-weight: 600;
+      color: var(--accent-text, #2c3e7a);
+      cursor: pointer;
+    }
+    .site-nav-logout button:hover { text-decoration: underline; }
 
     /* The chapter that helps with the page that is open. */
     .site-nav-help {
@@ -1412,6 +1423,11 @@
          href="/tutorial#[% tutorial_chapter | html %]" target="_blank" rel="noopener"
          title="Open this page's chapter in a new tab (F1)"
          aria-label="Help for this page: [% tutorial_chapter_title | html %]">Help: [% tutorial_chapter_title | html %]</a>
+      [%- END %]
+      [%- IF logged_in %]
+      <form class="site-nav-logout" method="post" action="/logout">
+        <button id="site-nav-logout" type="submit" title="End this session; the next page asks for the password">Log out</button>
+      </form>
       [%- END %]
     </nav>
   </header>

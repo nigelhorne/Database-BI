@@ -2,6 +2,18 @@ Revision history for Database-BI
 
 0.021.0
 	[ Enhancements ]
+	- A login.  With password_hash set in database_bi.conf, every page asks
+	  for a password first; script/database-bi password asks for one and
+	  prints the line.  Only a PBKDF2-HMAC-SHA256 hash of it is kept, and a
+	  plain password there stops the start.  A browser goes to /login and
+	  back to the page it asked for; any other request gets 401.  Log out is
+	  at the top of every page.  The session cookie is signed, HttpOnly,
+	  SameSite=Lax, and Secure over https; login_expiration (default eight
+	  hours) is how long it lasts after the last request, and a new password
+	  logs every session out.  Ten wrong passwords from one address in 15
+	  minutes lock it out for the rest of them.  Share and embed links still
+	  open without it.  A server other machines can reach with no password
+	  logs a warning at startup.  Without password_hash nothing changes.
 	- embed_frame_ancestors => [ 'https://intranet.example.com', ... ] lets
 	  those sites show /embed/:id in a frame, and no other page.  Each entry
 	  must be an origin (a scheme, a host, an optional port; * only as the
@@ -112,6 +124,13 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/login.t checks the password hash against the RFC test vectors; that
+	  with password_hash every page, download, write and /api/ route waits
+	  for the login while /login, share and embed links do not; the redirect
+	  back, only ever to a page of this site; the cookie's flags over http
+	  and https; logging out; that a new password ends old sessions; the
+	  lockout; that a login or logout from another site is refused; the
+	  startup checks and warning; and script/database-bi password.
 	- t/csp.t checks that a write from another site (by Sec-Fetch-Site or
 	  Origin) is refused and writes nothing, on every write route and method,
 	  while this site's pages and scripts still write; that a Host other than

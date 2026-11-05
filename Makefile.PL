@@ -50,8 +50,8 @@ WriteMakefile(
 		'Params::Get'	=> 0.17,
 		'Params::Validate::Strict'	=> '0.41',
 		'Digest::MD5'		=> 0,		# For Extract.pm fingerprinting (Phase 4.1)
-		'Digest::SHA'		=> 0,		# For HMAC-SHA256 share tokens in Dashboard.pm (Phase 4.6; core since Perl 5.10)
-		'MIME::Base64'		=> '3.11',	# For encode_base64url/decode_base64url in share tokens (Phase 4.6)
+		'Digest::SHA'		=> 0,		# HMAC-SHA256 share tokens, and the login's PBKDF2 password hash (core since Perl 5.10)
+		'MIME::Base64'		=> '3.11',	# encode_base64url/decode_base64url in share tokens; the stored password hash
 		'Readonly'		=> 0,
 		'Socket'	=> '2.010',
 		'Excel::Writer::XLSX'	=> '1.07',
@@ -114,7 +114,11 @@ WriteMakefile(
 					'DBD::MariaDB' => 0,
 					# Rendering the map itself (Phase 6.1).  Also runtime-required: the
 					# rest of the application installs, starts and tests without it.
-					'HTML::OSM' => '0.14'
+					'HTML::OSM' => '0.14',
+					# The salt for the login's password hash (script/database-bi
+					# password).  Without it the salt comes from /dev/urandom, which
+					# Windows does not have.
+					'Crypt::URandom' => 0
 				}
 			}, test => {
 				recommends => {

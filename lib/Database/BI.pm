@@ -6,6 +6,8 @@ use warnings;
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
 use Carp qw(croak);
+use Mojo::URL;
+use Database::BI::Sessions;
 use CHI	();
 use File::Spec ();
 use Readonly;
@@ -32,6 +34,9 @@ Readonly my $DEFAULT_D3_URL => 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/
 # other.  Only their origins matter: they go into the Content-Security-Policy.
 Readonly my $DEFAULT_LEAFLET_URL => 'https://unpkg.com/';
 Readonly my $DEFAULT_TILE_URL    => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
+
+# How long a login lasts after the last request: a working day.
+Readonly my $DEFAULT_LOGIN_EXPIRATION => 8 * 60 * 60;
 
 # Where a server started without -l or MOJO_LISTEN listens: this machine only.
 # Config listen (morbo, daemon, prefork) and hypnotoad => { listen } (hypnotoad)
@@ -379,6 +384,13 @@ the card grid, so a browser that withholds C<Referer> always sees the database.
 
 Renders the tutorial that is part of the application.  The chapters are data
 in L<Database::BI::Tutorial>, not in this POD.
+
+=item C<GET /login>, C<POST /login>, C<POST /logout>
+
+The login, when C<password_hash> is set (see L</Logging in>).  C<GET /login>
+shows the form (with C<return=>, the page to go back to: a path on this site),
+C<POST /login> takes C<password=> and C<return=>, and C<POST /logout> ends the
+session.  With no password set, C</login> says there is nothing to log in to.
 
 =item C<GET /preferences>
 
@@ -1337,8 +1349,9 @@ application directory is read-only can stage uploads somewhere writable:
 
 A server started by C<script/database-bi> (with no arguments, a database, or
 C<daemon> or C<prefork>) listens on C<http://127.0.0.1:3000>, so only this
-machine can reach it: the application has no login, and Mojolicious on its own
-would listen on every interface.  C<listen> changes that:
+machine can reach it: unless a password is set (see L</Logging in>), there
+is no login, and Mojolicious on its own would listen on every interface.
+C<listen> changes that:
 
     { listen => 'http://127.0.0.1:8000' }             # another port, still this machine only
     { listen => 'http://*:3000' }                     # every machine that can reach this one
@@ -1355,12 +1368,16 @@ C<http://127.0.0.1:8080>, this machine only:
 
     { hypnotoad => { listen => ['http://*:8080'] } }  # every machine
 
-Behind a reverse proxy on the same machine, leave both at their defaults.
+Behind a reverse proxy on the same machine, leave both at their defaults.  A
+server that other machines can reach and that has no C<password_hash> logs a
+warning at startup.
 
 =head2 Requests from other sites
 
-There is no login: whatever can reach the server can read any file it can
-(C</open>) and write exports into any folder it can (C<POST /export>).  Listening
+Unless a password is set (see L</Logging in>), there is no login: whatever can
+reach the server can read any file it can (C</open>) and write exports into
+any folder it can (C<POST /export>).  Even with one, a logged-in reader's
+browser carries the login to every request it sends here.  Listening
 on this machine only keeps other machines out, but not the pages of other
 sites open in the reader's browser.  So every request is checked first, and
 refused with C<403> when another site's page made it:
@@ -1389,6 +1406,43 @@ is checked only when C<allowed_hosts> is set; set it there too.
 C<POST /export> also refuses a folder or file whose name starts with a dot
 (F<~/.config>, F<.vscode/settings.json>), since those hold other programs'
 settings.  The folder list in the Export panel leaves them out already.
+
+=head2 Logging in
+
+With C<password_hash> set, every page asks for a password first.  Make the line
+with
+
+    script/database-bi password
+
+which asks for the password twice (without showing it) and prints
+
+    password_hash => 'pbkdf2-sha256$200000$...',
+
+to put in C<database_bi.conf>.  Only the hash is kept: PBKDF2-HMAC-SHA256 with
+a random salt (L<Database::BI::Password>).  A plain password there stops the
+start, so it is never left in the file by mistake.  To change the password,
+make a new line; every session is then logged out.
+
+There is one password, not one per person.  A browser asking for a page is
+sent to C</login> and, once the password is right, back to that page; any other
+request (a script, a panel's request, a download) gets C<401> until it carries a
+logged-in session.  C<POST /logout>, the Log out button at the top of each page,
+ends it.  C</share/:id> and C</embed/:id> need no login: their signed, expiring
+token is their permission, so anyone holding the link sees that canvas.
+
+    {
+        password_hash    => 'pbkdf2-sha256$200000$...',
+        login_expiration => 8 * 60 * 60,   # seconds idle before logging out; the default
+        secrets          => ['a long random string'],  # or each restart logs everyone out
+    }
+
+The session is a cookie signed with C<secrets>: C<HttpOnly>, C<SameSite=Lax>,
+and C<Secure> whenever the request came over https (directly, or through a
+trusted proxy that says so), so it is never sent back over plain http.  Over
+plain http anyone on the network path can read the password and the cookie: a
+server other machines reach should be behind https.  Ten wrong passwords from
+one address within 15 minutes lock that address out for the rest of the 15
+minutes (C<429>); each server process counts its own.
 
 =head2 MariaDB and MySQL servers
 
@@ -1644,6 +1698,12 @@ Nothing useful is returned.  By the time it returns, the application has:
 
 =over 4
 
+=item * the login session (L<Database::BI::Sessions>), and C<require_login> in
+front of every route but the login, share and embed links (see
+L</Logging in>); a C<password_hash> that is not a hash, or a C<login_expiration>
+under 60 seconds, croaks; a warning in the log when the server can be reached
+from other machines with no password;
+
 =item * the C<before_dispatch> hook that refuses requests from other sites (see
 L</Requests from other sites>); an C<allowed_hosts> that is not a list of host
 names croaks;
@@ -1675,6 +1735,11 @@ the application does not start.
 
 Two maintenance scripts ship in C<script/>; both use the same data and model
 directories as the web application and are safe to run from cron.
+
+=head2 script/database-bi password
+
+Asks for a password (twice, without echo, at a terminal; once from a pipe) and
+prints the C<password_hash> line for C<database_bi.conf>.  See L</Logging in>.
 
 =head2 script/bi-geocode
 
@@ -1906,6 +1971,11 @@ with columns C<entry>, C<name>, and C<score>.
 
 =item *
 
+The login is one shared password.  There are no accounts, so every reader who
+knows it can do everything, and the log cannot say who did what.
+
+=item *
+
 Only read operations on data files are supported.  Write-back (editing
 cell values in the browser and saving them to the data file) is not
 implemented.
@@ -2095,6 +2165,7 @@ sub startup ($self) {
 	_check_permissions_policy($self->config('permissions_policy'));
 	_check_cross_origin_opener_policy($self->config('cross_origin_opener_policy'));
 	_check_allowed_hosts($self->config('allowed_hosts'));
+	_check_login($self->config('password_hash'), $self->config('login_expiration'));
 
 	# Only this machine can reach a server unless the configuration says
 	# otherwise.  Mojolicious's own default is every interface, which put an
@@ -2104,10 +2175,24 @@ sub startup ($self) {
 	my @listen = _listen_locations($self->config('listen'));
 	$ENV{MOJO_LISTEN} = join(',', @listen) unless length($ENV{MOJO_LISTEN} // '');
 	_default_hypnotoad_listen($self->config);
+	_warn_if_open($self, $ENV{MOJO_LISTEN}, $self->config->{hypnotoad});
+
+	# script/database-bi password makes the password_hash line.
+	push @{ $self->commands->namespaces }, 'Database::BI::Command';
 
 	my $secrets = $self->config('secrets');
 	$self->secrets((ref($secrets) eq 'ARRAY' && @{$secrets})
 		? $secrets : [ Mojo::Util::generate_secret() ]);
+
+	# The login session (see "Logging in").  The cookie is signed with the
+	# secrets, HttpOnly, SameSite=Lax, and Secure whenever the request came over
+	# https; it lasts login_expiration seconds from the last request.  With no
+	# secrets => [...] each start makes a new key, so a restart logs everyone out.
+	$self->sessions(Database::BI::Sessions->new(
+		cookie_name        => 'database_bi',
+		default_expiration => $self->config('login_expiration') // $DEFAULT_LOGIN_EXPIRATION,
+		samesite           => 'Lax',
+	));
 
 	# Cap inbound request body size.  When the limit fires, Mojolicious sets
 	# req->is_limit_exceeded and still dispatches to the controller (with partial
@@ -2497,6 +2582,18 @@ sub startup ($self) {
 	});
 
 	my $r = $self->routes();
+
+	# Reached without logging in: the login itself, and the share and embed
+	# links, whose signed, expiring token is their own permission.  Everything
+	# else goes through require_login, which lets every request in when no
+	# password_hash is set.
+	$r->get('/login')    ->to('Dashboard#login_form');
+	$r->post('/login')   ->to('Dashboard#login');
+	$r->post('/logout')  ->to('Dashboard#logout');
+	$r->get('/share/:id')->to('Dashboard#share_view');
+	$r->get('/embed/:id')->to('Dashboard#embed_view');
+	$r = $r->under('/')->to('Dashboard#require_login');
+
 	$r->get('/')->to('Dashboard#index');
 	$r->get('/tutorial')->to('Dashboard#tutorial');
 	$r->get('/preferences')->to('Dashboard#preferences');
@@ -2571,8 +2668,6 @@ sub startup ($self) {
 	# extracts, catalog, sharing, embedding, per-visual downloads
 	$r->get('/canvases')                      ->to('Dashboard#canvases_view');
 	$r->get('/catalog')                       ->to('Dashboard#catalog_view');
-	$r->get('/share/:id')                     ->to('Dashboard#share_view');
-	$r->get('/embed/:id')                     ->to('Dashboard#embed_view');
 	$r->get('/a/:id/visual/:n/:fmt')          ->to('Dashboard#visual_download');
 	$r->post('/api/analyses/:id/share')       ->to('Dashboard#analyses_share');
 
@@ -2726,6 +2821,54 @@ sub _check_strict_transport_security {
 	return if !ref $value && $value =~ $HSTS_RE;
 	croak sprintf("strict_transport_security: '%s' is not a header value such as 'max-age=31536000'"
 		. ' (optionally with includeSubDomains and preload), or 0 for none', ref $value ? ref $value : $value);
+}
+
+# _check_login( $hash, $expiration ) -> void
+#
+# Purpose: Refuse a login configuration that would not do what it says.
+# Entry:   Config password_hash (undef or '' for no login, else a hash made by
+#          script/database-bi password) and login_expiration (undef, or
+#          seconds, a whole number from 60).
+# Exit:    Returns; croaks otherwise.  A plain password in password_hash is
+#          refused rather than hashed here, so it is never left in the file.
+sub _check_login {
+	my ($hash, $expiration) = @_;
+	if (defined $hash && (ref $hash || length $hash)) {
+		require Database::BI::Password;
+		croak 'password_hash: not a hash made by "script/database-bi password" (put the line it prints in database_bi.conf, not the password itself)'
+			unless Database::BI::Password::is_password_hash($hash);
+	}
+	croak sprintf("login_expiration: '%s' is not a number of seconds from 60", ref($expiration) || $expiration)
+		if defined $expiration && (ref $expiration || $expiration !~ /\A\d+\z/ || $expiration < 60);
+	return;
+}
+
+# _warn_if_open( $app, $listen, $hypnotoad ) -> void
+#
+# Purpose: Say so when the server can be reached from other machines with no
+#          password: everything it can read and write is then theirs.
+# Entry:   The application, MOJO_LISTEN as startup left it, and the hypnotoad
+#          settings (used instead under hypnotoad).
+# Exit:    Logs a warning when a location is not loopback and no
+#          password_hash is set.
+sub _warn_if_open {
+	my ($app, $listen, $hypnotoad) = @_;
+	my $hash = $app->config('password_hash');
+	return if defined $hash && length $hash;
+
+	# Under hypnotoad (which sets HYPNOTOAD_APP) its own listen applies, and
+	# MOJO_LISTEN does not.
+	my @places = split /,/, $listen // '';
+	@places = @{ $hypnotoad->{listen} }
+		if $ENV{HYPNOTOAD_APP} && ref($hypnotoad) eq 'HASH' && ref($hypnotoad->{listen}) eq 'ARRAY';
+	for my $place (@places) {
+		my $host = lc(Mojo::URL->new($place)->host // '');
+		next if $host eq 'localhost' || $host =~ /\A127\./ || $host eq '[::1]' || $host eq '::1';
+		$app->log->warn("Listening on $place, where other machines can reach it, with no password: "
+			. 'set password_hash (script/database-bi password) or listen on 127.0.0.1');
+		return;
+	}
+	return;
 }
 
 # _check_allowed_hosts( $value ) -> void
