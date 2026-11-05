@@ -495,5 +495,46 @@ subtest 'Referrer-Policy' => sub {
 	restore();
 };
 
+# Every reply is what its Content-Type says.  The pages a browser loads are
+# checked too: under nosniff a script or stylesheet whose type is wrong does
+# not load, so each one this site serves must be named as what it is.
+subtest 'X-Content-Type-Options' => sub {
+	restore();
+	my $sales = url_escape('table:sales');
+	my %replies = (
+		'/'                                   => 'home',
+		"/bar?l=$sales&cat=region&val=amount" => 'chart',
+		'/no/such/page'                       => '404 page',
+		"/bar?l=$sales&cat=nosuch&val=amount" => '400 page',
+		"/export?l=$sales&format=csv"         => 'CSV download',
+		"/export?l=$sales&format=json"        => 'JSON download',
+		"/export?l=$sales&format=sqlite"      => 'SQLite download',
+		"/calc/list?l=$sales"                 => 'JSON',
+		'/favicon.ico'                        => 'static file',
+	);
+	for my $url (sort keys %replies) {
+		$t->get_ok($url, { Accept => 'text/html' })
+			->header_is('X-Content-Type-Options' => 'nosniff', $replies{$url})
+			->header_like('Content-Type' => qr{\A[a-z]+/[a-z0-9.+-]+}, "$replies{$url} names its type");
+	}
+	$config->{content_security_policy} = '';
+	$t->get_ok('/')->header_is('X-Content-Type-Options' => 'nosniff', 'with no policy too');
+	restore();
+
+	# A self-hosted library is served with the type a browser will run.
+	# A directory of its own, put in front of the app's static paths, so the
+	# test writes nothing into the distribution.
+	my $public = tempdir(CLEANUP => 1);
+	my $dir = Mojo::File->new($public, 'csp-test');
+	$dir->make_path;
+	$dir->child('lib.js')->spew('window.x = 1;');
+	$dir->child('lib.css')->spew('p { color: red }');
+	unshift @{ $t->app->static->paths }, $public;
+	$t->get_ok('/csp-test/lib.js')->status_is(200)->content_type_like(qr{\A(?:application|text)/javascript\b})
+		->header_is('X-Content-Type-Options' => 'nosniff');
+	$t->get_ok('/csp-test/lib.css')->status_is(200)->content_type_like(qr{\Atext/css\b});
+	shift @{ $t->app->static->paths };
+};
+
 restore();
 done_testing();

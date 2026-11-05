@@ -1395,6 +1395,13 @@ all of it to the CDNs, the tile servers and any site a reader follows a link
 to.  It is not `no-referrer`, because OpenStreetMap's tile policy asks pages
 for a `Referer`.
 
+Every reply also carries `X-Content-Type-Options: nosniff`, so a browser
+takes it for what its `Content-Type` says and never guesses.  A guess could
+read a CSV export, or text from a data file, as HTML or script.  A
+self-hosted library under `public/` keeps working, because Mojolicious names
+`.js` and `.css` files for what they are; one served some other way must be
+sent as `text/javascript` or `text/css`, or the browser will not load it.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (`'nonce-...'`).  Every
 `<script>` the templates write carries it, and so do those that

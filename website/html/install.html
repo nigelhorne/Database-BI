@@ -344,6 +344,14 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	pages that use its tiles to send one.
 </p>
 <p>
+	Every reply also carries <code>X-Content-Type-Options: nosniff</code>, so a
+	browser takes it for the type it names and never guesses that a CSV export
+	is a web page. Libraries you serve yourself from <code>public/</code> keep
+	working, because <code>.js</code> and <code>.css</code> files are sent as what
+	they are. One served some other way must be sent as <code>text/javascript</code>
+	or <code>text/css</code>, or the browser will not load it.
+</p>
+<p>
 	An inline script runs only if it carries the request's nonce, a random value
 	made for each request and named in the policy. Every <code>&lt;script&gt;</code>
 	the pages write carries it, and so do those HTML::D3 and HTML::OSM write. A

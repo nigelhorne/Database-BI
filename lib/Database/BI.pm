@@ -1433,6 +1433,13 @@ all of it to the CDNs, the tile servers and any site a reader follows a link
 to.  It is not C<no-referrer>, because OpenStreetMap's tile policy asks pages
 for a C<Referer>.
 
+Every reply also carries C<X-Content-Type-Options: nosniff>, so a browser
+takes it for what its C<Content-Type> says and never guesses.  A guess could
+read a CSV export, or text from a data file, as HTML or script.  A
+self-hosted library under C<public/> keeps working, because Mojolicious names
+C<.js> and C<.css> files for what they are; one served some other way must be
+sent as C<text/javascript> or C<text/css>, or the browser will not load it.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (C<'nonce-...'>).  Every
 C<E<lt>scriptE<gt>> the templates write carries it, and so do those that
@@ -2045,6 +2052,13 @@ sub startup ($self) {
 		# a JSON reply viewed there, can follow a link too.
 		$headers->header('Referrer-Policy' => $REFERRER_POLICY)
 			unless defined $headers->header('Referrer-Policy');
+
+		# A reply is what its Content-Type says, on every reply: a browser that
+		# guessed could take a CSV export or an uploaded file's text for HTML or
+		# script, and run what a cell holds.  Every route names its type, and
+		# the static files have theirs from their extensions.
+		$headers->header('X-Content-Type-Options' => 'nosniff')
+			unless defined $headers->header('X-Content-Type-Options');
 
 		return unless ($headers->content_type // '') =~ m{\Atext/html\b}i;
 
