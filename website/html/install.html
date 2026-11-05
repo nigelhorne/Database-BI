@@ -143,7 +143,9 @@ hypnotoad -s script/database-bi</code></pre>
 	With no arguments the launcher starts the development server itself; any other
 	Mojolicious command word (<code>routes</code>, <code>get</code>, &hellip;) is
 	passed through to the application. The preforking server is the one to put
-	behind a reverse proxy for long-running use. It listens on port 8080 and ignores
+	behind a reverse proxy for long-running use; give it <code>proxy =&gt; 1</code>
+	in its <code>hypnotoad</code> settings so it knows which requests came over
+	https. It listens on port 8080 and ignores
 	<code>MOJO_LISTEN</code>; set the port in <code>database_bi.conf</code>, as
 	<code>hypnotoad =&gt; { listen =&gt; ['http://*:3000'] }</code>. It keeps its
 	process id in <code>script/hypnotoad.pid</code> unless <code>pid_file</code> says
@@ -278,6 +280,22 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			</td>
 		</tr>
 		<tr>
+			<td><code>permissions_policy</code></td>
+			<td>every unused feature off</td>
+			<td>
+				The Permissions-Policy header; <code>''</code> or <code>0</code> for none.
+				See <a href="#csp">Content-Security-Policy</a>.
+			</td>
+		</tr>
+		<tr>
+			<td><code>strict_transport_security</code></td>
+			<td><code>max-age=31536000</code></td>
+			<td>
+				The Strict-Transport-Security header sent over https; <code>''</code> or
+				<code>0</code> for none. See <a href="#csp">Content-Security-Policy</a>.
+			</td>
+		</tr>
+		<tr>
 			<td><code>embed_frame_ancestors</code></td>
 			<td>unset</td>
 			<td>
@@ -350,6 +368,28 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	working, because <code>.js</code> and <code>.css</code> files are sent as what
 	they are. One served some other way must be sent as <code>text/javascript</code>
 	or <code>text/css</code>, or the browser will not load it.
+</p>
+<p>
+	Every reply also carries a <code>Permissions-Policy</code> that turns off the
+	browser features no page uses, such as the camera, the microphone, location,
+	payment and reading the clipboard, so a script that got in cannot ask for them.
+	Writing to the clipboard stays, for the Copy link buttons.
+	<code>permissions_policy</code> replaces the value, as
+	<code>'camera=(), geolocation=(self)'</code>, or turns it off with <code>''</code>
+	or <code>0</code>.
+</p>
+<p>
+	A reply to an https request carries <code>Strict-Transport-Security: max-age=31536000</code>,
+	so a browser that reached the server over https keeps to https for a year. It
+	binds this host only. <code>strict_transport_security</code> sets another value,
+	such as <code>'max-age=63072000; includeSubDomains'</code>, or turns it off with
+	<code>''</code> or <code>0</code>; a value a browser would not read stops the
+	application at startup. Nothing is sent over http, to <code>localhost</code> or
+	to an IP address: the header binds a host on every port, so it would move every
+	other server on the machine to https. Behind a proxy that ends TLS, start the
+	server with <code>MOJO_REVERSE_PROXY=1</code> (or <code>hypnotoad =&gt; { proxy =&gt; 1 }</code>)
+	and have the proxy send <code>X-Forwarded-Proto: https</code>, or have the proxy
+	send the header itself.
 </p>
 <p>
 	An inline script runs only if it carries the request's nonce, a random value

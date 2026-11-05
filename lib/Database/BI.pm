@@ -44,6 +44,26 @@ Readonly my $NONCE_RE => qr{\A[A-Za-z0-9+/_=-]+\z};
 # OpenStreetMap's tile policy asks pages for a Referer, so it is not none.
 Readonly my $REFERRER_POLICY => 'strict-origin-when-cross-origin';
 
+# Permissions-Policy: every powerful browser feature off, for this site and
+# any frame it holds, but writing to the clipboard, which the Copy link
+# buttons do.  Only names Chromium knows: it logs an error for any other.
+Readonly my @PERMISSIONS_DENIED => qw(
+	accelerometer autoplay browsing-topics camera clipboard-read display-capture
+	encrypted-media fullscreen gamepad geolocation gyroscope hid
+	identity-credentials-get idle-detection local-fonts magnetometer microphone
+	midi otp-credentials payment picture-in-picture publickey-credentials-create
+	publickey-credentials-get screen-wake-lock serial storage-access usb
+	window-management xr-spatial-tracking
+);
+Readonly my $DEFAULT_PERMISSIONS_POLICY =>
+	join(', ', (map { "$_=()" } @PERMISSIONS_DENIED), 'clipboard-write=(self)');
+
+# Strict-Transport-Security, sent on replies to https requests: a year, and
+# this host only.  includeSubDomains and preload reach other sites of the same
+# domain, and are hard to take back, so they are for the configuration to add.
+Readonly my $DEFAULT_HSTS => 'max-age=31536000';
+Readonly my $HSTS_RE      => qr{\Amax-age=\d{1,10}(?:\s*;\s*includeSubDomains)?(?:\s*;\s*preload)?\z}i;
+
 # Transport-layer upload size cap (bytes).  Mojolicious enforces this before
 # the request body is read into memory, so an oversized upload never reaches
 # the controller.  Must match $MAX_UPLOAD_BYTES in Dashboard.pm.
@@ -1440,6 +1460,35 @@ self-hosted library under C<public/> keeps working, because Mojolicious names
 C<.js> and C<.css> files for what they are; one served some other way must be
 sent as C<text/javascript> or C<text/css>, or the browser will not load it.
 
+Every reply carries a C<Permissions-Policy> that turns off the browser
+features no page uses: the camera, the microphone, location, payment, USB,
+serial and HID devices, screen capture, full screen, reading the clipboard and
+the rest, for this site and any frame it holds.  Writing to the clipboard
+stays (C<clipboard-write=(self)>), for the Copy link buttons.  A script that
+got in cannot ask the reader for any of them.  C<permissions_policy> replaces
+the value (C<''> or C<0> for none); one that cannot be a header value stops
+the application at startup:
+
+    { permissions_policy => 'camera=(), geolocation=(self)' }
+
+A reply to a request that came over https carries
+C<Strict-Transport-Security: max-age=31536000>, so the browser comes back over
+https for a year.  It binds this host only; set C<strict_transport_security>
+to add C<includeSubDomains> or C<preload>, which reach every site of the
+domain and are hard to take back, or to C<''> or C<0> to send none.  A value
+a browser would not read stops the application at startup:
+
+    { strict_transport_security => 'max-age=63072000; includeSubDomains' }
+
+Over http no such header is sent, since a browser ignores it there, and none
+is sent to C<localhost> or to an IP address: it binds the host, not the port,
+so from C<https://localhost:8443> it would send every other server on that
+machine to https, and browsers ignore it for an address.  Behind a proxy that
+ends TLS, a request is https only when Mojolicious is told to trust the proxy
+(C<MOJO_REVERSE_PROXY=1>, or C<< hypnotoad => { proxy => 1 } >>) and the proxy
+sends C<X-Forwarded-Proto: https>; otherwise the proxy must send the header
+itself.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (C<'nonce-...'>).  Every
 C<E<lt>scriptE<gt>> the templates write carries it, and so do those that
@@ -1951,6 +2000,8 @@ sub startup ($self) {
 	# that does not do what it says, so it stops the start rather than being
 	# dropped quietly.
 	_check_embed_frame_ancestors($self->config('embed_frame_ancestors'));
+	_check_strict_transport_security($self->config('strict_transport_security'));
+	_check_permissions_policy($self->config('permissions_policy'));
 
 	my $secrets = $self->config('secrets');
 	$self->secrets((ref($secrets) eq 'ARRAY' && @{$secrets})
@@ -2052,6 +2103,20 @@ sub startup ($self) {
 		# a JSON reply viewed there, can follow a link too.
 		$headers->header('Referrer-Policy' => $REFERRER_POLICY)
 			unless defined $headers->header('Referrer-Policy');
+
+		# The browser features no page uses are turned off, so a script that
+		# got in cannot ask the reader for the camera, a location or a payment.
+		if (defined(my $features = _permissions_policy($c->app->config))) {
+			$headers->header('Permissions-Policy' => $features)
+				unless defined $headers->header('Permissions-Policy');
+		}
+
+		# Over https, the browser is told to come back only over https.  Sent on
+		# every such reply, as browsers read it from any of them.
+		if (defined(my $hsts = _strict_transport_security($c))) {
+			$headers->header('Strict-Transport-Security' => $hsts)
+				unless defined $headers->header('Strict-Transport-Security');
+		}
 
 		# A reply is what its Content-Type says, on every reply: a browser that
 		# guessed could take a CSV export or an uploaded file's text for HTML or
@@ -2437,6 +2502,77 @@ sub _evict_old_uploads {
 			unlink $entry->to_string;
 		}
 	});
+}
+
+# _permissions_policy( \%config ) -> $value | undef
+#
+# Purpose: The Permissions-Policy header every reply carries.
+# Entry:   The config.  permissions_policy is the value to send, as written
+#          ('' or 0 sends none); without it, $DEFAULT_PERMISSIONS_POLICY.
+# Exit:    The value, or undef for none.  One changed after startup to text
+#          that is not printable ASCII is not sent (_check_permissions_policy
+#          refuses it at startup), so it cannot carry a line break.
+sub _permissions_policy {
+	my ($config) = @_;
+	my $value = ($config // {})->{permissions_policy};
+	return $DEFAULT_PERMISSIONS_POLICY unless defined $value;
+	return if ref $value || !length($value) || $value eq '0';
+	return $value =~ /\A[\x20-\x7e]+\z/ ? $value : undef;
+}
+
+# _check_permissions_policy( $value ) -> void
+#
+# Purpose: Refuse a permissions_policy that cannot be a header value.
+# Entry:   The config value.
+# Exit:    Returns; croaks on a reference or on text that is not printable
+#          ASCII.  The features themselves are the browser's to judge.
+sub _check_permissions_policy {
+	my ($value) = @_;
+	return if !defined $value || (!ref $value && $value =~ /\A(?:[\x20-\x7e]*)\z/);
+	croak 'permissions_policy must be a header value, such as "camera=(), geolocation=()", or 0 for none';
+}
+
+# _strict_transport_security( $c ) -> $value | undef
+#
+# Purpose: The Strict-Transport-Security header for this reply, if any.
+# Entry:   The controller.  Config strict_transport_security is the value to
+#          send ('' or 0 sends none); without it, $DEFAULT_HSTS.
+# Exit:    The value, or undef when none is to be sent.
+#
+# Only a request that came over https gets it: a browser ignores the header
+# over http, and a reply that came through a proxy is https only when
+# Mojolicious is told to trust the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's
+# proxy => 1) and the proxy says X-Forwarded-Proto: https.  Never for
+# localhost or an IP address: the header binds the host, not the port, so
+# from https://localhost:8443 it would send every other server on that
+# machine, morbo included, to https; and RFC 6797 has browsers ignore it for
+# an IP address.  A value the configuration changed to after startup is sent
+# only if it is still well formed.
+sub _strict_transport_security {
+	my ($c) = @_;
+	return unless $c->req->is_secure;
+
+	my $host = lc($c->req->url->to_abs->host // '');
+	return if $host eq '' || $host eq 'localhost' || $host =~ /\.localhost\z/
+		|| $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/ || $host =~ /:/ || $host =~ /\A\[/;
+
+	my $value = $c->app->config('strict_transport_security');
+	return $DEFAULT_HSTS unless defined $value;
+	return if ref $value || !length($value) || $value eq '0';
+	return $value =~ $HSTS_RE ? $value : undef;
+}
+
+# _check_strict_transport_security( $value ) -> void
+#
+# Purpose: Refuse a strict_transport_security that a browser would not read.
+# Entry:   The config value: undef, '' or 0 (none), or a header value.
+# Exit:    Returns; croaks on anything else.
+sub _check_strict_transport_security {
+	my ($value) = @_;
+	return if !defined $value || (!ref $value && (!length($value) || $value eq '0'));
+	return if !ref $value && $value =~ $HSTS_RE;
+	croak sprintf("strict_transport_security: '%s' is not a header value such as 'max-age=31536000'"
+		. ' (optionally with includeSubDomains and preload), or 0 for none', ref $value ? ref $value : $value);
 }
 
 # _new_nonce() -> $nonce

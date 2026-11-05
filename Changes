@@ -46,6 +46,23 @@ Revision history for Database-BI
 	  it for the type it names.  Without it a browser could guess that a CSV
 	  export, or text from a data file, was HTML or script, and run what a
 	  cell held.
+	- Every reply carries a Permissions-Policy that turns off the browser
+	  features no page uses (camera, microphone, location, payment, USB,
+	  serial, HID, screen capture, full screen, reading the clipboard and
+	  more), so a script that got in cannot ask the reader for them.  Writing
+	  to the clipboard stays, for Copy link.  permissions_policy replaces the
+	  value ('' or 0 for none); one that cannot be a header value stops the
+	  start.  Only feature names Chromium knows are sent: it logs an error for
+	  any other.
+	- A reply to an https request carries Strict-Transport-Security:
+	  max-age=31536000, so a browser that reached the server over https does
+	  not fall back to http, where a share link's token travels in clear.  It
+	  binds this host only; strict_transport_security sets another value
+	  (includeSubDomains, preload) or turns it off ('' or 0), and a value a
+	  browser would not read stops the start.  Nothing is sent over http, to
+	  localhost (it would move every server on the machine to https) or to an
+	  IP address.  Behind a proxy, a request counts as https when Mojolicious
+	  trusts the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's proxy => 1).
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
 	[ Tests ]
@@ -57,7 +74,11 @@ Revision history for Database-BI
 	  page served from the page cache keeps a nonce matching its header.  It
 	  checks X-Frame-Options under each policy setting, Referrer-Policy and
 	  X-Content-Type-Options on every kind of reply, that a self-hosted
-	  script and stylesheet are served as what they are, and that
+	  script and stylesheet are served as what they are, that
+	  Permissions-Policy turns off what no template uses and keeps the
+	  clipboard for Copy link, that
+	  Strict-Transport-Security is sent over https (TLS, or a trusted proxy)
+	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
 

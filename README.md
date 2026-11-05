@@ -1402,6 +1402,39 @@ self-hosted library under `public/` keeps working, because Mojolicious names
 `.js` and `.css` files for what they are; one served some other way must be
 sent as `text/javascript` or `text/css`, or the browser will not load it.
 
+Every reply carries a `Permissions-Policy` that turns off the browser
+features no page uses: the camera, the microphone, location, payment, USB,
+serial and HID devices, screen capture, full screen, reading the clipboard and
+the rest, for this site and any frame it holds.  Writing to the clipboard
+stays (`clipboard-write=(self)`), for the Copy link buttons.  A script that
+got in cannot ask the reader for any of them.  `permissions_policy` replaces
+the value (`''` or `0` for none); one that cannot be a header value stops
+the application at startup:
+
+```perl
+{ permissions_policy => 'camera=(), geolocation=(self)' }
+```
+
+A reply to a request that came over https carries
+`Strict-Transport-Security: max-age=31536000`, so the browser comes back over
+https for a year.  It binds this host only; set `strict_transport_security`
+to add `includeSubDomains` or `preload`, which reach every site of the
+domain and are hard to take back, or to `''` or `0` to send none.  A value
+a browser would not read stops the application at startup:
+
+```perl
+{ strict_transport_security => 'max-age=63072000; includeSubDomains' }
+```
+
+Over http no such header is sent, since a browser ignores it there, and none
+is sent to `localhost` or to an IP address: it binds the host, not the port,
+so from `https://localhost:8443` it would send every other server on that
+machine to https, and browsers ignore it for an address.  Behind a proxy that
+ends TLS, a request is https only when Mojolicious is told to trust the proxy
+(`MOJO_REVERSE_PROXY=1`, or `hypnotoad => { proxy => 1 }`) and the proxy
+sends `X-Forwarded-Proto: https`; otherwise the proxy must send the header
+itself.
+
 An inline script runs only if it carries the request's nonce, a random value
 made for each request and named in the policy (`'nonce-...'`).  Every
 `<script>` the templates write carries it, and so do those that

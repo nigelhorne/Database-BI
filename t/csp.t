@@ -536,5 +536,107 @@ subtest 'X-Content-Type-Options' => sub {
 	shift @{ $t->app->static->paths };
 };
 
+# Over https a reply tells the browser to come back only over https; over
+# http, and to localhost or an IP address, it says nothing (the header binds
+# the host, not the port, and RFC 6797 has browsers ignore it for an address).
+# Behind a proxy a request is https only when the proxy is trusted.
+subtest 'Strict-Transport-Security' => sub {
+	my $HSTS  = 'Strict-Transport-Security';
+	my $sales = url_escape('table:sales');
+	my $host  = { Host => 'bi.example.com' };
+	my $https = { %{$host}, 'X-Forwarded-Proto' => 'https' };
+
+	restore();
+	$t->get_ok('/', $host)->status_is(200)->header_exists_not($HSTS, 'plain http: none');
+	$t->get_ok('/', $https)->status_is(200)
+		->header_exists_not($HSTS, 'X-Forwarded-Proto from a proxy nobody said to trust: none');
+
+	local $ENV{MOJO_REVERSE_PROXY} = 1;
+	my $tp = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1) });
+	for my $url ('/', "/bar?l=$sales&cat=region&val=amount", '/no/such/page',
+		"/export?l=$sales&format=csv", "/calc/list?l=$sales") {
+		$tp->get_ok($url, { %{$https}, Accept => 'text/html' })
+			->header_is($HSTS => 'max-age=31536000', "behind a trusted proxy, over https: $url");
+	}
+	$tp->get_ok('/', $host)->header_exists_not($HSTS, 'behind it, over http: none');
+	for my $local ('localhost', 'localhost:8443', 'app.localhost', '127.0.0.1', '192.168.1.20:3000', '[::1]:8443') {
+		$tp->get_ok('/', { Host => $local, 'X-Forwarded-Proto' => 'https' })
+			->header_exists_not($HSTS, "never for $local");
+	}
+
+	my $cp = $tp->app->config;
+	$cp->{strict_transport_security} = 'max-age=600; includeSubDomains';
+	$tp->get_ok('/', $https)->header_is($HSTS => 'max-age=600; includeSubDomains', 'the configured value');
+	for my $off ('', 0) {
+		$cp->{strict_transport_security} = $off;
+		$tp->get_ok('/', $https)->header_exists_not($HSTS, "'$off' sends none");
+	}
+	$cp->{strict_transport_security} = "max-age=1\r\nSet-Cookie: x=1";
+	$tp->get_ok('/', $https)->header_exists_not($HSTS, 'a value made bad after startup is not sent');
+	delete $cp->{strict_transport_security};
+
+	# Over TLS itself, as the daemon serves https:// listeners.
+	SKIP: {
+		skip 'IO::Socket::SSL 2.009 is needed for an https test server', 2
+			unless eval { require IO::Socket::SSL; IO::Socket::SSL->VERSION(2.009); 1 };
+		local $ENV{MOJO_REVERSE_PROXY} = 0;
+		my $ts = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1) });
+		$ts->ua->insecure(1);
+		$ts->ua->server->url('https');
+		$ts->get_ok('/', $host)->status_is(200)->header_is($HSTS => 'max-age=31536000', 'over TLS');
+	}
+
+	# At startup a value a browser would not read stops the application.
+	for my $bad ('max-age=abc', 'includeSubDomains', 'max-age=1; preload; includeSubDomains', 'max-age=1, x', [ 'max-age=1' ]) {
+		throws_ok { Test::Mojo->new('Database::BI', { strict_transport_security => $bad }) }
+			qr/strict_transport_security/, 'startup refuses ' . (ref $bad ? encode_json($bad) : $bad);
+	}
+	for my $good ('max-age=0', 'max-age=63072000; includeSubDomains; preload', '', 0) {
+		lives_ok { Test::Mojo->new('Database::BI', { strict_transport_security => $good }) } "and accepts '$good'";
+	}
+	restore();
+};
+
+# The browser features no page uses are off, on every reply; writing to the
+# clipboard stays, for the Copy link buttons.
+subtest 'Permissions-Policy' => sub {
+	restore();
+	my $PP    = 'Permissions-Policy';
+	my $sales = url_escape('table:sales');
+	for my $url ('/', "/bar?l=$sales&cat=region&val=amount", '/no/such/page', "/export?l=$sales&format=csv", "/calc/list?l=$sales") {
+		$t->get_ok($url, { Accept => 'text/html' })->header_exists($PP, "$url carries it");
+	}
+	$t->get_ok('/');
+	my %features = map { /\A([a-z-]+)=\((.*)\)\z/ ? ($1 => $2) : ($_ => '?') }
+		split /\s*,\s*/, $t->tx->res->headers->header($PP);
+	is($features{$_}, '', "$_ is off") for qw(camera microphone geolocation payment usb serial hid display-capture clipboard-read fullscreen);
+	is($features{'clipboard-write'}, 'self', 'writing to the clipboard stays, for this site');
+	ok(!(grep { $features{$_} eq '?' } keys %features), 'every entry is name=(allowlist)');
+	ok(!(grep { exists $features{$_} } qw(ambient-light-sensor battery bluetooth web-share interest-cohort)),
+		'and none that Chromium logs as unrecognised');
+
+	# The pages use nothing it turns off but the clipboard.
+	my $root = File::Spec->catdir($t->app->home->to_string, 'templates');
+	my @uses = map { $_->slurp =~ /\bnavigator\.(geolocation|mediaDevices|share|usb|serial|hid|credentials|wakeLock)\b|\b(requestFullscreen|PaymentRequest|getUserMedia)\b/g }
+		Mojo::File->new($root)->list_tree->grep(qr/\.tt\z/)->each;
+	is_deeply([ grep { defined } @uses ], [], 'no template asks for a feature that is off');
+
+	$config->{permissions_policy} = 'camera=()';
+	$t->get_ok('/')->header_is($PP => 'camera=()', 'permissions_policy replaces it');
+	for my $off ('', 0) {
+		$config->{permissions_policy} = $off;
+		$t->get_ok('/')->header_exists_not($PP, "'$off' sends none");
+	}
+	$config->{permissions_policy} = "camera=()\r\nSet-Cookie: x=1";
+	$t->get_ok('/')->header_exists_not($PP, 'a value made bad after startup is not sent');
+	restore();
+
+	throws_ok { Test::Mojo->new('Database::BI', { permissions_policy => "camera=()\nx" }) }
+		qr/permissions_policy/, 'startup refuses a line break';
+	throws_ok { Test::Mojo->new('Database::BI', { permissions_policy => [ 'camera=()' ] }) }
+		qr/permissions_policy/, 'and a list';
+	lives_ok { Test::Mojo->new('Database::BI', { permissions_policy => 'geolocation=(self)' }) } 'and starts with a value';
+};
+
 restore();
 done_testing();
