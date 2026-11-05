@@ -437,7 +437,7 @@
 <div class="join-panel" id="join-panel"
      data-current-label="[% title | html %]"
      hidden>
-  <script>window.__biFilters = [% filters_json %];</script>
+  <script nonce="[% csp_nonce | html %]">window.__biFilters = [% filters_json %];</script>
   <form id="join-form" method="get" action="/join" novalidate>
     <input type="hidden" name="l" value="[% left_spec | html %]">
     [%- FOREACH jspec IN current_joins -%]
@@ -1875,7 +1875,7 @@ dragging it moves it.</p>
 <p class="empty-state">No records found in <strong>[% table | html %]</strong>.</p>
 [% END %]
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // One toolbar panel open at a time.  BI_PANELS is the only list of them:
 // opening a panel calls biClosePanels(itself), which hides every other one.
 // Merge, Combine and Export disable their own button while their panel is
@@ -2862,7 +2862,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Refresh button -- reload the page so the server re-reads the source file(s)
 // ---------------------------------------------------------------------------
@@ -3147,7 +3147,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Combine panel -- stack rows from another file beneath the current view
 // ---------------------------------------------------------------------------
@@ -3241,7 +3241,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Graph panel -- line chart of X vs Y using HTML::D3 / D3.js
 // ---------------------------------------------------------------------------
@@ -3393,7 +3393,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Pie chart panel
 // ---------------------------------------------------------------------------
@@ -3475,7 +3475,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Heatmap panel
 // ---------------------------------------------------------------------------
@@ -3614,7 +3614,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Stacked bar chart panel
 // ---------------------------------------------------------------------------
@@ -3658,7 +3658,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Scatter plot panel
 // ---------------------------------------------------------------------------
@@ -3784,7 +3784,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Combo bar+line chart panel
 // ---------------------------------------------------------------------------
@@ -3862,7 +3862,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Treemap panel
 // ---------------------------------------------------------------------------
@@ -3917,7 +3917,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Histogram panel
 // ---------------------------------------------------------------------------
@@ -3999,7 +3999,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Word cloud panel
 // ---------------------------------------------------------------------------
@@ -4087,7 +4087,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Cross-row columns panel
 // ---------------------------------------------------------------------------
@@ -4257,7 +4257,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Map panel
 // ---------------------------------------------------------------------------
@@ -4594,7 +4594,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Folder view panel
 // ---------------------------------------------------------------------------
@@ -4629,7 +4629,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Stats button -- navigate directly to /stats with current l= and f= params
 // ---------------------------------------------------------------------------
@@ -4791,7 +4791,7 @@ function biDetectColType(colName) {
 [%- END -%]
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Pivot table panel
 // ---------------------------------------------------------------------------
@@ -5048,7 +5048,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Calculated columns panel
 // ---------------------------------------------------------------------------
@@ -5137,7 +5137,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Group values panel
 // ---------------------------------------------------------------------------
@@ -5262,7 +5262,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Date format panel
 // ---------------------------------------------------------------------------
@@ -5406,7 +5406,7 @@ function biDetectColType(colName) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // A button in a note that names a toolbar panel opens it, as its toolbar button does.
 document.querySelectorAll('button[data-open]').forEach(function (b) {
   b.addEventListener('click', function () {
@@ -5416,7 +5416,7 @@ document.querySelectorAll('button[data-open]').forEach(function (b) {
 });
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Shared by the Lookups and Extract fields panels: a saved definition's row
 // in the panel's list, and a POST to the model store that reports a refusal
@@ -5457,7 +5457,7 @@ function biModelPost(url, body, errEl, done) {
 }
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Lookups panel -- /lookups/list, /lookups/save, /lookups/delete
 // ---------------------------------------------------------------------------
@@ -5607,7 +5607,7 @@ function biModelPost(url, body, errEl, done) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Extract fields panel -- /extract/list, /extract/save, /extract/delete
 // ---------------------------------------------------------------------------
@@ -5679,7 +5679,7 @@ function biModelPost(url, body, errEl, done) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Save-analysis panel -- POST /api/analyses and redirect to /a/:id
 // ---------------------------------------------------------------------------
@@ -5801,7 +5801,7 @@ function biModelPost(url, body, errEl, done) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Export panel -- save to a user-chosen directory on the server filesystem
 // ---------------------------------------------------------------------------
@@ -6010,7 +6010,7 @@ function biModelPost(url, body, errEl, done) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // Drag-and-drop integration with the shared overlay (default.html.tt)
 (function () {
   var panel        = document.getElementById('join-panel');
@@ -6039,7 +6039,7 @@ function biModelPost(url, body, errEl, done) {
 }());
 </script>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // ---------------------------------------------------------------------------
 // Row highlight: applied when ?hl_col=, ?hl_op=, ?hl_val= are present in the
 // URL.  Used by the insights drill-down so the specific outlier row stands out
@@ -6102,7 +6102,7 @@ function biModelPost(url, body, errEl, done) {
      data-name="[% title | html %]"
      data-path="[% file_path | html %]"
      hidden></div>
-<script>
+<script nonce="[% csp_nonce | html %]">
 (function () {
   try {
     var u      = new URL(location.href);
@@ -6159,7 +6159,7 @@ function biModelPost(url, body, errEl, done) {
      data-name="[% title | html %]"
      data-url="[% source_url | html %]"
      hidden></div>
-<script>
+<script nonce="[% csp_nonce | html %]">
 (function () {
   try {
     var u      = new URL(location.href);

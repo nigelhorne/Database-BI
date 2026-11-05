@@ -1601,11 +1601,11 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		            ->status_is(200, '200 for valid loc= geocode')
 		            ->content_type_like(qr{text/html}, 'response is HTML');
 		# Place names appear only inside map_body (Leaflet popup HTML), which
-		# needs HTML::OSM 0.13 or later: below that floor the page reports the
+		# needs HTML::OSM 0.14 or later: below that floor the page reports the
 		# renderer and draws nothing.  Skip this single assertion then.
 		SKIP: {
-			eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }
-				or skip 'HTML::OSM 0.13 or later is needed for marker HTML', 1;
+			eval { require HTML::OSM; HTML::OSM->VERSION(0.14); 1 }
+				or skip 'HTML::OSM 0.14 or later is needed for marker HTML', 1;
 			$res->content_like(qr/$MAP_PLACE/i, 'place name appears in response');
 		}
 		delete $ledger{'GET./map.200.loc'};
@@ -2954,7 +2954,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my $embed = $tm->get_ok("/embed/$id?token=$share->{token}")->tx->res;
 		like $embed->body, qr/id="vis-0|<svg|d3\./, 'the embed draws the chart';
 		like $embed->body, qr/By region/, 'under its title';
-		like $embed->body, qr/<script src="[^"]*d3/, 'and loads what draws it';
+		like $embed->body, qr/<script\b[^>]*\ssrc="[^"]*d3/, 'and loads what draws it';
 		unlike $embed->body, qr/No visuals to display/, 'rather than saying there is nothing';
 		is $embed->headers->header('X-Frame-Options'), 'SAMEORIGIN', 'embedding is opt-in';
 		delete $ledger{'api.share.embed'};
@@ -3382,9 +3382,9 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		SKIP: {
 			# The key on the map, and what it says when nothing in it is in
 			# view, need an HTML::OSM that draws one
-			unless (eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 }) {
+			unless (eval { require HTML::OSM; HTML::OSM->VERSION(0.14); 1 }) {
 				delete $ledger{'msg.Dashboard.map_legend_empty'};
-				skip 'the key on a map needs HTML::OSM 0.13', 1;
+				skip 'the key on a map needs HTML::OSM 0.14', 1;
 			}
 			$tm->get_ok("/map?$l&lat=lat&lon=lon&series=place")->status_is(200);
 			my ($empty) = $tm->tx->res->body =~ /var legendEmpty = '([^']*)'/;

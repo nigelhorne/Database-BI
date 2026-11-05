@@ -105,9 +105,9 @@ Readonly my $MARIADB_SERVER_RE => qr{\Amariadb:([A-Za-z_][A-Za-z0-9_]*)\z};
 # because the [...] notation would be ambiguous in the path syntax).
 Readonly my $REMOTE_HOST_RE => qr/\A(?:[a-zA-Z0-9][a-zA-Z0-9._-]*\@)?[a-zA-Z0-9][a-zA-Z0-9._-]*\z/;
 
-# The tile layer HTML::OSM 0.10 hardcodes.  HTML::OSM >= 0.13 is required;
-# 0.12 introduced search => 0, max_zoom, and tile_url (0.11), and 0.13 the scale
-# bar, the key on the map and fit.
+# The tile layer HTML::OSM 0.10 hardcodes.  HTML::OSM >= 0.14 is required;
+# 0.12 introduced search => 0, max_zoom, and tile_url (0.11), 0.13 the scale
+# bar, the key on the map and fit, and 0.14 the nonce on its scripts.
 Readonly my $DEFAULT_TILE_URL => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
 # The language the distribution ships templates for.  It is what a request falls
@@ -121,7 +121,8 @@ Readonly my $DEFAULT_LANGUAGE => 'en';
 # building a map, and reports a missing or old renderer instead of a 500.
 # 0.13 draws the scale bar and the key on the map, listing only what is in view
 # (scale, legend, and group on each marker), and opens on every marker (fit).
-Readonly my $MIN_HTML_OSM_VERSION => '0.13';
+# 0.14 puts the Content-Security-Policy nonce on its scripts (nonce).
+Readonly my $MIN_HTML_OSM_VERSION => '0.14';
 
 # ---------------------------------------------------------------------------
 # I18N message dictionary for all user-visible strings in this controller.
@@ -213,9 +214,9 @@ Readonly my %MESSAGES => (
 	error_map_coordinate_range  => 'Column "%s" holds only values outside the range of %s; check that lat= and lon= are not swapped',
 	error_map_coordinate_numeric => 'Columns "%s" and "%s" hold no numeric coordinate pairs; a map needs numbers, or loc=<column> to geocode places',
 	error_map_no_markers        => 'No row has a location that could be plotted',
-	error_map_renderer_missing  => 'Drawing a map needs HTML::OSM 0.13 or later, and it is not installed',
+	error_map_renderer_missing  => 'Drawing a map needs HTML::OSM 0.14 or later, and it is not installed',
 	error_map_renderer_failed   => 'The map could not be drawn; the server log has the reason',
-	error_map_renderer_old      => 'Drawing a map needs HTML::OSM 0.13 or later, but the installed HTML::OSM is %s',
+	error_map_renderer_old      => 'Drawing a map needs HTML::OSM 0.14 or later, but the installed HTML::OSM is %s',
 	warn_join_schema_mismatch   => 'Column "%s" has type %s in %s but %s in %s; the join keeps both columns, so check which one a calculation uses',
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
@@ -4953,6 +4954,9 @@ sub analyses_add_visual ($self) {
 			title  => ($vis->{title} // $rendered->{title} // 'Visual ' . ($index + 1)),
 			html   => $rendered->{html},
 			head   => ($rendered->{head} // ''),
+			# The nonce the card's scripts were written with: the page runs
+			# only those that carry it (runCardScripts in canvas.html.tt).
+			nonce  => $self->csp_nonce,
 			# The column a chart's marks filter by, so the card appended in
 			# place is a cross-filter control like the cards around it.
 			cf_col => (_vis_cf_col($vis) // ''),
@@ -5082,6 +5086,9 @@ sub analyses_update_visual ($self) {
 			title  => ($vis->{title} // $rendered->{title} // 'Visual ' . ($index + 1)),
 			html   => $rendered->{html},
 			head   => ($rendered->{head} // ''),
+			# The nonce the card's scripts were written with: the page runs
+			# only those that carry it (runCardScripts in canvas.html.tt).
+			nonce  => $self->csp_nonce,
 			cf_col => (_vis_cf_col($vis) // ''),
 		},
 	);
@@ -5715,7 +5722,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		# max_items; the seed has to carry it or a seeded canvas draws every
 		# category where the page drew the top few and Other.
 		my $max_bars = int($options->{max_items} // $options->{max_bars} // 0);
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_bar_chart_snippet(\@bars, {
 				orientation => $orient,
 				x_label     => $cat_col,
@@ -5751,7 +5758,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		$title ||= "$m->{label} by $cat_col";
 		my @slices = map { [_decode_cell($_->{$cat_col}), $_->{value}] } @$agg;
 		my $scheme = _categorical_scheme($options->{scheme});
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_pie_chart_snippet(\@slices, {
 				donut        => $options->{donut} ? 1 : 0,
 				legend       => 1,
@@ -5822,7 +5829,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			} ($m ? sort @names : @names);
 
 			$title ||= $m ? "$m->{label} by $x_col and $series_col" : "$y_col vs $x_col by $series_col";
-			$sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			$sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 				->render_multi_series_line_chart_snippet(\@series_data, { id => $svg_id });
 		} else {
 			my @pairs;
@@ -5834,7 +5841,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			return { error => 'No plottable data' } unless @pairs;
 
 			$title ||= $m ? "$m->{label} by $x_col" : "$y_col vs $x_col";
-			$sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+			$sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 				->render_zoomable_line_chart_snippet(\@pairs, { id => $svg_id });
 		}
 		my $html = $sn->{html};
@@ -5880,7 +5887,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		return { error => 'No plottable data' } unless @points;
 
 		$title ||= "$y_col vs $x_col";
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_scatter_chart_snippet(\@points, {
 				x_label => $x_col,
 				y_label => $y_col,
@@ -5940,7 +5947,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 
 		$title ||= "$m->{label} by $x_col and $y_col";
 		my $scheme = _sequential_scheme($options->{scheme});
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_heatmap_snippet(\@triples, {
 				x_label      => $x_col,
 				y_label      => $y_col,
@@ -5988,7 +5995,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		$title ||= "$m->{label} by $cat_col and $seg_col";
 		my $scheme = _categorical_scheme($options->{scheme});
 		my $orient = (_chart_orientation($options) eq 'horizontal') ? 'h' : 'v';
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_stacked_bar_snippet(\@data, {
 				scheme  => $scheme,
 				x_label => $cat_col,
@@ -6049,7 +6056,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			: ($bar_m->{fn} eq 'count')
 				? "Count by $x_col"
 				: "$bar_m->{fn} of $bar_col and $line_col by $x_col";
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_combo_snippet(\@data, {
 				bar_label  => $bar_col,
 				line_label => $line_col,
@@ -6110,7 +6117,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 			+{ path => 'Root/' . _decode_cell($_->{$cat_col}), value => $_->{value},
 			   (defined $cv ? (color_value => $cv) : ()) }
 		} @$agg;
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_treemap_snippet(\@tiles, {
 				scheme => $scheme,
 				id     => $svg_id,
@@ -6176,7 +6183,7 @@ sub _render_visual_markup :Protected ($self, $vis, $records, $columns, $src, $vi
 		}
 
 		$title ||= "Distribution of $col";
-		my $sn = HTML::D3->new(title => $title, width => 480, height => 320, responsive => 1)
+		my $sn = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 480, height => 320, responsive => 1)
 			->render_histogram_snippet(\@bin_data, {
 				binned  => 1,
 				x_label => $col,
@@ -9070,7 +9077,7 @@ sub graph_view ($self) {
 				status => 200,
 			) unless @series_data;
 			$point_count = scalar @series_data;
-			$chart_html = HTML::D3->new(title => $title, width => 1100, height => 580)
+			$chart_html = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 1100, height => 580)
 				->render_multi_series_line_chart_snippet(\@series_data, { animated => 1 })->{html};
 		} else {
 			my @pairs = map {
@@ -9081,7 +9088,7 @@ sub graph_view ($self) {
 				status => 200,
 			) unless @pairs;
 			$point_count = scalar @pairs;
-			$chart_html = HTML::D3->new(title => $title, width => 1100, height => 580)
+			$chart_html = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 1100, height => 580)
 				->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 })->{html};
 		}
 		utf8::decode($chart_html) unless utf8::is_utf8($chart_html);
@@ -9144,7 +9151,7 @@ sub graph_view ($self) {
 
 		require HTML::D3;
 		my $title   = "$y_col vs $x_col by $series_col";
-		my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
+		my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 1100, height => 580)
 			->render_multi_series_line_chart_snippet(\@series_data, { animated => 1 });
 
 		my $chart_html = $snippet->{html};
@@ -9230,7 +9237,7 @@ sub graph_view ($self) {
 
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 1100, height => 580)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 1100, height => 580)
 		->render_zoomable_line_chart_snippet(\@pairs, { animated => 1 });
 
 	my $chart_html = $snippet->{html};
@@ -9358,7 +9365,7 @@ sub pie_view ($self) {
 	require HTML::D3;
 	my $scheme  = _categorical_scheme($self->param('scheme'));
 	my $title   = $count_mode ? "Count by $cat_col" : "$val_col by $cat_col";
-	my $snippet = HTML::D3->new(title => $title, width => 600, height => 500)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 600, height => 500)
 		->render_pie_chart_snippet(\@slices, {
 			animated     => 1,
 			donut        => $donut,
@@ -9536,7 +9543,7 @@ sub heatmap_view ($self) {
 	require HTML::D3;
 	my $title   = length($val_col) ? "$val_col by $x_col and $y_col"
 	                                : "Count by $x_col and $y_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 900, height => 500)
 		->render_heatmap_snippet(\@triples, {
 			x_label      => $x_col,
 			y_label      => $y_col,
@@ -9717,7 +9724,7 @@ sub bar_view ($self) {
 	require HTML::D3;
 	my $title   = $count_mode ? "Count by $cat_col"
 	                          : "$val_col by $cat_col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 800, height => 480)
 		->render_bar_chart_snippet(\@bars, {
 			animated     => 1,
 			orientation  => $orientation,
@@ -11224,7 +11231,7 @@ sub scatter_view ($self) {
 
 	require HTML::D3;
 	my $title   = "$y_col vs $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 800, height => 480)
 		->render_scatter_chart_snippet(\@points, {
 			animated           => 1,
 			x_label            => $x_col,
@@ -11345,7 +11352,7 @@ sub stacked_view ($self) {
 	require HTML::D3;
 	my $title   = $count_mode ? "Count by $cat_col and $seg_col"
 	                          : "$val_col by $cat_col and $seg_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 900, height => 500)
 		->render_stacked_bar_snippet(\@data, {
 			orient  => ($orient eq 'h') ? 'h' : 'v',
 			x_label => $cat_col,
@@ -11465,7 +11472,7 @@ sub combo_view ($self) {
 	my $eff_bar_lbl  = $bar_label  || $bar_col;
 	my $eff_line_lbl = $line_label || $line_col;
 	my $title        = "$eff_bar_lbl and $eff_line_lbl by $x_col";
-	my $snippet = HTML::D3->new(title => $title, width => 900, height => 500)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 900, height => 500)
 		->render_combo_snippet(\@data, {
 			bar_label  => $eff_bar_lbl,
 			line_label => $eff_line_lbl,
@@ -11645,7 +11652,7 @@ sub treemap_view ($self) {
 	require HTML::D3;
 	my $title   = $count_mode ? "Treemap of $cat_col by count" : "Treemap of $cat_col by $val_col";
 	$title     .= " coloured by $color_m->{label}" if $color_m;
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 500)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 800, height => 500)
 		->render_treemap_snippet(\@data, {
 			scheme => $scheme,
 			($color_m ? (color_scheme => $color_scheme, color_label => $color_m->{label}) : ()),
@@ -11771,7 +11778,7 @@ sub histogram_view ($self) {
 
 	require HTML::D3;
 	my $title   = "Distribution of $col";
-	my $snippet = HTML::D3->new(title => $title, width => 800, height => 480)
+	my $snippet = HTML::D3->new(nonce => $self->csp_nonce, title => $title, width => 800, height => 480)
 		->render_histogram_snippet(\@bin_data, {
 			binned  => 1,
 			x_label => $col,
@@ -12517,6 +12524,8 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 			my %key = $self->_map_key($color_col, $color_rules, $color_default,
 				defined($options->{scheme}), $size_col, $size_range);
 			$osm_args{scale} = 1;
+			# Every <script> the map writes carries the page's nonce.
+			$osm_args{nonce} = $self->csp_nonce;
 			# Without a zoom the map opens on every marker, as the panel promises
 			$osm_args{fit} = 1 unless defined $options->{zoom};
 			%osm_args = (%osm_args, %key) if @{ $key{legend} // [] };
@@ -14548,7 +14557,7 @@ C<geocode=wait>, waits for the lookups as before.
 
 The map page never shows the L<HTML::OSM> Nominatim search box: C<search => 0>
 is always passed, so nothing typed on the page leaves the reader's machine.
-L<HTML::OSM> 0.13 or later is the renderer; with an older optional install (or
+L<HTML::OSM> 0.14 or later is the renderer; with an older optional install (or
 none at all) the page still renders the marker count and a warning, rather than
 failing.
 

@@ -28,7 +28,7 @@
 </p>
 [% END %]
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 // Hover tooltips for db-cards in the "choose a database" list.
 // Shows file type (with table count for SQLite), modified date, and size.
 (function () {
@@ -221,7 +221,7 @@
 
 </div>
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 (function () {
   try {
     function fmtDate(iso) {
@@ -406,7 +406,7 @@
 </script>
 
 
-<script>
+<script nonce="[% csp_nonce | html %]">
 (function () {
   var btn = document.getElementById('btn-clear-uploads');
   if (!btn) return;

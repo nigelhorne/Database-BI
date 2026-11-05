@@ -1423,7 +1423,7 @@
     <!-- F1 is the standard Help key.  It follows the header's Help link, or
        the tutorial top when this page has no chapter.  Both links carry
        target="_blank", so the current table or chart view is not lost. -->
-  <script>
+  <script nonce="[% csp_nonce | html %]">
   (function () {
     document.addEventListener('keydown', function (e) {
       if (e.key !== 'F1' || e.repeat) return;
@@ -1449,7 +1449,7 @@
     </div>
   </div>
 
-  <script>
+  <script nonce="[% csp_nonce | html %]">
   (function () {
     var overlay   = document.getElementById('drop-overlay');
     var overlayTxt = document.getElementById('drop-overlay-text');
@@ -1708,7 +1708,7 @@
   </div>
   <div id="atc-status"></div>
 </div>
-<script>
+<script nonce="[% csp_nonce | html %]">
 (function () {
   'use strict';
   var btn    = document.getElementById('add-to-canvas-btn');
@@ -1932,7 +1932,7 @@ remembered: the next chart page of the same kind opens at the size this one was 
 forget it, use the Reset size button in the page's export bar, which puts the chart back at the
 size the server sent.</p>
 <p class="sr-only" id="chart-resize-status" role="status" aria-live="polite"></p>
-<script>
+<script nonce="[% csp_nonce | html %]">
 /* Chart resize handle -- injected after D3 and the viewBox-widening JS
    (graph.html.tt setTimeout 0) have both run.  Wraps each chart SVG in a
    relative-positioned div and appends a draggable triangle grip at the
@@ -2215,5 +2215,24 @@ size the server sent.</p>
 }());
 </script>
 [% END %]
+<script nonce="[% csp_nonce | html %]">
+/* Buttons that once carried an onclick attribute.  The Content-Security-Policy
+   runs only scripts that carry this page's nonce, which an attribute cannot,
+   so each is bound here instead. */
+(function () {
+  var copy = document.getElementById('btn-copy-chart-link');
+  if (copy) {
+    copy.addEventListener('click', function () {
+      navigator.clipboard.writeText(window.location.href).then(function () {
+        var t = copy.textContent;
+        copy.textContent = 'Copied!';
+        setTimeout(function () { copy.textContent = t; }, 1500);
+      }).catch(function () {});
+    });
+  }
+  var back = document.getElementById('btn-error-back');
+  if (back) back.addEventListener('click', function () { history.back(); });
+}());
+</script>
 </body>
 </html>

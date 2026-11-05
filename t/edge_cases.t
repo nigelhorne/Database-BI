@@ -2494,8 +2494,8 @@ subtest '_map_popup -- globals and context' => sub {
 };
 
 subtest 'GET /map -- many rows at one place: capped, escaped, linked' => sub {
-	plan skip_all => 'HTML::OSM 0.13 is needed to draw a map'
-		unless eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 };
+	plan skip_all => 'HTML::OSM 0.14 is needed to draw a map'
+		unless eval { require HTML::OSM; HTML::OSM->VERSION(0.14); 1 };
 	my $rows = $EDGE{popup_limit} * 4;
 	my $dir  = tempdir(CLEANUP => 1);
 	Mojo::File->new("$dir/stack.csv")->spew("lat,lon,who\n"

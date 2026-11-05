@@ -77,8 +77,8 @@
 		</tr>
 		<tr>
 			<td>HTML::D3</td>
-			<td>0.29</td>
-			<td>The chart snippets. 0.29 colours treemap tiles by a measure, colours a combo chart from a scheme and escapes the text in tooltips; 0.27 stops a label ending the script it is written into.</td>
+			<td>0.30</td>
+			<td>The chart snippets. 0.30 puts the page's Content-Security-Policy nonce on its scripts; 0.29 colours treemap tiles by a measure, colours a combo chart from a scheme and escapes the text in tooltips; 0.27 stops a label ending the script it is written into.</td>
 		</tr>
 		<tr>
 			<td>HTML::TagCloud</td>
@@ -91,7 +91,7 @@
 
 <p>
 	Some modules are recommended rather than required, so the application installs,
-	starts and tests without them. <strong>HTML::OSM</strong> (0.13 or later) draws
+	starts and tests without them. <strong>HTML::OSM</strong> (0.14 or later) draws
 	maps, with a scale bar, a key on the map that follows the view, and a first
 	view that fits every marker. A place column is turned into coordinates by <strong>Geo::Coder::List</strong>
 	(0.39 or later), which asks <strong>Geo::Coder::Free</strong> (0.48 or later) and
@@ -323,18 +323,25 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 <p>
 	A page's scripts may talk only to this site (<code>connect-src 'self'</code>),
 	and no other site may show a page in a frame
-	(<code>frame-ancestors 'self'</code>). Inline script is still allowed, because
-	the pages and the chart and map libraries write it. JSON replies and downloads
-	carry no policy. Two keys change it:
+	(<code>frame-ancestors 'self'</code>). JSON replies and downloads carry no policy.
+</p>
+<p>
+	An inline script runs only if it carries the request's nonce, a random value
+	made for each request and named in the policy. Every <code>&lt;script&gt;</code>
+	the pages write carries it, and so do those HTML::D3 and HTML::OSM write. A
+	script that came in with a cell's text cannot know it, so it does not run, and
+	neither does an <code>onclick</code> or <code>onerror</code> attribute.
+	Style attributes are still allowed. Two keys change the policy:
 </p>
 <pre><code>{
     content_security_policy_report_only => 1,   # report breaches, block nothing
-    content_security_policy => "default-src 'self'; ...",   # the whole policy
+    content_security_policy => "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
 }</code></pre>
 <p>
-	<code>content_security_policy</code> set to <code>''</code> or <code>0</code>
-	sends no header. A policy written out in full is not updated when the library
-	keys change.
+	<code>content_security_policy</code> is the whole policy, sent as written except
+	that <code>{nonce}</code> becomes the request's nonce; without it no inline script
+	runs. Set to <code>''</code> or <code>0</code> it sends no header. A policy written
+	out in full is not updated when the library keys change.
 </p>
 
 <h2>Command-line tools</h2>

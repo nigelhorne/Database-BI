@@ -681,7 +681,7 @@ perl Makefile.PL
     the [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) Nominatim search box (`search => 0` is always passed), so
     nothing typed on the map is sent anywhere.  With `loc=`, a place the local
     data does not know is sent to Nominatim, as the place name alone; set
-    `map_geocode_online` to 0 to keep every lookup local.  [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.13 or
+    `map_geocode_online` to 0 to keep every lookup local.  [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.14 or
     later is the renderer; an older optional install still returns the page with a
     warning.
 
@@ -768,9 +768,11 @@ perl Makefile.PL
     as the cards already on screen.  The visual is rendered against the canvas's
     datasets, joins and calculated fields before it is stored, so an unknown
     column or an undrawable visual is rejected with `400` and nothing is appended.
-    Returns `201 { id, visual, kind, title, html, head, cf_col }`, where
+    Returns `201 { id, visual, kind, title, html, head, nonce, cf_col }`, where
     `visual` is the new visual's index, `head` is any stylesheet and script the
-    page must add once to draw the card (Leaflet, for a map), and `cf_col` is the
+    page must add once to draw the card (Leaflet, for a map), `nonce` is the
+    Content-Security-Policy nonce the scripts in `html` carry (the canvas page
+    runs only those, giving each its own nonce), and `cf_col` is the
     column the card's marks cross-filter by.  The card is left unplaced in
     `layout`; it is auto-placed after the saved cards until the reader moves or
     resizes it.
@@ -817,7 +819,9 @@ perl Makefile.PL
     its layout position, size and title are unchanged.  The replacement is
     rendered before it is stored, so an unknown column or an undrawable map is a
     `400` and the saved visual is left alone.  Returns
-    `{ id, visual, kind, title, html, head, cf_col }`.
+    `{ id, visual, kind, title, html, head, nonce, cf_col }`; `nonce` is the one
+    the scripts in `html` carry, which the canvas page gives its own when it runs
+    them.
 
 - `DELETE /api/analyses/:id`
 
@@ -1378,18 +1382,33 @@ OpenStreetMap's tile servers.  A page's scripts may talk only to this site
 (`connect-src 'self'`), and no other site may show a page in a frame
 (`frame-ancestors 'self'`).  JSON replies and downloads carry no policy.
 
-The policy still allows inline script, which the pages and the chart and map
-libraries write.  Two keys change it:
+An inline script runs only if it carries the request's nonce, a random value
+made for each request and named in the policy (`'nonce-...'`).  Every
+`<script>` the templates write carries it, and so do those that
+[HTML::D3](https://metacpan.org/pod/HTML%3A%3AD3) (0.30 or later) and [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) (0.14 or later) write, because
+the application passes it to them.  A script that came in with a cell's text
+cannot know it, so it does not run; nor does an `onclick` or `onerror`
+attribute, which no nonce can cover, so the pages use none.  Style attributes
+are still allowed (`style-src 'unsafe-inline'`).
+
+A canvas card added without a reload arrives as JSON with the nonce its
+scripts were written with.  The page runs only the scripts that carry it, and
+gives each the page's own nonce.  A page kept in the page cache is stored with
+its header, so the nonce in each still matches when it is served again.
+
+Two keys change the policy:
 
 ```perl
 {
     content_security_policy_report_only => 1,  # report breaches, block nothing
-    content_security_policy => "default-src 'self'; ...",  # the whole policy
+    content_security_policy => "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
 }
 ```
 
-`content_security_policy` set to `''` or `0` sends no header.  A policy
-written out in full is not updated when the library keys change.
+`content_security_policy` is the whole policy, sent as written except that
+`{nonce}` becomes the request's nonce; without it no inline script runs.  Set
+to `''` or `0` it sends no header.  A policy written out in full is not
+updated when the library keys change.
 
 ## Methods
 

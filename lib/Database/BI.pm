@@ -33,6 +33,10 @@ Readonly my $DEFAULT_D3_URL => 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/
 Readonly my $DEFAULT_LEAFLET_URL => 'https://unpkg.com/';
 Readonly my $DEFAULT_TILE_URL    => 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 
+# What a Content-Security-Policy nonce may be made of (base64 or base64url);
+# anything else reaching the policy is dropped.
+Readonly my $NONCE_RE => qr{\A[A-Za-z0-9+/_=-]+\z};
+
 # Transport-layer upload size cap (bytes).  Mojolicious enforces this before
 # the request body is read into memory, so an oversized upload never reaches
 # the controller.  Must match $MAX_UPLOAD_BYTES in Dashboard.pm.
@@ -730,7 +734,7 @@ together with C<series=>, or a transposed lat/lon pair.  The page never shows
 the L<HTML::OSM> Nominatim search box (C<search =E<gt> 0> is always passed), so
 nothing typed on the map is sent anywhere.  With C<loc=>, a place the local
 data does not know is sent to Nominatim, as the place name alone; set
-C<map_geocode_online> to 0 to keep every lookup local.  L<HTML::OSM> 0.13 or
+C<map_geocode_online> to 0 to keep every lookup local.  L<HTML::OSM> 0.14 or
 later is the renderer; an older optional install still returns the page with a
 warning.
 
@@ -817,9 +821,11 @@ while the canvas is filtered or parameterised is drawn through the same state
 as the cards already on screen.  The visual is rendered against the canvas's
 datasets, joins and calculated fields before it is stored, so an unknown
 column or an undrawable visual is rejected with C<400> and nothing is appended.
-Returns C<201 { id, visual, kind, title, html, head, cf_col }>, where
+Returns C<201 { id, visual, kind, title, html, head, nonce, cf_col }>, where
 C<visual> is the new visual's index, C<head> is any stylesheet and script the
-page must add once to draw the card (Leaflet, for a map), and C<cf_col> is the
+page must add once to draw the card (Leaflet, for a map), C<nonce> is the
+Content-Security-Policy nonce the scripts in C<html> carry (the canvas page
+runs only those, giving each its own nonce), and C<cf_col> is the
 column the card's marks cross-filter by.  The card is left unplaced in
 C<layout>; it is auto-placed after the saved cards until the reader moves or
 resizes it.
@@ -866,7 +872,9 @@ the redrawn card matches the page it is on.  The visual keeps its index, so
 its layout position, size and title are unchanged.  The replacement is
 rendered before it is stored, so an unknown column or an undrawable map is a
 C<400> and the saved visual is left alone.  Returns
-C<{ id, visual, kind, title, html, head, cf_col }>.
+C<{ id, visual, kind, title, html, head, nonce, cf_col }>; C<nonce> is the one
+the scripts in C<html> carry, which the canvas page gives its own when it runs
+them.
 
 =item C<DELETE /api/analyses/:id>
 
@@ -1405,16 +1413,31 @@ OpenStreetMap's tile servers.  A page's scripts may talk only to this site
 (C<connect-src 'self'>), and no other site may show a page in a frame
 (C<frame-ancestors 'self'>).  JSON replies and downloads carry no policy.
 
-The policy still allows inline script, which the pages and the chart and map
-libraries write.  Two keys change it:
+An inline script runs only if it carries the request's nonce, a random value
+made for each request and named in the policy (C<'nonce-...'>).  Every
+C<E<lt>scriptE<gt>> the templates write carries it, and so do those that
+L<HTML::D3> (0.30 or later) and L<HTML::OSM> (0.14 or later) write, because
+the application passes it to them.  A script that came in with a cell's text
+cannot know it, so it does not run; nor does an C<onclick> or C<onerror>
+attribute, which no nonce can cover, so the pages use none.  Style attributes
+are still allowed (C<style-src 'unsafe-inline'>).
+
+A canvas card added without a reload arrives as JSON with the nonce its
+scripts were written with.  The page runs only the scripts that carry it, and
+gives each the page's own nonce.  A page kept in the page cache is stored with
+its header, so the nonce in each still matches when it is served again.
+
+Two keys change the policy:
 
     {
         content_security_policy_report_only => 1,  # report breaches, block nothing
-        content_security_policy => "default-src 'self'; ...",  # the whole policy
+        content_security_policy => "default-src 'self'; script-src 'self' 'nonce-{nonce}'",
     }
 
-C<content_security_policy> set to C<''> or C<0> sends no header.  A policy
-written out in full is not updated when the library keys change.
+C<content_security_policy> is the whole policy, sent as written except that
+C<{nonce}> becomes the request's nonce; without it no inline script runs.  Set
+to C<''> or C<0> it sends no header.  A policy written out in full is not
+updated when the library keys change.
 
 =head1 METHODS
 
@@ -1939,19 +1962,41 @@ sub startup ($self) {
 		) : ()),
 	});
 
+	# The Content-Security-Policy nonce for this request.  Every <script> the
+	# templates write carries it, as do those HTML::D3 and HTML::OSM write
+	# (given nonce => $c->csp_nonce), and the policy runs no inline script
+	# without it.  It is made before the action runs, so a template rendered
+	# before anything asked for it still has one, and it is fresh for every
+	# request: markup that reached a page through its data cannot know it.
+	$self->hook(before_dispatch => sub {
+		shift->stash(csp_nonce => _new_nonce());
+	});
+	$self->helper(csp_nonce => sub {
+		my $c = shift;
+		my $nonce = $c->stash('csp_nonce');
+		$c->stash(csp_nonce => ($nonce = _new_nonce())) unless defined $nonce;
+		return $nonce;
+	});
+
 	# A Content-Security-Policy on every HTML reply.  The pages draw cells from
 	# files nobody here wrote, so the policy is the second line behind the
-	# escaping: script, style and images come only from this site and the hosts
-	# the configuration names, nothing a page runs may send data to another
-	# server, and no other site may frame a page.  It still allows inline
-	# script, which the templates, HTML::D3 and HTML::OSM all write.  Built per
-	# reply from the config, as d3_url is, so a test can change it.
+	# escaping: script runs only from this site, the hosts the configuration
+	# names, and inline blocks that carry this request's nonce; style and
+	# images come only from this site and those hosts; nothing a page runs may
+	# send data to another server, and no other site may frame a page.  Built
+	# per reply from the config, as d3_url is, so a test can change it.
+	#
+	# Mojolicious runs after_dispatch hooks last registered first, so this runs
+	# before Buffer's: a page Buffer keeps in its page cache is stored with the
+	# header, and when it is served again Buffer puts back the header with the
+	# body, so the nonce in each still matches the other.  The header is left
+	# alone when it is already there for that reason.
 	$self->hook(after_dispatch => sub {
 		my $c = shift;
 
 		my $headers = $c->res->headers;
 		return unless ($headers->content_type // '') =~ m{\Atext/html\b}i;
-		my $policy = _content_security_policy($c->app->config);
+		my $policy = _content_security_policy($c->app->config, $c->csp_nonce);
 		return unless defined $policy;
 		my $name = $c->app->config('content_security_policy_report_only')
 			? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
@@ -2305,14 +2350,34 @@ sub _evict_old_uploads {
 	});
 }
 
-# _content_security_policy( \%config ) -> $policy | undef
+# _new_nonce() -> $nonce
+#
+# Purpose: A fresh Content-Security-Policy nonce.
+# Exit:    22 base64url characters, 132 random bits.
+#
+# generate_secret is base64url of 128 bytes from Crypt::URandom (a weaker
+# generator only when that is missing); the page writes the nonce on every
+# <script>, so a prefix keeps it short while still unguessable.
+sub _new_nonce {
+	return substr(Mojo::Util::generate_secret(), 0, 22);
+}
+
+# _content_security_policy( \%config, $nonce ) -> $policy | undef
 #
 # Purpose: The Content-Security-Policy header every HTML reply carries.
-# Entry:   The application's config.  content_security_policy, when set to a
-#          string, is the whole policy, sent as written; set to '' or 0 it
-#          turns the header off.  Otherwise the policy is built from d3_url,
-#          the five leaflet_*_url keys, tile_url and tile_sources.
+# Entry:   The application's config, and the request's nonce (see csp_nonce).
+#          content_security_policy, when set to a string, is the whole policy,
+#          sent as written but for {nonce}, which becomes the nonce; set to ''
+#          or 0 it turns the header off.  Otherwise the policy is built from
+#          d3_url, the five leaflet_*_url keys, tile_url and tile_sources.
 # Exit:    The header's value, or undef for none.
+#
+# script-src has no 'unsafe-inline': an inline script runs only if it carries
+# the nonce, so one that came in with a cell's text does not.  style-src keeps
+# it, for the style attributes the templates write and the styles Leaflet and
+# D3 set, which is a much smaller risk.  The hosts in script-src are what let a
+# <script src> run without a nonce of its own, as the canvas page's card
+# scripts load Leaflet.
 #
 # Leaflet's marker images are found beside its stylesheet, so the stylesheet's
 # host is allowed images too.  unpkg.com stays in script-src even when the
@@ -2320,12 +2385,15 @@ sub _evict_old_uploads {
 # no key moves it.  The pins themselves are data: URIs (_marker_icon in the controller), and a
 # chart export draws its copy through a data: or blob: image.
 sub _content_security_policy {
-	my ($config) = @_;
+	my ($config, $nonce) = @_;
 	$config //= {};
+	$nonce = undef unless defined $nonce && $nonce =~ $NONCE_RE;
 
 	my $set = $config->{content_security_policy};
 	if (defined $set && !ref $set) {
-		return length($set) && $set ne '0' ? $set : undef;
+		return undef unless length($set) && $set ne '0';
+		$set =~ s/\{nonce\}/$nonce \/\/ ''/ge;
+		return $set;
 	}
 
 	my $from = sub {
@@ -2353,7 +2421,7 @@ sub _content_security_policy {
 
 	return join '; ',
 		"default-src 'self'",
-		'script-src ' . $list->("'self'", "'unsafe-inline'", @script),
+		'script-src ' . $list->("'self'", (defined $nonce ? "'nonce-$nonce'" : ()), @script),
 		'style-src '  . $list->("'self'", "'unsafe-inline'", @style),
 		'img-src '    . $list->("'self'", 'data:', 'blob:', @tiles, @style),
 		"font-src 'self' data:",

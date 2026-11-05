@@ -3,8 +3,10 @@
 # Every HTML reply carries a Content-Security-Policy built from the config:
 # script, style and images from this site and the hosts d3_url, the leaflet_*
 # keys, tile_url and tile_sources name, connect-src 'self' so a script that
-# got in cannot post data elsewhere, and frame-ancestors 'self'.  Other replies
-# (JSON, downloads) carry none.  The page checks below read each page's own
+# got in cannot post data elsewhere, and frame-ancestors 'self'.  Inline script
+# runs only by the request's nonce: every <script> a page writes carries it,
+# and no element has an on* attribute, which no nonce can cover.  Other
+# replies (JSON, downloads) carry none.  The page checks below read each page's own
 # <script src> and <link href>, so a library the pages start loading from a new
 # host fails here before it is blocked in a browser.
 #
@@ -17,6 +19,8 @@ use Test::Most;
 use Test::Mojo;
 use File::Spec ();
 use File::Temp qw(tempdir);
+use Mojo::JSON qw(encode_json);
+use Mojo::File;
 use Mojo::URL;
 use Mojo::Util qw(url_escape);
 
@@ -60,6 +64,44 @@ sub allows {
 		}
 	}
 	return 0;
+}
+
+# The policy with its nonce taken out, for comparing two replies.
+sub without_nonce {
+	my ($policy) = @_;
+	$policy =~ s/'nonce-[^']*'/'nonce'/g;
+	return $policy;
+}
+
+# The nonce a policy names, or undef.
+sub nonce_of {
+	my ($d) = @_;
+	my @n = map { /\A'nonce-([^']+)'\z/ ? $1 : () } @{ $d->{'script-src'} // [] };
+	return @n == 1 ? $n[0] : undef;
+}
+
+# A page's scripts all carry the nonce its policy names, its policy allows no
+# other inline script, and nothing on it has an on* attribute.
+sub scripts_by_nonce {
+	my ($path, $name, $headers) = @_;
+	$t->get_ok($path, $headers // {});
+	my $d     = directives($t->tx->res->headers->header($CSP));
+	my $nonce = nonce_of($d);
+	ok(defined $nonce, "$name: script-src names one nonce");
+	ok(!(grep { $_ eq "'unsafe-inline'" } @{ $d->{'script-src'} // [] }), "$name: no unsafe-inline for script");
+
+	my $dom = $t->tx->res->dom;
+	my @scripts = $dom->find('script')->each;
+	my @bad = grep { ($_->attr('nonce') // '') ne ($nonce // "\0") } @scripts;
+	is(scalar(@bad), 0, "$name: all " . scalar(@scripts) . ' scripts carry it')
+		or diag(map { substr($_->to_string, 0, 120) . "\n" } @bad);
+
+	my @handlers = grep { my $e = $_; grep { /\Aon/i } keys %{ $e->attr } } $dom->find('*')->each;
+	is(scalar(@handlers), 0, "$name: no on* attribute")
+		or diag(map { substr($_->to_string, 0, 120) . "\n" } @handlers);
+	my @js = grep { ($_->attr('href') // '') =~ /\A\s*javascript:/i } $dom->find('[href]')->each;
+	is(scalar(@js), 0, "$name: no javascript: link");
+	return $nonce;
 }
 
 # Every external script and stylesheet the page names is allowed by its policy.
@@ -129,8 +171,8 @@ subtest 'the page loads only what its policy allows' => sub {
 	page_loads_allowed("/graph$sales&x=sale_date&y=amount", 'line chart');
 
 	SKIP: {
-		skip 'HTML::OSM 0.13 is not installed', 1
-			unless eval { require HTML::OSM; HTML::OSM->VERSION(0.13); 1 };
+		skip 'HTML::OSM 0.14 is not installed', 1
+			unless eval { require HTML::OSM; HTML::OSM->VERSION(0.14); 1 };
 		my $dir = tempdir(CLEANUP => 1);
 		my $csv = File::Spec->catfile($dir, 'points.csv');
 		open my $fh, '>', $csv or BAIL_OUT("cannot write $csv: $!");
@@ -138,6 +180,126 @@ subtest 'the page loads only what its policy allows' => sub {
 		close $fh or BAIL_OUT("cannot close $csv: $!");
 		page_loads_allowed('/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon', 'map');
 	}
+};
+
+subtest 'inline script runs only by the nonce' => sub {
+	restore();
+	my $sales = '?l=' . url_escape('table:sales');
+	my %pages = (
+		'/'            => 'home',
+		'/tutorial'    => 'tutorial',
+		'/preferences' => 'preferences',
+		'/canvases'    => 'canvases',
+		'/catalog'     => 'catalog',
+		'/browse'      => 'browse',
+		'/view/sales'  => 'table',
+		"/bar$sales&cat=region&val=amount"                  => 'bar chart',
+		"/pie$sales&cat=region&val=amount"                  => 'pie chart',
+		"/graph$sales&x=sale_date&y=amount"                 => 'line chart',
+		"/graph$sales&x=sale_date&y=amount&series=region"   => 'line chart by series',
+		"/treemap$sales&cat=region&val=amount"              => 'treemap',
+		"/stacked$sales&cat=region&series=product&val=amount" => 'stacked bar',
+		"/combo$sales&cat=region&bar=amount&line=amount"    => 'combo',
+		"/scatter$sales&x=id&y=amount"                      => 'scatter',
+		"/histogram$sales&col=amount"                       => 'histogram',
+		"/heatmap$sales&x=region&y=product&val=amount"      => 'heatmap',
+		"/wordcloud$sales&col=product"                      => 'word cloud',
+		"/pivot$sales&rows=region&cols=product&m=amount:sum:total" => 'pivot',
+		"/stats$sales"                                      => 'stats',
+		"/insights$sales"                                   => 'insights',
+	);
+	scripts_by_nonce($_, $pages{$_}) for sort keys %pages;
+	scripts_by_nonce('/no/such/page', '404 page', { Accept => 'text/html' });
+	scripts_by_nonce("/bar$sales&cat=nosuch&val=amount", '400 page', { Accept => 'text/html' });
+
+	SKIP: {
+		skip 'HTML::OSM 0.14 is not installed', 1
+			unless eval { require HTML::OSM; HTML::OSM->VERSION(0.14); 1 };
+		my $dir = tempdir(CLEANUP => 1);
+		my $csv = File::Spec->catfile($dir, 'points.csv');
+		open my $fh, '>', $csv or BAIL_OUT("cannot write $csv: $!");
+		print {$fh} "id,name,lat,lon\n1,A,51.5,-0.12\n2,B,48.85,2.35\n";
+		close $fh or BAIL_OUT("cannot close $csv: $!");
+		scripts_by_nonce('/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&heat=1', 'map');
+	}
+
+	my $a = scripts_by_nonce('/', 'first request');
+	my $b = scripts_by_nonce('/', 'second request');
+	isnt($a, $b, 'each request has a nonce of its own');
+	like($a, qr/\A[A-Za-z0-9_-]{22}\z/, 'of 22 base64url characters');
+};
+
+subtest 'a canvas, and a card added to it' => sub {
+	restore();
+	my $id = $t->post_ok('/api/analyses' => json => {
+		name     => 'CSP',
+		datasets => [ { spec => 'table:sales', alias => 'left' } ],
+		visuals  => [
+			{ kind => 'bar', title => 'Bar', encode => { cat => 'region', val => 'amount' } },
+			{ kind => 'pie', title => 'Pie', encode => { cat => 'product', val => 'amount' } },
+		],
+	})->status_is(201)->tx->res->json('/id');
+
+	scripts_by_nonce("/a/$id", 'canvas');
+	my $token = $t->post_ok("/api/analyses/$id/share")->status_is(200)->tx->res->json('/token');
+	scripts_by_nonce("/share/$id?token=" . url_escape($token), 'shared canvas');
+	scripts_by_nonce("/embed/$id?token=" . url_escape($token), 'embedded canvas');
+
+	# A card added without a reload comes as JSON.  Its scripts carry the nonce
+	# the reply names, which is how the page knows which ones to run.
+	my $json = $t->post_ok("/api/analyses/$id/visuals" => json =>
+		{ kind => 'line', title => 'Line', encode => { x => 'sale_date', y => 'amount' } })
+		->status_is(201)->tx->res->json;
+	like($json->{nonce} // '', qr/\A[A-Za-z0-9_-]+\z/, 'the reply names a nonce');
+	my @tags = ($json->{html} // '') =~ /(<script\b[^>]*>)/g;
+	ok(scalar(@tags), 'the card has scripts');
+	is(scalar(grep { /\bnonce="\Q$json->{nonce}\E"/ } @tags), scalar(@tags), 'each carries that nonce');
+
+	my $patched = $t->patch_ok("/api/analyses/$id/visuals/0" => json => { encode => { cat => 'product', val => 'amount' } })
+		->status_is(200)->tx->res->json;
+	@tags = ($patched->{html} // '') =~ /(<script\b[^>]*>)/g;
+	is(scalar(grep { /\bnonce="\Q$patched->{nonce}\E"/ } @tags), scalar(@tags),
+		'a card changed in place carries the reply\'s nonce too');
+
+	# The page itself: it re-creates only scripts with the reply's nonce.
+	$t->get_ok("/a/$id");
+	my $page = $t->tx->res->body;
+	like($page, qr/own !== nonce/, 'the canvas page checks a card script\'s nonce before running it');
+	unlike($page, qr/function runCardScripts\(card\)/, 'and runs none without one');
+};
+
+# The pages above are a sample; the templates are all of them.  A <script> in
+# a template without the nonce would not run, and an on* attribute -- in the
+# markup, or in markup a script builds -- is inline script no nonce can cover.
+subtest 'every template script carries the nonce, and none uses on*' => sub {
+	my $root = File::Spec->catdir($t->app->home->to_string, 'templates');
+	my @files = Mojo::File->new($root)->list_tree->grep(qr/\.tt\z/)->each;
+	ok(scalar(@files), 'templates found');
+	for my $file (@files) {
+		my $name = $file->to_rel($root);
+		my $text = $file->slurp;
+		# Comments name <script> in prose.
+		(my $code = $text) =~ s{/\*.*?\*/}{}gs;
+		$code =~ s{^\s*//.*$}{}mg;
+		$code =~ s{\[%#.*?%\]}{}gs;
+		my @bare = grep { !/\bnonce="\[% csp_nonce \| html %\]"/ } $code =~ /(<script\b[^>]*>)/g;
+		is(scalar(@bare), 0, "$name: every <script> has the nonce") or diag(join "\n", @bare);
+		my @on = $code =~ /(<[a-z][^<>]*\son[a-z]+\s*=)/gi;
+		is(scalar(@on), 0, "$name: no on* attribute") or diag(join "\n", @on);
+	}
+};
+
+subtest 'a page from the page cache keeps the nonce it was drawn with' => sub {
+	my $cache = tempdir(CLEANUP => 1);
+	my $tc = Test::Mojo->new('Database::BI', { page_cache_dir => $cache, model_dir => tempdir(CLEANUP => 1) });
+	$tc->get_ok('/tutorial')->status_is(200);
+	my $first = nonce_of(directives($tc->tx->res->headers->header($CSP)));
+	$tc->get_ok('/tutorial')->status_is(200)->header_is('X-Cache' => 'HIT', 'the second is from the cache');
+	my $second = nonce_of(directives($tc->tx->res->headers->header($CSP)));
+	is($second, $first, 'the header is the one stored with the page');
+	my @tags = $tc->tx->res->dom->find('script')->map(attr => 'nonce')->each;
+	is(scalar(grep { ($_ // '') eq ($second // "\0") } @tags), scalar(@tags),
+		'and every script on it carries that nonce');
 };
 
 subtest 'self-hosted libraries and named tile sources' => sub {
@@ -157,8 +319,8 @@ subtest 'self-hosted libraries and named tile sources' => sub {
 		'OSM tiles are gone with tile_url set');
 
 	$config->{tile_sources} = { b => { url => 'https://b.example.org/x' }, a => { url => 'https://a.example.org/x' } };
-	my @seen = map { $t->get_ok('/'); $t->tx->res->headers->header($CSP) } 1 .. 3;
-	is(scalar(keys %{{ map { $_ => 1 } @seen }}), 1, 'the policy is the same on every reply');
+	my @seen = map { $t->get_ok('/'); without_nonce($t->tx->res->headers->header($CSP)) } 1 .. 3;
+	is(scalar(keys %{{ map { $_ => 1 } @seen }}), 1, 'the policy is the same on every reply but for its nonce');
 
 	$config->{tile_sources} = { broken => 'not a hash', none => {} };
 	$t->get_ok('/')->status_is(200)->header_exists($CSP, 'a malformed tile_sources still gives a policy');
@@ -168,6 +330,12 @@ subtest 'content_security_policy overrides or turns it off' => sub {
 	restore();
 	$config->{content_security_policy} = "default-src 'none'";
 	$t->get_ok('/')->status_is(200)->header_is($CSP => "default-src 'none'");
+
+	$config->{content_security_policy} = "script-src 'nonce-{nonce}'";
+	$t->get_ok('/')->status_is(200)->header_like($CSP => qr/\Ascript-src 'nonce-[A-Za-z0-9_-]{22}'\z/,
+		'{nonce} in a policy of its own becomes the nonce');
+	my ($in_header) = $t->tx->res->headers->header($CSP) =~ /'nonce-([^']+)'/;
+	is($t->tx->res->dom->at('script')->attr('nonce'), $in_header, 'the one the scripts carry');
 
 	for my $off ('', 0) {
 		$config->{content_security_policy} = $off;
