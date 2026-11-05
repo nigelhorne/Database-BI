@@ -1083,8 +1083,15 @@ Natural language to analysis spec (Phase 5.1).  Body params: C<l=E<lt>specE<gt>>
 (required), C<q=E<lt>questionE<gt>> (required), repeatable C<f=> filters.
 Returns C<{ spec, url, valid =E<gt> 1 }> on success.  The model receives only
 column names and types -- never raw row data or file paths.  Returns 503 when
-C<ai_api_key> is not configured; 400 for missing params; 422 for an
-unparseable or invalid-column spec; 502 for a provider error.
+C<ai_api_key> is not configured; 400 for missing params or a question over 500
+characters; 422 for an unparseable or invalid-column spec; 502 for a provider
+error; 429 once the hour's provider calls are used up (C<ai_calls_per_hour>,
+below).
+
+Every call spends C<ai_api_key>, so each server process makes at most
+C<ai_calls_per_hour> provider calls (default 60; C<0> for no limit) in any
+hour, counting C</api/ask> and C</api/summary> together.  Like the other
+routes, both need the login when C<password_hash> is set.
 
 =item C<POST /api/summary>
 
@@ -1094,7 +1101,9 @@ C<ai_api_key> config).  Returns C<{ text, source, cached }>.  Two paths:
 deterministic template sentences (always available, works offline) and
 optional LLM-polished prose when C<ai=1> is passed and C<ai_api_key> is
 set.  Only aggregate insight facts are sent to the LLM.  Results are cached
-in-process for one hour keyed on the analysis fingerprint.
+in-process for one hour keyed on the analysis fingerprint.  Once the hour's
+provider calls are used up (C<ai_calls_per_hour>), C<ai=1> gives the template
+text with C<source =E<gt> 'template_limited'>, not cached.
 
 =back
 
@@ -2248,6 +2257,8 @@ sub startup ($self) {
 	_check_file_roots($self->config('file_roots'), $self->home);
 	_check_url_private_hosts($self->config('url_private_hosts'));
 	_check_share_secret($self->config('share_secret'));
+	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
+		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A\d+\z/;
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
 
 	# Only this machine can reach a server unless the configuration says

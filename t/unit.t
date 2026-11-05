@@ -3495,6 +3495,12 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok("/api/ask?l=$SPEC&q=x")->status_is(422);
 		message_ok(Dashboard => 'ask_invalid_spec', $tm->tx->res->json->{error}, ['nope']);
 		restore_all();
+		$tm->post_ok("/api/ask?l=$SPEC&q=" . ('x' x 501))->status_is(400);
+		message_ok(Dashboard => 'ask_question_too_long', $tm->tx->res->json->{error}, [500]);
+		$tm->app->config->{ai_calls_per_hour} = 1;	# the calls above used it up
+		$tm->post_ok("/api/ask?l=$SPEC&q=x")->status_is(429);
+		message_ok(Dashboard => 'ai_limit_reached', $tm->tx->res->json->{error}, [1]);
+		delete $tm->app->config->{ai_calls_per_hour};
 		delete $tm->app->config->{ai_api_key};
 
 		# A canvas older than its data says so.

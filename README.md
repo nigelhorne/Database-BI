@@ -986,8 +986,15 @@ perl Makefile.PL
     (required), `q=<question>` (required), repeatable `f=` filters.
     Returns `{ spec, url, valid => 1 }` on success.  The model receives only
     column names and types -- never raw row data or file paths.  Returns 503 when
-    `ai_api_key` is not configured; 400 for missing params; 422 for an
-    unparseable or invalid-column spec; 502 for a provider error.
+    `ai_api_key` is not configured; 400 for missing params or a question over 500
+    characters; 422 for an unparseable or invalid-column spec; 502 for a provider
+    error; 429 once the hour's provider calls are used up (`ai_calls_per_hour`,
+    below).
+
+    Every call spends `ai_api_key`, so each server process makes at most
+    `ai_calls_per_hour` provider calls (default 60; `0` for no limit) in any
+    hour, counting `/api/ask` and `/api/summary` together.  Like the other
+    routes, both need the login when `password_hash` is set.
 
 - `POST /api/summary`
 
@@ -997,7 +1004,9 @@ perl Makefile.PL
     deterministic template sentences (always available, works offline) and
     optional LLM-polished prose when `ai=1` is passed and `ai_api_key` is
     set.  Only aggregate insight facts are sent to the LLM.  Results are cached
-    in-process for one hour keyed on the analysis fingerprint.
+    in-process for one hour keyed on the analysis fingerprint.  Once the hour's
+    provider calls are used up (`ai_calls_per_hour`), `ai=1` gives the template
+    text with `source => 'template_limited'`, not cached.
 
 ### Breadcrumbs and Missing Pages
 

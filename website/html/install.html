@@ -495,6 +495,15 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 				unless you set it; prompts carry column names and aggregate text only.
 			</td>
 		</tr>
+		<tr>
+			<td><code>ai_calls_per_hour</code></td>
+			<td><code>60</code></td>
+			<td>
+				The most calls each server process makes to the AI provider in any hour,
+				questions and summaries together, since each spends <code>ai_api_key</code>;
+				<code>0</code> for no limit. Questions are at most 500 characters.
+			</td>
+		</tr>
 	</tbody>
 </table>
 </div>

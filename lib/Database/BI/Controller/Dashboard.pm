@@ -240,6 +240,8 @@ Readonly my %MESSAGES => (
 	insights_insufficient_data  => 'Insufficient data for this insight type (need more rows or periods)',
 	ask_unavailable    => 'Ask a question is not available: no AI provider is configured',
 	ask_no_question    => 'Please enter a question',
+	ask_question_too_long => 'The question is longer than %d characters; please shorten it',
+	ai_limit_reached   => 'The AI provider has been asked %d times in the last hour, the most this server allows (ai_calls_per_hour); please try again later',
 	ask_provider_error => 'AI provider error; could not generate an analysis',
 	ask_unparseable    => 'Could not parse a valid visualization from the response; please rephrase your question',
 	ask_invalid_spec   => 'Generated spec contains an unknown column: %s',
@@ -424,6 +426,13 @@ Readonly my %ALLOWED_TIME_PATTERNS => map { $_ => 1 }
 
 # Default share token lifetime: 30 days in seconds.
 Readonly my $SHARE_TOKEN_TTL => 30 * 86_400;
+
+# The AI routes spend the configured ai_api_key on every call.  A question is
+# at most this long, and each server process makes at most ai_calls_per_hour
+# provider calls in any hour (0: no limit).
+Readonly my $ASK_MAX_QUESTION      => 500;
+Readonly my $AI_CALLS_PER_HOUR     => 60;
+Readonly my $AI_WINDOW_S           => 3600;
 
 # ---------------------------------------------------------------------------
 # Protected helpers
@@ -14118,6 +14127,8 @@ sub ask_api ($self) {
 	my $question = $self->param('q') // '';
 	return $self->render(json => { error => $MESSAGES{ask_no_question} }, status => 400)
 		unless length $question;
+	return $self->render(json => { error => sprintf($MESSAGES{ask_question_too_long}, $ASK_MAX_QUESTION) }, status => 400)
+		if length($question) > $ASK_MAX_QUESTION;
 
 	my ($src, $records, $columns, $left_label) = $self->_run_pipeline_source;
 	return $self->render(json => { error => 'Could not open data source' }, status => 404)
@@ -14136,6 +14147,9 @@ sub ask_api ($self) {
 		api_key  => $api_key,
 		model    => $self->app->config('ai_model')    // 'claude-haiku-5-5',
 	};
+
+	return $self->render(json => { error => sprintf($MESSAGES{ai_limit_reached}, _ai_calls_per_hour($self)) }, status => 429)
+		unless _ai_call_allowed($self);
 
 	my $result = Database::BI::Ask::ask(
 		question  => $question,
@@ -14213,9 +14227,37 @@ sub summary_api ($self) {
 		row_count => $row_count,
 		use_ai    => $use_ai,
 		ai_config => $ai_config,
+		ai_allowed => sub { _ai_call_allowed($self) },
 	);
 
 	return $self->render(json => $result);
+}
+
+# _ai_calls_per_hour($c) -> $n
+#
+# Config ai_calls_per_hour, else $AI_CALLS_PER_HOUR; 0 means no limit.
+sub _ai_calls_per_hour {
+	my ($c) = @_;
+	my $n = $c->app->config('ai_calls_per_hour');
+	return defined($n) && $n =~ /\A\d+\z/ ? $n : $AI_CALLS_PER_HOUR;
+}
+
+# _ai_call_allowed($c) -> 1 | 0
+#
+# Takes one provider call from this process's budget: the times of the calls
+# in the last hour, kept per application (tests build many in one process).
+# Returns 0, taking nothing, when the hour's calls are used up.
+my %AI_CALLS;
+sub _ai_call_allowed {
+	my ($c) = @_;
+	my $max = _ai_calls_per_hour($c);
+	return 1 unless $max;
+	my $now   = time;
+	my $calls = $AI_CALLS{ Scalar::Util::refaddr($c->app) } //= [];
+	@{$calls} = grep { $_ > $now - $AI_WINDOW_S } @{$calls};
+	return 0 if @{$calls} >= $max;
+	push @{$calls}, $now;
+	return 1;
 }
 
 # insights_view($self)

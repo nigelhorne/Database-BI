@@ -162,7 +162,9 @@
 				box.appendChild(p);
 				var sm = document.createElement('small');
 				sm.className = 'summary-source';
-				sm.textContent = 'Source: ' + (data.source || 'template')
+				sm.textContent = 'Source: ' + (data.source === 'template_limited'
+				               ? 'template (the AI provider was asked as often as this server allows this hour)'
+				               : (data.source || 'template'))
 				               + (data.cached ? ' (cached)' : '');
 				box.appendChild(sm);
 			}

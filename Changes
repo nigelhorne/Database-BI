@@ -123,6 +123,16 @@ Revision history for Database-BI
 	  trusts the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's proxy => 1).
 	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
 	  need: they put the nonce on the scripts they write.
+	- /api/ask and /api/summary?ai=1 spend ai_api_key on every call, and
+	  nothing bounded how often or how much: a question could be as long as
+	  a request, and a summary's cache is missed by changing a filter.  A
+	  question is now at most 500 characters (the box stops there too), and
+	  each server process makes at most ai_calls_per_hour provider calls in
+	  any hour, the two routes together (default 60; 0 for no limit).  Past
+	  it, Ask answers 429 saying why, and a summary gives the template text,
+	  marked as such and not cached.  A value that is not a whole number
+	  stops the start.  Both routes already needed the login when
+	  password_hash is set, and without one only this machine can reach them.
 	- Share and embed links could be forged.  Without share_secret, which was
 	  not documented, tokens were signed with a fixed string that is the same
 	  on every install and in the source, so with a password set anyone who
@@ -167,6 +177,10 @@ Revision history for Database-BI
 	  and not over http, to localhost or to an address, and that
 	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
 	  only origins, and stops a start with anything else.
+	- t/ask.t checks that a question over 500 characters is not sent, that
+	  the hour's budget is shared by Ask and Summary, that Ask then answers
+	  429 and Summary the uncached template, that 0 means no limit, and the
+	  startup check; t/unit.t raises the two new messages.
 	- t/login.t checks that a share or embed token signed with the old fixed
 	  key, or with the session key, is refused, that the real one opens the
 	  canvas, that the Share panel is told whether links outlive a restart,
