@@ -396,6 +396,14 @@ POST /export  l=...&amp;dir=/tmp&amp;filename=out.csv</code></pre>
 	XLSX from the pivot.
 </p>
 <p>
+	<strong>Print</strong>, to the right of Refresh on a table, prints the same
+	rows: the header row and every row of the view, not only the page on screen,
+	with the columns in the order the table shows and sorted as it is sorted.
+	Nothing else on the page is printed, and the header row repeats on each
+	printed page. A row deleted from the screen with <em>Delete selected</em> is
+	still printed; a deleted column is not.
+</p>
+<p>
 	<code>POST /export</code> saves into a folder on the server, so it keeps to
 	<code>file_roots</code> and <code>export_dirs</code> when they are set (and
 	<code>export_dirs</code> must be set with a password), never into a dot-folder,

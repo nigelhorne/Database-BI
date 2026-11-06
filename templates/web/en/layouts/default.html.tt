@@ -779,6 +779,28 @@
       transition: background 0.12s;
     }
     .btn-refresh:hover { background: var(--hover-bg, #f0f0f0); }
+    .btn-refresh:disabled { opacity: 0.5; cursor: progress; }
+    .print-status:empty { display: none; }
+    .print-status { font-size: 0.8rem; color: var(--text-secondary, #444); }
+
+    /* Print button: the view's rows in a table only the printed page shows.
+       While it prints, nothing else on the page is printed. */
+    @media screen {
+      #bi-print { display: none; }
+    }
+    @media print {
+      body.bi-printing > *:not(#bi-print) { display: none !important; }
+      body.bi-printing { margin: 0; padding: 0; }
+      #bi-print table { border-collapse: collapse; width: 100%; font-size: 9pt; }
+      #bi-print th, #bi-print td {
+        border: 1px solid var(--border-strong, #888);
+        padding: 2pt 4pt;
+        text-align: left;
+        vertical-align: top;
+      }
+      #bi-print thead { display: table-header-group; }
+      #bi-print tr { break-inside: avoid; }
+    }
 
     /* Graph page layout */
     .graph-title {

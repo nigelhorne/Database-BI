@@ -759,6 +759,19 @@ my @CHAPTERS = (
 		routes => [ '/export' ],
 	},
 	{
+		id    => 'print',
+		part  => 'Save and share',
+		title => 'Print the table',
+		lead  => 'Print puts the header row and every row of the table on paper, not only the page on the screen.',
+		steps => [
+			'Arrange the table the way you want it. Move or delete columns, and click a header to sort.',
+			'Click Print, to the right of Refresh.',
+			'Your browser opens its print window. Choose a printer, or save the page as a PDF.',
+		],
+		tip   => 'Print uses the same rows as Export, so your joins and filters are included. A row that you deleted from the screen is still printed.',
+		routes => [ '/export' ],
+	},
+	{
 		id    => 'catalog',
 		part  => 'Save and share',
 		title => 'See all your data files at a glance',

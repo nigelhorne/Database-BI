@@ -129,7 +129,7 @@ subtest 'every chart, analysis and model button in the toolbar looks the same' =
 	# toggles); every other toolbar button opens a chart, an analysis or a
 	# model panel and shares one look.
 	my %own_style = map { $_ => 1 } qw(
-		btn-copy-link btn-export-open btn-refresh btn-delete-sel btn-dedup
+		btn-copy-link btn-export-open btn-refresh btn-print btn-delete-sel btn-dedup
 		btn-add-db btn-combine dash-f-apply dash-range-apply chip-remove-range
 	);
 	my @buttons = grep { ($_->{id} // '') =~ /\Abtn-/ && !$own_style{$_->{id}} }
@@ -143,6 +143,50 @@ subtest 'every chart, analysis and model button in the toolbar looks the same' =
 
 	my $tt = Mojo::File->new('templates/web/en/dashboard.html.tt')->slurp;
 	like($tt, qr/<button class="btn-tool btn-ask"/, 'Ask, shown only with an AI key, too');
+};
+
+# Print reads the view's rows the way Export saves them, so the two cannot
+# drift apart: both take their parameters from biViewParams.  No browser runs
+# in the suite, so what is printed is checked as written.
+subtest 'Print sits to the right of Refresh and prints every row of the view' => sub {
+	my $dom = Mojo::DOM->new($t->get_ok('/view/sales')->status_is(200)->tx->res->body);
+	my $refresh = $dom->at('#btn-refresh');
+	ok($refresh, 'the page has Refresh');
+	my $next = $refresh ? $refresh->next : undef;
+	is($next ? $next->{id} : undef, 'btn-print', 'Print is the next control');
+	like($next ? $next->all_text : '', qr/Print/, 'named Print');
+	ok($dom->at('#print-status[role="status"]'), 'with a place to say how it went');
+
+	my $tt = Mojo::File->new('templates/web/en/dashboard.html.tt')->slurp;
+	my ($print) = $tt =~ /(\/\/ Print button.*?\n\}\(\)\);)/s;
+	ok($print, 'the page has the Print script');
+	$print //= '';
+	like($print, qr/biViewParams\(\)/, 'Print takes the view from biViewParams');
+	like($print, qr{fetch\('/export\?'}, 'and reads every row from /export');
+	like($print, qr/params\.set\('format', 'json'\)/, 'as JSON');
+	like($print, qr/biTableState\(\)/, 'in the columns and order the table shows');
+	like($print, qr/biValueComparator\(/, 'sorted as the table sorts');
+	like($print, qr/window\.print\(\)/, 'and prints');
+	my @markup = $print =~ /\.innerHTML\s*=\s*(.+?);\s*$/mg;
+	is_deeply(\@markup, [q{'&#x2399; Preparing&hellip;'}, 'label'],
+		'only the button label is set as markup; cells are set as text');
+	my ($export) = $tt =~ /(var params = biViewParams\(\);\s*params\.set\('dir')/;
+	ok($export, 'Export takes its parameters from biViewParams too');
+	like($tt, qr/function biViewParams\(\) \{.*?\['cs', 'order', 'by', 'lk', 'nolk'\]/s, 'which carries the cross-row and lookup parameters');
+
+	my $layout = Mojo::File->new('templates/web/en/layouts/default.html.tt')->slurp;
+	like($layout, qr/\@media screen \{\s*#bi-print \{ display: none; \}/, 'the print table is not shown on screen');
+	like($layout, qr/body\.bi-printing > \*:not\(#bi-print\) \{ display: none !important; \}/, 'and nothing else is printed with it');
+};
+
+subtest 'the rows Print reads are every row, not one page' => sub {
+	my $all = $t->get_ok('/export?format=json&l=table:sales')->status_is(200)->tx->res->json;
+	ok(ref $all eq 'ARRAY' && @{$all} > 2, 'the view has some rows');
+	my $page = Mojo::DOM->new($t->get_ok('/view/sales?per_page=2')->tx->res->body)->find('#bi-table tbody tr')->size;
+	is($page, 2, 'the page shows two');
+	cmp_ok(scalar @{$all}, '>', $page, 'Print reads them all');
+	my $filtered = $t->get_ok('/export?format=json&l=table:sales&f=' . Mojo::Util::url_escape('region:eq:North'))->tx->res->json;
+	ok(@{$filtered} && !(grep { lc($_->{region} // '') ne 'north' } @{$filtered}), 'and only the rows the view filters to');
 };
 
 # Measured in Firefox when this was written: with align-items: baseline and no

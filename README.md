@@ -132,6 +132,14 @@ data" panel is open the dropped file populates the right-table path field.
 - **Export** -- the toolbar export panel writes the current logical view
 (after joins, filters, and dedup) to a chosen filesystem path as CSV
 (`.csv`), SQLite (`.sql`), or JSON (`.json`).
+- **Print** -- the Print button, to the right of Refresh, prints the header row
+and every row of the current view, not just the page on screen: the rows the
+Export panel would save (after joins, filters, calculated and cross-row
+columns, and dedup), read from `GET /export?format=json`, with the columns in
+the order the table shows them and sorted as it is sorted.  Nothing else on
+the page is printed, and the header row repeats on each printed page.  A row
+deleted from the page with Delete selected is still printed; a deleted column
+is not.
 - **URL import** -- `/import` fetches an HTML table from any public URL and
 renders it in the browser without saving to disc.
 - **Redis data source** (optional) -- when the `Redis` or `Redis::Fast` module
