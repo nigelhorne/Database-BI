@@ -171,6 +171,8 @@ sub _message {
 	return { 'key' => $key, 'text' => $self->_msg($key, @args) };
 }
 
+=encoding utf8
+
 =head1 NAME
 
 Database::BI::Model::Geocode - Resolve a location column to coordinates, once per distinct value
@@ -2103,8 +2105,6 @@ C<429 Too Many Requests>) or not at all.  The places are in C<not_attempted>,
 uncached, and the next request asks again.
 
 =back
-
-=encoding utf8
 
 =head1 FORMAL SPECIFICATION
 

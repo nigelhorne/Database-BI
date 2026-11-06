@@ -7973,6 +7973,27 @@ sub croak_rethrow {
 			is $F{_inside_dir}->($F{_canonical_path}->($base->child('abs', 'deep')), $base->child('abs')->to_string), 0,
 				'so a link cannot make the outside look inside';
 		}
+
+		# As on Strawberry Perl 5.42: realpath gives a path through a link back
+		# as it is.  file_roots and export_dirs (_inside_any, through
+		# _resolved_path) must still see where the link goes, or a link inside
+		# a root would open, or write, a file outside it.
+		{
+			no warnings 'redefine';
+			local $^O = 'MSWin32';
+			local *Mojo::File::realpath = sub { Mojo::File->new(File::Spec->rel2abs("$_[0]")) };
+			my $resolved = \&Database::BI::Controller::Dashboard::_resolved_path;
+			my $inside   = \&Database::BI::Controller::Dashboard::_inside_any;
+			is $resolved->($base->child('abs', 'deep', 'f.csv')->to_string), $base->child('real', 'deep', 'f.csv')->to_string,
+				'_resolved_path follows a link where realpath leaves it';
+			is $resolved->($base->child('abs', 'not', 'yet')->to_string), $base->child('real', 'not', 'yet')->to_string,
+				'and one below which names do not exist yet';
+			is $resolved->($base->child('loop1', 'f.csv')->to_string), undef, 'a loop is refused';
+			is $inside->($base->child('abs', 'deep', 'f.csv')->to_string, $base->child('abs')->to_string), 0,
+				'so a link inside a root to a file outside it is outside';
+			is $inside->($base->child('abs', 'deep', 'f.csv')->to_string, $base->child('real')->to_string), 1,
+				'and the folder it leads to has it';
+		}
 	};
 
 	subtest 'Dashboard::_calc_models_path -- never inside the data' => sub {

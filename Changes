@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.021.0
+0.021.0	Fri Nov  6 01:58:25 PM EST 2026
 	[ Security ]
 	- Optional login: password_hash (from script/database-bi password),
 	  PBKDF2-HMAC-SHA256, with session expiry and lockout after repeated
@@ -8,6 +8,8 @@ Revision history for Database-BI
 	- Listens on 127.0.0.1 by default; a non-loopback listen, or a request
 	  from another machine, needs password_hash.
 	- file_roots confines the folders readers may browse, open and export to.
+	  A link inside them that leads outside is outside, on Windows too,
+	  where realpath leaves a link as it is.
 	- export_dirs confines POST /export, and is required with password_hash.
 	- POST /export no longer writes through a link, into a dot-folder or over
 	  a non-file; it writes a temporary file and renames it into place.
@@ -43,11 +45,9 @@ Revision history for Database-BI
 	- path:<file>#<table> names one table of a file outside data_dir, as
 	  table:<file>/<table> does inside it, so the charts, panels and exports
 	  of a second SQLite table or JSON list no longer read the first.
+	- bi-extract, bi-geocode and bi-alert are installed with database-bi, and
+	  each has a manual page.
 	[ Other ]
-	- t/path-spec.t failed on Windows (CPAN Testers, Strawberry Perl 5.42):
-	  it took the expected path from realpath through the link, which
-	  Windows leaves unresolved.  The code was right; the test now takes it
-	  from the real folder.
 	- HTML::D3 0.30, Database::Abstraction 0.55 (which requires its CSV and
 	  XML readers) and Crypt::URandom are now required; URI and HTTP::Message
 	  are declared.
@@ -59,6 +59,16 @@ Revision history for Database-BI
 	- file_roots and export_dirs work on Windows.
 	- On the BSDs, a folder where a store file should be is no longer moved
 	  aside as a corrupt store (a CPAN tester's DragonFly 6.4).
+	- script/bi-alert finds Database::BI's modules when run from a source
+	  folder, as the other scripts do.
+	- Mojo::Base and Mojo::JSON are no longer listed separately: they come
+	  with Mojolicious.
+	- Tests that compared a requested path with a resolved one failed where
+	  the two differ: t/path-spec.t on Windows (CPAN Testers, Strawberry Perl
+	  5.42, where realpath leaves a link as it is), and t/json.t, t/unit.t
+	  and t/edge_cases.t on macOS (whose temporary folder is a link).  The
+	  code was right.  t/lib/BI/Test/WinRealpath.pm and a linked TMPDIR
+	  reproduce both on Linux, and the Platform paths workflow runs them.
 	- Tests for each of the above.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026

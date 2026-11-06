@@ -1045,7 +1045,10 @@ subtest 'POST /export -- filename with ../ is sanitized to basename only' => sub
 
 	my $saved = $t->tx->res->json('/saved');
 	# The saved path must be inside $out_dir, not two levels up.
-	like $saved, qr{\Q$out_dir\E}, 'saved path is inside the requested output dir';
+	# saved is the file's realpath, so compare it with the folder's: under a
+	# linked TMPDIR (macOS's /var is /private/var) the spellings differ.
+	is(Mojo::File->new($saved)->dirname->to_string, Mojo::File->new($out_dir)->realpath->to_string,
+		'saved path is inside the requested output dir');
 	unlike $saved, qr{\.\.},       'saved path contains no .. components';
 };
 
@@ -1060,7 +1063,8 @@ subtest 'POST /export -- absolute path as filename is stripped to basename' => s
 
 	my $saved = $t->tx->res->json('/saved');
 	# Must land inside the specified output directory.
-	like $saved, qr{\Q$out_dir\E}, 'absolute-path filename written inside the output dir only';
+	is(Mojo::File->new($saved)->dirname->to_string, Mojo::File->new($out_dir)->realpath->to_string,
+		'absolute-path filename written inside the output dir only');
 };
 
 # ---------------------------------------------------------------------------

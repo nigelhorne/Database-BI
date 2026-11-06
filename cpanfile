@@ -27,8 +27,6 @@ requires 'LWP::UserAgent';   # Needed for Test::Mojo HTTP testing; LWP::UserAgen
 requires 'LWP::UserAgent::Cached';   # Used by Database::Abstraction for URL-backed tables (import_url)
 requires 'List::Util', '1.40';
 requires 'MIME::Base64', '3.11';   # encode_base64url/decode_base64url in share tokens; the stored password hash
-requires 'Mojo::Base';
-requires 'Mojo::JSON';
 requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::Buffer', '0.001.1';
 requires 'Mojolicious::Plugin::TemplateToolkit';

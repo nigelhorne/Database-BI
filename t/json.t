@@ -227,8 +227,11 @@ subtest 'path:<file>#<table> names one table of a file' => sub {
 
 	my (undef, undef, $path) = json_file('scan.json', $SCAN);
 	my $hosts = "path:$path#hosts";
+	# /open names its file by the realpath (macOS's tempdir is under /var, a
+	# link to /private/var), and keeps the table after it.
+	my $opened = 'path:' . Mojo::File->new($path)->realpath . '#hosts';
 	$t->get_ok('/open?path=' . url_escape($path) . '&it=hosts')->status_is(200)
-	  ->element_exists(qq{input[name="l"][value="$hosts"]}, 'the page passes the table on in l=');
+	  ->element_exists(qq{input[name="l"][value="$opened"]}, 'the page passes the table on in l=');
 	$t->get_ok('/api/columns?spec=' . url_escape($hosts))->status_is(200)
 	  ->json_is('/columns/0' => 'host', 'the columns of that table')
 	  ->json_hasnt('/columns/2', 'and not the first list\'s');
@@ -251,8 +254,9 @@ subtest 'path:<file>#<table> for a SQLite file outside data_dir' => sub {
 	$dbh->do(q{INSERT INTO beta VALUES ('b-only', 9)});
 	$dbh->disconnect;
 	my $beta = "path:$db#beta";
+	my $opened = 'path:' . Mojo::File->new($db)->realpath . '#beta';
 	$t->get_ok('/open?path=' . url_escape($db) . '&it=beta')->status_is(200)
-	  ->element_exists(qq{input[name="l"][value="$beta"]}, 'the second table is kept in l=');
+	  ->element_exists(qq{input[name="l"][value="$opened"]}, 'the second table is kept in l=');
 	$t->get_ok('/bar?cat=label&val=price&l=' . url_escape($beta))->status_is(200)->content_like(qr/b-only/, 'and charted');
 	$t->get_ok('/export?format=csv&l=' . url_escape($beta))->status_is(200)->content_like(qr/b-only/, 'and exported');
 };

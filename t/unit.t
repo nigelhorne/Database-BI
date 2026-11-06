@@ -3153,7 +3153,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		mkdir $hidden or BAIL_OUT("cannot make $hidden: $!");
 		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($hidden) . '&filename=x.json')->status_is(403);
 		message_ok(Dashboard => 'error_hidden_target', $tm->tx->res->json->{error},
-			[Mojo::File->new($hidden)->realpath->child('x.json')->to_string]);
+			[Mojo::File->new($hidden)->child('x.json')->to_string]);
 		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=x.csv', { Origin => 'https://evil.example' })
 			->status_is(403);
 		message_ok(Dashboard => 'error_cross_site', $tm->tx->res->json->{error}, ['https://evil.example']);

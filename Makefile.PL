@@ -18,7 +18,7 @@ WriteMakefile(
 	AUTHOR		=> 'Nigel Horne <njh@nigelhorne.com>',
 	LICENSE		  => 'gpl_2',
 	MIN_PERL_VERSION => '5.028000',	# sub NAME :Attr ($sig) -- attributes before the signature -- needs 5.28
-	EXE_FILES	=> ['script/database-bi'],
+	EXE_FILES	=> [qw(script/database-bi script/bi-extract script/bi-geocode script/bi-alert)],	# each has POD, so each gets a man page
 	PREREQ_PM => {
 		'Carp'		=> 0,
 		'Cwd'		=> 0,		# For realpath() in the data_dir guard (Dashboard.pm)
@@ -32,8 +32,6 @@ WriteMakefile(
 		'File::Spec'	=> '3.40',
 		'List::Util'	=> '1.40',
 		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
-		'Mojo::Base' => 0,
-		'Mojo::JSON' => 0,
 		'HTML::D3' => '0.30',	# 0.30 puts a Content-Security-Policy nonce on its scripts; 0.29 colours treemap tiles by a measure, takes a combo scheme and escapes tooltip text; 0.27 stops a label ending the script it is written into; 0.20 added radius_range support for render_scatter_chart_snippet; 0.19 added scatter/stacked/combo/treemap/histogram snippets
 		'HTML::TagCloud' => '0.38',	# word cloud page (/wordcloud)
 		'HTML::TableExtract'	=> 0,

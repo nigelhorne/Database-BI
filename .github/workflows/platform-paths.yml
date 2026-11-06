@@ -1,0 +1,91 @@
+---
+# The suite again on Linux, twice, with the file system behaving as it does on
+# the two platforms whose paths have caught this distribution out:
+#
+#   * macOS, whose temporary folder is under /var, a link to /private/var: a
+#     test that compares the path it asked for with the realpath the
+#     application gives back fails there and nowhere else (t/json.t,
+#     t/unit.t and t/edge_cases.t did).  A TMPDIR behind a symlink shows it.
+#
+#   * Windows, whose realpath leaves a symlink as it is, so the code that
+#     follows links there is tested only where a Windows machine may make one
+#     (a CPAN tester's could: t/path-spec.t failed there, and the same run
+#     here found a link that led past file_roots).
+#     t/lib/BI/Test/WinRealpath.pm gives realpath that behaviour and runs
+#     those subs down their Windows branch.
+#
+# Kept apart from perl-ci.yml, which App::GHGen writes and would overwrite.
+name: Platform paths
+
+"on":
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        as:
+          - macos
+          - windows
+    name: Paths as on ${{ matrix.as }}
+    env:
+      AUTOMATED_TESTING: 1
+      NO_NETWORK_TESTING: 1
+      NONINTERACTIVE_TESTING: 1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Perl
+        uses: shogo82148/actions-setup-perl@v1.44.4
+        with:
+          perl-version: "5.42"
+
+      - name: Install DB_File, needed for a lot of CPAN modules
+        run: |
+          sudo apt update
+          sudo apt install libdb-dev libperl-dev
+
+      # Tried up to three times: a distribution whose configure step needs a
+      # module cpanm installs in the same run fails the first time and
+      # installs the next.
+      - name: Install dependencies
+        shell: bash
+        run: |
+          for try in 1 2 3; do
+            if cpanm --notest --installdeps --verbose .; then
+              exit 0
+            fi
+            echo "::warning::cpanm --installdeps failed (try $try of 3)"
+          done
+          exit 1
+
+      - name: Run tests with TMPDIR behind a symlink (as on macOS)
+        if: matrix.as == 'macos'
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/real-tmp"
+          ln -s "$RUNNER_TEMP/real-tmp" "$RUNNER_TEMP/linked-tmp"
+          TMPDIR="$RUNNER_TEMP/linked-tmp" prove -lr t/
+
+      - name: Run tests with realpath leaving symlinks alone (as on Windows)
+        if: matrix.as == 'windows'
+        shell: bash
+        run: |
+          PERL5OPT='-Mlib=t/lib -MBI::Test::WinRealpath' prove -lr t/

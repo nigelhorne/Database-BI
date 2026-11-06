@@ -296,8 +296,8 @@ Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
 # this grey when the colour says something else (a colour column)
 Readonly my $MAP_SIZE_KEY_COLOR  => '#888888';
 Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
-    red orange yellow green teal cyan blue navy purple
-    magenta pink brown maroon olive silver gray grey gold lime white black
+	red orange yellow green teal cyan blue navy purple
+	magenta pink brown maroon olive silver gray grey gold lime white black
 );
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
@@ -617,10 +617,19 @@ sub _outside_export_dirs :Protected ($self, $path) {
 # Entry:   A path as given.
 # Exit:    The realpath of its longest existing part, with the rest appended;
 #          undef when the rest climbs with '..', which cannot be followed
-#          without the folders it would climb out of.
+#          without the folders it would climb out of, or when, on Windows,
+#          the links it goes through loop.
 sub _resolved_path {
 	my ($path) = @_;
-	my @parts = File::Spec->splitdir(File::Spec->rel2abs($path));
+	my $abs = File::Spec->rel2abs($path);
+	# Cwd::realpath on Windows leaves a symlink as it is (Strawberry Perl
+	# 5.42 gives the link's own path back), so a link inside file_roots or
+	# export_dirs that points outside would be taken as inside.  The links are
+	# followed first, as _canonical_path does; a chain that loops is refused.
+	if ($^O eq 'MSWin32') {
+		$abs = _follow_links($abs) // return undef;
+	}
+	my @parts = File::Spec->splitdir($abs);
 	my @rest;
 	while (@parts) {
 		my $try = File::Spec->catdir(@parts);
@@ -9012,6 +9021,10 @@ C<report.txt>, C<report> (no extension), empty string.
                         -- from request_refusal, before this action runs.
   error_write_failed    -- DBI or filesystem write threw.
 
+A refusal names the folder as C<dir> spelled it, though the checks are made
+on its realpath.  The C<saved> path of a success is the realpath: where the
+file is.
+
 The file is written to a temporary file (C<.bi-export-XXXXXXXX>) in C<dir> and
 renamed over the name, so a reader never sees half a file and a link made
 after the check is replaced, not followed.  It gets the replaced file's mode,
@@ -9059,10 +9072,14 @@ sub export_write ($self) {
 	# A dot-folder or dot-file holds some program's settings (~/.config, a
 	# .vscode/settings.json), which a .json export could replace.  The folder
 	# list the panel offers (GET /api/dirs) leaves them out too.
+	# The checks read the resolved folder; a refusal names the one the reader
+	# asked for, as every other message does (macOS's tempdir is under /var,
+	# a link to /private/var, so the two differ there).
+	my $asked = Mojo::File->new($dir);
 	my @names = (File::Spec->splitdir($dest_dir->to_string), $filename // '');
 	if (grep { /\A\./ && $_ ne '.' && $_ ne '..' } @names) {
 		return $self->render(
-			json   => { error => $self->_i18n('error_hidden_target', $dest_dir->child($filename // '')->to_string) },
+			json   => { error => $self->_i18n('error_hidden_target', $asked->child($filename // '')->to_string) },
 			status => 403,
 		);
 	}
@@ -9087,7 +9104,7 @@ sub export_write ($self) {
 	# through, a link inside the folders would put the export wherever it
 	# points, outside file_roots or export_dirs, or into a dot-file.
 	if (-l $dest || (-e $dest && !-f $dest)) {
-		return $self->render(json => { error => sprintf($MESSAGES{error_export_not_file}, $dest->to_string) }, status => 403);
+		return $self->render(json => { error => sprintf($MESSAGES{error_export_not_file}, $asked->child($filename)->to_string) }, status => 403);
 	}
 	my $tmp;
 	my $ok = eval {

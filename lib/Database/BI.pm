@@ -1866,8 +1866,11 @@ the application does not start.
 
 =head1 COMMAND-LINE TOOLS
 
-Two maintenance scripts ship in C<script/>; both use the same data and model
-directories as the web application and are safe to run from cron.
+The scripts in C<script/> are installed with the distribution, each with a
+manual page (C<man bi-extract>, C<man bi-geocode>, C<man bi-alert>,
+C<man database-bi>).  The maintenance scripts use the same data and model
+directories as the web application, found from the folder they are run in or
+given with C<--data-dir> and C<--model-dir>, and are safe to run from cron.
 
 =head2 script/database-bi password
 

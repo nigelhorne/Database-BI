@@ -962,7 +962,7 @@ my @CHAPTERS = (
 		title => 'Alert when a number crosses a limit',
 		lead  => 'The bi-alert script checks a canvas measure and signals when it crosses a threshold.',
 		steps => [
-			'Find the script at script/bi-alert in the application folder.',
+			'The script is installed as bi-alert. In a copy of the source it is script/bi-alert.',
 			'Run bi-alert --help to see all options.',
 			'Pass --analysis with the canvas id and --threshold with the measure, comparison and value.',
 			'For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.',
@@ -985,7 +985,7 @@ my @CHAPTERS = (
 		title => 'Look up place names before anyone opens the map',
 		lead  => 'The bi-geocode script finds the coordinates of every place in a column and keeps them for the map.',
 		steps => [
-			'Find the script at script/bi-geocode in the application folder.',
+			'The script is installed as bi-geocode. In a copy of the source it is script/bi-geocode.',
 			'Pass --spec with the table, and --col with the column that holds the place names.',
 			'Give --col twice for a place split over two columns, such as --col Address --col Country.',
 			'For example: bi-geocode --spec table:virginia_counties --col county --region US.',
@@ -1047,7 +1047,7 @@ my @FAQ = (
 	},
 	{
 		question => 'The table says its extract is stale.',
-		answer   => 'The file has changed since its fast copy was made, so the file itself was read. Run script/bi-extract --all to make the copy again.',
+		answer   => 'The file has changed since its fast copy was made, so the file itself was read. Run bi-extract --all to make the copy again.',
 	},
 	{
 		question => 'An extracted column says (unparseable).',
