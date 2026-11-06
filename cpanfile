@@ -7,6 +7,7 @@ requires 'CGI::Lingua', '0.85';
 requires 'CHI';
 requires 'Carp';
 requires 'Cwd';   # For realpath() in the data_dir guard (Dashboard.pm)
+requires 'Crypt::URandom';   # the login's password salt; Windows has no /dev/urandom
 requires 'DBI';
 requires 'DB_File';   # Used in DataSource.pm for Berkeley DB magic-byte detection
 requires 'Database::Abstraction', '0.54';   # 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
@@ -48,7 +49,6 @@ recommends 'Geo::Coder::List', '0.39';
 recommends 'Geo::Coder::OSM', '0.03';
 recommends 'HTML::OSM', '0.14';
 recommends 'LWP::UserAgent::Throttled', '0.14';
-recommends 'Crypt::URandom';   # the login's password salt; else /dev/urandom, which Windows lacks
 
 on 'test' => sub {
 	requires 'DBD::CSV';

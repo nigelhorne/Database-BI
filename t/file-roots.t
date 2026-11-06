@@ -180,6 +180,28 @@ subtest 'a canvas' => sub {
 	}
 };
 
+subtest 'Windows spellings of one folder are the same folder' => sub {
+	# There Cwd::realpath gives C:/Users/... and File::Spec C:\Users\..., so
+	# every path inside a root was taken for one outside (all of the above
+	# failed on Windows CI).
+	no warnings qw(redefine once);
+	my $resolved;
+	local *Database::BI::Controller::Dashboard::_resolved_path = sub { $resolved };
+	local $^O = 'MSWin32';
+	my $root = 'C:/Users/RUNNER~1/AppData/Local/Temp/abc';
+	my $inside = sub { $resolved = shift; Database::BI::Controller::Dashboard::_inside_any($resolved, @_) };
+	ok $inside->('C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\abc\\sub', $root), 'backslashes inside forward slashes';
+	ok $inside->('C:/Users/RUNNER~1/AppData/Local/Temp/abc/sub', 'C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\abc'),
+		'and the other way round';
+	ok $inside->('c:\\users\\runner~1\\appdata\\local\\temp\\abc', $root), 'the root itself, in another case';
+	ok $inside->('D:\\anything', 'D:/'), 'a drive root holds the drive';
+	ok !$inside->('C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\abcd', $root), 'a longer name beside it is not inside';
+	ok !$inside->('D:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\abc', $root), 'nor is another drive';
+	local $^O = 'linux';
+	ok !$inside->('/srv/Data/x', '/srv/data'), 'elsewhere, case still counts';
+	ok !$inside->('/srv/data\\x', '/srv/data/x'), 'and a backslash is part of a name';
+};
+
 subtest 'startup' => sub {
 	for my $bad ('/srv', { x => 1 }, [undef], [''], [[]], ['/no/such/folder'], ["$inner/in.csv"]) {
 		throws_ok { app_with(file_roots => $bad) } qr/file_roots/, 'refuses ' . Mojo::JSON::encode_json($bad);

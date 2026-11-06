@@ -9,7 +9,7 @@ use parent 'LWP::UserAgent';
 
 use HTTP::Response;
 use Readonly;
-use Socket qw(getaddrinfo getnameinfo inet_aton inet_ntoa inet_pton AF_INET AF_INET6 SOCK_STREAM NI_NUMERICHOST NIx_NOSERV);
+use Socket qw(getaddrinfo getnameinfo inet_ntoa inet_pton AF_INET AF_INET6 SOCK_STREAM NI_NUMERICHOST NIx_NOSERV);
 
 # The fetcher for url: sources and /import.  A page that names a URL gets the
 # server to fetch it, so the URL must not lead to this machine or a private
@@ -102,11 +102,45 @@ sub numeric_host {
 		return $inner =~ /:/ ? $inner : undef;
 	}
 	return $h if $h =~ /:/ && defined inet_pton(AF_INET6, $h);
-	# The forms inet_aton (and so the resolver) reads as an address: 127.1,
-	# 2130706433, 0x7f000001, 0177.0.0.1.
+	return _numeric_v4($h);
+}
+
+# _numeric_v4($host) -> 'a.b.c.d' | undef
+#
+# The forms the BSD and glibc inet_aton read as an address: 127.1,
+# 2130706433, 0x7f000001, 0177.0.0.1.  Each part is decimal, 0x hex or
+# 0-led octal; the last fills the bits the others leave.  Read here rather
+# than by the system's inet_aton, whose reading differs (on macOS 0177.0.0.1 is
+# not 127.0.0.1), so every platform checks, and connects to, the same address.
+sub _numeric_v4 {
+	my ($h) = @_;
 	return undef unless $h =~ /\A(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+)){0,3}\z/;
-	my $packed = inet_aton($h) // return undef;
-	return inet_ntoa($packed);
+	my @parts;
+	for my $part (split /\./, $h) {
+		my $n;
+		if ($part =~ /\A0x([0-9a-f]*)\z/) {
+			my $hex = $1 =~ s/\A0+//r;
+			return undef if length($hex) > 8;
+			$n = length $hex ? hex $hex : 0;
+		} elsif ($part =~ /\A0([0-7]*)\z/) {
+			my $oct = $1 =~ s/\A0+//r;
+			return undef if length($oct) > 11;
+			$n = length $oct ? oct $oct : 0;
+		} elsif ($part =~ /\A[1-9][0-9]{0,9}\z/) {
+			$n = $part + 0;
+		} else {
+			return undef;	# 08, or too long to be a number
+		}
+		push @parts, $n;
+	}
+	my $last = pop @parts;
+	for my $n (@parts) {
+		return undef if $n > 0xff;
+	}
+	return undef if $last >= 2 ** (8 * (4 - @parts));
+	my $value = $last;
+	$value += $parts[$_] * 2 ** (8 * (3 - $_)) for 0 .. $#parts;
+	return join '.', unpack 'C4', pack 'N', $value;
 }
 
 sub resolve_host {

@@ -113,6 +113,34 @@ subtest 'numeric_host: what the resolver reads as an address' => sub {
 		for 'example.com', 'localtest.me', '127.0.0.1.nip.io', '1e3.example', '0x.example';
 };
 
+subtest 'numeric_host: read the same way on every platform' => sub {
+	# macOS does not read 0177.0.0.1 as 127.0.0.1, so it passed as public
+	# there.  numeric_host reads these itself, as glibc and the BSDs do.
+	# A stand-in that reads each part as decimal, so the old reliance on it fails
+	# here too.
+	no warnings qw(redefine once);
+	local *Database::BI::SafeUA::inet_aton = sub {
+		my @p = split /\./, shift;
+		return undef unless @p == 4 && !grep { !/\A[0-9]+\z/ || $_ > 255 } @p;
+		return pack 'C4', map { $_ + 0 } @p;
+	};
+	my %want = (
+		'0177.0.0.1'         => '127.0.0.1',
+		'017700000001'       => '127.0.0.1',
+		'0x7f.1'             => '127.0.0.1',
+		'127.0.1'            => '127.0.0.1',
+		'10.0x0.0.010'       => '10.0.0.8',
+		'0x000000007f000001' => '127.0.0.1',
+		'1.2.65535'          => '1.2.255.255',
+		'4294967295'         => '255.255.255.255',
+		'0'                  => '0.0.0.0',
+	);
+	is Database::BI::SafeUA::numeric_host($_), $want{$_}, "'$_'" for sort keys %want;
+	is Database::BI::SafeUA::numeric_host($_), undef, "'$_' is not an address"
+		for '08.0.0.1', '256.1.1.1', '1.2.3.256', '1.2.65536', '4294967296', '0x100000000', '0x', '00x1',
+			'99999999999', '1.2.3.4.5';
+};
+
 subtest 'names that resolve to this machine or a private network are refused' => sub {
 	for my $url ('http://localtest.me/', 'http://127.0.0.1.nip.io/', 'https://metadata.example/latest/meta-data/',
 		'http://v6local.example/', 'http://mapped.example/', 'http://both.example/', 'http://LocalTest.ME./') {

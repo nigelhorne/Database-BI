@@ -579,12 +579,24 @@ sub _inside_any {
 	my ($path, @folders) = @_;
 	my $abs = defined $path && length $path ? _resolved_path($path) : undef;
 	return 0 unless defined $abs;
-	my $sep = $^O eq 'MSWin32' ? '\\' : '/';
-	for my $root (@folders) {
-		return 1 if $root eq File::Spec->rootdir || $abs eq $root
-			|| index($abs, $root =~ m{[/\\]\z} ? $root : $root . $sep) == 0;
+	$abs = _path_key($abs);
+	for my $root (map { _path_key($_) } @folders) {
+		return 1 if $root eq '/' || $abs eq $root
+			|| index($abs, $root =~ m{/\z} ? $root : "$root/") == 0;
 	}
 	return 0;
+}
+
+# _path_key($path) -> $string
+#
+# A path in the form two spellings of one place share, for comparing.  On
+# Windows, Cwd::realpath gives C:/dir while File::Spec gives C:\dir, and names
+# are not case-sensitive, so separators become / and letters lower case.
+sub _path_key {
+	my ($path) = @_;
+	return $path unless $^O eq 'MSWin32';
+	(my $key = $path) =~ tr{\\}{/};
+	return lc $key;
 }
 
 # _outside_export_dirs($self, $path) -> $message | undef

@@ -174,7 +174,18 @@ Revision history for Database-BI
 	  resolves to a private address is refused too unless listed in
 	  url_private_hosts (names, or '*.corp.example'); an address written as
 	  such never is.  One that is not a list of host names stops the start.
+	  An address written another way is read the same on every platform;
+	  on macOS 0177.0.0.1 was not read as 127.0.0.1, so it passed.
+	- On Windows, file_roots and export_dirs refused every path, inside
+	  them or not: one spelling had C:/ and the other C:\, so nothing
+	  matched.  The two are now compared as one, ignoring case as Windows
+	  does.
+	- Crypt::URandom is now required.  Without it, script/database-bi
+	  password could not make a hash on Windows, which has no /dev/urandom.
 	[ Tests ]
+	- t/safe-ua.t checks that numeric_host reads octal, hex and short forms
+	  itself, not by the system inet_aton.  t/file-roots.t checks that
+	  forward and back slashes, and case, name one folder on Windows.
 	- t/csp.t checks the policy, the config keys, which replies carry it, and
 	  that every script and stylesheet the chart and map pages load is
 	  allowed by it.  On every kind of page, and on a canvas card's JSON, it
