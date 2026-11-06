@@ -20,44 +20,160 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">89.4%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">93.4%</td></tr>
 </table>
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
-<tr><td class="h"><a id="L1854">1854</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">ref $secrets eq &#39;ARRAY&#39; &amp;&amp; @{$secrets;} ? :</td></tr>
-<tr><td class="h"><a id="L1867">1867</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$home &amp;&amp; -d &quot;$home/Downloads&quot; ? :</td></tr>
-<tr><td class="h"><a id="L1891">1891</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($page_cache_dir)</td></tr>
-<tr><td class="h"><a id="L1893">1893</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $dir-&gt;is_abs</td></tr>
-<tr><td class="h"><a id="L1911">1911</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$page_chi ? :</td></tr>
-<tr><td class="h"><a id="L1959">1959</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$jtype =~ /\A(?:left|inner|outer)\z/u ? :</td></tr>
+<tr><td class="h"><a id="L2305">2305</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $self-&gt;config(&quot;ai_calls_per_hour&quot;) and not $self-&gt;config(&quot;ai_calls_per_hour&quot;) =~ /\A\d+\z/u</td></tr>
+<tr><td class="h"><a id="L2316">2316</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length($ENV{&#39;MOJO_LISTEN&#39;} // &quot;&quot;)</td></tr>
+<tr><td class="h"><a id="L2324">2324</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $secrets eq &#39;ARRAY&#39; &amp;&amp; @{$secrets;} ? :</td></tr>
+<tr><td class="h"><a id="L2348">2348</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$home &amp;&amp; -d &quot;$home/Downloads&quot; ? :</td></tr>
+<tr><td class="h"><a id="L2351">2351</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (ref $exports eq &quot;ARRAY&quot; and @{$exports;})</td></tr>
+<tr><td class="h"><a id="L2353">2353</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">&#39;File::Spec&#39;-&gt;file_name_is_absolute($first) ? :</td></tr>
+<tr><td class="h"><a id="L2377">2377</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($page_cache_dir)</td></tr>
+<tr><td class="h"><a id="L2379">2379</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $dir-&gt;is_abs</td></tr>
+<tr><td class="h"><a id="L2397">2397</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$page_chi ? :</td></tr>
+<tr><td class="h"><a id="L2421">2421</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $c-&gt;req-&gt;method =~ /\A(?:GET|HEAD)\z/u</td></tr>
+<tr><td class="h"><a id="L2429">2429</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $nonce</td></tr>
+<tr><td class="h"><a id="L2453">2453</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $headers-&gt;header(&quot;Referrer-Policy&quot;)</td></tr>
+<tr><td class="h"><a id="L2458">2458</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined(my $features = _permissions_policy($c-&gt;app-&gt;config)))</td></tr>
+<tr><td class="h"><a id="L2459">2459</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $headers-&gt;header(&quot;Permissions-Policy&quot;)</td></tr>
+<tr><td class="h"><a id="L2465">2465</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined(my $hsts = _strict_transport_security($c)))</td></tr>
+<tr><td class="h"><a id="L2466">2466</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless defined $headers-&gt;header(&quot;Strict-Transport-Security&quot;)</td></tr>
+<tr><td class="h"><a id="L2474">2474</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $headers-&gt;header(&quot;X-Content-Type-Options&quot;)</td></tr>
+<tr><td class="h"><a id="L2477">2477</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($headers-&gt;content_type // &quot;&quot;) =~ m[\Atext/html\b]iu</td></tr>
+<tr><td class="h"><a id="L2484">2484</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $headers-&gt;header(&quot;X-Frame-Options&quot;)</td></tr>
+<tr><td class="h"><a id="L2490">2490</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined(my $coop = _cross_origin_opener_policy($c-&gt;app-&gt;config)))</td></tr>
+<tr><td class="h"><a id="L2491">2491</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $headers-&gt;header(&quot;Cross-Origin-Opener-Policy&quot;)</td></tr>
+<tr><td class="h"><a id="L2497">2497</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $framers eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L2501">2501</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$report_only ? :</td></tr>
+<tr><td class="h"><a id="L2502">2502</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $policy and not defined $headers-&gt;header($name)</td></tr>
+<tr><td class="h"><a id="L2510">2510</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (@{$framers;})</td></tr>
+<tr><td class="h"><a id="L2511">2511</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$report_only ? :</td></tr>
+<tr><td class="h"><a id="L2512">2512</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $enforced and $enforced =~ /(?:\A|;)\s*frame-ancestors\b/iu</td></tr>
+<tr><td class="h"><a id="L2561">2561</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$jtype =~ /\A(?:left|inner|outer)\z/u ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$c-&gt;param(&#39;d&#39;) ? :</td></tr>
-<tr><td class="h"><a id="L1978">1978</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/u and -d $c-&gt;app-&gt;home-&gt;child(&quot;templates/$platform/$language&quot;)</td></tr>
-<tr><td class="h"><a id="L1991">1991</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $args-&gt;{&#39;text&#39;} and ($args-&gt;{&#39;status&#39;} // 0) == 400 and $c-&gt;req-&gt;method eq &quot;GET&quot; and ($c-&gt;req-&gt;headers-&gt;accept // &quot;&quot;) =~ m[\btext/html\b]u and not $c-&gt;req-&gt;url-&gt;path-&gt;to_string =~ m[\A/api/]u)</td></tr>
-<tr><td class="h"><a id="L2010">2010</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $args-&gt;{&#39;text&#39;} and not defined $c-&gt;stash(&quot;format&quot;)</td></tr>
-<tr><td class="h"><a id="L2013">2013</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length($c-&gt;app-&gt;config(&#39;ai_api_key&#39;) // &#39;&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L2580">2580</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless $language =~ /\A[a-z]{2}(?:[-_][A-Za-z]{2})?\z/u and -d $c-&gt;app-&gt;home-&gt;child(&quot;templates/$platform/$language&quot;)</td></tr>
+<tr><td class="h"><a id="L2594">2594</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $args-&gt;{&#39;text&#39;} and $status == 400 || $status == 403 and $c-&gt;req-&gt;method eq &quot;GET&quot; and ($c-&gt;req-&gt;headers-&gt;accept // &quot;&quot;) =~ m[\btext/html\b]u and not $c-&gt;req-&gt;url-&gt;path-&gt;to_string =~ m[\A/api/]u)</td></tr>
+<tr><td class="h"><a id="L2601">2601</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$status == 403 ? :</td></tr>
+<tr><td class="h"><a id="L2613">2613</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $args-&gt;{&#39;text&#39;} and not defined $c-&gt;stash(&quot;format&quot;)</td></tr>
+<tr><td class="h"><a id="L2616">2616</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length($c-&gt;app-&gt;config(&#39;ai_api_key&#39;) // &#39;&#39;) ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $c-&gt;stash(&quot;ai_available&quot;)</td></tr>
-<tr><td class="h"><a id="L2020">2020</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $d3_url &amp;&amp; !ref($d3_url) &amp;&amp; length $d3_url ? :</td></tr>
-<tr><td class="h"><a id="L2028">2028</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (($args-&gt;{&#39;template&#39;} // &quot;&quot;) =~ /\Anot_found\.\w+\z/u and (($args-&gt;{&#39;format&#39;} // $c-&gt;stash(&quot;format&quot;)) // &quot;html&quot;) eq &quot;html&quot;)</td></tr>
-<tr><td class="h"><a id="L2038">2038</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $c-&gt;stash(&quot;trail&quot;))</td></tr>
-<tr><td class="h"><a id="L2043">2043</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $c-&gt;stash(&quot;tutorial_chapter&quot;)</td></tr>
-<tr><td class="h"><a id="L2046">2046</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $chapter</td></tr>
-<tr><td class="h"><a id="L2069">2069</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $data_path-&gt;is_abs</td></tr>
-<tr><td class="h"><a id="L2087">2087</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;url&#39;})</td></tr>
-<tr><td class="h"><a id="L2094">2094</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;html_table_index&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L2099">2099</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;redis&#39;})</td></tr>
-<tr><td class="h"><a id="L2108">2108</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;mariadb&#39;})</td></tr>
-<tr><td class="h"><a id="L2115">2115</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;directory&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L2124">2124</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;host&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L2623">2623</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $d3_url &amp;&amp; !ref($d3_url) &amp;&amp; length $d3_url ? :</td></tr>
+<tr><td class="h"><a id="L2631">2631</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (($args-&gt;{&#39;template&#39;} // &quot;&quot;) =~ /\Anot_found\.\w+\z/u and (($args-&gt;{&#39;format&#39;} // $c-&gt;stash(&quot;format&quot;)) // &quot;html&quot;) eq &quot;html&quot;)</td></tr>
+<tr><td class="h"><a id="L2641">2641</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (defined $c-&gt;stash(&quot;trail&quot;))</td></tr>
+<tr><td class="h"><a id="L2646">2646</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $c-&gt;stash(&quot;tutorial_chapter&quot;)</td></tr>
+<tr><td class="h"><a id="L2649">2649</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $chapter</td></tr>
+<tr><td class="h"><a id="L2672">2672</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $data_path-&gt;is_abs</td></tr>
+<tr><td class="h"><a id="L2690">2690</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;url&#39;})</td></tr>
+<tr><td class="h"><a id="L2698">2698</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;html_table_index&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L2703">2703</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;redis&#39;})</td></tr>
+<tr><td class="h"><a id="L2712">2712</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (exists $opts{&#39;mariadb&#39;})</td></tr>
+<tr><td class="h"><a id="L2719">2719</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;directory&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L2728">2728</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;host&#39;} ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;file_ext&#39;} ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;internal_table&#39;} ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">exists $opts{&#39;column_order&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L2230">2230</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and not ref $dir and length $dir</td></tr>
-<tr><td class="h"><a id="L2234">2234</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$path-&gt;is_abs ? :</td></tr>
-<tr><td class="h"><a id="L2246">2246</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
-<tr><td class="h"><a id="L2253">2253</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $mtime &gt;= $cutoff</td></tr>
-<tr><td class="h"><a id="L2254">2254</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-d $entry) { }</td></tr>
+<tr><td class="h"><a id="L2844">2844</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and not ref $dir and length $dir</td></tr>
+<tr><td class="h"><a id="L2848">2848</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$path-&gt;is_abs ? :</td></tr>
+<tr><td class="h"><a id="L2860">2860</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $uploads_dir</td></tr>
+<tr><td class="h"><a id="L2867">2867</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $mtime &gt;= $cutoff</td></tr>
+<tr><td class="h"><a id="L2868">2868</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (-d $entry) { }</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif (-f $entry) { }</td></tr>
+<tr><td class="h"><a id="L2886">2886</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L2887">2887</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $value or not length $value or $value eq 0</td></tr>
+<tr><td class="h"><a id="L2888">2888</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$COOP_VALUES{$value} ? :</td></tr>
+<tr><td class="h"><a id="L2898">2898</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $value or not ref $value and !length($value) || $value eq &#39;0&#39; || $COOP_VALUES{$value}</td></tr>
+<tr><td class="h"><a id="L2899">2899</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $value ? :</td></tr>
+<tr><td class="h"><a id="L2914">2914</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L2915">2915</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $value or not length $value or $value eq 0</td></tr>
+<tr><td class="h"><a id="L2916">2916</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$value =~ /\A[\x20-\x7e]+\z/u ? :</td></tr>
+<tr><td class="h"><a id="L2927">2927</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $value or not ref $value and $value =~ /\A(?:[\x20-\x7e]*)\z/u</td></tr>
+<tr><td class="h"><a id="L2949">2949</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $c-&gt;req-&gt;is_secure</td></tr>
+<tr><td class="h"><a id="L2952">2952</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $host eq &quot;&quot; or $host eq &quot;localhost&quot; or $host =~ /\.localhost\z/u or $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/u or $host =~ /:/u or $host =~ /\A\[/u</td></tr>
+<tr><td class="h"><a id="L2956">2956</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L2957">2957</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $value or not length $value or $value eq 0</td></tr>
+<tr><td class="h"><a id="L2958">2958</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$value =~ /$HSTS_RE/u ? :</td></tr>
+<tr><td class="h"><a id="L2968">2968</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $value or not ref $value and !length($value) || $value eq &#39;0&#39;</td></tr>
+<tr><td class="h"><a id="L2969">2969</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not ref $value and $value =~ /$HSTS_RE/u</td></tr>
+<tr><td class="h"><a id="L2970">2970</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $value ? :</td></tr>
+<tr><td class="h"><a id="L2985">2985</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $hash and not ref $hash and length $hash</td></tr>
+<tr><td class="h"><a id="L2986">2986</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $dirs eq &quot;ARRAY&quot; and @{$dirs;}</td></tr>
+<tr><td class="h"><a id="L3001">3001</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $hash and ref $hash || length $hash)</td></tr>
+<tr><td class="h"><a id="L3003">3003</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless Database::BI::Password::is_password_hash($hash)</td></tr>
+<tr><td class="h"><a id="L3006">3006</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $expiration and ref $expiration || !($expiration =~ /\A\d+\z/u) || $expiration &lt; 60</td></tr>
+<tr><td class="h"><a id="L3026">3026</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $hash and length $hash</td></tr>
+<tr><td class="h"><a id="L3032">3032</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $ENV{&#39;HYPNOTOAD_APP&#39;} and ref $hypnotoad eq &quot;HASH&quot; and ref $hypnotoad-&gt;{&#39;listen&#39;} eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L3035">3035</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $host eq &quot;localhost&quot; or $host =~ /\A127\./u or $host eq &quot;[::1]&quot; or $host eq &quot;::1&quot;</td></tr>
+<tr><td class="h"><a id="L3055">3055</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L3056">3056</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $value eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L3059">3059</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $name and not ref $name and $name =~ /\A(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\z/u</td></tr>
+<tr><td class="h"><a id="L3077">3077</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and ref $value || length $value</td></tr>
+<tr><td class="h"><a id="L3078">3078</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $value</td></tr>
+<tr><td class="h"><a id="L3079">3079</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $value eq &quot;BI_DEFAULT_INSECURE_SECRET&quot;</td></tr>
+<tr><td class="h"><a id="L3081">3081</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if length $value &lt; 16</td></tr>
+<tr><td class="h"><a id="L3096">3096</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L3097">3097</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $value eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L3099">3099</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $root and not ref $root and length $root</td></tr>
+<tr><td class="h"><a id="L3101">3101</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">&#39;File::Spec&#39;-&gt;file_name_is_absolute($root) ? :</td></tr>
+<tr><td class="h"><a id="L3102">3102</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $dir</td></tr>
+<tr><td class="h"><a id="L3116">3116</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L3117">3117</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $value eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L3119">3119</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and not ref $dir and length $dir</td></tr>
+<tr><td class="h"><a id="L3121">3121</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">&#39;File::Spec&#39;-&gt;file_name_is_absolute($dir) ? :</td></tr>
+<tr><td class="h"><a id="L3122">3122</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless -d $path</td></tr>
+<tr><td class="h"><a id="L3125">3125</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (ref $roots eq &quot;ARRAY&quot; and @{$roots;})</td></tr>
+<tr><td class="h"><a id="L3128">3128</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless Database::BI::Controller::Dashboard::_inside_any($path, @real)</td></tr>
+<tr><td class="h"><a id="L3132">3132</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if /\A\./u and $_ ne &quot;.&quot;</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if grep {$_ ne &quot;..&quot; if /\A\./u and $_ ne &quot;.&quot;;} &quot;File::Spec&quot;-&gt;splitdir(&quot;Mojo::File&quot;-&gt;new($path)-&gt;realpath-&gt;to_string)</td></tr>
+<tr><td class="h"><a id="L3147">3147</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L3148">3148</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $value eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L3151">3151</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $name and not ref $name and $name =~ /\A(?:\*|(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*)\z/u</td></tr>
+<tr><td class="h"><a id="L3169">3169</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L3171">3171</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $value ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $value eq &#39;ARRAY&#39; ? :</td></tr>
+<tr><td class="h"><a id="L3172">3172</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @locations</td></tr>
+<tr><td class="h"><a id="L3175">3175</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $location and not ref $location and $location =~ m[\Ahttps?://[^\s,]+\z]u</td></tr>
+<tr><td class="h"><a id="L3194">3194</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ref $hypnotoad eq &quot;HASH&quot;</td></tr>
+<tr><td class="h"><a id="L3237">3237</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $nonce and $nonce =~ /$NONCE_RE/u</td></tr>
+<tr><td class="h"><a id="L3240">3240</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $set and not ref $set)</td></tr>
+<tr><td class="h"><a id="L3241">3241</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $set and $set ne 0</td></tr>
+<tr><td class="h"><a id="L3249">3249</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $url and not ref $url and length $url</td></tr>
+<tr><td class="h"><a id="L3261">3261</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $_ eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $sources eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L3266">3266</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if defined $_</td></tr>
+<tr><td class="h"><a id="L3269">3269</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $nonce ? :</td></tr>
+<tr><td class="h"><a id="L3302">3302</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $value &amp;&amp; !ref($value) ? :</td></tr>
+<tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $value eq &#39;ARRAY&#39; ? :</td></tr>
+<tr><td class="h"><a id="L3304">3304</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if defined $_</td></tr>
+<tr><td class="h"><a id="L3314">3314</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value</td></tr>
+<tr><td class="h"><a id="L3315">3315</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $value and ref $value ne &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L3317">3317</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $value ? :</td></tr>
+<tr><td class="h"><a id="L3318">3318</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined _frame_origin($entry)</td></tr>
+<tr><td class="h"><a id="L3337">3337</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $entry and not ref $entry</td></tr>
+<tr><td class="h"><a id="L3338">3338</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my($scheme, $host, $port) = $entry =~ m[
+&#12;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;\A\s*(https?)://
+&#12;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;((?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)*)
+&#12;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;(?::(\d{1,5}))?
+&#12;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;/?\s*\z
+&#12;&nbsp;&nbsp;&nbsp;]iux</td></tr>
+<tr><td class="h"><a id="L3344">3344</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $port and $port == 0 || $port &gt; 65535</td></tr>
+<tr><td class="h"><a id="L3345">3345</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $port ? :</td></tr>
+<tr><td class="h"><a id="L3363">3363</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $url and not ref $url and length $url</td></tr>
+<tr><td class="h"><a id="L3365">3365</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($url =~ m[\A(?:[A-Za-z][A-Za-z0-9+.-]*:)?//]u)</td></tr>
+<tr><td class="h"><a id="L3367">3367</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$url =~ /\A[A-Za-z][A-Za-z0-9+.-]*:/u ? :</td></tr>
+<tr><td class="h"><a id="L3371">3371</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if length $scheme and not $scheme =~ /\Ahttps?\z/u</td></tr>
+<tr><td class="h"><a id="L3372">3372</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $scheme ? :</td></tr>
+<tr><td class="h"><a id="L3373">3373</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $scheme ? :</td></tr>
+<tr><td class="h"><a id="L3376">3376</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless my($host, $port) = $authority =~ /\A([^:]+)(?::(.*))?\z/u</td></tr>
+<tr><td class="h"><a id="L3379">3379</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if @labels &gt; 1 and $labels[0] =~ /\{/u</td></tr>
+<tr><td class="h"><a id="L3381">3381</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $i == 0 and $labels[0] eq &quot;*&quot;</td></tr>
+<tr><td class="h"><a id="L3382">3382</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $labels[$i] =~ /\A[A-Za-z0-9-]+\z/u</td></tr>
+<tr><td class="h"><a id="L3384">3384</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $port)</td></tr>
+<tr><td class="h"><a id="L3385">3385</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $port =~ /\A(?:\d{1,5}|\{[^}]*\})\z/u</td></tr>
+<tr><td class="h"><a id="L3386">3386</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$port =~ /\{/u ? :</td></tr>
+<tr><td class="h"><a id="L3388">3388</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $port ? :</td></tr>
 </table>
 </body>
 </html>

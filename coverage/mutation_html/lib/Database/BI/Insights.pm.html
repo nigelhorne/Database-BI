@@ -294,9 +294,9 @@ a.intra-dot:hover { color: #7700bb; }
  <a href="Extract.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
 TER1 (Statement): 100.00%<br>
-TER2 (Branch): 96.05%<br>
+TER2 (Branch): 95.45%<br>
 TER3 (LCSAJ): 100.0% (16/16)<br>
-Approximate LCSAJ segments: 153<br>
+Approximate LCSAJ segments: 155<br>
 </div>
 
     <div class="legend">
@@ -344,7 +344,7 @@ Approximate LCSAJ segments: 153<br>
 </span><span class="">    3: use strict;
 </span><span class="">    4: use warnings;
 </span><span class="">    5: 
-</span><span class="">    6: our $VERSION = &#39;0.020.0&#39;;
+</span><span class="">    6: our $VERSION = &#39;0.021.0&#39;;
 </span><span class="">    7: 
 </span><span class="">    8: use Database::BI::Util  qw(urlencode);
 </span><span class="">    9: use List::Util          qw(sum min max);
@@ -475,7 +475,7 @@ Approximate LCSAJ segments: 153<br>
 </span><span class="">  134: # EU slash-dates (22/12/2025), and dash-Mon dates (22-Oct-2026) are never
 </span><span class="">  135: # stripped of their punctuation and misread as large integers like 12222025.
 </span><span class="">  136: sub _looks_like_date {
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  137: 	my $v = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  137: 	my $v = shift;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -566,7 +566,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  154: }
 </span><span class="">  155: 
 </span><span class="">  156: sub _is_numeric_col {
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">157 → 161 → 167</span></span>  157: 	my $vals = shift;
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">157 → 161 → 167</span></span>  157: 	my $vals = shift;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -620,7 +620,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 								</div>
 							</li></ul></details>
 <span class="">  160: 	my $n  = @$vals &gt; 20 ? 20 : scalar @$vals;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  161: 	for my $v (@{$vals}[0 .. $n - 1]) {
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  161: 	for my $v (@{$vals}[0 .. $n - 1]) {
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -651,7 +651,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  168: }
 </span><span class="">  169: 
 </span><span class="">  170: sub _to_num {
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  171: 	return Database::BI::Util::parse_number($_[0]);
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  171: 	return Database::BI::Util::parse_number($_[0]);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -732,7 +732,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  199: 	return $n % 2 ? $s-&gt;[$m] : ($s-&gt;[$m - 1] + $s-&gt;[$m]) / 2;
 </span><span class="">  200: }
 </span><span class="">  201: 
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  202: # _find_outliers($records, $num_col, \@cat_cols, $spec_key, $base_url) -&gt; @insights
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  202: # _find_outliers($records, $num_col, \@cat_cols, $spec_key, $base_url) -&gt; @insights
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1014,7 +1014,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class="">  332: 	     :              0;
 </span><span class="">  333: }
 </span><span class="">  334: 
-</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  335: # _period_over_period($records, $date_col, $num_col, $spec_key, $base_url) -&gt; @insights
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  335: # _period_over_period($records, $date_col, $num_col, $spec_key, $base_url) -&gt; @insights
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 5, Killed: 0, Survived: 5)</summary>
@@ -1716,7 +1716,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  573: #
+<span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  573: #
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1747,22 +1747,22 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  580: 	if ($spec =~ /\Atable:(.+)\z/) {
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  581: 		return &#39;/view/&#39; . urlencode($1);
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  582: 	}
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">583 → 583 → 586</span></span>  583: 	if ($spec =~ /\Apath:(.+)\z/) {
-</span><span class="">  584: 		return &#39;/open?path=&#39; . urlencode($1);
-</span><span class="">  585: 	}
-</span><span class="">  586: 	return undef;
-</span><span class="">  587: }
-</span><span class="">  588: 
-</span><span class="">  589: 1;
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">583 → 583 → 588</span></span>  583: 	if ($spec =~ /\Apath:(.+)\z/) {
+</span><span class="">  584: 		require Database::BI::Model::DataSource;
+</span><span class="">  585: 		my ($file, $internal) = Database::BI::Model::DataSource::split_path($1);
+</span><span class="">  586: 		return &#39;/open?path=&#39; . urlencode($file) . (defined $internal ? &#39;&amp;it=&#39; . urlencode($internal) : &#39;&#39;);
+</span><span class="">  587: 	}
+</span><span class="">  588: 	return undef;
+</span><span class="">  589: }
 </span><span class="">  590: 
-</span><span class="">  591: __END__
+</span><span class="">  591: 1;
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  592: 
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  593: =head1 NAME
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  593: __END__
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  594: 
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  595: Database::BI::Insights - Automatic statistical insights for Database::BI (Phase 5.2)
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  595: =head1 NAME
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  596: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  597: =head1 SYNOPSIS
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  598: 
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  597: Database::BI::Insights - Automatic statistical insights for Database::BI (Phase 5.2)
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  598: 
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1784,131 +1784,133 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </pre>
 								</div>
 							</li></ul></details>
-<span class="">  599:     use Database::BI::Insights;
+<span class="">  599: =head1 SYNOPSIS
 </span><span class="">  600: 
-</span><span class="">  601:     my $insights = Database::BI::Insights::compute(
-</span><span class="">  602:         records  =&gt; \@rows,
-</span><span class="">  603:         columns  =&gt; \@cols,
-</span><span class="">  604:         spec_key =&gt; &#39;table:sales&#39;,
-</span><span class="">  605:         base_url =&gt; &#39;/insights?l=table:sales&#39;,
-</span><span class="">  606:     );
-</span><span class="">  607: 
-</span><span class="">  608: =head1 DESCRIPTION
+</span><span class="">  601:     use Database::BI::Insights;
+</span><span class="">  602: 
+</span><span class="">  603:     my $insights = Database::BI::Insights::compute(
+</span><span class="">  604:         records  =&gt; \@rows,
+</span><span class="">  605:         columns  =&gt; \@cols,
+</span><span class="">  606:         spec_key =&gt; &#39;table:sales&#39;,
+</span><span class="">  607:         base_url =&gt; &#39;/insights?l=table:sales&#39;,
+</span><span class="">  608:     );
 </span><span class="">  609: 
-</span><span class="">  610: Pure-arithmetic insight detection.  No LLM, no external service calls.
-</span><span class="">  611: Detects four classes of insight:
-</span><span class="">  612: 
-</span><span class="">  613: =over
+</span><span class="">  610: =head1 DESCRIPTION
+</span><span class="">  611: 
+</span><span class="">  612: Pure-arithmetic insight detection.  No LLM, no external service calls.
+</span><span class="">  613: Detects four classes of insight:
 </span><span class="">  614: 
-</span><span class="">  615: =item outlier
+</span><span class="">  615: =over
 </span><span class="">  616: 
-</span><span class="">  617: A value beyond the Tukey IQR fence (Q1 - 1.5*IQR or Q3 + 1.5*IQR).
+</span><span class="">  617: =item outlier
 </span><span class="">  618: 
-</span><span class="">  619: =item period_delta
+</span><span class="">  619: A value beyond the Tukey IQR fence (Q1 - 1.5*IQR or Q3 + 1.5*IQR).
 </span><span class="">  620: 
-</span><span class="">  621: Overall period-over-period delta between the most recent two month-periods
-</span><span class="">  622: visible in a date column.
-</span><span class="">  623: 
-</span><span class="">  624: =item top_mover
+</span><span class="">  621: =item period_delta
+</span><span class="">  622: 
+</span><span class="">  623: Overall period-over-period delta between the most recent two month-periods
+</span><span class="">  624: visible in a date column.
 </span><span class="">  625: 
-</span><span class="">  626: The dimension member with the largest period-over-period absolute change.
-</span><span class="">  627: Requires at least one categorical column and one date column.
-</span><span class="">  628: 
-</span><span class="">  629: =item seasonality
+</span><span class="">  626: =item top_mover
+</span><span class="">  627: 
+</span><span class="">  628: The dimension member with the largest period-over-period absolute change.
+</span><span class="">  629: Requires at least one categorical column and one date column.
 </span><span class="">  630: 
-</span><span class="">  631: Detected via lag-1 autocorrelation on monthly totals.  A coefficient &gt;= 0.6
-</span><span class="">  632: is flagged.  Requires at least 8 distinct month-periods.
-</span><span class="">  633: 
-</span><span class="">  634: =back
+</span><span class="">  631: =item seasonality
+</span><span class="">  632: 
+</span><span class="">  633: Detected via lag-1 autocorrelation on monthly totals.  A coefficient &gt;= 0.6
+</span><span class="">  634: is flagged.  Requires at least 8 distinct month-periods.
 </span><span class="">  635: 
-</span><span class="">  636: Every insight includes a C&lt;view_url&gt; that links to the chart or stats view
-</span><span class="">  637: showing the underlying data.  An insight without a clickable view_url is a bug.
-</span><span class="">  638: 
-</span><span class="">  639: =head1 FUNCTIONS
+</span><span class="">  636: =back
+</span><span class="">  637: 
+</span><span class="">  638: Every insight includes a C&lt;view_url&gt; that links to the chart or stats view
+</span><span class="">  639: showing the underlying data.  An insight without a clickable view_url is a bug.
 </span><span class="">  640: 
-</span><span class="">  641: =head2 compute(%args)
+</span><span class="">  641: =head1 FUNCTIONS
 </span><span class="">  642: 
-</span><span class="">  643:     my $insights = Database::BI::Insights::compute(
-</span><span class="">  644:         records  =&gt; \@rows,     # arrayref of row hashrefs
-</span><span class="">  645:         columns  =&gt; \@cols,     # arrayref of column names
-</span><span class="">  646:         spec_key =&gt; $l,         # l= spec string
-</span><span class="">  647:         base_url =&gt; $url,       # request URL, used only as a fallback
-</span><span class="">  648:     );
-</span><span class="">  649: 
-</span><span class="">  650: Returns an arrayref of insight hashrefs.  Each hashref has:
+</span><span class="">  643: =head2 compute(%args)
+</span><span class="">  644: 
+</span><span class="">  645:     my $insights = Database::BI::Insights::compute(
+</span><span class="">  646:         records  =&gt; \@rows,     # arrayref of row hashrefs
+</span><span class="">  647:         columns  =&gt; \@cols,     # arrayref of column names
+</span><span class="">  648:         spec_key =&gt; $l,         # l= spec string
+</span><span class="">  649:         base_url =&gt; $url,       # request URL, used only as a fallback
+</span><span class="">  650:     );
 </span><span class="">  651: 
-</span><span class="">  652:     kind      -- &#39;outlier&#39; | &#39;top_mover&#39; | &#39;period_delta&#39; | &#39;seasonality&#39;
-</span><span class="">  653:     headline  -- one short sentence
-</span><span class="">  654:     detail    -- numbers that substantiate the headline
-</span><span class="">  655:     view_url  -- URL to the view showing the data
-</span><span class="">  656:     method    -- key for method_note()
-</span><span class="">  657: 
-</span><span class="">  658: =head3 API SPECIFICATION
+</span><span class="">  652: Returns an arrayref of insight hashrefs.  Each hashref has:
+</span><span class="">  653: 
+</span><span class="">  654:     kind      -- &#39;outlier&#39; | &#39;top_mover&#39; | &#39;period_delta&#39; | &#39;seasonality&#39;
+</span><span class="">  655:     headline  -- one short sentence
+</span><span class="">  656:     detail    -- numbers that substantiate the headline
+</span><span class="">  657:     view_url  -- URL to the view showing the data
+</span><span class="">  658:     method    -- key for method_note()
 </span><span class="">  659: 
-</span><span class="">  660: =head4 INPUT
+</span><span class="">  660: =head3 API SPECIFICATION
 </span><span class="">  661: 
-</span><span class="">  662: 	{
-</span><span class="">  663: 	    records  =&gt; &#39;arrayref&#39;,  # row hashrefs, already filtered and with calculated fields
-</span><span class="">  664: 	    columns  =&gt; &#39;arrayref&#39;,  # column names, in order
-</span><span class="">  665: 	    spec_key =&gt; &#39;string&#39;,    # optional; the l= spec (default &#39;&#39;)
-</span><span class="">  666: 	    base_url =&gt; &#39;string&#39;,    # optional; default &quot;/insights?l=&lt;spec_key&gt;&quot;
-</span><span class="">  667: 	}
-</span><span class="">  668: 
-</span><span class="">  669: =head4 OUTPUT
+</span><span class="">  662: =head4 INPUT
+</span><span class="">  663: 
+</span><span class="">  664: 	{
+</span><span class="">  665: 	    records  =&gt; &#39;arrayref&#39;,  # row hashrefs, already filtered and with calculated fields
+</span><span class="">  666: 	    columns  =&gt; &#39;arrayref&#39;,  # column names, in order
+</span><span class="">  667: 	    spec_key =&gt; &#39;string&#39;,    # optional; the l= spec (default &#39;&#39;)
+</span><span class="">  668: 	    base_url =&gt; &#39;string&#39;,    # optional; default &quot;/insights?l=&lt;spec_key&gt;&quot;
+</span><span class="">  669: 	}
 </span><span class="">  670: 
-</span><span class="">  671: 	[ { kind =&gt; &#39;string&#39;, headline =&gt; &#39;string&#39;, detail =&gt; &#39;string&#39;,
-</span><span class="">  672: 	    view_url =&gt; &#39;string&#39;, method =&gt; &#39;string&#39; }, ... ]
-</span><span class="">  673: 
-</span><span class="">  674: No rows or no columns returns C&lt;[]&gt;.  Outliers need a numeric column.
-</span><span class="">  675: Period-over-period, top movers and seasonality also need an ISO
-</span><span class="">  676: C&lt;YYYY-MM-DD&gt; date column; only the first one found is used.  Every insight
-</span><span class="">  677: has a C&lt;view_url&gt;.  The function is pure arithmetic: it makes no network
-</span><span class="">  678: call and does not croak.
-</span><span class="">  679: 
-</span><span class="">  680: =head2 method_note($key)
+</span><span class="">  671: =head4 OUTPUT
+</span><span class="">  672: 
+</span><span class="">  673: 	[ { kind =&gt; &#39;string&#39;, headline =&gt; &#39;string&#39;, detail =&gt; &#39;string&#39;,
+</span><span class="">  674: 	    view_url =&gt; &#39;string&#39;, method =&gt; &#39;string&#39; }, ... ]
+</span><span class="">  675: 
+</span><span class="">  676: No rows or no columns returns C&lt;[]&gt;.  Outliers need a numeric column.
+</span><span class="">  677: Period-over-period, top movers and seasonality also need an ISO
+</span><span class="">  678: C&lt;YYYY-MM-DD&gt; date column; only the first one found is used.  Every insight
+</span><span class="">  679: has a C&lt;view_url&gt;.  The function is pure arithmetic: it makes no network
+</span><span class="">  680: call and does not croak.
 </span><span class="">  681: 
-</span><span class="">  682: Returns a one-sentence description of the algorithm behind C&lt;$key&gt;.
+</span><span class="">  682: =head2 method_note($key)
 </span><span class="">  683: 
-</span><span class="">  684: =head3 API SPECIFICATION
+</span><span class="">  684: Returns a one-sentence description of the algorithm behind C&lt;$key&gt;.
 </span><span class="">  685: 
-</span><span class="">  686: =head4 INPUT
+</span><span class="">  686: =head3 API SPECIFICATION
 </span><span class="">  687: 
-</span><span class="">  688: 	$key   # &#39;iqr_fence&#39; | &#39;pop_delta&#39; | &#39;top_mover&#39; | &#39;autocorr&#39;
+</span><span class="">  688: =head4 INPUT
 </span><span class="">  689: 
-</span><span class="">  690: =head4 OUTPUT
+</span><span class="">  690: 	$key   # &#39;iqr_fence&#39; | &#39;pop_delta&#39; | &#39;top_mover&#39; | &#39;autocorr&#39;
 </span><span class="">  691: 
-</span><span class="">  692: 	&#39;string&#39;   # the note; an unknown key is returned unchanged
+</span><span class="">  692: =head4 OUTPUT
 </span><span class="">  693: 
-</span><span class="">  694: =head1 ALGORITHM NOTES
+</span><span class="">  694: 	&#39;string&#39;   # the note; an unknown key is returned unchanged
 </span><span class="">  695: 
-</span><span class="">  696: =head3 Outliers
+</span><span class="">  696: =head1 ALGORITHM NOTES
 </span><span class="">  697: 
-</span><span class="">  698: Tukey IQR fence: Q1 - 1.5*IQR and Q3 + 1.5*IQR.  Requires at least 4 values
-</span><span class="">  699: per group.  Results are sorted by distance from the nearest fence; up to 5
-</span><span class="">  700: outliers are reported per column.
-</span><span class="">  701: 
-</span><span class="">  702: =head3 Period-over-period
+</span><span class="">  698: =head3 Outliers
+</span><span class="">  699: 
+</span><span class="">  700: Tukey IQR fence: Q1 - 1.5*IQR and Q3 + 1.5*IQR.  Requires at least 4 values
+</span><span class="">  701: per group.  Results are sorted by distance from the nearest fence; up to 5
+</span><span class="">  702: outliers are reported per column.
 </span><span class="">  703: 
-</span><span class="">  704: Year-month (YYYY-MM) buckets from ISO-8601 date columns.  Requires at least
-</span><span class="">  705: 2 distinct periods.
-</span><span class="">  706: 
-</span><span class="">  707: =head3 Seasonality
+</span><span class="">  704: =head3 Period-over-period
+</span><span class="">  705: 
+</span><span class="">  706: Year-month (YYYY-MM) buckets from ISO-8601 date columns.  Requires at least
+</span><span class="">  707: 2 distinct periods.
 </span><span class="">  708: 
-</span><span class="">  709: Lag-1 autocorrelation r(1) on the sequence of period sums.
-</span><span class="">  710: Formula: r(1) = cov(y[t], y[t+1]) / var(y[t]).
-</span><span class="">  711: Threshold: r &gt;= 0.6.  Requires at least 8 distinct month-periods.
-</span><span class="">  712: 
-</span><span class="">  713: =head1 AUTHOR
+</span><span class="">  709: =head3 Seasonality
+</span><span class="">  710: 
+</span><span class="">  711: Lag-1 autocorrelation r(1) on the sequence of period sums.
+</span><span class="">  712: Formula: r(1) = cov(y[t], y[t+1]) / var(y[t]).
+</span><span class="">  713: Threshold: r &gt;= 0.6.  Requires at least 8 distinct month-periods.
 </span><span class="">  714: 
-</span><span class="">  715: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  715: =head1 AUTHOR
 </span><span class="">  716: 
-</span><span class="">  717: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  717: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
 </span><span class="">  718: 
-</span><span class="">  719: Copyright 2026 Nigel Horne.
+</span><span class="">  719: =head1 LICENCE AND COPYRIGHT
 </span><span class="">  720: 
-</span><span class="">  721: Usage is subject to the GPL2 licence terms.
+</span><span class="">  721: Copyright 2026 Nigel Horne.
 </span><span class="">  722: 
-</span><span class="">  723: =cut
+</span><span class="">  723: Usage is subject to the GPL2 licence terms.
+</span><span class="">  724: 
+</span><span class="">  725: =cut
 </span></pre>
 
 <script>
