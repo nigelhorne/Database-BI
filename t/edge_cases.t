@@ -536,10 +536,17 @@ subtest 'GET /view/sales?f=:eq:val -- empty column name is harmless' => sub {
 	  ->content_unlike(qr/500 Internal Server Error/, 'no 500 for missing column in f=');
 };
 
-subtest 'GET /view/sales?f=col:badop:val -- unknown operator is harmless' => sub {
+subtest 'GET /view/sales?f=col:badop:val -- unknown operator is a 400, not a 500' => sub {
 	$t->get_ok('/view/sales?f=' . url_escape('region:badop:North'))
-	  ->status_is(200)
+	  ->status_is(400)
 	  ->content_unlike(qr/500 Internal Server Error/, 'no 500 for unknown operator');
+};
+
+subtest 'GET /view/sales?f=nosuch:eq:x -- unknown column is a 400, not an empty table' => sub {
+	$t->get_ok('/view/sales?f=' . url_escape('nosuch:eq:x'))
+	  ->status_is(400)
+	  ->content_like(qr/no column called "nosuch"/)
+	  ->content_unlike(qr/500 Internal Server Error/, 'no 500 for unknown column');
 };
 
 subtest 'GET /view/sales -- many f= params are handled without crash' => sub {

@@ -1,6 +1,6 @@
 Revision history for Database-BI
 
-0.021.0	Fri Nov  6 01:58:25 PM EST 2026
+0.021.0
 	[ Security ]
 	- Optional login: password_hash (from script/database-bi password),
 	  PBKDF2-HMAC-SHA256, with session expiry and lockout after repeated
@@ -37,11 +37,20 @@ Revision history for Database-BI
 	  nested value shows as its JSON text.
 	- Print, to the right of Refresh, prints the header row and every row of
 	  the view (not only the page on screen), in the columns and order the
-	  table shows.
+	  table shows.  Past 10,000 rows it asks first.
 	- The filter bar offers Time range only when the view has a date or
 	  date-time column, and lists only those columns for it.
 	- The filter row offers "between" for a number column, such as a
-	  year, and f=col:between:lo:hi compares two numbers as numbers.
+	  year, and f=col:between:lo:hi compares two numbers as numbers.  Its
+	  bounds may be written either way round, for dates and text as for
+	  numbers (a date range written latest first matched nothing), two
+	  timestamps are split at the colon between them, and text compares
+	  without regard to case, as eq does.
+	- A filter whose operator is unknown (f=amount:gtx:5, or GT in
+	  capitals) is a 400 that lists the operators, where it kept every row;
+	  one on a column the view does not have, or a time range's rcol=, is a
+	  400 that lists the columns, where it kept no rows.  Both looked like
+	  a working filter.
 	- path:<file>#<table> names one table of a file outside data_dir, as
 	  table:<file>/<table> does inside it, so the charts, panels and exports
 	  of a second SQLite table or JSON list no longer read the first.
@@ -57,6 +66,18 @@ Revision history for Database-BI
 	- File::Temp no longer needs 0.2308: Database::Join 0.011.1 makes its
 	  SQLite files without the BSD lock that version was asked for to avoid.
 	- file_roots and export_dirs work on Windows.
+	- A timestamp ending in Z, an offset (+01:00) or a fraction of a second,
+	  as JSON APIs write them, is a time to the filters, Time range, /api/range
+	  and the calculated-field time functions; the dates and times are read
+	  as written, and the zone is not applied.  Such cells were dropped by a
+	  date filter that kept the same time without the suffix.
+	- A CSV, TSV or PSV file that starts with a UTF-8 byte-order mark (Excel's
+	  "CSV UTF-8") no longer has it in its first column's name, where a
+	  filter, chart or calculated field naming that column missed it; a
+	  header-less file's first cell is read as written too.
+	- Database::BI::Password and the password command keep their messages
+	  in %MESSAGES, and Password no longer falls back to /dev/urandom:
+	  Crypt::URandom is required.
 	- On the BSDs, a folder where a store file should be is no longer moved
 	  aside as a corrupt store (a CPAN tester's DragonFly 6.4).
 	- script/bi-alert finds Database::BI's modules when run from a source

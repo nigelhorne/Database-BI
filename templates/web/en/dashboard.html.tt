@@ -2964,6 +2964,11 @@ function biDetectColType(colName) {
   var status = document.getElementById('print-status');
   if (!btn) return;
   var label = btn.innerHTML;
+  // Past this many rows the reader is asked first: laying out a table of
+  // that size takes the browser a long time, and it prints hundreds of
+  // pages.  The count is known only once the rows are here (no page shows a
+  // total), so the question comes after the fetch, before the table is built.
+  var PRINT_CONFIRM_ROWS = 10000;
 
   function say(msg) { if (status) status.textContent = msg; }
 
@@ -3036,6 +3041,13 @@ function biDetectColType(colName) {
       })
       .then(function (rows) {
         if (!Array.isArray(rows)) return Promise.reject('The rows could not be read.');
+        if (rows.length > PRINT_CONFIRM_ROWS
+            && !window.confirm('This view has ' + rows.length + ' rows, which is a lot of pages '
+              + 'and may take the browser a while to lay out. Print them all?')) {
+          done();
+          say('Not printed. Filter the view to print fewer rows.');
+          return;
+        }
         var n = build(rows);
         document.body.classList.add('bi-printing');
         say('Printing ' + n + ' row' + (n === 1 ? '' : 's') + '.');

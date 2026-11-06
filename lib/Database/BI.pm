@@ -17,6 +17,56 @@ use Database::BI::Tutorial;
 
 use version; our $VERSION = version->declare('0.021.0');
 
+# The roadmap after 0.021.0, from its gap analysis (2026-11-06).
+#
+# Features:
+# TODO: Time zones.  A timestamp's Z or offset is accepted and ignored (times
+#	are compared as written).  Normalise to UTC or a configured zone, with
+#	Time range and span= buckets aware of it.
+# TODO: More JSON: JSON Lines (.jsonl, .ndjson); optional dot-path flattening
+#	of nested objects (address.city) instead of JSON text; reading a large
+#	file as a stream rather than all at once.
+# TODO: Ranges for historical data: windows anchored to the data rather than
+#	to today ("the first decade in the data"), and decade and century span=
+#	buckets for year columns.
+# TODO: Multi-sheet XLSX: ?sheet= and a sheet picker, through the /tables
+#	cards that JSON and SQLite use.
+# TODO: A better Print: a heading naming the view's filters and range, a
+#	"print the rows shown" mode, and a server-side PDF for views too large
+#	for the browser to lay out (Print asks first past 10,000 rows).
+# TODO: Encoding on upload: detect Windows-1252 (a BOM is read past since
+#	0.021.0) and say which encoding was used.
+# TODO: Alerts in the app: a canvas panel to set bi-alert's thresholds and
+#	see recent alerts, so they do not need cron.
+# TODO: More databases: PostgreSQL through Database::Join::Catalog, as MariaDB
+#	is, and a columnar backend (DuckDB or Parquet) for files too large for
+#	SQLite extracts.
+#
+# Technical debt:
+# TODO: Dashboard.pm is over 15,000 lines.  Split it by area (charts, canvas,
+#	model stores, export and access, geo) into controllers of their own;
+#	the routes stay here.
+# TODO: One validated filter representation.  f= is split in _filter_request,
+#	_apply_filter_spec, _filter_specs_to_criteria, _fetch_page and the
+#	canvas, each with its own rules; parse it once into a typed form at the
+#	boundary.
+# TODO: One date reader.  _is_iso_date, _to_iso_date, _date_key,
+#	_time_columns, Calc::date_normalise and the browser's biDetectColType
+#	each recognise dates differently (the browser takes DD-Mon-YYYY, the
+#	server's filter does not).  Share one definition.
+# TODO: Move dashboard.html.tt's inline script into static files (allowed by
+#	script-src 'self') so it can be unit-tested, not only run in Playwright.
+# TODO: Loading Dashboard.pm during the compile phase runs Sub::Protected's
+#	CHECK, which alone turned the SQL path's sums into JSON strings
+#	(t/time-bucket.t).  The server never loads it that way; find which
+#	protected sub is responsible.
+# TODO: Async work: long joins and geocoding block a worker.  Use
+#	Mojo::IOLoop->subprocess, or the server-sent-events streaming, for
+#	progress and free workers.
+# TODO: Generated CI: the Windows cpanm retry, and the cache that never fills
+#	on Windows (installs go into Perl's own site folder), belong in App::GHGen's
+#	template, not in perl-ci.yml, which it overwrites.
+
 # Default config values used by the Config plugin and referenced explicitly
 # in startup() so callers always get a resolved value.
 Readonly my $DEFAULT_DATA_DIR     => 'data';
@@ -147,12 +197,17 @@ B<Quick-filter bar> -- a column/operator/value row below the toolbar lets
 the user add filter conditions without opening any panel.  Pressing Enter
 applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: C<eq>,
-C<ne>, C<contains>, C<starts>, C<lt>, C<le>, C<gt>, C<ge>, C<empty>,
+C<ne>, C<contains>, C<starts>, C<lt>, C<le>, C<gt>, C<ge>, C<between>, C<empty>,
 C<notempty>; and C<in>, which a link can carry but the bar does not offer: any
 value of a JSON list, as in C<f=place:in:["Paris","Rome"]>.  Filters are
 applied server-side after all joins.  C<lt>, C<le>,
 C<gt> and C<ge> compare numbers, reading C<$1,234.56> and C<(1,234.56)> as
 numbers too; a blank or a word in the cell matches none of them.
+An operator that is none of these (operators are lower case) is a C<400> that
+lists them, and so is a filter, or a time range's C<rcol=>, on a column the
+view does not have (the message lists the columns): neither is taken as a
+filter that keeps every row, or none.  A canvas card's own saved filters are
+the exception: one on a column its dataset no longer has is ignored.
 
 =item *
 
@@ -307,7 +362,9 @@ All file data is returned as Perl character strings.  CSV/PSV/TSV files are
 read by L<Text::xSV::Slurp> or L<DBD::CSV>, both of which pass bytes
 through without re-encoding; the application serves the resulting page as
 C<text/html; charset=UTF-8>, so full Unicode is displayed correctly as
-long as the source file itself is UTF-8.
+long as the source file itself is UTF-8.  A UTF-8 byte-order mark at the
+start of a CSV, TSV, PSV or JSON file (Excel's "CSV UTF-8" writes one) is
+read past, so it is not part of the first column's name.
 
 Filter values (C<f=col:op:val>) are decoded from the URL by Mojolicious
 before reaching the controller and are compared against cell values as
@@ -420,9 +477,11 @@ Opens the named table from C<data_dir>.  Accepts C<?f=col:op:val>
 only a relative window of rows (see L</Relative time ranges>).
 
 C<?f=col:between:lo:hi> keeps the rows whose C<col> lies from C<lo> to C<hi>,
-both included.  Two numbers (a range of years, C<Year:between:1880:1900>)
-compare as numbers, whichever is written first; two dates compare as dates; any
-other pair compares as text.  The filter row offers it for date columns (two
+both included, whichever bound is written first.  Two numbers (a range of
+years, C<Year:between:1880:1900>) compare as numbers; two dates or timestamps
+compare as times (C<when:between:2026-11-01T09:00:00:2026-11-01T17:00:00>
+splits at the colon between them); any other pair compares as text, ignoring
+case.  The filter row offers it for date columns (two
 date boxes) and number columns (two number boxes).
 
 A name that is not a table in C<data_dir> is a C<404> page that says so ("There
@@ -2148,11 +2207,13 @@ that gives it a usable name.
 
 =item *
 
-A relative time range is resolved against the server's clock and compares the
-column as a string, like every other filter.  A column holding a time zone
-offset or a non-ISO timestamp is read as far as its C<YYYY-MM-DD> prefix, so
-C<last_24_hours> is exact only for a column whose values are ISO
-C<YYYY-MM-DDTHH:MM:SS> (a space instead of the C<T> is accepted too).
+A relative time range is resolved against the server's clock.  An ISO
+timestamp, C<YYYY-MM-DDTHH:MM:SS> (a space instead of the C<T>, no seconds, a
+fraction of a second, and a trailing C<Z> or offset such as C<+01:00> are all
+accepted), is read as written: the zone is not applied, so
+C<2026-11-06T13:00:00Z> and C<2026-11-06T13:00:00+05:00> are the same time to
+a filter.  A non-ISO timestamp is read as far as its C<YYYY-MM-DD> prefix, so
+C<last_24_hours> is exact only for ISO timestamps in the server's zone.
 
 =item *
 
@@ -2535,6 +2596,16 @@ sub startup ($self) {
 
 		require Database::BI::Controller::Dashboard;
 		return Database::BI::Controller::Dashboard::_time_range_request($c);
+	});
+
+	# A filter whose operator is not one the pipeline knows is refused here,
+	# for every route, rather than keeping every row and saying nothing.
+	$self->hook(before_dispatch => sub {
+		my $c = shift;
+		return if $c->res->code;	# already answered (a range refused above)
+
+		require Database::BI::Controller::Dashboard;
+		return Database::BI::Controller::Dashboard::_filter_request($c);
 	});
 
 	# Cross-row columns (?cs=/by=/order=) are part of the view: the table page

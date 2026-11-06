@@ -463,6 +463,34 @@ subtest 'A canvas refuses a range it cannot honour' => sub {
 	$t->get_ok("/a/$canvas_id?range=last_7_days")->status_is(400);
 };
 
+subtest 'A timestamp with a zone or a fraction of a second is read as written' => sub {
+	my @stamps = ('2026-11-06T13:00:00Z', '2026-11-06T13:00:00+01:00', '2026-11-06T13:00:00.123',
+		'2026-11-06T13:00:00.5-0500', '2026-11-06T13:00:00');
+	for my $v (@stamps) {
+		my @row = ({ t => $v });
+		is scalar(@{ $filter->(\@row, 't:le:2026-11-06') }), 1, "$v is on or before its own day";
+		is scalar(@{ $filter->(\@row, 't:eq:2026-11-06') }), 1, "$v is on its own day";
+		is scalar(@{ $filter->(\@row, 't:between:2026-11-01:2026-11-06') }), 1, "$v is inside a range ending that day";
+		is scalar(@{ $filter->(\@row, 't:gt:2026-11-06') }), 0, "$v is not after its day";
+		is scalar(@{ $filter->(\@row, 't:lt:2026-11-06T13:00:01') }), 1, "$v compares to the second as written";
+		is_deeply Database::BI::Controller::Dashboard::_time_columns(['t'], \@row), ['t'], "$v makes a time column";
+		require Database::BI::Calc;
+		my $hour = Database::BI::Calc->new(expr => 'hour(t)', columns => ['t']);
+		is $hour->evaluate({ t => $v }), 13, "hour() reads $v as written";
+		my $span = Database::BI::Calc->new(expr => "span(t, '1h')", columns => ['t']);
+		is $span->evaluate({ t => $v }), '2026-11-06T13:00:00', "span() buckets $v";
+	}
+
+	# The table view, its Time range and /api/range read them the same way.
+	my $now = _stamp(1);
+	Mojo::File->new($data_dir)->child('zoned.csv')->spew(join "\n", 'id,when', "Z1,${now}Z", "Z2,$now.250+01:00", '');
+	$t->get_ok('/view/zoned?range=last_24_hours&rcol=when')->status_is(200);
+	is_deeply [ _sorted(_ids_in($t->tx->res->body, '#bi-table')) ], [ 'Z1', 'Z2' ], 'last_24_hours keeps both';
+	$t->element_exists('#dash-range-col option[value="when"]', 'and the column is offered for a range');
+	$t->get_ok('/api/range?l=table:zoned&col=when')->status_is(200)
+	  ->json_is('/min', substr($now, 0, 10), 'the range reads them by their day');
+};
+
 subtest 'Time range is offered only for a view with a date or time column' => sub {
 	my $tc = \&Database::BI::Controller::Dashboard::_time_columns;
 

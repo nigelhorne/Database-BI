@@ -291,6 +291,8 @@ Readonly my %MESSAGE_FILES => (
 	Dashboard  => 'lib/Database/BI/Controller/Dashboard.pm',
 	DataSource => 'lib/Database/BI/Model/DataSource.pm',
 	Geocode    => 'lib/Database/BI/Model/Geocode.pm',
+	Password   => 'lib/Database/BI/Password.pm',
+	PasswordCommand => 'lib/Database/BI/Command/password.pm',
 );
 my %DICTIONARY;
 for my $module (sort keys %MESSAGE_FILES) {
@@ -308,7 +310,7 @@ for my $module (sort keys %MESSAGE_FILES) {
 
 # Those the POD documents that are not messages.
 $ledger{"api.$_"} = "documented behaviour: $_" for qw(
-	Util.parse_number Calc.new Calc.error Calc.has_error Calc.evaluate Calc.span_interval Calc.date_normalise Calc.compile_pattern Calc.capture_of
+	Util.parse_number Util.iso_datetime Calc.new Calc.error Calc.has_error Calc.evaluate Calc.span_interval Calc.date_normalise Calc.compile_pattern Calc.capture_of
 	Extract.new Extract.path Extract.get Extract.put Extract.evict
 	Tutorial.intro Tutorial.chapters Tutorial.faq Tutorial.glossary Tutorial.parts
 	Tutorial.covered_routes Tutorial.exempt_routes Tutorial.chapter_for_action
@@ -2338,6 +2340,90 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		is $fn->('1e999'), undef, 'too large to be finite';
 		returns_is $fn->('5'), { type => 'number' }, 'a number comes back';
 		delete $ledger{'api.Util.parse_number'};
+	};
+
+	subtest 'A filter that names an unknown operator or column is refused' => sub {
+		my $f = sub { 'f=' . url_escape($_[0]) };
+		$t->get_ok('/view/sales?' . $f->('region:gtx:North'))->status_is(400);
+		message_ok('Dashboard', 'error_filter_op', $t->tx->res->body,
+			['gtx', 'region:gtx:North', 'eq, ne, contains, starts, lt, le, gt, ge, empty, notempty, between, in']);
+		$t->get_ok('/view/sales?' . $f->('regoin:eq:North'))->status_is(400);
+		message_ok('Dashboard', 'error_filter_column', $t->tx->res->body, ['regoin', 'regoin:eq:North', undef]);
+		like $t->tx->res->body, qr/the columns are: .*\bregion\b/, '... naming the columns there are';
+		$t->get_ok('/bar?l=table:sales&cat=region&' . $f->('regoin:eq:North'))->status_is(400, 'a chart too');
+		$t->get_ok('/view/sales?range=last_30_days&rcol=nosuch')->status_is(400);
+		message_ok('Dashboard', 'error_range_column_unknown', $t->tx->res->body, ['nosuch', 'nosuch', undef]);
+		$t->get_ok('/view/sales?' . $f->('region:eq:North'))->status_is(200, 'a filter on a column there still works');
+		$t->get_ok('/view/sales?c=' . url_escape('twice:amount*2') . '&' . $f->('twice:gt:0'))
+			->status_is(200, 'and on a calculated field of the request');
+	};
+
+	subtest 'Password and the password command raise their own messages' => sub {
+		require Database::BI::Password;
+		require Database::BI::Command::password;
+		my $hash = \&Database::BI::Password::hash_password;
+		my $err = sub { my ($code) = @_; local $@; eval { $code->(); 1 } and return; return without_location($@) };
+
+		message_ok('Password', 'error_password_required', $err->(sub { $hash->('') }));
+		message_ok('Password', 'error_password_rounds', $err->(sub { $hash->('x', rounds => 5) }), [10_000, 100_000_000]);
+		message_ok('Password', 'error_password_salt', $err->(sub { $hash->('x', salt => 'short') }), [16]);
+		require Crypt::URandom;	# before the mock, or loading it puts urandom back
+		mock 'Crypt::URandom::urandom' => sub { 'abc' };
+		message_ok('Password', 'error_password_random', $err->(sub { $hash->('x', rounds => 10_000) }), [3, 16]);
+		restore_all();
+		like $hash->('x', rounds => 10_000), qr/\Apbkdf2-sha256\$10000\$/, 'and a salt from Crypt::URandom';
+
+		my $cmd = Database::BI::Command::password->new(app => $t->app);
+		is $err->(sub { $cmd->run('extra') }), $cmd->usage, 'an argument: the usage, and nothing else';
+		like $cmd->usage, qr/database-bi password/, '... which shows how it is run';
+
+		my @typed;
+		mock 'Database::BI::Command::password::_read_secret' => sub { shift @typed };
+		mock 'Database::BI::Command::password::_interactive' => sub { 1 };
+		@typed = ('one pass', 'another');
+		message_ok('PasswordCommand', 'error_mismatch', $err->(sub { $cmd->run }));
+		@typed = ('one pass');
+		message_ok('PasswordCommand', 'error_mismatch', $err->(sub { $cmd->run }));
+		@typed = ('');
+		message_ok('PasswordCommand', 'error_no_password', $err->(sub { $cmd->run }));
+		@typed = ('one pass', 'one pass');
+		my $out = '';
+		{
+			open my $fh, '>', \$out or BAIL_OUT('no in-memory handle');
+			my $old = select $fh;
+			my $ok = eval { $cmd->run; 1 };
+			select $old;
+			ok $ok, 'the same twice at a terminal: a hash';
+		}
+		my ($made) = $out =~ /password_hash => '([^']+)'/;
+		ok $made && Database::BI::Password::verify_password('one pass', $made), '... of that password';
+		mock 'Database::BI::Command::password::_interactive' => sub { 0 };
+		@typed = ('piped');
+		$out = '';
+		{
+			open my $fh, '>', \$out or BAIL_OUT('no in-memory handle');
+			my $old = select $fh;
+			ok eval { $cmd->run; 1 }, 'from a pipe it is asked once';
+			select $old;
+		}
+		is scalar(@typed), 0, '... and read once';
+		restore_all();
+	};
+
+	subtest 'Util.iso_datetime' => sub {
+		my $fn = \&Database::BI::Util::iso_datetime;
+		is_deeply [ $fn->('2026-11-06') ], [ '2026-11-06', undef, undef, undef ], 'a date';
+		is_deeply [ $fn->('2026-11-06 09:15') ], [ '2026-11-06', '09', '15', undef ], 'a space and no seconds';
+		is_deeply [ $fn->('2026-11-06T23:30:00.250Z') ], [ '2026-11-06', '23', '30', '00' ],
+			'a fraction and Z are accepted, and the time is as written';
+		is_deeply [ $fn->("2026-11-06T23:30:00$_") ], [ '2026-11-06', '23', '30', '00' ], "an offset written $_"
+			for qw(+01:00 +0100 -05 z);
+		is_deeply [ $fn->('2026-11-06T23:30:00,5') ], [ '2026-11-06', '23', '30', '00' ], 'a comma before the fraction';
+		is_deeply [ $fn->($_) ], [], "not ISO: $_"
+			for ('06/11/2026', '2026-11-06Z', '2026-11-06T25', '2026-11-06T23:30:00.Z', '2026-11-06T23:30Q', '');
+		is_deeply [ $fn->(undef) ], [], 'missing';
+		is_deeply [ $fn->([]) ], [], 'a reference';
+		delete $ledger{'api.Util.iso_datetime'};
 	};
 
 	subtest 'Calc -- the documented constructor, accessors and evaluate' => sub {

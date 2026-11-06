@@ -978,6 +978,10 @@ sub _detect_file_info :Protected {
 		}
 		chomp $line;
 		$line =~ s/\r\z//;	# strip CR from CRLF files before any split
+		# A UTF-8 byte-order mark, which Excel's "CSV UTF-8" writes, is not
+		# part of the first column's name.  D::A would keep it there, so it
+		# reads a copy without it (see _init_backend).
+		my $bom = $line =~ s/\A\xEF\xBB\xBF//;
 
 		my $sep;
 		if($ext eq 'psv') {
@@ -1041,7 +1045,7 @@ sub _detect_file_info :Protected {
 					sep_char    => $sep,
 					id          => $synth[0],
 					columns     => \@synth,
-					_headerless => { path => $path, ext => $ext },
+					_headerless => { path => $path, ext => $ext },	# its copy drops a BOM
 					file_size   => -s $path,
 				};
 			}
@@ -1059,6 +1063,7 @@ sub _detect_file_info :Protected {
 			sep_char  => $sep,
 			id        => $safe_id,
 			columns   => \@cols,
+			($bom ? (_bom => { path => $path, ext => $ext }) : ()),
 			file_size => -s $path,
 		};
 	}
@@ -1501,7 +1506,11 @@ sub _copy_with_header :Protected {
 	$out->print($ofh, $names);
 
 	my @unusable = (0) x @{$names};
+	my $first = 1;
 	while (my $row = $in->getline($ifh)) {
+		# A byte-order mark: Text::CSV gives it back decoded (U+FEFF), and the
+		# rest of the row with it, or as its three bytes.
+		$row->[0] =~ s/\A(?:\x{FEFF}|\xEF\xBB\xBF)// if $first-- > 0 && defined $row->[0];
 		next if @{$row} == 1 && $row->[0] !~ /\S/;	# a blank line
 		if (@{$row} > @{$names}) {
 			my @extra = splice @{$row}, @{$names} - 1;
@@ -1685,6 +1694,24 @@ sub _init_backend :Protected {
 		$self->{_headerless_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
 		$info->{id}        = $id;
 		$info->{file_size} = $size;
+		$dir = "$tmp";
+	}
+
+	# A byte-order mark: D::A reads a copy without it, or the first column's
+	# name would start with it and match nothing a reader types.
+	# $self->{_file_path} stays the real file, whose mtime is what counts.
+	if (my $bom = delete $info->{_bom}) {
+		require File::Temp;
+		my $tmp  = File::Temp->newdir(CLEANUP => 1);
+		my $copy = File::Spec->catfile("$tmp", "$raw_table.$bom->{ext}");
+		open my $ifh, '<:raw', $bom->{path};
+		open my $ofh, '>:raw', $copy;
+		read $ifh, my $mark, 3;
+		while (read $ifh, my $chunk, 65_536) { print {$ofh} $chunk }
+		close $ifh;
+		close $ofh;
+		$self->{_bom_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
+		$info->{file_size}   = -s $copy;
 		$dir = "$tmp";
 	}
 

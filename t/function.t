@@ -787,9 +787,58 @@ subtest '_apply_filter_spec -- between operator on numbers compares as numbers' 
 		[ 'kiwi' ], 'a range of words still compares as text';
 };
 
+subtest '_apply_filter_spec -- between of dates, timestamps and text, either way round' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
+	my $pick = sub {
+		my ($col, $rows, $spec) = @_;
+		return [ map { $_->{$col} } @{ $fn->([ map { { $col => $_ } } @{$rows} ], $spec) } ];
+	};
+	my @days = qw(2025-12-31 2026-01-01 2026-06-15 2026-12-31 2027-01-01);
+	is_deeply $pick->('d', \@days, 'd:between:2026-12-31:2026-01-01'),
+		[ qw(2026-01-01 2026-06-15 2026-12-31) ],
+		'dates written latest first are the same range, not an empty one';
+	is_deeply $pick->('d', [ '1/1/2026', '7/4/2026', '1/2/2027' ], 'd:between:2026-12-31:2026-01-01'),
+		[ '1/1/2026', '7/4/2026' ], 'M/D/YYYY cells against reversed ISO bounds';
+
+	my @times = qw(2026-11-01T08:59:59 2026-11-01T09:00:00 2026-11-01T12:30:00
+		2026-11-01T17:00:00 2026-11-01T17:00:01);
+	is_deeply $pick->('t', \@times, 't:between:2026-11-01T09:00:00:2026-11-01T17:00:00'),
+		[ qw(2026-11-01T09:00:00 2026-11-01T12:30:00 2026-11-01T17:00:00) ],
+		'timestamp bounds: split at the colon between them, both ends included';
+	is_deeply $pick->('t', \@times, 't:between:2026-11-01T17:00:00:2026-11-01T09:00:00'),
+		[ qw(2026-11-01T09:00:00 2026-11-01T12:30:00 2026-11-01T17:00:00) ],
+		'timestamp bounds written latest first';
+	is_deeply $pick->('t', \@times, 't:between:2026-11-01 12:00:2026-11-01'),
+		[ qw(2026-11-01T08:59:59 2026-11-01T09:00:00) ],
+		'a timestamp and a bare date, reversed: midnight (the date) to noon';
+	is_deeply $pick->('t', \@times, 't:between:2026-11-01:2026-11-01'),
+		\@times, 'two bare dates on timestamps keep the whole day';
+	is_deeply $pick->('d', \@days, 'd:between:abc:2026-01-01'),
+		[ qw(2026-01-01 2026-06-15 2026-12-31 2027-01-01) ],
+		'a date and a word is a text range (reversed, and "abc" sorts after every date)';
+
+	my @words = qw(apple Banana kiwi Lemon pear);
+	is_deeply $pick->('w', \@words, 'w:between:l:b'), [ qw(Banana kiwi) ],
+		'words written latest first';
+	is_deeply $pick->('w', \@words, 'w:between:B:LEMON'), [ qw(Banana kiwi Lemon) ],
+		'text bounds ignore case, as eq and contains do';
+	is_deeply $pick->('w', \@words, 'w:between::'), [ ], 'two empty bounds keep nothing';
+	is_deeply $pick->('w', \@words, 'w:between:'), [ ], 'no bounds keep nothing';
+
+	my $split = \&Database::BI::Controller::Dashboard::_between_bounds;
+	is_deeply [ $split->('2026-11-01T09:00:00:2026-11-01T17:00') ],
+		[ '2026-11-01T09:00:00', '2026-11-01T17:00' ], '_between_bounds: two timestamps';
+	is_deeply [ $split->('a:b:c') ], [ 'a', 'b:c' ], '_between_bounds: otherwise the first colon';
+	is_deeply [ $split->('a') ], [ ], '_between_bounds: no colon';
+	is_deeply [ $split->(':b') ], [ ], '_between_bounds: an empty side';
+	is_deeply [ $split->(undef) ], [ ], '_between_bounds: undef';
+};
+
 subtest '_apply_filter_spec -- unknown operator passes all rows through' => sub {
 	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
 	my $records = [{ x => 1 }, { x => 2 }];
+	# A request never gets this far with one: _filter_request refuses it
+	# before dispatch (400).  The function itself still keeps every row.
 	my $out = $fn->($records, 'x:totally_unknown_op:1');
 	is scalar(@$out), 2, 'unknown operator is a pass-through (all rows kept)';
 };

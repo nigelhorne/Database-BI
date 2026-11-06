@@ -42,12 +42,17 @@ Multiple joins can be chained.
 the user add filter conditions without opening any panel.  Pressing Enter
 applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: `eq`,
-`ne`, `contains`, `starts`, `lt`, `le`, `gt`, `ge`, `empty`,
+`ne`, `contains`, `starts`, `lt`, `le`, `gt`, `ge`, `between`, `empty`,
 `notempty`; and `in`, which a link can carry but the bar does not offer: any
 value of a JSON list, as in `f=place:in:["Paris","Rome"]`.  Filters are
 applied server-side after all joins.  `lt`, `le`,
 `gt` and `ge` compare numbers, reading `$1,234.56` and `(1,234.56)` as
 numbers too; a blank or a word in the cell matches none of them.
+An operator that is none of these (operators are lower case) is a `400` that
+lists them, and so is a filter, or a time range's `rcol=`, on a column the
+view does not have (the message lists the columns): neither is taken as a
+filter that keeps every row, or none.  A canvas card's own saved filters are
+the exception: one on a column its dataset no longer has is ignored.
 - **Combine (UNION ALL)** -- the "Combine data" panel stacks rows from a
 second (or further) file beneath the current rows, using a unified column
 set and leaving blanks where a source file lacks a column.
@@ -161,7 +166,9 @@ All file data is returned as Perl character strings.  CSV/PSV/TSV files are
 read by [Text::xSV::Slurp](https://metacpan.org/pod/Text%3A%3AxSV%3A%3ASlurp) or [DBD::CSV](https://metacpan.org/pod/DBD%3A%3ACSV), both of which pass bytes
 through without re-encoding; the application serves the resulting page as
 `text/html; charset=UTF-8`, so full Unicode is displayed correctly as
-long as the source file itself is UTF-8.
+long as the source file itself is UTF-8.  A UTF-8 byte-order mark at the
+start of a CSV, TSV, PSV or JSON file (Excel's "CSV UTF-8" writes one) is
+read past, so it is not part of the first column's name.
 
 Filter values (`f=col:op:val`) are decoded from the URL by Mojolicious
 before reaching the controller and are compared against cell values as
@@ -286,9 +293,11 @@ perl Makefile.PL
     only a relative window of rows (see ["Relative time ranges"](#relative-time-ranges)).
 
     `?f=col:between:lo:hi` keeps the rows whose `col` lies from `lo` to `hi`,
-    both included.  Two numbers (a range of years, `Year:between:1880:1900`)
-    compare as numbers, whichever is written first; two dates compare as dates; any
-    other pair compares as text.  The filter row offers it for date columns (two
+    both included, whichever bound is written first.  Two numbers (a range of
+    years, `Year:between:1880:1900`) compare as numbers; two dates or timestamps
+    compare as times (`when:between:2026-11-01T09:00:00:2026-11-01T17:00:00`
+    splits at the colon between them); any other pair compares as text, ignoring
+    case.  The filter row offers it for date columns (two
     date boxes) and number columns (two number boxes).
 
     A name that is not a table in `data_dir` is a `404` page that says so ("There
@@ -2078,11 +2087,13 @@ better opened through a view that narrows it.
 - A MariaDB table or view whose name holds anything but letters, digits and
 underscores cannot be opened.  `/tables` shows it with a `CREATE VIEW` statement
 that gives it a usable name.
-- A relative time range is resolved against the server's clock and compares the
-column as a string, like every other filter.  A column holding a time zone
-offset or a non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so
-`last_24_hours` is exact only for a column whose values are ISO
-`YYYY-MM-DDTHH:MM:SS` (a space instead of the `T` is accepted too).
+- A relative time range is resolved against the server's clock.  An ISO
+timestamp, `YYYY-MM-DDTHH:MM:SS` (a space instead of the `T`, no seconds, a
+fraction of a second, and a trailing `Z` or offset such as `+01:00` are all
+accepted), is read as written: the zone is not applied, so
+`2026-11-06T13:00:00Z` and `2026-11-06T13:00:00+05:00` are the same time to
+a filter.  A non-ISO timestamp is read as far as its `YYYY-MM-DD` prefix, so
+`last_24_hours` is exact only for ISO timestamps in the server's zone.
 - Multi-table left joins are performed in memory by [Database::Join](https://metacpan.org/pod/Database%3A%3AJoin).  All
 component tables are fetched into RAM before the merge; this is not
 suitable for files that do not fit in the process's available memory.

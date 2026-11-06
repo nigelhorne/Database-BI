@@ -9,15 +9,27 @@ use Mojo::Base 'Mojolicious::Command';
 
 use Carp qw(croak);
 use Database::BI::Password qw(hash_password);
+use Readonly;
+
+# What the command stops with.  Each ends in a newline, so croak prints it as
+# it is, without the line it was raised at: they are for a person at a shell.
+Readonly our %MESSAGES => (
+	error_no_password => "password: no password given\n",
+	error_mismatch    => "password: the two did not match\n",
+);
 
 has description => 'Make the password_hash line that turns on the login';
 has usage       => sub { shift->extract_usage };
+
+# _interactive() -> bool: whether a person is typing (STDIN is a terminal),
+# who is asked twice.  A sub of its own so a test can be that person.
+sub _interactive { return -t STDIN ? 1 : 0 }
 
 # Reads one line from STDIN.  At a terminal the echo is turned off, so the
 # password is not left on the screen or in a recording of it.
 sub _read_secret {
 	my ($prompt) = @_;
-	my $tty = -t STDIN;
+	my $tty = _interactive();
 	my ($termios, $lflag);
 	if ($tty) {
 		print STDERR $prompt;
@@ -45,10 +57,10 @@ sub run {
 	croak $self->usage if @args;
 
 	my $password = _read_secret('Password: ');
-	croak "password: no password given\n" unless defined $password && length $password;
-	if (-t STDIN) {
+	croak $MESSAGES{error_no_password} unless defined $password && length $password;
+	if (_interactive()) {
 		my $again = _read_secret('Again: ');
-		croak "password: the two did not match\n" unless defined $again && $again eq $password;
+		croak $MESSAGES{error_mismatch} unless defined $again && $again eq $password;
 	}
 
 	my $hash = hash_password($password);
@@ -95,8 +107,9 @@ password is not stored anywhere.
 
 =head4 OUTPUT
 
-Prints C<< password_hash => '...', >> on STDOUT.  Croaks when given arguments,
-when no password is given, or when the two typed at a terminal differ.
+Prints C<< password_hash => '...', >> on STDOUT.  Croaks with the usage when
+given arguments, and with a message from C<%Database::BI::Command::password::MESSAGES>
+when no password is given or when the two typed at a terminal differ.
 
 =head1 AUTHOR
 

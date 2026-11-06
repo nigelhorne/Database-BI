@@ -256,6 +256,9 @@ Readonly my %MESSAGES => (
 	error_agg_fn                => 'Unknown aggregate function "%s"; expected one of: %s, or p1 to p100 for a percentile',
 	error_range_name            => 'Unknown time range "%s"; expected one of: %s',
 	error_range_column          => 'A time range is applied to one column: add rcol=<column> to the URL',
+	error_filter_op             => 'Unknown filter operator "%s" in f=%s; expected one of: %s',
+	error_filter_column         => 'There is no column called "%s" to filter on (f=%s); the columns are: %s',
+	error_range_column_unknown  => 'There is no column called "%s" for the time range (rcol=%s); the columns are: %s',
 	error_span_interval         => 'Unknown time bucket "%s" for span=; use a count and one of s, m, h, d, w, mon, q or y, for example 1h or 15m',
 	error_span_no_column        => 'A time bucket needs one column to bucket: add tcol=<column>, or name exactly one of the dimensions this page already takes',
 	error_span_tcol_orphan      => 'tcol=%s names the column to bucket, but span=<interval> is missing',
@@ -417,6 +420,14 @@ Readonly my @TIME_RANGES => (
 	{ name => 'last_year',     label => 'Last year',     year  => -1 },
 );
 Readonly my %TIME_RANGE => map { $_->{name} => $_ } @TIME_RANGES;
+
+# The operators an f= filter may name (_apply_filter_spec), as written: an
+# operator in capitals is refused with the rest, not read as another one.
+Readonly my @FILTER_OPS => qw(eq ne contains starts lt le gt ge empty notempty between in);
+Readonly my %FILTER_OP  => map { $_ => 1 } @FILTER_OPS;
+
+# How many column names a refusal lists before it says how many more there are.
+Readonly my $FILTER_COLUMNS_LISTED => 20;
 
 # Allowed strptime-style date format patterns for the /dates/save endpoint, and
 # the two time patterns that may be given beside one of them for a column that
@@ -1708,8 +1719,11 @@ sub _get_columns {
 #       empty (cell eq ''), notempty (cell ne '')
 #     List (val = a JSON array of strings; compared as eq is):
 #       in -- lc(cell) is one of them; a val that is not such an array matches nothing
-#     Range (val = lo:hi, string comparison -- correct for ISO YYYY-MM-DD dates):
-#       between -- lo le cell le hi
+#     Range (val = lo:hi, both ends included, whichever is written first;
+#       see _between_bounds for where a timestamp's colons leave it):
+#       between -- two numbers compare as numbers, two dates or timestamps
+#       as times (at the precision of the bounds), anything else as text,
+#       case-insensitively
 #   Boundary rules for numeric operators:
 #     le/ge include the boundary value; lt/gt exclude it.
 #   contains/starts with empty val ('') match every record (index always 0).
@@ -1728,9 +1742,11 @@ sub _get_columns {
 #          plain string, so the date comparisons can be used instead of the
 #          string ones.  A bare date (YYYY-MM-DD) qualifies, and so does an ISO
 #          timestamp (YYYY-MM-DDTHH:MM:SS) or the same with a space separator,
-#          which is what CSV exports and SQLite text columns usually hold.
+#          which is what CSV exports and SQLite text columns usually hold, and
+#          one with a fraction of a second or a zone (Z, +01:00), which is what
+#          JSON APIs write.  The time is taken as written (Util::iso_datetime).
 sub _is_iso_date {
-	return defined($_[0]) && $_[0] =~ /\A\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2})?)?\z/;
+	return scalar(() = Database::BI::Util::iso_datetime($_[0])) ? 1 : 0;
 }
 
 # Convert M/D/YYYY or YYYY-MM-DD to YYYY-MM-DD; returns undef for other formats.
@@ -1796,8 +1812,7 @@ sub _time_columns {
 sub _date_key {
 	my ($value, $precision) = @_;
 	return undef unless defined $value;
-	my ($day, $hour, $min, $sec) =
-		$value =~ /\A(\d{4}-\d{2}-\d{2})(?:[T ](\d{2}):(\d{2})(?::(\d{2}))?)?\z/;
+	my ($day, $hour, $min, $sec) = Database::BI::Util::iso_datetime($value);
 	return undef unless defined $day;
 	return $day if $precision < 19;
 	return sprintf '%sT%s:%s:%s', $day, $hour // '00', $min // '00', $sec // '00';
@@ -1896,11 +1911,11 @@ sub _time_range_bounds {
 #
 # Purpose: Express a window as the f= filters the pipeline applies.
 # Notes:   Two bounds -- col:ge:lo and col:le:hi -- rather than one between
-#          spec.  A between value is "lo:hi" and its separator is a colon, so
-#          it cannot carry a bound with a time in it (last_24_hours ends in
-#          HH:MM:SS), and a colon in a column value would end the operator
-#          field early.  Two specs are inclusive at both ends exactly once,
-#          whatever precision the bounds carry.
+#          spec.  A between value is "lo:hi", and its colon has to be found
+#          among a timestamp's own (_between_bounds; last_24_hours ends in
+#          HH:MM:SS); one bound per spec needs no such search.  Two specs are
+#          inclusive at both ends exactly once, whatever precision the bounds
+#          carry.
 sub _time_range_specs {
 	my ($col, $lo, $hi) = @_;
 	return [] unless length($col // '') && length($lo // '') && length($hi // '');
@@ -2005,6 +2020,73 @@ sub _time_range_request ($c) {
 	return 1;
 }
 
+# _filter_request($c) -> bool
+#
+# Purpose: Refuse an f= filter whose operator is not one _apply_filter_spec
+#          knows.  Until 0.021.0 such a filter kept every row, with nothing to
+#          say it had done nothing (f=amount:GT:5, f=amount:gtx:5).  Registered
+#          as a before_dispatch hook in Database::BI::startup beside the time
+#          range's, so every route that reads f= refuses it the same way.
+# Entry:   $c -- the controller for the request.
+# Exit:    True when every filter names a known operator, or has no column or
+#          operator at all (such a spec has always been skipped); otherwise
+#          renders 400 (error_filter_op, which lists the operators) and
+#          returns false.
+# Notes:   A filter on a column the view does not have is refused later, once
+#          the columns are known (_unknown_filter_column).  A canvas card's own
+#          stored filters never come through here: they are ignored when stale,
+#          by design.
+sub _filter_request ($c) {
+	for my $spec (@{ $c->every_param('f') // [] }) {
+		my ($col, $op) = split /:/, $spec, 3;
+		next unless length($col // '') && defined $op && length $op;
+		next if $FILTER_OP{$op};
+		$c->render(
+			text   => sprintf($MESSAGES{error_filter_op}, $op, $spec, join(', ', @FILTER_OPS)),
+			status => 400,
+		);
+		return 0;
+	}
+	return 1;
+}
+
+# _unknown_filter_column($self, \@columns, \%later) -> $message | undef
+#
+# Purpose: The refusal for a filter, or the time range, on a column the view
+#          does not have.  Such a filter used to read every cell as empty and
+#          keep no rows (or every row, for ne and empty), so a mistyped name
+#          looked like an empty file.
+# Entry:   \@columns -- the view's columns at the filter stage; \%later -- the
+#          columns stages 6 and 7 will add (a filter on one waits for them).
+# Exit:    undef when every filter names a column there, or when the columns
+#          are not known (no list, or an empty one: a URL source's cache, or
+#          a view with no rows); else the error_filter_column message (or
+#          error_range_column_unknown for rcol=), naming the columns there.
+# Notes:   A plain function, like _reduce_records, which calls it; _fetch_page
+#          calls it too, for the table pages.
+sub _unknown_filter_column {
+	my ($self, $columns, $later) = @_;
+	return undef unless ref $columns eq 'ARRAY' && @{$columns};
+	my %known = ((map { $_ => 1 } @{$columns}), %{ $later // {} });
+	my $listed = sub {
+		my @names = @{$columns};
+		return join(', ', @names) if @names <= $FILTER_COLUMNS_LISTED;
+		return join(', ', @names[0 .. $FILTER_COLUMNS_LISTED - 1])
+			. sprintf(' and %d more', @names - $FILTER_COLUMNS_LISTED);
+	};
+	for my $spec (@{ $self->every_param('f') // [] }) {
+		my ($col, $op) = split /:/, $spec, 3;
+		next unless length($col // '') && defined $op && length $op;
+		next if $known{$col};
+		return sprintf($MESSAGES{error_filter_column}, $col, $spec, $listed->());
+	}
+	my $range = $self->stash('time_range');
+	if (ref $range eq 'HASH' && !$known{ $range->{col} // '' }) {
+		return sprintf($MESSAGES{error_range_column_unknown}, $range->{col}, $range->{col}, $listed->());
+	}
+	return undef;
+}
+
 # _filter_in_values($val) -> @strings
 #
 # The values an f=col:in:<val> filter lists: $val is a JSON array, and only its
@@ -2019,21 +2101,51 @@ sub _filter_in_values {
 	return map { $_ // '' } grep { !ref } @{$list};
 }
 
+# _between_bounds($val) -> ($lo, $hi) | ()
+#
+# Purpose: Split a between value, "lo:hi", into its two bounds.  The
+#          separator is a colon, and a timestamp holds colons of its own, so
+#          the split is made where both sides read as dates or timestamps if
+#          there is such a place, and at the first colon otherwise.
+# Input:   $val - the filter value.
+# Output:  The two bounds, both non-empty, in the order written; the empty
+#          list when there is no colon or either side is empty.
+sub _between_bounds {
+	my ($val) = @_;
+	return () unless defined $val;
+	my @at;
+	my $pos = -1;
+	push @at, $pos while ($pos = index($val, ':', $pos + 1)) != -1;
+	return () unless @at;
+	for my $i (@at) {
+		my ($lo, $hi) = (substr($val, 0, $i), substr($val, $i + 1));
+		return ($lo, $hi) if _is_iso_date($lo) && _is_iso_date($hi);
+	}
+	my ($lo, $hi) = (substr($val, 0, $at[0]), substr($val, $at[0] + 1));
+	return () unless length $lo && length $hi;
+	return ($lo, $hi);
+}
+
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
 	return $records unless length($col // '') && defined $op && length $op;
 	$val //= '';
 	my $lval    = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
-	my $is_date = _is_iso_date($val)
-		|| ($op eq 'between' && $val =~ /\A\d{4}-\d{2}-\d{2}:/);
+	my $between = $op eq 'between';
+	my ($lo, $hi) = $between ? _between_bounds($val) : ();
+	# A between is about times only when both its bounds are.
+	my $is_date = $between
+		? (defined $lo && _is_iso_date($lo) && _is_iso_date($hi))
+		: _is_iso_date($val);
 	# Compare at the precision the bound names: a bound with a time in it asks
 	# about the second, a bare date asks about the day.  Without this, a date
 	# bound compared against a column of timestamps drops every row on the
 	# boundary day, because the cell string carries more characters than the
 	# bound and "2026-10-27T09:15:00" sorts after "2026-10-27".
-	my $prec = ($is_date && $val =~ /\A\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/) ? 19 : 10;
-	my $nval = $is_date ? (_date_key($val, $prec) // $val) : $val;
+	my $prec = ($is_date && (grep { defined((Database::BI::Util::iso_datetime($_))[1]) }
+		$between ? ($lo, $hi) : ($val))) ? 19 : 10;
+	my $nval = $is_date && !$between ? (_date_key($val, $prec) // $val) : $val;
 	# An order is a statement about numbers.  A blank or a word has no place in
 	# one, so it matches none of the four, rather than counting as zero.
 	my $by_number = !$is_date && $op =~ /\A(?:lt|le|gt|ge)\z/;
@@ -2041,13 +2153,19 @@ sub _apply_filter_spec {
 	# A between of two numbers (a range of years, of prices) compares as
 	# numbers, inclusive at both ends and whichever bound is written first;
 	# "9" sorts after "10" as text.  Anything else keeps the text comparison.
+	# Dates and text likewise: the bounds are put in order before they are
+	# used, so "2026-12-31:2026-01-01" is the year, not nothing.
 	my ($num_lo, $num_hi);
-	if (!$is_date && $op eq 'between') {
-		my ($lo, $hi) = split /:/, $val, 2;
-		($num_lo, $num_hi) = (_numeric_cell($lo), _numeric_cell($hi))
-			if length($lo // '') && length($hi // '');
-		($num_lo, $num_hi) = (undef, undef) unless defined $num_lo && defined $num_hi;
+	if ($between && defined $lo) {
+		if ($is_date) {
+			($lo, $hi) = map { _date_key($_, $prec) // $_ } $lo, $hi;
+		} else {
+			($num_lo, $num_hi) = (_numeric_cell($lo), _numeric_cell($hi));
+			($num_lo, $num_hi) = (undef, undef) unless defined $num_lo && defined $num_hi;
+			($lo, $hi) = (lc $lo, lc $hi);
+		}
 		($num_lo, $num_hi) = ($num_hi, $num_lo) if defined $num_lo && $num_lo > $num_hi;
+		($lo, $hi) = ($hi, $lo) if $lo gt $hi;
 	}
 	my %in_set    = $op eq 'in' ? (map { lc($_) => 1 } _filter_in_values($val)) : ();
 	return [grep {
@@ -2075,8 +2193,8 @@ sub _apply_filter_spec {
 			defined $n && $n >= $num_lo && $n <= $num_hi
 		} :
 		$op eq 'between'  ? do {
-			my ($lo, $hi) = split /:/, $val, 2;
-			length($lo // '') && length($hi // '') && $ncell ge $lo && $ncell le $hi
+			my $key = $is_date ? $ncell : lc $cell;
+			defined $lo && $key ge $lo && $key le $hi
 		} :
 		1
 	} @$records];
@@ -2616,6 +2734,9 @@ sub _reduce_records {
 	# every filter that can run first does, and the rest run last.
 	my $crossing = (!$opts || !$opts->{no_cross_row}) && length($self->param('cs') // '');
 	my %written  = $crossing ? map { $_ => 1 } _cross_row_written($self) : ();
+	if (defined(my $why = _unknown_filter_column($self, $columns, \%written))) {
+		croak $why;
+	}
 	my @late;
 	for my $s (@{ _filter_specs($self) }) {
 		if ($written{ (split /:/, $s, 2)[0] // '' }) {
@@ -2818,7 +2939,9 @@ sub _filter_specs_to_criteria {
 		}
 
 		if ($op eq 'eq' || $op eq 'ne') {
-			if ($val =~ /[%_]/) {
+			# A date compares by the day in Perl (a timestamp cell is on the
+			# day it names); LIKE would want the cell to be the date exactly.
+			if ($val =~ /[%_]/ || _is_iso_date($val)) {
 				push @residual, $spec;
 			} else {
 				$criteria{$col} = ($op eq 'eq')
@@ -3087,7 +3210,7 @@ sub _grouped_totals :Protected ($self, $pipeline, $spec) {
 	# See: https://rt.cpan.org/Ticket/Display.html?id=181946
 	# Skip the push path whenever any 'by' column has a blank or undef value so
 	# DBD::CSV/SQL::Statement is never asked to GROUP BY a null key.
-	# TODO: remove this guard once SQL-Statement RT#181946 is fixed (last checked: 1.414).
+	# TODO: remove this guard once SQL-Statement RT#181946 is fixed (last checked: 1.414, still the latest release, 2026-11-06).
 	my $has_null_by_key = @$by && do {
 		my $found;
 		KEY_SCAN: for my $row (@$records) {
@@ -3366,6 +3489,11 @@ sub _fetch_page :Protected ($self, $source, $params) {
 
 	# A filter on a column stages 6 and 7 write waits for them.  See _reduce_records.
 	my %written = $cross ? map { $_ => 1 } _cross_row_written($self) : ();
+	my @filter_cols = @cols_so_far ? @cols_so_far : _get_columns($source, $all);
+	if (defined(my $why = _unknown_filter_column($self, \@filter_cols, \%written))) {
+		$refuse->($why);
+		return ();
+	}
 	my @late    = grep { $written{ (split /:/, $_, 2)[0] } } @f_specs;
 	$all = _apply_filter_spec($all, $_) for grep { !$written{ (split /:/, $_, 2)[0] } } @f_specs;
 
@@ -8508,14 +8636,14 @@ sub range_api ($self) {
 	return $self->render(json => { min => undef, max => undef })
 		unless $records && grep { $_ eq $col } @$columns;
 
-	my $iso_re = qr/\A\d{4}-\d{2}-\d{2}\z/;
 	my $mdy_re = qr|\A(\d{1,2})/(\d{1,2})/(\d{4})\z|;
 	my @dates;
 	for my $rec (@$records) {
 		my $v = $rec->{$col} // '';
 		next unless length $v;
-		if ($v =~ $iso_re) {
-			push @dates, $v;
+		# A timestamp counts as the day it names, as the filters read it.
+		if (defined(my $day = (Database::BI::Util::iso_datetime($v))[0])) {
+			push @dates, $day;
 		} elsif (my @m = ($v =~ $mdy_re)) {
 			push @dates, sprintf '%04d-%02d-%02d', $m[2], $m[0], $m[1];
 		}

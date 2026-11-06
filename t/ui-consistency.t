@@ -177,6 +177,12 @@ subtest 'Print sits to the right of Refresh and prints every row of the view' =>
 	like($print, qr/biTableState\(\)/, 'in the columns and order the table shows');
 	like($print, qr/biValueComparator\(/, 'sorted as the table sorts');
 	like($print, qr/window\.print\(\)/, 'and prints');
+	my ($cap) = $print =~ /var PRINT_CONFIRM_ROWS = (\d+);/;
+	ok($cap, 'a row count past which Print asks first');
+	like($print, qr/rows\.length > PRINT_CONFIRM_ROWS\s*&& !window\.confirm\(/,
+		'it asks before building a table of more rows than that');
+	like($print, qr/window\.confirm\(.*?\{\s*done\(\);.*?return;\s*\}\s*var n = build\(rows\);/s,
+		'and a No builds nothing and prints nothing');
 	my @markup = $print =~ /\.innerHTML\s*=\s*(.+?);\s*$/mg;
 	is_deeply(\@markup, [q{'&#x2399; Preparing&hellip;'}, 'label'],
 		'only the button label is set as markup; cells are set as text');

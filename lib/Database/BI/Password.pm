@@ -26,6 +26,15 @@ Readonly my $KEY_BYTES      => 32;
 Readonly my $SCHEME         => 'pbkdf2-sha256';
 Readonly my $HASH_RE        => qr{\A\Q$SCHEME\E\$(\d{5,9})\$([A-Za-z0-9+/]{22})\$([A-Za-z0-9+/]{43})\z};
 
+# What hash_password croaks with.  They are for whoever calls it (the
+# password command, a test), so they are English only.
+Readonly our %MESSAGES => (
+	error_password_required => 'hash_password: a password is required',
+	error_password_rounds   => 'hash_password: rounds must be a whole number from %d to %d',
+	error_password_salt     => 'hash_password: a salt is %d bytes',
+	error_password_random   => 'hash_password: Crypt::URandom gave %d random bytes, not %d',
+);
+
 # _pbkdf2($password, $salt, $rounds, $bytes) -> $key
 #
 # One block is all a 32-byte key needs, but the loop over blocks is kept so
@@ -46,17 +55,16 @@ sub _pbkdf2 {
 }
 
 # _random_bytes($n) -> $bytes
+#
+# Crypt::URandom is a prerequisite (Windows has no /dev/urandom, which this
+# once fell back to), and it croaks itself when the system has no source.
 sub _random_bytes {
 	my ($n) = @_;
-	local ($@, $!);
-	my $bytes = eval { require Crypt::URandom; Crypt::URandom::urandom($n) };
-	return $bytes if defined $bytes && length($bytes) == $n;
-	if (open(my $fh, '<:raw', '/dev/urandom')) {
-		my $got = read($fh, $bytes, $n);
-		close $fh;
-		return $bytes if defined $got && $got == $n;
-	}
-	croak 'hash_password: no source of random bytes (install Crypt::URandom)';
+	require Crypt::URandom;
+	my $bytes = Crypt::URandom::urandom($n);
+	croak sprintf($MESSAGES{error_password_random}, length($bytes // ''), $n)
+		unless defined $bytes && length($bytes) == $n;
+	return $bytes;
 }
 
 sub _b64 {
@@ -78,12 +86,12 @@ sub _octets {
 
 sub hash_password {
 	my ($password, %opts) = @_;
-	croak 'hash_password: a password is required' unless defined $password && length $password;
+	croak $MESSAGES{error_password_required} unless defined $password && length $password;
 	my $rounds = $opts{rounds} // $DEFAULT_ROUNDS;
-	croak "hash_password: rounds must be a whole number from $MIN_ROUNDS to $MAX_ROUNDS"
+	croak sprintf($MESSAGES{error_password_rounds}, $MIN_ROUNDS, $MAX_ROUNDS)
 		unless $rounds =~ /\A\d+\z/ && $rounds >= $MIN_ROUNDS && $rounds <= $MAX_ROUNDS;
 	my $salt = $opts{salt} // _random_bytes($SALT_BYTES);
-	croak "hash_password: a salt is $SALT_BYTES bytes" unless length($salt) == $SALT_BYTES;
+	croak sprintf($MESSAGES{error_password_salt}, $SALT_BYTES) unless length($salt) == $SALT_BYTES;
 	my $key = _pbkdf2(_octets($password), $salt, $rounds, $KEY_BYTES);
 	return join '$', $SCHEME, $rounds, _b64($salt), _b64($key);
 }
@@ -154,8 +162,10 @@ without padding.  C<script/database-bi password> makes one.
 
 =head4 OUTPUT
 
-The hash string.  Croaks on a missing password, rounds out of range, a salt of
-another length, or no source of random bytes.
+The hash string.  Croaks on a missing password, rounds out of range, or a salt
+of another length; the messages are in C<%Database::BI::Password::MESSAGES>.
+Crypt::URandom, which makes the salt, croaks when the system has no source of
+random bytes.
 
 =head2 verify_password
 

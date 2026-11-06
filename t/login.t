@@ -186,6 +186,22 @@ subtest 'over https the cookie is Secure' => sub {
 	ok $cookie && $cookie->secure, 'Secure, so it is never sent over http';
 };
 
+subtest 'Secure is decided per request, and a whole-app secure still holds' => sub {
+	local $ENV{MOJO_REVERSE_PROXY} = 1;
+	my $t = app_with(password_hash => $HASH);
+	my $secure = sub {
+		my (%headers) = @_;
+		$t->post_ok('/login' => \%headers => form => { password => $PASSWORD })->status_is(302);
+		my ($cookie) = grep { $_->name eq 'database_bi' } @{ $t->tx->res->cookies };
+		return $cookie ? ($cookie->secure ? 1 : 0) : undef;
+	};
+	is $secure->('X-Forwarded-Proto' => 'https'), 1, 'over https: Secure';
+	is $secure->(), 0, 'then over http on the same server: not, as it was only for that request';
+	ok !$t->app->sessions->secure, 'and the setting itself is left as it was';
+	$t->app->sessions->secure(1);
+	is $secure->(), 1, 'with secure set for the whole application, Secure over http too';
+};
+
 subtest 'share and embed links need no login' => sub {
 	my $t = app_with(password_hash => $HASH);
 	log_in($t, $PASSWORD);
