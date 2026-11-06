@@ -65,7 +65,7 @@ Readonly my %SEQUENTIAL_SCHEMES => map { $_ => 1 } qw(YlOrRd Blues Greens Purple
 Readonly my $DEFAULT_SEQUENTIAL_SCHEME  => 'YlOrRd';
 Readonly my $DEFAULT_CATEGORICAL_SCHEME => 'tableau10';
 
-Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx );
+Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx json );
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
 # that passes the extension guard and reaches realpath with an embedded newline.
@@ -152,7 +152,7 @@ Readonly my %MESSAGES => (
 	error_write_failed     => 'Write failed: %s',
 	error_ext_required     => 'Use a .csv, .sql, or .json filename extension',
 	error_upload_none      => 'No file received',
-	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, SQLite (.sql, .sqlite, .sqlite3), Berkeley DB (.db), XLSX',
+	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, JSON, SQLite (.sql, .sqlite, .sqlite3), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_upload_save      => 'Could not save uploaded file',
 	error_uploads_clear    => 'Could not clear the uploaded files',
@@ -897,7 +897,8 @@ sub _crumb_parent :Protected ($self, $url) {
 	if ($path eq '/tables') {
 		my $spec = $q->param('l') // '';
 		return undef unless $spec =~ /\Apath:(.+)\z/;
-		return Mojo::URL->new('/browse?path=' . url_escape(Mojo::File->new($1)->dirname->to_string));
+		my ($file) = _split_path($1);
+		return Mojo::URL->new('/browse?path=' . url_escape(Mojo::File->new($file)->dirname->to_string));
 	}
 	# A canvas came from where its back= says, else from the list of canvases.
 	if ($path =~ m{\A/a/}) {
@@ -969,9 +970,29 @@ sub _crumb_label :Protected ($self, $url) {
 sub _crumb_spec_name {
 	my ($spec) = @_;
 	$spec //= '';
+	if ($spec =~ m{\Apath:(.+)\z}) {
+		my ($file, $internal) = _split_path($1);
+		my $name = Mojo::File->new($file)->basename;
+		return defined $internal ? "$name: $internal" : $name;
+	}
+	return _crumb_spec_name_other($spec);
+}
+
+# _split_path($path) -> ($file, $internal)
+#
+# Purpose: What follows "path:" in a spec: the file, and the table it names
+#          after a "#" (Database::BI::Model::DataSource::split_path).
+sub _split_path {
+	my ($path) = @_;
+	require Database::BI::Model::DataSource;
+	return Database::BI::Model::DataSource::split_path($path);
+}
+
+sub _crumb_spec_name_other {
+	my ($spec) = @_;
+	$spec //= '';
 	return "$1: $2" if $spec =~ m{\Atable:([^/]+)/(.+)\z};
 	return $1       if $spec =~ m{\Atable:(.+)\z};
-	return Mojo::File->new($1)->basename if $spec =~ m{\Apath:(.+)\z};
 	if ($spec =~ m{\Aurl:(.+)\z}i) {
 		my $host = Mojo::URL->new($1)->host;
 		return $host // $1;
@@ -1311,8 +1332,9 @@ sub _accel_file :Protected ($self, $spec) {
 		return $file;
 	}
 	if ($spec =~ m{\Apath:(?!/\.\./)(.+)\z}) {
-		return undef if _outside_roots($self, $1);
-		my $file = eval { Mojo::File->new($1)->realpath };
+		my ($path) = _split_path($1);
+		return undef if _outside_roots($self, $path);
+		my $file = eval { Mojo::File->new($path)->realpath };
 		return (defined $file && -f $file && $file->basename =~ $EXT_RE) ? $file->to_string : undef;
 	}
 	return undef;
@@ -1466,7 +1488,8 @@ sub _open_spec :Protected ($self, $spec) {
 	# An accelerated dataset whose extract still matches its file is read from
 	# the extract, under the file's own label.
 	if (my $fast = _accelerated_source($self, $spec)) {
-		my $label = $spec =~ m{\Atable:(.+)\z} ? lc $1 : Mojo::File->new($spec =~ s/\Apath://r)->basename;
+		my $label = $spec =~ m{\Atable:(.+)\z} ? lc $1
+			: do { my ($f, $i) = _split_path($spec =~ s/\Apath://r); $i // Mojo::File->new($f)->basename };
 		return ($fast, $label);
 	}
 	if ($spec =~ m{\Atable:([A-Za-z0-9_]+)(?:/([A-Za-z0-9_]+))?\z}) {
@@ -1480,7 +1503,10 @@ sub _open_spec :Protected ($self, $spec) {
 		};
 		return ($src, defined $internal ? $internal : $table) if $src && !$@;
 	} elsif ($spec =~ /\Apath:(.+)\z/) {
-		my $path_arg = $1;
+		# path:<file>#<table> names one table of the file, as table:<file>/<table>
+		# does in data_dir.
+		my ($path_arg, $internal) = _split_path($1);
+		my @it = defined $internal ? (internal_table => $internal) : ();
 		# Remote path: /../hostname/dir/file -- delegate to DataSource with host param.
 		# No EXT_RE check: security comes from REMOTE_HOST_RE.  The original
 		# extension (if any) is passed as file_ext so _init_backend tries it first.
@@ -1490,8 +1516,8 @@ sub _open_spec :Protected ($self, $spec) {
 			return () unless $host =~ $REMOTE_HOST_RE;
 			my ($table, $ext) = $file =~ /\A(.+)\.([^.]+)\z/ ? ($1, $2) : ($file, undef);
 			my $src = eval { $self->open_table($table, directory => $dir_part, host => $host,
-				defined $ext ? (file_ext => $ext) : ()) };
-			return ($src, $file) if $src && !$@;
+				defined $ext ? (file_ext => $ext) : (), @it) };
+			return ($src, $internal // $file) if $src && !$@;
 			return ();
 		}
 		return () if _outside_roots($self, $path_arg);
@@ -1499,8 +1525,8 @@ sub _open_spec :Protected ($self, $spec) {
 		if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 			my $dir = $file->dirname->to_string;
 			(my $table = $file->basename) =~ s/\.[^.]+\z//;
-			my $src = eval { $self->open_table($table, directory => $dir) };
-			return ($src, $file->basename) if $src && !$@;
+			my $src = eval { $self->open_table($table, directory => $dir, @it) };
+			return ($src, $internal // $file->basename) if $src && !$@;
 		}
 	} elsif($spec =~ $URL_SPEC_RE) {
 		my $url = $1;
@@ -1596,7 +1622,10 @@ sub _spec_to_url :Protected ($self, $spec) {
 		}
 		return "/view/$table";
 	}
-	return '/open?path=' . url_escape($1) if $spec =~ /\Apath:(.+)\z/;
+	if ($spec =~ /\Apath:(.+)\z/) {
+		my ($file, $internal) = _split_path($1);
+		return '/open?path=' . url_escape($file) . (defined $internal ? '&it=' . url_escape($internal) : '');
+	}
 	return '/import?url=' . url_escape($1) if $spec =~ $URL_SPEC_RE;
 	return '/' if $spec =~ $REDIS_SPEC_RE;
 	return '/open?path=' . url_escape($spec) if $spec =~ $MARIADB_SPEC_RE;
@@ -4417,7 +4446,8 @@ sub _follow_links {
 sub canonical_spec {
 	my ($spec) = @_;
 	return $spec unless defined $spec && $spec =~ m{\Apath:(?!/\.\./)([^\n]+)\z};
-	my $path = $1;
+	my ($path, $internal) = _split_path($1);
+	my $tail = defined $internal ? "#$internal" : '';
 	# Windows' realpath leaves a symlink as it is, so a file reached through
 	# one would be filed under a second key; follow the links first, as
 	# _canonical_path does.
@@ -4427,7 +4457,7 @@ sub canonical_spec {
 	}
 	return $spec unless -e $path;
 	my $real = eval { Mojo::File->new($path)->realpath->to_string };
-	return (defined $real && length $real) ? "path:$real" : $spec;
+	return (defined $real && length $real) ? "path:$real$tail" : $spec;
 }
 
 # _inside_dir($path, $dir) -> $bool
@@ -8031,9 +8061,13 @@ sub open_file ($self) {
 		);
 	}
 
+	# A path that names a table after a "#", as a spec does, is that table.
+	my ($named_file, $named_it) = _split_path($file_path);
+	$file_path = $named_file if defined $named_it;
 	if (my $refusal = _outside_roots($self, $file_path)) {
 		return $self->render(text => $refusal, status => 403);
 	}
+
 	my $file = eval { Mojo::File->new($file_path)->realpath };
 	return $self->reply->not_found
 		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
@@ -8044,7 +8078,7 @@ sub open_file ($self) {
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
 
-	my $it = $self->param('it');	# optional: select a specific internal table
+	my $it = $self->param('it') // $named_it;	# optional: select a specific internal table
 
 	# A table opened from the schema browser belongs to a file in data_dir.  Name
 	# it as table:store/sales so the join, filter and export panels keep the
@@ -8054,6 +8088,9 @@ sub open_file ($self) {
 		my $file_dir = eval { $file->dirname->realpath };
 		$lspec = "table:$table/$it" if $data_dir && $file_dir && "$file_dir" eq "$data_dir";
 	}
+	# Elsewhere the spec names the table after a "#", so the panels and charts
+	# keep it too.
+	$lspec .= "#$it" if defined $it && length $it && $it !~ /[#\n]/ && $lspec =~ /\Apath:/;
 
 	# Allow the tables view to override the default "Back to browser" link.
 	my $back_override = _safe_back_url($self->param('back'));
@@ -8306,6 +8343,7 @@ None produced by this action directly; internal errors yield a 404.
 sub columns_api ($self) {
 	my $table_name = $self->param('table');
 	my $path       = $self->param('path');
+	my $path_internal;
 
 	# Accept the unified spec format used by /join and /graph:
 	# "table:name" or "path:/abs/path" -- mirrors _open_spec's parsing.
@@ -8314,7 +8352,7 @@ sub columns_api ($self) {
 		if ($spec =~ m{\Atable:([A-Za-z_][A-Za-z0-9_]*(?:/[A-Za-z_][A-Za-z0-9_]*)?)\z}) {
 			$table_name = $1;
 		} elsif ($spec =~ /\Apath:(.+)\z/s) {
-			$path = $1;
+			($path, $path_internal) = _split_path($1);
 		}
 	}
 
@@ -8339,7 +8377,8 @@ sub columns_api ($self) {
 			if ($host =~ $REMOTE_HOST_RE) {
 				my ($tbl, $ext) = $file =~ /\A(.+)\.([^.]+)\z/ ? ($1, $2) : ($file, undef);
 				$source = eval { $self->open_table($tbl, directory => $dir_part, host => $host,
-					defined $ext ? (file_ext => $ext) : ()) };
+					defined $ext ? (file_ext => $ext) : (),
+					defined $path_internal ? (internal_table => $path_internal) : ()) };
 			}
 		} elsif (my $refusal = _outside_roots($self, $path)) {
 			return $self->render(json => { error => $refusal }, status => 403);
@@ -8348,7 +8387,8 @@ sub columns_api ($self) {
 			if (defined $file && -f $file && $file->basename =~ $EXT_RE) {
 				my $dir = $file->dirname->to_string;
 				(my $tbl = $file->basename) =~ s/\.[^.]+\z//;
-				$source = eval { $self->open_table($tbl, directory => $dir) };
+				$source = eval { $self->open_table($tbl, directory => $dir,
+					defined $path_internal ? (internal_table => $path_internal) : ()) };
 			}
 		}
 	}
@@ -10376,7 +10416,9 @@ sub folder_view ($self) {
 =head2 tables_view
 
 C<GET /tables> -- Schema browser for multi-table databases (SQLite, etc.).
-Lists all internal tables with their columns; clicking a table opens it.
+Lists all internal tables with their columns; clicking a table opens it.  A
+JSON file that is an object holding lists of objects has one table per list
+(see L<Database::BI::Model::DataSource/json_lists>).
 
 =head3 API SPECIFICATION
 
@@ -10384,7 +10426,7 @@ Lists all internal tables with their columns; clicking a table opens it.
 
   ?l=   string   Required.  Table spec: "table:name" (data_dir) or
                  "path:/abs/path" (filesystem path).  The file must be a
-                 SQLite database.
+                 SQLite database or a .json file.
 
 =head4 OUTPUT
 
@@ -10409,7 +10451,7 @@ sub tables_view ($self) {
 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
 		my $table_name = lc $1;
 		my $data_dir   = _data_dir_for($self->app);
-		for my $ext (qw(sql sqlite sqlite3 db)) {
+		for my $ext (qw(sql sqlite sqlite3 db json)) {
 			my $p = $data_dir->child("$table_name.$ext");
 			if (-f $p) {
 				$file_path = $p->to_string;
@@ -10421,13 +10463,13 @@ sub tables_view ($self) {
 		$back_url  = '/';
 		$back_label = 'Home';
 	} elsif ($spec =~ /\Apath:(.+)\z/) {
-		my $path_arg = $1;
+		my ($path_arg) = _split_path($1);
 		if (my $refusal = _outside_roots($self, $path_arg)) {
 			return $self->render(text => $refusal, status => 403);
 		}
 		my $file = eval { Mojo::File->new($path_arg)->realpath };
 		return $self->reply->not_found
-			unless defined $file && -f $file && $file->basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/i;
+			unless defined $file && -f $file && $file->basename =~ /\.(?:sql|sqlite|sqlite3|db|json)\z/i;
 		$file_path  = $file->to_string;
 		($db_label  = $file->basename) =~ s/\.[^.]+\z//;
 		$back_url   = '/browse?path=' . url_escape($file->dirname->to_string);
@@ -10523,15 +10565,19 @@ sub tables_view ($self) {
 	}
 
 	if (defined $file_path) {
-		require Database::Join::Catalog;
-		my $schema = eval { Database::Join::Catalog->schema(file => $file_path) };
+		# A JSON file's tables are its lists of objects; a SQLite file's are
+		# listed by Database::Join.
+		my $schema = $file_path =~ /\.json\z/i
+			? eval { Database::BI::Model::DataSource->json_lists($file_path) }
+			: eval { require Database::Join::Catalog; Database::Join::Catalog->schema(file => $file_path) };
 		return $self->reply->not_found unless $schema;
 		for my $table_info (@{$schema}) {
 			my $tname = $table_info->{name};
 			my @cols  = @{ $table_info->{columns} };
 			# Database::Abstraction refuses this name, so the card says so
-			# rather than linking to an error.
-			if ($tname !~ $TABLE_NAME_RE) {
+			# rather than linking to an error.  A JSON list's name never
+			# reaches SQL, so any name opens.
+			if ($tname !~ $TABLE_NAME_RE && $file_path !~ /\.json\z/i) {
 				(my $safe = $tname) =~ s/[^A-Za-z0-9_]/_/g;
 				$safe = "_$safe" unless $safe =~ /\A[A-Za-z_]/;
 				push @tables, { name => $tname, columns => \@cols, unusable => 1, safe_name => $safe };

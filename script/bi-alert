@@ -194,16 +194,19 @@ for my $id (@analysis_ids) {
 		exit 2;
 	}
 
-	my $file_path;
+	# table:<name>/<table> and path:<file>#<table> name one table of a file.
+	my ($file_path, $internal);
 	if ($spec =~ /\Atable:(.+)\z/) {
 		my $table = $1;
-		for my $ext (qw(csv tsv psv xlsx xml sql sqlite sqlite3 db)) {
+		($table, $internal) = ($1, $2) if $table =~ m{\A([^/]+)/(.+)\z};
+		for my $ext (qw(csv tsv psv xlsx xml sql sqlite sqlite3 db json)) {
 			my $p = File::Spec->catfile($data_dir, "$table.$ext");
 			if (-f $p) { $file_path = $p; last }
 		}
 	}
 	elsif ($spec =~ /\Apath:(.+)\z/) {
-		$file_path = $1;
+		require Database::BI::Model::DataSource;
+		($file_path, $internal) = Database::BI::Model::DataSource::split_path($1);
 	}
 
 	unless (defined $file_path && -f $file_path) {
@@ -220,6 +223,7 @@ for my $id (@analysis_ids) {
 			file   => $file_path,
 			table  => do { (my $t = $file_path) =~ s/.*\///; $t =~ s/\.[^.]+\z//; $t },
 			directory => do { (my $d = $file_path) =~ s|/[^/]+\z||; $d },
+			defined $internal ? (internal_table => $internal) : (),
 		);
 		$records = $src->fetch_all // [];
 		$columns = $src->columns // [sort keys %{ $records->[0] // {} }];

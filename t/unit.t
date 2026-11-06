@@ -312,7 +312,7 @@ $ledger{"api.$_"} = "documented behaviour: $_" for qw(
 	Extract.new Extract.path Extract.get Extract.put Extract.evict
 	Tutorial.intro Tutorial.chapters Tutorial.faq Tutorial.glossary Tutorial.parts
 	Tutorial.covered_routes Tutorial.exempt_routes Tutorial.chapter_for_action
-	DataSource.sqlite_tables DataSource.dbi_source DataSource.aggregate DataSource.updated DataSource.schema DataSource.count
+	DataSource.sqlite_tables DataSource.dbi_source DataSource.aggregate DataSource.updated DataSource.schema DataSource.count DataSource.json_lists
 	Geocode.shared_cache_from_models Geocode.models_with_shared_cache
 	BI.startup Globals
 	analyses.list analyses.create analyses.get analyses.update analyses.patch analyses.delete
@@ -2523,6 +2523,20 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 
 		my $two = unit_sqlite('two.sqlite', 'CREATE TABLE alpha (id INTEGER)', 'CREATE TABLE beta (id INTEGER)');
 		message_ok(DataSource => 'error_table_not_found', $err->(directory => $dir_of->($two), table => 'two', internal_table => 'gamma'), [undef, 'gamma']);
+
+		my $bad_json = unit_csv('broken.json', '{"rows": [');
+		message_ok(DataSource => 'error_json_invalid', $err->(directory => $dir_of->($bad_json), table => 'broken'), [$bad_json, undef]);
+		my $no_rows = unit_csv('scalars.json', '[1, 2, 3]');
+		message_ok(DataSource => 'error_json_no_rows', $err->(directory => $dir_of->($no_rows), table => 'scalars'), [$no_rows]);
+		my $lists = unit_csv('lists.json', '{"findings": [{"a": 1}], "hosts": [{"b": 2}]}');
+		message_ok(DataSource => 'error_json_list_not_found',
+			$err->(directory => $dir_of->($lists), table => 'lists', internal_table => 'ports'), [$lists, 'ports']);
+		is_deeply(Database::BI::Model::DataSource->json_lists($lists),
+			[ { name => 'findings', columns => ['a'] }, { name => 'hosts', columns => ['b'] } ],
+			'json_lists: each list of objects, with its columns, in file order');
+		is_deeply(Database::BI::Model::DataSource->json_lists(unit_csv('plain.json', '[{"a": 1}]')), [],
+			'json_lists: a file that is a list of rows holds no lists');
+		delete $ledger{'api.DataSource.json_lists'};
 
 		my $odd = unit_sqlite('odd.sqlite', 'CREATE TABLE "bad name" (id INTEGER)', 'CREATE TABLE good (id INTEGER)');
 		my $unsafe = $err->(directory => $dir_of->($odd), table => 'odd', internal_table => 'bad name');

@@ -26,6 +26,16 @@ Revision history for Database-BI
 	  Strict-Transport-Security; embed_frame_ancestors allows framing of
 	  /embed/.
 	- A setting that would not do what it says stops the start.
+	[ Enhancements ]
+	- A .json file can be dropped on a page, opened from the browser or put
+	  in data_dir, as a JSON URL already could be read.  A list of objects,
+	  an object of objects, or an object holding lists of objects (a scan
+	  report's findings and hosts) is a table; a file of several lists opens
+	  on /tables with a card for each.  Columns keep the file's order, and a
+	  nested value shows as its JSON text.
+	- path:<file>#<table> names one table of a file outside data_dir, as
+	  table:<file>/<table> does inside it, so the charts, panels and exports
+	  of a second SQLite table or JSON list no longer read the first.
 	[ Other ]
 	- HTML::D3 0.30, Database::Abstraction 0.55 (which requires its CSV and
 	  XML readers) and Crypt::URandom are now required; URI and HTTP::Message

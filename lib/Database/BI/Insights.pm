@@ -581,7 +581,9 @@ sub _spec_to_data_url {
 		return '/view/' . urlencode($1);
 	}
 	if ($spec =~ /\Apath:(.+)\z/) {
-		return '/open?path=' . urlencode($1);
+		require Database::BI::Model::DataSource;
+		my ($file, $internal) = Database::BI::Model::DataSource::split_path($1);
+		return '/open?path=' . urlencode($file) . (defined $internal ? '&it=' . urlencode($internal) : '');
 	}
 	return undef;
 }

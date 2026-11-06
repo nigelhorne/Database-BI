@@ -251,7 +251,9 @@ sub _build_url {
 			return '/view/' . urlencode($1);
 		}
 		(my $path = $spec_key) =~ s/\Apath://;
-		return '/open?path=' . urlencode($path);
+		require Database::BI::Model::DataSource;
+		my ($file, $internal) = Database::BI::Model::DataSource::split_path($path);
+		return '/open?path=' . urlencode($file) . (defined $internal ? '&it=' . urlencode($internal) : '');
 	}
 
 	my $route  = $KIND_ROUTE{$kind} // $kind;

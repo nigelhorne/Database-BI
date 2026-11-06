@@ -438,7 +438,10 @@ Spec formats:
 
   table:name                         named table from data_dir
   table:file/table                   a table inside a multi-table SQLite file
+                                     (or a list in a JSON file) in data_dir
   path:/abs/path/to/file.csv         absolute local path
+  path:/abs/path/to/file.db#table    one table of such a file anywhere else;
+                                     a file whose own name has a # is that file
   /../hostname/dir/file.csv          remote file via SFTP
   redis:tablename|redis://host:port  Redis hash store (requires Redis module)
   mariadb:server/table               a table on a server in mariadb_servers
@@ -448,7 +451,7 @@ Spec formats:
 
 Returns C<{ "columns": [...] }> for a table (C<?table=name> or
 C<?table=file/table> for a table inside a multi-table SQLite file) or file
-(C<?path=/abs/path>).  Used by the join UI to populate the right-key
+(C<?path=/abs/path>, or C<?spec=path:/abs/path#table> for one of its tables).  Used by the join UI to populate the right-key
 dropdown without a page reload.
 
 =item C<GET /export>
@@ -2031,14 +2034,25 @@ serves.  To add German support: (1) create C<templates/web/de/>, (2) copy and
 translate the C<.html.tt> files from C<templates/web/en/>, then (3) set the
 config.
 
-=item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx>
+=item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json>
 
 The application recognises C<.csv>, C<.db>, C<.sql>, C<.sqlite>, C<.sqlite3>,
-C<.xml>, C<.psv>, C<.tsv>, and C<.xlsx> files.  All three SQLite extensions
+C<.xml>, C<.psv>, C<.tsv>, C<.xlsx> and C<.json> files.  All three SQLite extensions
 (C<.sql>, C<.sqlite>, C<.sqlite3>) are treated identically -- C<inventory.sqlite>
 and C<inventory.sqlite3> are both opened as SQLite databases without renaming.
 Excel C<.xlsx> files are read by L<Database::Abstraction>, using
 C<Spreadsheet::ParseXLSX>.
+
+A C<.json> file is a table when it is a list of objects (each one a row), an
+object of objects (each key a row, shown in a column C<id>, or C<key> when the
+rows have an C<id> of their own), or an object holding lists of objects, as a
+report does: C<{"tool": "scan", "findings": [...], "hosts": [...]}>.  Each
+such list is a table, as a SQLite file's tables are: a file with more than one
+opens on C</tables>, with a card for each, and other values beside the lists
+(a date, a count, an object of totals) are left out.  A cell holding an object
+or a list shows as its JSON text, C<true> and C<false> as words and C<null> as
+an empty cell, and the columns are in the order the file first names them.  A
+file of another format with the same name in the same folder is the one read.
 
 URLs will work.
 For example enter

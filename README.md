@@ -310,7 +310,10 @@ perl Makefile.PL
     ```
     table:name                         named table from data_dir
     table:file/table                   a table inside a multi-table SQLite file
+                                       (or a list in a JSON file) in data_dir
     path:/abs/path/to/file.csv         absolute local path
+    path:/abs/path/to/file.db#table    one table of such a file anywhere else;
+                                       a file whose own name has a # is that file
     /../hostname/dir/file.csv          remote file via SFTP
     redis:tablename|redis://host:port  Redis hash store (requires Redis module)
     mariadb:server/table               a table on a server in mariadb_servers
@@ -321,7 +324,7 @@ perl Makefile.PL
 
     Returns `{ "columns": [...] }` for a table (`?table=name` or
     `?table=file/table` for a table inside a multi-table SQLite file) or file
-    (`?path=/abs/path`).  Used by the join UI to populate the right-key
+    (`?path=/abs/path`, or `?spec=path:/abs/path#table` for one of its tables).  Used by the join UI to populate the right-key
     dropdown without a page reload.
 
 - `GET /export`
@@ -1981,14 +1984,25 @@ the same and shows that database, with a command word it runs that command, and 
     translate the `.html.tt` files from `templates/web/en/`, then (3) set the
     config.
 
-- **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx**
+- **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json**
 
     The application recognises `.csv`, `.db`, `.sql`, `.sqlite`, `.sqlite3`,
-    `.xml`, `.psv`, `.tsv`, and `.xlsx` files.  All three SQLite extensions
+    `.xml`, `.psv`, `.tsv`, `.xlsx` and `.json` files.  All three SQLite extensions
     (`.sql`, `.sqlite`, `.sqlite3`) are treated identically -- `inventory.sqlite`
     and `inventory.sqlite3` are both opened as SQLite databases without renaming.
     Excel `.xlsx` files are read by [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction), using
     `Spreadsheet::ParseXLSX`.
+
+    A `.json` file is a table when it is a list of objects (each one a row), an
+    object of objects (each key a row, shown in a column `id`, or `key` when the
+    rows have an `id` of their own), or an object holding lists of objects, as a
+    report does: `{"tool": "scan", "findings": [...], "hosts": [...]}`.  Each
+    such list is a table, as a SQLite file's tables are: a file with more than one
+    opens on `/tables`, with a card for each, and other values beside the lists
+    (a date, a count, an object of totals) are left out.  A cell holding an object
+    or a list shows as its JSON text, `true` and `false` as words and `null` as
+    an empty cell, and the columns are in the order the file first names them.  A
+    file of another format with the same name in the same folder is the one read.
 
     URLs will work.
     For example enter

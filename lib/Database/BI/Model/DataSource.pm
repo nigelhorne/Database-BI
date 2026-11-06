@@ -284,6 +284,9 @@ Readonly our %MESSAGES => (
 	error_mariadb_no_driver		=> 'DataSource: DBD::MariaDB or DBD::mysql must be installed to open MariaDB server "%s"',
 	error_mariadb_connect		=> 'DataSource: cannot connect to MariaDB server "%s": %s',
 	error_mariadb_table		=> 'DataSource: cannot read table "%s" on MariaDB server "%s": %s',
+	error_json_invalid		=> 'DataSource: "%s" is not valid JSON: %s',
+	error_json_no_rows		=> 'DataSource: "%s" holds no table: it needs a list of objects, an object of objects, or an object holding one list of objects',
+	error_json_list_not_found	=> 'DataSource: JSON file "%s" has no list of objects called "%s"',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -300,6 +303,10 @@ Readonly my $MARIADB_PORT_RE     => qr/\A[0-9]+\z/;
 Readonly my $MARIADB_CONNECT_TIMEOUT => 5;
 # Text::CSV's error_diag code for the plain end of a file.
 Readonly my $CSV_EOF => 2012;
+
+# The extensions D::A looks for before .json; a file with one of them is the
+# table, and a .json beside it is not read.
+Readonly my @NON_JSON_EXT => qw(sql sqlite sqlite3 db psv tsv xls xlsx csv xml);
 # The sort columns D::A accepts; it ignores any other, with a warning.
 Readonly my $DA_SORTABLE_RE => qr/\A[a-zA-Z_][a-zA-Z0-9_.]*\z/;
 
@@ -387,7 +394,7 @@ Creates and returns a new C<Database::BI::Model::DataSource> instance.
 	    table          => 'string',   # required; bare file stem (no extension)
 	    host           => 'string',   # optional; "hostname" or "user@hostname" for SFTP access
 	    file_ext       => 'string',   # optional; extension hint when remote file has non-standard suffix (e.g. "log")
-	    internal_table => 'string',   # optional; name of a specific internal SQLite table to open
+	    internal_table => 'string',   # optional; a SQLite file's table, or a JSON file's list, to open
 	    column_order   => \@names,    # optional; the order columns() gives, when the backend has none
 	    cache          => 'object',   # optional; CHI cache object for result caching
 	    cache_ttl_url  => 'string',   # optional; CHI TTL string for URL-backed tables (default "15 min")
@@ -400,6 +407,17 @@ C<internal_table> selects a named table inside a multi-table SQLite file.
 When omitted, C<DataSource> auto-selects the first user table whose name
 matches the filename stem; if no match, it picks the first table found.
 Supplying a name that does not exist in the file croaks C<error_table_not_found>.
+
+A C<.json> file is read as a table when it is a list of objects, an object
+of objects (each key a row, kept in a column C<id>, or C<key> when the rows
+have an C<id>), or an object holding lists of objects.  Each such list is a
+table, as a SQLite file's are: C<internal_table> names one, the first in the
+file is read without it, and C<sqlite_tables> lists them.  A cell holding an
+object or a list is shown as its JSON text, C<true> and C<false> as words and
+C<null> as an empty cell; the columns are in the order the file first names
+them.  A C<.csv> (or any other format's file) beside it with the same name is
+the one read.  Not JSON croaks C<error_json_invalid>; JSON with no table in
+it, C<error_json_no_rows>; a list it does not have, C<error_json_list_not_found>.
 
 C<column_order> is for a caller that knows the columns' order better than the
 backend does.  A SQLite backend lists its columns alphabetically, so an
@@ -420,8 +438,9 @@ destruction.
 When C<file_ext> is provided together with C<host>, it is used as the first
 candidate extension when probing the remote host for the file.  If the
 downloaded file does not have a standard extension (one of C<csv>, C<tsv>,
-C<psv>, C<xlsx>, C<xls>, C<sql>, C<sqlite>, C<sqlite3>, C<db>, C<xml>),
-the file content is sniffed (SQLite magic bytes, XML preamble, or first-line
+C<psv>, C<xlsx>, C<xls>, C<sql>, C<sqlite>, C<sqlite3>, C<db>, C<xml>, C<json>),
+the file content is sniffed (SQLite magic bytes, XML preamble, a leading
+C<[> or C<{> for JSON, or first-line
 field separator) and the file is renamed to the correct standard extension
 before further processing.
 
@@ -468,6 +487,10 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
                                  has illegal characters; says what else to open and
                                  how to rename it
   error_no_usable_tables      -- every table in a SQLite file has such a name
+  error_json_invalid          -- a .json file is not valid JSON
+  error_json_no_rows          -- a .json file holds no list of objects, object of
+                                 objects or object holding such a list
+  error_json_list_not_found   -- internal_table names no list in a .json file
   error_no_safe_id            -- no column in the file has a safe SQL identifier name;
                                  rename at least one column header to an alphanumeric name
   error_backend_init          -- backend initialisation failed; sub-cases:
@@ -878,7 +901,7 @@ sub _best_id_column {
 # Returns an empty hashref for non-CSV/TSV/PSV/XLSX/SQLite formats (XML, etc.).
 # For SQLite/.db files that can be opened, returns { sqlite_tables => [...] }.
 sub _detect_file_info :Protected {
-	my ($dir, $table) = @_;
+	my ($dir, $table, $want) = @_;
 
 	# XLSX: D::A reads the rows.  This parse is for what D::A cannot say: an
 	# empty workbook makes it croak, and its columns() is alphabetical, not the
@@ -1127,7 +1150,191 @@ sub _detect_file_info :Protected {
 			return { _unknown_binary_db => 1, file_size => $fsize };
 		}
 	}
+
+	# JSON comes last, as it does in D::A's own search: a table.csv beside
+	# table.json is the file D::A opens.
+	{
+		my $path = File::Spec->catfile($dir, "$table.json");
+		if (-r $path && !grep { -f File::Spec->catfile($dir, "$table.$_") } @NON_JSON_EXT) {
+			my $json = _json_table($path, $want);
+			return { _file_is_empty => 1, file_size => -s $path, _json_lists => $json->{lists} }
+				unless @{ $json->{rows} };
+			my ($safe_id) = grep { $_ =~ $TABLE_NAME_RE } @{ $json->{columns} };
+			return {
+				columns     => $json->{columns},
+				id          => $safe_id // 'entry',
+				_json       => $json,
+				_json_lists => $json->{lists},
+			};
+		}
+	}
 	return {};
+}
+
+# _json_read( $path ) -> ($text, $data)
+#
+# Purpose: A JSON file's bytes and what they parse to.
+# Exit:    ('', undef) for a zero-byte or blank file.  Croaks
+#          error_json_invalid when the text is not JSON.
+sub _json_read {
+	my $path = shift;
+	local ($@, $!);
+	my $text = do {
+		open my $fh, '<:raw', $path;
+		local $/;
+		my $t = <$fh>;
+		close $fh;
+		$t // '';
+	};
+	return ('', undef) if $text !~ /\S/;
+
+	require Mojo::JSON;
+	my $data;
+	unless (eval { $data = Mojo::JSON::decode_json($text); 1 }) {
+		(my $why = $@ // '') =~ s/\s+at \S+ line \d+\.?\s*\z//;
+		croak _fmt('error_json_invalid', $path, $why);
+	}
+	return ($text, $data);
+}
+
+# _json_list_keys( $text, $data ) -> @keys
+#
+# Purpose: The top-level keys of a JSON object that hold a list of objects, in
+#          the order the file gives them: each is a table.
+# Notes:   A list holding anything but objects is not a table.  An empty list
+#          counts only when no list has rows, so { "items": [], "rows": [...] }
+#          is one table.
+sub _json_list_keys {
+	my ($text, $data) = @_;
+	return () unless ref $data eq 'HASH';
+	my @lists = grep {
+		my $v = $data->{$_};
+		ref $v eq 'ARRAY' && !grep { ref $_ ne 'HASH' } @{$v}
+	} @{ _json_key_order($text, 1) };
+	my @full = grep { @{ $data->{$_} } } @lists;
+	return @full ? @full : @lists;
+}
+
+# _json_columns( $text, $rows, $depth, $list ) -> \@names
+#
+# Purpose: The columns of rows read from a JSON text, in the order the text
+#          first names them, then any it did not (sorted).
+sub _json_columns {
+	my ($text, $rows, $depth, $list) = @_;
+	my @columns = @{ _json_key_order($text, $depth, $list) };
+	my %named   = map { $_ => 1 } @columns;
+	push @columns, sort grep { !$named{$_}++ } map { keys %{$_} } @{$rows};
+	return \@columns;
+}
+
+# _json_table( $path, $want ) -> { rows, columns, list, lists }
+#
+# Purpose: Read a JSON file as a table, for D::A to read a flat copy of.
+# Entry:   $path is a readable .json file.  $want, when defined, names the
+#          list to read (internal_table).
+# Exit:    rows: flat hashes.  columns: in the order the file first names
+#          them.  list: the key the rows were under (undef when none).
+#          lists: every list of objects in the file (empty when the file is
+#          not an object holding lists).  A zero-byte or blank file is no rows.
+#          Croaks error_json_invalid, error_json_no_rows or
+#          error_json_list_not_found.
+# Notes:   Three shapes are tables:
+#            [ {row}, ... ]                  each object a row
+#            { "findings": [ {row}, ... ] }  each list of objects under a key
+#                                            a table, the first the default;
+#                                            other values (a count, a date)
+#                                            are left out
+#            { "a1": {row}, "b2": {row} }    each key a row, kept in a column
+#                                            "id" ("key" when "id" is taken)
+#          A cell holding an object or a list becomes its compact JSON text,
+#          true and false the words, null an empty cell.  The column order is
+#          read from the text: a parsed object has no order.
+sub _json_table {
+	my ($path, $want) = @_;
+	my ($text, $data) = _json_read($path);
+	unless (length $text) {
+		croak _fmt('error_json_list_not_found', $path, $want) if defined $want;
+		return { rows => [], columns => [], list => undef, lists => [] };
+	}
+
+	my @lists = _json_list_keys($text, $data);
+	if (defined $want) {
+		croak _fmt('error_json_list_not_found', $path, $want)
+			unless grep { $_ eq $want } @lists;
+	}
+
+	my ($rows, $list, $key_col, $depth);
+	if (ref $data eq 'ARRAY') {
+		croak _fmt('error_json_no_rows', $path) if grep { ref $_ ne 'HASH' } @{$data};
+		($rows, $depth) = ($data, 2);
+	} elsif (@lists) {
+		$list = $want // $lists[0];
+		($rows, $depth) = ($data->{$list}, 3);
+	} elsif (ref $data eq 'HASH' && %{$data} && !grep { ref $_ ne 'HASH' } values %{$data}) {
+		$depth = 2;
+		my @inner = map { keys %{$_} } values %{$data};
+		$key_col = (grep { $_ eq 'id' } @inner) ? 'key' : 'id';
+		$key_col .= '_' while grep { $_ eq $key_col } @inner;
+		$rows = [ map { { %{ $data->{$_} }, $key_col => $_ } } @{ _json_key_order($text, 1) } ];
+	} else {
+		croak _fmt('error_json_no_rows', $path);
+	}
+
+	my $columns = _json_columns($text, $rows, $depth, $list);
+	@{$columns} = ($key_col, grep { $_ ne $key_col } @{$columns}) if defined $key_col;
+
+	my @flat;
+	for my $row (@{$rows}) {
+		my %cells;
+		while (my ($k, $v) = each %{$row}) {
+			if (blessed($v) && $v->isa('JSON::PP::Boolean')) {
+				$v = $v ? 'true' : 'false';
+			} elsif (ref $v) {
+				$v = Mojo::JSON::to_json($v);
+			}
+			$cells{$k} = $v;
+		}
+		push @flat, \%cells;
+	}
+	return { rows => \@flat, columns => $columns, list => $list, lists => \@lists };
+}
+
+# _json_key_order( $text, $depth, $under ) -> \@keys
+#
+# Purpose: The keys of the objects $depth levels down in a JSON text, in the
+#          order they first appear (a parsed object keeps none).
+# Entry:   $text is valid JSON (the caller has parsed it).  $depth counts the
+#          object itself: a row of a top-level list is 2, a row of a list under
+#          a key 3, a key of the top-level object 1.  $under, when defined,
+#          keeps only what is under that top-level key.
+# Exit:    The keys, each once, decoded.
+sub _json_key_order {
+	my ($text, $depth, $under) = @_;
+	my (@stack, @order, %seen, $top);
+	while ($text =~ /\G\s*(?:("(?:[^"\\]|\\.)*")|([{}\[\]:,])|[^\s{}\[\]:,"]+)/gcs) {
+		if (defined $1) {
+			my $frame = $stack[-1];
+			next unless $frame && $frame->{object} && $frame->{want_key};
+			$frame->{want_key} = 0;
+			my $key = Mojo::JSON::decode_json("[$1]")->[0];
+			$top = $key if @stack == 1;
+			next unless @stack == $depth;
+			next if defined $under && !(defined $top && $top eq $under);
+			push @order, $key unless $seen{$key}++;
+		} elsif (defined $2) {
+			my $c = $2;
+			if ($c eq '{') {
+				push @stack, { object => 1, want_key => 1 };
+			} elsif ($c eq '[') {
+				push @stack, { object => 0 };
+			} elsif ($c eq '}' || $c eq ']') {
+				pop @stack;
+			} elsif ($c eq ',' && @stack && $stack[-1]{object}) {
+				$stack[-1]{want_key} = 1;
+			}
+		}
+	}
+	return \@order;
 }
 
 # _values_are_data_like( \@vals ) -> bool
@@ -1143,6 +1350,7 @@ sub _detect_file_info :Protected {
 # Detection order:
 #   1. SQLite magic bytes ("SQLite format 3") -> 'db'
 #   2. XML preamble ("<?xml" or "<" as first non-space character) -> 'xml'
+#   2a. "[" or "{" as first non-space character -> 'json'
 #   3. First data line contains tabs -> 'tsv'
 #   4. First data line contains pipes -> 'psv'
 #   5. Fallback -> 'csv'
@@ -1155,6 +1363,7 @@ sub _sniff_data_ext {
 	return 'db'  if $header =~ /\ASQLite format/;
 	return 'xml' if $header =~ /\A\s*<\?xml/i;
 	return 'xml' if $header =~ /\A\s*</;
+	return 'json' if $header =~ /\A\s*[\[{]/;
 	open(my $lh, '<', $path) or return 'csv';
 	my $line = <$lh>;
 	close $lh;
@@ -1378,7 +1587,7 @@ sub _init_backend :Protected {
 		my ($user, $host) = $self->{_host} =~ /\A([^@]+)\@(.+)\z/
 			? ($1, $2) : (undef, $self->{_host});
 		my $tmpdir = File::Temp->newdir(CLEANUP => 1);
-		my @remote_exts = qw(csv tsv psv xlsx xls sql sqlite sqlite3 db xml);
+		my @remote_exts = qw(csv tsv psv xlsx xls sql sqlite sqlite3 db xml json);
 		# Try the caller-supplied extension first (e.g. .log), then fall back.
 		if (defined $self->{_file_ext}) {
 			my $hint = lc $self->{_file_ext};
@@ -1411,7 +1620,7 @@ sub _init_backend :Protected {
 		# it to one that _detect_file_info and D::A can discover automatically.
 		# We do this by sniffing the first bytes/line for format signatures.
 		my %KNOWN_EXT = map { $_ => 1 }
-			qw(csv tsv psv xlsx xls sql sqlite sqlite3 db xml);
+			qw(csv tsv psv xlsx xls sql sqlite sqlite3 db xml json);
 		unless ($KNOWN_EXT{lc $fetched_ext}) {
 			my $orig_file = File::Spec->catfile("$tmpdir", "$raw_table.$fetched_ext");
 			my $std_ext   = _sniff_data_ext($orig_file);
@@ -1434,17 +1643,21 @@ sub _init_backend :Protected {
 			unless $pkg->isa('Database::Abstraction');
 	}
 
-	my $info   = _detect_file_info($dir, $raw_table);
+	my $info   = _detect_file_info($dir, $raw_table, $self->{_internal_table});
 
 	# Probe for the actual file on disk so _cache_key can compute its mtime.
 	# This runs before the early-return paths so even empty files get a path.
-	for my $e (qw(csv tsv psv sql sqlite sqlite3 xml db xlsx xls)) {
+	for my $e (qw(csv tsv psv sql sqlite sqlite3 xml db xlsx xls json)) {
 		my $p = File::Spec->catfile($dir, "$raw_table.$e");
 		if (-f $p) {
 			$self->{_file_path} = File::Spec->rel2abs($p);
 			last;
 		}
 	}
+
+	# A JSON file's lists of objects are its tables, as a SQLite file's are.
+	$self->{_sqlite_tables} = $info->{_json_lists}
+		if $info->{_json_lists} && @{ $info->{_json_lists} };
 
 	# BerkeleyDB file detected by magic bytes, but tie() failed (version
 	# incompatibility -- e.g. the file uses BDB format 9 but the installed
@@ -1472,6 +1685,21 @@ sub _init_backend :Protected {
 		$self->{_headerless_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
 		$info->{id}        = $id;
 		$info->{file_size} = $size;
+		$dir = "$tmp";
+	}
+
+	# JSON: D::A reads a flat copy, a list of rows, whatever shape the file
+	# had (see _json_table).  $self->{_file_path} stays the real file.
+	if (my $json = delete $info->{_json}) {
+		require File::Temp;
+		require Mojo::JSON;
+		my $tmp  = File::Temp->newdir(CLEANUP => 1);
+		my $copy = File::Spec->catfile("$tmp", "$raw_table.json");
+		open my $ofh, '>:raw', $copy;
+		print {$ofh} Mojo::JSON::encode_json($json->{rows});
+		close $ofh;
+		$self->{_json_tmpdir} = $tmp;	# prevents cleanup until $self is destroyed
+		$self->{_json_list}   = $json->{list};
 		$dir = "$tmp";
 	}
 
@@ -1503,7 +1731,7 @@ sub _init_backend :Protected {
 	my $da_dir = $dir;
 	if ($raw_table ne $table) {
 		my $safe_ext;
-		for my $e (qw(xlsx xls db sql sqlite sqlite3 xml csv tsv psv)) {
+		for my $e (qw(xlsx xls db sql sqlite sqlite3 xml csv tsv psv json)) {
 			$safe_ext = $e, last
 				if -f File::Spec->catfile($dir, "$raw_table.$e");
 		}
@@ -1662,8 +1890,9 @@ sub table_name {
 =head2 sqlite_tables
 
 Returns an arrayref of internal table names when the backing file is a
-multi-table SQLite database, or C<undef> for single-table and non-SQLite
-sources.  Set during C<_init_backend> after probing C<sqlite_master>.
+SQLite database, or of the lists of objects in a JSON file that is an object
+holding them (C<{"findings": [...], "hosts": [...]}>), or C<undef> for other
+sources.  Set during C<_init_backend>.
 
 When the return value is a reference to a list with B<more than one
 element>, the caller should redirect the user to the schema browser
@@ -1687,10 +1916,12 @@ None.
 =head4 OUTPUT
 
     ARRAYREF of SCALAR    # ['customer', 'product', 'sales'] for a 3-table SQLite file
-    undef                 # for CSV, TSV, PSV, XML, URL-backed, and single-table SQLite
+    ARRAYREF of SCALAR    # ['findings', 'hosts'] for a JSON file holding two lists
+    undef                 # for CSV, TSV, PSV, XML, URL-backed, and a JSON list or keyed object
 
-The arrayref contains the names in the order returned by C<sqlite_master>
-(alphabetical).  It is set once during construction and never changes.
+A SQLite file's names are in the order returned by C<sqlite_master>
+(alphabetical), a JSON file's in the order the file gives them.  It is set
+once during construction and never changes.
 
 =head3 MESSAGES
 
@@ -1701,6 +1932,105 @@ None.
 sub sqlite_tables {
 	my $self = shift;
 	return $self->{_sqlite_tables};
+}
+
+=head2 split_path
+
+  my ($file, $table) = Database::BI::Model::DataSource::split_path('/data/scan.json#hosts');
+  # ('/data/scan.json', 'hosts')
+
+What a C<path:> spec names: a file and, after a C<#>, one of its tables (a
+SQLite file's table, or a JSON file's list).  C<path:/data/store.db#sales> is
+the C<sales> table of C<store.db>, as C<table:store/sales> is when the file is
+in C<data_dir>.  When the whole text names a file that exists, it is that
+file, so a file whose name has a C<#> in it still opens; and a remote path
+(C</../host/...>) is split the same way, since there is no file here to look
+for.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $path   SCALAR   what follows "path:" in a spec
+
+=head4 OUTPUT
+
+    ($file, $table)   $table undef when none is named; ('', undef) for undef
+
+=head3 MESSAGES
+
+None.
+
+=head3 FORMAL SPECIFICATION
+
+  split_path == lambda p .
+    if exists(p) then (p, undef)
+    else if p = f ++ "#" ++ t /\ t /= "" /\ "#" not in t then (f, t)
+    else (p, undef)
+
+=cut
+
+sub split_path {
+	my ($path) = @_;
+	return ('', undef) unless defined $path;
+	return ($path, undef) if -e $path;
+	return ($1, $2) if $path =~ /\A(.+)#([^#\n]+)\z/s;
+	return ($path, undef);
+}
+
+=head2 json_lists
+
+  my $lists = Database::BI::Model::DataSource->json_lists('/data/scan.json');
+  # [ { name => 'findings', columns => ['detail', 'host', ...] },
+  #   { name => 'hosts',    columns => ['base', 'host', ...] } ]
+
+The tables of a JSON file that is an object holding lists of objects: one
+entry per list, in the order the file gives them, with its columns in the
+order the file first names them.  The schema browser (C</tables>) shows a
+card for each; C<< new(internal_table => $name) >> opens one.
+
+A list holding anything but objects is not a table, and an empty list counts
+only when no list has rows.  Other values beside the lists (a count, a date,
+an object of totals) are not tables.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $class   SCALAR   the class (called as a class method)
+    $path    SCALAR   a readable .json file
+
+=head4 OUTPUT
+
+    ARRAYREF of HASHREF   { name => SCALAR, columns => ARRAYREF of SCALAR }
+                          empty when the file holds no lists (a list of rows,
+                          an object of rows, a blank file)
+
+Croaks C<error_json_invalid> when the file is not JSON.
+
+=head3 MESSAGES
+
+C<error_json_invalid>.
+
+=head3 FORMAL SPECIFICATION
+
+  json_lists == lambda path .
+    let (text, data) = parse(path) in
+    [ { name => k, columns => key_order(text, data.k) } | k <- list_keys(text, data) ]
+
+  pre  readable(path)
+  post forall e in result . data.(e.name) : seq HASH
+
+=cut
+
+sub json_lists {
+	my ($class, $path) = @_;
+	local ($@, $!);
+	my ($text, $data) = _json_read($path);
+	return [] unless length $text;
+	return [ map {
+		{ name => $_, columns => _json_columns($text, $data->{$_}, 3, $_) }
+	} _json_list_keys($text, $data) ];
 }
 
 =head2 columns
@@ -2616,7 +2946,8 @@ C<|S|> means the cardinality (size) of set or sequence S.
   pre  true
   post (result = undef /\ self._url /= undef)
        \/ (result = undef /\ source is not SQLite)
-       \/ (result : seq STRING /\ forall t in result . t =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/)
+       \/ (result : seq STRING /\ source is SQLite)
+       \/ (result : seq STRING /\ |result| >= 1 /\ source is a JSON object of lists)
 
 =head2 columns
 
@@ -2795,7 +3126,15 @@ Each state is stable until the trigger event listed to its right fires.
        -> otherwise _sqlite_tables set, plus a symlink if the table's name is not
           the file's -> READY -> fetch_all opens that table
 
-    5. SFTP remote file
+    5. JSON file
+       -> a flat copy (a list of rows, nested values as JSON text) written
+          to a temporary directory -> READY (Database::Abstraction reads it)
+       -> an object holding lists of objects: _sqlite_tables set to their
+          names, the first read unless internal_table names another (a name
+          it does not have -> ERROR); no rows -> the _file_is_empty case
+       -> not JSON, or no table in it -> ERROR
+
+    6. SFTP remote file
        -> Net::SFTP::Foreign::get() -> local tmpdir -> normal init -> READY
        -> tmpdir kept alive via $self->{_remote_tmpdir} until DESTROY
 

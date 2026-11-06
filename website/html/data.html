@@ -67,8 +67,8 @@
 			<td><code>/../[user@]host/dir/file.csv</code>, fetched over SFTP.</td>
 		</tr>
 		<tr>
-			<td>A table in a multi-table SQLite file</td>
-			<td><code>?it=&lt;table&gt;</code>, or <code>/tables?l=</code> to browse the schema first.</td>
+			<td>A table in a multi-table SQLite file, or a list in a JSON file</td>
+			<td><code>?it=&lt;table&gt;</code>, or <code>/tables?l=</code> to browse the schema first. In a link or a merge, <code>table:file/table</code> names one in <code>data_dir</code> and <code>path:/abs/path#table</code> one anywhere else, so its charts and panels keep it.</td>
 		</tr>
 		<tr>
 			<td>A table on a web page</td>
@@ -92,12 +92,22 @@
 <p>
 	Recognised extensions are <code>csv</code>, <code>psv</code>, <code>tsv</code>,
 	<code>sql</code>, <code>sqlite</code>, <code>sqlite3</code>, <code>db</code>,
-	<code>xml</code>, <code>xlsx</code> and JSON. A file whose columns cannot be
+	<code>xml</code>, <code>xlsx</code> and <code>json</code>. A file whose columns cannot be
 	identified is read as header-less and given synthetic column names rather
 	than silently losing its first row. Nor are rows lost when a column is
 	mostly empty: a bank export whose cheque-number column is filled in only
 	now and then still shows every transaction, and a filter such as
 	<em>is not empty</em> on that column picks out the cheques.
+</p>
+<p>
+	A JSON file is a table when it is a list of objects, an object of objects
+	(each key a row, in a column <code>id</code>), or an object holding lists of
+	objects, as a scan report or an API reply does:
+	<code>{"tool": "scan", "findings": [...], "hosts": [...]}</code>. Each list is
+	a table, so a file with more than one opens on the Tables page with a card
+	for each, as a SQLite file with several tables does. Values beside the lists,
+	such as a date or a count, are left out. A cell holding an object or a list
+	shows as its JSON text, and the columns keep the order the file gives them.
 </p>
 <p id="mariadb">
 	A <strong>MariaDB or MySQL server</strong> is opened by name. Add it to

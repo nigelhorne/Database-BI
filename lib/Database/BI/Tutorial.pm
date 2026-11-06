@@ -53,7 +53,7 @@ my @CHAPTERS = (
 			'Click the card. The file opens as a table.',
 			'You can also drop a file onto the page. The program opens it at once.',
 		],
-		tip   => 'The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files. Start with a CSV file if you can.',
+		tip   => 'The program reads CSV, TSV, PSV, XLSX, XML, JSON, SQLite and Berkeley DB files. Start with a CSV file if you can.',
 		try   => { href => '/', label => 'Open the home page' },
 		routes => [ '/' ],
 	},
@@ -1092,7 +1092,15 @@ my @FAQ = (
 	},
 	{
 		question => 'The program will not open my file.',
-		answer   => 'Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, SQLite and Berkeley DB files.',
+		answer   => 'Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, JSON, SQLite and Berkeley DB files.',
+	},
+	{
+		question => 'My JSON file shows a list of tables, not rows.',
+		answer   => 'The file holds more than one list of rows, such as findings and hosts. Each list is a table. Click the one you want.',
+	},
+	{
+		question => 'The program says my JSON file holds no table.',
+		answer   => 'It needs a list of objects, or an object that holds one. A value inside a row that holds more data is shown as JSON text.',
 	},
 	{
 		question => 'The page is dark, but my saved chart is white.',
