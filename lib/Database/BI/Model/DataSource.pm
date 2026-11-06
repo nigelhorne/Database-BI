@@ -720,14 +720,17 @@ sub _init_redis_backend :Protected {
 	return;
 }
 
-# _mariadb_connect( $server, \%settings ) -> ($dbh, $dsn, $username, $password)
+# _mariadb_dsn( $server, \%settings ) -> ($dsn, $username, $password)
 #
-# Purpose: Connect to one entry of the mariadb_servers configuration.  An error
-#          names the server; it never holds the password.
+# Purpose: What connects to one entry of the mariadb_servers configuration.
+#          Nothing is connected here: Database::Join::Catalog does that, and
+#          Database::Abstraction for the rows.  An error names the server; it
+#          never holds the password.
 # Entry:   $server is the entry's name, for messages.  \%settings holds database
 #          and optionally host, port, username and password.
-# Exit:    A connected handle and what connected it.  Croaks on anything else.
-sub _mariadb_connect {
+# Exit:    The data source and credentials.  Croaks on settings that are not
+#          valid, or when no MariaDB or MySQL driver is installed.
+sub _mariadb_dsn {
 	my ($server, $settings) = @_;
 
 	croak _fmt('error_mariadb_unknown_server', $server) unless ref $settings eq 'HASH';
@@ -740,20 +743,14 @@ sub _mariadb_connect {
 	croak _fmt('error_mariadb_settings', $server, 'port') if defined $port && $port !~ $MARIADB_PORT_RE;
 
 	# The driver is optional, so it is looked for only now.
-	my ($driver) = grep { my $module = "DBD/$_.pm"; eval { require $module; 1 } } qw(MariaDB mysql);
+	require Database::Join::Catalog;
+	my $driver = Database::Join::Catalog->available_driver(qw(MariaDB mysql));
 	croak _fmt('error_mariadb_no_driver', $server) unless defined $driver;
 
-	require DBI;
 	my $dsn = "dbi:${driver}:database=$database;host=$host"
 		. (defined $port ? ";port=$port" : '')
 		. ';' . lc($driver) . "_connect_timeout=$MARIADB_CONNECT_TIMEOUT";
-	my ($username, $password) = @{$settings}{qw(username password)};
-	my $dbh = eval {
-		DBI->connect($dsn, $username, $password, { RaiseError => 1, PrintError => 0, AutoCommit => 1 });
-	};
-	croak _fmt('error_mariadb_connect', $server, $DBI::errstr // $@ // '') unless $dbh;
-
-	return ($dbh, $dsn, $username, $password);
+	return ($dsn, @{$settings}{qw(username password)});
 }
 
 # _new_from_mariadb( $class, \%raw_params ) -> $self
@@ -773,21 +770,20 @@ sub _new_from_mariadb :Protected {
 	my $server = $raw->{server} // '';
 	croak _fmt('error_mariadb_unknown_server', $server) unless $server =~ $TABLE_NAME_RE;
 
-	my ($dbh, $dsn, $username, $password) = _mariadb_connect($server, $raw->{mariadb});
+	my ($dsn, $username, $password) = _mariadb_dsn($server, $raw->{mariadb});
 
-	# D::A's columns() is alphabetical; the statement's are in the table's order.
-	my $columns = eval {
-		my $sth = $dbh->prepare("SELECT * FROM `$table` WHERE 1=0");
-		$sth->execute;
-		[ @{ $sth->{NAME} } ];
+	# D::A's columns() is alphabetical; table_info gives the declared order.
+	my $info = eval {
+		Database::Join::Catalog->table_info(dsn => $dsn, username => $username, password => $password, table => $table);
 	};
-	my $why = $DBI::errstr // $@;
-	unless ($columns) {
-		$dbh->disconnect;
-		croak _fmt('error_mariadb_table', $table, $server, $why);
+	unless ($info) {
+		my $err = $@;
+		croak _fmt('error_mariadb_table', $table, $server, "$err")
+			if blessed($err) && $err->can('stage') && $err->stage eq 'query';
+		croak _fmt('error_mariadb_connect', $server, "$err");
 	}
-	my @primary = eval { $dbh->primary_key(undef, undef, $table) };
-	$dbh->disconnect;
+	my $columns = $info->{columns};
+	my @primary = @{ $info->{primary_key} };
 
 	# Two servers may each have an "orders".
 	my $pkg = 'Database::BI::_DB::Mariadb_' . $server . '_' . $table;
@@ -1058,16 +1054,8 @@ sub _detect_file_info :Protected {
 		my $path = File::Spec->catfile($dir, "$table.$ext");
 		next unless -r $path;
 		my $tables = eval {
-			require DBI;
-			my $dbh = DBI->connect(
-				"dbi:SQLite:dbname=$path", q{}, q{},
-				{ RaiseError => 1, PrintError => 0, AutoCommit => 1 });
-			my $t = $dbh->selectcol_arrayref(
-				q{SELECT name FROM sqlite_master }
-				. q{WHERE type='table' AND name NOT LIKE 'sqlite_%' }
-				. q{ORDER BY name});
-			$dbh->disconnect;
-			$t;
+			require Database::Join::Catalog;
+			Database::Join::Catalog->tables(file => $path);
 		};
 		# defined $tables means the eval succeeded (even an empty list is valid)
 		return { sqlite_tables => ($tables // []), file_size => -s $path }
@@ -1967,22 +1955,12 @@ sub mariadb_tables {
 	local ($@, $!);
 	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 
-	my ($dbh) = _mariadb_connect($server, $settings);
-	my $rows = eval {
-		$dbh->selectall_arrayref(q{SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS }
-			. q{WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME, ORDINAL_POSITION});
+	my ($dsn, $username, $password) = _mariadb_dsn($server, $settings);
+	my $tables = eval {
+		Database::Join::Catalog->schema(dsn => $dsn, username => $username, password => $password);
 	};
-	my $why = $@;
-	$dbh->disconnect;
-	croak _fmt('error_mariadb_connect', $server, $why) unless $rows;
-
-	my (@tables, %seen);
-	for my $row (@{$rows}) {
-		my ($name, $column) = @{$row};
-		push @tables, ($seen{$name} = { name => $name, columns => [] }) unless $seen{$name};
-		push @{ $seen{$name}{columns} }, $column;
-	}
-	return \@tables;
+	croak _fmt('error_mariadb_connect', $server, "$@") unless $tables;
+	return $tables;
 }
 
 =head2 id_column

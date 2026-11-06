@@ -30,6 +30,11 @@ Revision history for Database-BI
 	- HTML::D3 0.30, Database::Abstraction 0.55 (which requires its CSV and
 	  XML readers) and Crypt::URandom are now required; URI and HTTP::Message
 	  are declared.
+	- Database::Join 0.011.1 is required: listing a database's tables and
+	  columns, and writing Export > SQLite, now go through its
+	  Database::Join::Catalog, so DBI is no longer a runtime prerequisite.
+	- File::Temp no longer needs 0.2308: Database::Join 0.011.1 makes its
+	  SQLite files without the BSD lock that version was asked for to avoid.
 	- file_roots and export_dirs work on Windows.
 	- On the BSDs, a folder where a store file should be is no longer moved
 	  aside as a corrupt store (a CPAN tester's DragonFly 6.4).

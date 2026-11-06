@@ -26,12 +26,10 @@ WriteMakefile(
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',
 		'Database::Abstraction'	=> '0.55',	# 0.55 requires the CSV and XML readers it loads (DBD::CSV, Text::xSV::Slurp, XML::Simple); 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
-		'Database::Join' => '0.009.0',	# 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
-		'DBI'		=> 0,
+		'Database::Join' => '0.011.1',	# 0.011.1: a driver failure always has a message; 0.011.0 added Database::Join::Catalog, through which every table list, column list and SQLite write goes; 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
 		'Net::SFTP::Foreign' => 0,
 		'File::Path'	=> '2.07',	# For remove_tree in Dashboard.pm at runtime
 		'File::Spec'	=> '3.40',
-		'File::Temp'	=> '0.2308',	# Before this, on a BSD, a new temporary file was held under an exclusive lock, so Database::Join's SQLite spill hung and failed with "database is locked"
 		'List::Util'	=> '1.40',
 		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
 		'Mojo::Base' => 0,
@@ -65,6 +63,7 @@ WriteMakefile(
 		'Text::CSV'	=> 0,		# Files with no header row; script/bi-alert's fallback reader when Database::Abstraction cannot open the file
 		'version'        => '0.77',
 	}, TEST_REQUIRES => {
+		'DBI' => 0,	# SQLite fixtures; the application itself uses Database::Join::Catalog
 		'DBD::CSV' => 0,
 		'JSON::MaybeXS' => 0,	# The browser tests speak Marionette and decode its frames
 		'Test::DescribeMe' => 0,	# Author tests (t/pod.t, t/manifest.t, t/version.t) declare themselves with this; the tools they need are optional and skipped without them

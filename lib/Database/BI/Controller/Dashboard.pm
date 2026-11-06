@@ -3419,64 +3419,25 @@ sub _list_dir :Protected ($self, $dir, $want_files) {
 	};
 }
 
-# _write_sqlite_db($self, $records, $columns) -> $raw_bytes
+# _write_sqlite_db($self, $records, $columns, $table) -> $raw_bytes
 #
-# Purpose: Write $records to an in-process SQLite database (single table named
-#          "data"; every column declared TEXT) and return the raw file bytes.
-#          The temporary file is created, written, read, and then unlinked in
-#          one synchronous sequence.  Used by both _render_sqlite (HTTP download)
-#          and export_write (filesystem write) to eliminate code duplication.
+# Purpose: $records as a SQLite database of one table, every column TEXT, as
+#          the file's bytes.  Used by both _render_sqlite (HTTP download) and
+#          export_write (filesystem write); Database::Join::Catalog writes it.
 # Entry:   $records is an arrayref of hashrefs; $columns is an arrayref of names;
 #          $table names the table, "data" unless given.  An extract passes
 #          "extract", which Database::Abstraction before 0.54 needed (it could
 #          not read a table called "data"); extracts already built use it.
-# Exit:    Returns scalar binary string.  Croaks on any DBI error.
-# Side Effects: Creates and unlinks one temporary file under system tmpdir.
+# Exit:    Returns scalar binary string.  Croaks when it cannot be written.
+# Side Effects: Catalog makes and removes one temporary file under tmpdir.
 sub _write_sqlite_db :Protected ($self, $records, $columns, $table = 'data') {
-	# D~ fix: an empty column list produces "CREATE TABLE data ()" which is
-	# invalid SQLite syntax.  Croak before touching the filesystem.
+	# D~ fix: an empty column list would be "CREATE TABLE data ()", which is
+	# invalid SQLite syntax; this message is the one readers have seen.
 	croak 'Cannot export SQLite: result set has no columns'
 		unless @$columns;
 
-	require DBI;
-	my ($tmp_fh, $tmpfile) = tempfile(SUFFIX => '.db', UNLINK => 0);
-	close $tmp_fh;
-
-	my $dbh = eval { DBI->connect("dbi:SQLite:dbname=$tmpfile", '', '', {
-		RaiseError => 1, AutoCommit => 1,
-	}) };
-	# Guard both the eval-caught die ($@) and the undef-without-die edge case.
-	if ($@ || !$dbh) {
-		unlink $tmpfile;
-		croak "DBI connect failed: $@";
-	}
-
-	# O~ fix: wrap all DBI work in eval so any mid-flight exception still
-	# triggers cleanup (disconnect + unlink) before the error propagates.
-	eval {
-		my @quoted = map { (my $c = $_) =~ s/"/""/g; qq{"$c"} } @$columns;
-		(my $t = $table) =~ s/"/""/g;
-		$dbh->do(qq{CREATE TABLE "$t" (} . join(', ', map { "$_ TEXT" } @quoted) . ')');
-		if (@$records) {
-			my $ph  = join(', ', ('?') x scalar @$columns);
-			my $sth = $dbh->prepare(
-				qq{INSERT INTO "$t" (} . join(', ', @quoted) . ") VALUES ($ph)"
-			);
-			for my $row (@$records) {
-				$sth->execute(map { $row->{$_} } @$columns);
-			}
-		}
-		$dbh->disconnect;
-	};
-	if (my $err = $@) {
-		eval { $dbh->disconnect };	# best-effort; may already be disconnected
-		unlink $tmpfile;
-		croak $err;
-	}
-
-	my $data = Mojo::File->new($tmpfile)->slurp;
-	unlink $tmpfile;
-	return $data;
+	require Database::Join::Catalog;
+	return Database::Join::Catalog->sqlite_bytes(table => $table, columns => $columns, rows => $records);
 }
 
 # _run_pipeline_source($self) -> ($src, $records, \@columns, $left_label) or ()
@@ -9206,17 +9167,8 @@ sub stat_api ($self) {
 	my $table_count;
 	if ($file->basename =~ /\.(?:sql|sqlite|sqlite3|db)\z/i) {
 		eval {
-			require DBI;
-			my $dbh = DBI->connect(
-				'dbi:SQLite:dbname=' . $file->to_string,
-				'', '',
-				{ RaiseError => 1, PrintError => 0, AutoCommit => 1 },
-			);
-			my $tbls = $dbh->selectcol_arrayref(
-				q{SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'}
-			);
-			$table_count = scalar @{ $tbls // [] };
-			$dbh->disconnect;
+			require Database::Join::Catalog;
+			$table_count = scalar @{ Database::Join::Catalog->tables(file => $file->to_string) };
 		};
 	}
 
@@ -10570,24 +10522,13 @@ sub tables_view ($self) {
 		return $self->reply->not_found;
 	}
 
-	if (defined $file_path) { eval {
-		require DBI;
-		my $dbh = DBI->connect(
-			"dbi:SQLite:dbname=$file_path", q{}, q{},
-			{ RaiseError => 1, PrintError => 0, AutoCommit => 1 });
-		my $tnames = $dbh->selectcol_arrayref(
-			q{SELECT name FROM sqlite_master }
-			. q{WHERE type='table' AND name NOT LIKE 'sqlite_%' }
-			. q{ORDER BY name});
-		for my $tname (@{ $tnames // [] }) {
-			my @cols;
-			my $sth = eval { $dbh->prepare("PRAGMA table_info(\"$tname\")") };
-			if ($sth) {
-				$sth->execute;
-				while (my $row = $sth->fetchrow_hashref) {
-					push @cols, $row->{name};
-				}
-			}
+	if (defined $file_path) {
+		require Database::Join::Catalog;
+		my $schema = eval { Database::Join::Catalog->schema(file => $file_path) };
+		return $self->reply->not_found unless $schema;
+		for my $table_info (@{$schema}) {
+			my $tname = $table_info->{name};
+			my @cols  = @{ $table_info->{columns} };
 			# Database::Abstraction refuses this name, so the card says so
 			# rather than linking to an error.
 			if ($tname !~ $TABLE_NAME_RE) {
@@ -10602,8 +10543,7 @@ sub tables_view ($self) {
 				. '&back_label=' . url_escape(ucfirst($db_label) . ' schema');
 			push @tables, { name => $tname, columns => \@cols, href => $open_url };
 		}
-		$dbh->disconnect;
-	}; return $self->reply->not_found if $@; }
+	}
 
 	$self->render(
 		template   => "$platform/$language/tables",

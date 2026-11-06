@@ -3668,28 +3668,6 @@ subtest 'An export to a directory that refuses new files' => sub {
 	ok(-s File::Spec->catfile($dir, 'out.csv'), 'with something in it');
 };
 
-# On a BSD, File::Temp before 0.2308 opens a new file with O_EXLOCK, and SQLite then
-# cannot write to it: every Merge that spills waits out the busy timeout and fails
-# with "database is locked".  Other systems have no O_EXLOCK, so there the second half
-# always passes, and the declared minimum is what holds this.
-subtest 'A temporary file from File::Temp can be written by SQLite' => sub {
-	Readonly my $FLOOR    => '0.2308';
-	Readonly my $QUICK_MS => 100;
-
-	for my $file (qw(Makefile.PL cpanfile)) {
-		next unless -r $file;
-		my ($declared) = Mojo::File->new($file)->slurp =~ /'File::Temp'\s*(?:=>|,)\s*'([\d.]+)'/;
-		cmp_ok($declared // 0, '>=', $FLOOR, "$file asks for a File::Temp that does not lock its files");
-	}
-
-	plan skip_all => 'DBD::SQLite is not available' unless eval { DBI->install_driver('SQLite'); 1 };
-	my $tmp = File::Temp->new(SUFFIX => '.db', UNLINK => 1);
-	my $dbh = DBI->connect('dbi:SQLite:dbname=' . $tmp->filename, '', '', { RaiseError => 1, PrintError => 0 });
-	$dbh->sqlite_busy_timeout($QUICK_MS);
-	ok(eval { $dbh->do('CREATE TABLE t (a TEXT)'); 1 }, 'a table can be made in it') or diag($@);
-	$dbh->disconnect;
-};
-
 # HTML::D3 writes a chart's labels into a script.  Before 0.27 it left "</" as it was,
 # so a cell could end that script and start its own.
 subtest 'A cell holding a script tag cannot end the script of a chart' => sub {

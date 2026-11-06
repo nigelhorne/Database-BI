@@ -9270,6 +9270,8 @@ sub croak_rethrow {
 			return Stub::STH->new(names => $self->{names});
 		}
 		sub primary_key { return @{ $_[0]{primary} // [] } }
+		# As DBD::MariaDB quotes: Database::Join::Catalog names the table through it.
+		sub quote_identifier { (my $n = $_[1]) =~ s/`/``/g; return "`$n`" }
 		sub selectall_arrayref {
 			my $self = shift;
 			die "SELECT command denied\n" if $self->{denied};
@@ -9299,8 +9301,8 @@ sub croak_rethrow {
 	# Purpose: the settings come from configuration but end up in a DSN string,
 	# so each part is checked before it is spliced in; and nothing in an error
 	# may repeat the password.
-	subtest 'DataSource::_mariadb_connect -- the settings are checked first' => sub {
-		my $fn = \&Database::BI::Model::DataSource::_mariadb_connect;
+	subtest 'DataSource::_mariadb_dsn -- the settings are checked first' => sub {
+		my $fn = \&Database::BI::Model::DataSource::_mariadb_dsn;
 		throws_ok { $fn->($DSX{server}, undef) }
 			qr/\ADataSource: no MariaDB server is called "mock"; add it to mariadb_servers/, 'no settings';
 		throws_ok { $fn->($DSX{server}, 'database=shop') } qr/no MariaDB server is called/, 'settings that are not a hash';
@@ -9315,30 +9317,29 @@ sub croak_rethrow {
 		require DBI;
 		local $INC{'DBD/MariaDB.pm'} = __FILE__;
 		Test::Mockingbird::mock('DBI::connect', sub { die "Access denied for user\n" });
-		throws_ok { $fn->($DSX{server}, { database => $DSX{database}, password => $DSX{password} }) }
-			qr/\ADataSource: cannot connect to MariaDB server "mock": /, 'a refused connection names the server';
-		throws_ok { $fn->($DSX{server}, { database => $DSX{database}, password => $DSX{password} }) }
+		throws_ok { $ds->mariadb_tables($DSX{server}, { database => $DSX{database}, password => $DSX{password} }) }
+			qr/\ADataSource: cannot connect to MariaDB server "mock": Access denied for user/, 'a refused connection names the server';
+		throws_ok { $ds->mariadb_tables($DSX{server}, { database => $DSX{database}, password => $DSX{password} }) }
 			qr/\A(?!.*\Q$DSX{password}\E)/s, 'and never the password';
 		Test::Mockingbird::unmock('DBI::connect');
 	};
 
-	subtest 'DataSource::_mariadb_connect -- a connection' => sub {
-		my $fn  = \&Database::BI::Model::DataSource::_mariadb_connect;
+	subtest 'DataSource::_mariadb_dsn -- what connects, without connecting' => sub {
+		my $fn  = \&Database::BI::Model::DataSource::_mariadb_dsn;
 		my $dbh = Stub::DBH->new;
 		$with_dbi->($dbh, sub {
 			my ($calls) = @_;
 			my @got = $fn->($DSX{server}, { database => $DSX{database}, username => 'u', password => $DSX{password} });
-			is $got[0], $dbh, 'the handle';
-			like $got[1], $DSX{dsn_re}, 'a DSN built only from checked parts, with a time-out';
-			is_deeply [ @got[2, 3] ], [ 'u', $DSX{password} ], 'and the credentials it used';
-			is $calls->[0][3]{RaiseError}, 1, 'errors are raised, so none is missed';
+			like $got[0], $DSX{dsn_re}, 'a DSN built only from checked parts, with a time-out';
+			is_deeply [ @got[1, 2] ], [ 'u', $DSX{password} ], 'and the credentials';
+			is scalar @{$calls}, 0, 'nothing is connected: Database::Join::Catalog and Database::Abstraction do that';
 		});
 	};
 
 	# Purpose: the driver is optional; without one the reader is told what to
 	# install rather than seeing a Perl error.
-	subtest 'DataSource::_mariadb_connect -- no driver' => sub {
-		my $fn = \&Database::BI::Model::DataSource::_mariadb_connect;
+	subtest 'DataSource::_mariadb_dsn -- no driver' => sub {
+		my $fn = \&Database::BI::Model::DataSource::_mariadb_dsn;
 		local @INC = (sub { my (undef, $file) = @_; die "hidden\n" if $file =~ m{\ADBD/(?:MariaDB|mysql)\.pm\z}; return }, @INC);
 		local $INC{'DBD/MariaDB.pm'};
 		local $INC{'DBD/mysql.pm'};
