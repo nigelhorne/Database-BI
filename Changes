@@ -27,8 +27,12 @@ Revision history for Database-BI
 	  /embed/.
 	- A setting that would not do what it says stops the start.
 	[ Other ]
-	- HTML::D3 0.30 and Crypt::URandom are now required.
+	- HTML::D3 0.30, Database::Abstraction 0.55 (which requires its CSV and
+	  XML readers) and Crypt::URandom are now required; URI and HTTP::Message
+	  are declared.
 	- file_roots and export_dirs work on Windows.
+	- On the BSDs, a folder where a store file should be is no longer moved
+	  aside as a corrupt store (a CPAN tester's DragonFly 6.4).
 	- Tests for each of the above.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026

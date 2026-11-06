@@ -1253,7 +1253,7 @@ Database::BI::Calc - Safe recursive-descent expression evaluator for Database::B
 
 =head1 VERSION
 
-0.012.0
+0.021.0
 
 =head1 SYNOPSIS
 

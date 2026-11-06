@@ -25,7 +25,7 @@ WriteMakefile(
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',
-		'Database::Abstraction'	=> '0.54',	# 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+		'Database::Abstraction'	=> '0.55',	# 0.55 requires the CSV and XML readers it loads (DBD::CSV, Text::xSV::Slurp, XML::Simple); 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
 		'Database::Join' => '0.009.0',	# 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
 		'DBI'		=> 0,
 		'Net::SFTP::Foreign' => 0,
@@ -40,6 +40,9 @@ WriteMakefile(
 		'HTML::TagCloud' => '0.38',	# word cloud page (/wordcloud)
 		'HTML::TableExtract'	=> 0,
 		'HTTP::Request'			=> 0,		# Used by Ask.pm and Summary.pm for LLM API calls (ships with libwww-perl but not core)
+		'HTTP::Message'			=> 0,		# HTTP::Response, for SafeUA's refusals (the dist HTTP::Request comes from)
+		'URI'				=> 0,		# _is_safe_url's early check of an import URL
+		'Encode'			=> 0,		# Extract.pm and Summary.pm (core, listed for completeness)
 		'LWP::UserAgent'		=> 0,		# Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path
 		'LWP::UserAgent::Cached'	=> 0,		# Used by Database::Abstraction for URL-backed tables (import_url)
 		'Scalar::Util'			=> 0,		# Used in DataSource.pm (blessed, looks_like_number)
@@ -63,7 +66,6 @@ WriteMakefile(
 		'version'        => '0.77',
 	}, TEST_REQUIRES => {
 		'DBD::CSV' => 0,
-		'Encode' => 0,
 		'JSON::MaybeXS' => 0,	# The browser tests speak Marionette and decode its frames
 		'Test::DescribeMe' => 0,	# Author tests (t/pod.t, t/manifest.t, t/version.t) declare themselves with this; the tools they need are optional and skipped without them
 		'Test::Memory::Cycle' => 0,
@@ -115,7 +117,9 @@ WriteMakefile(
 					'DBD::MariaDB' => 0,
 					# Rendering the map itself (Phase 6.1).  Also runtime-required: the
 					# rest of the application installs, starts and tests without it.
-					'HTML::OSM' => '0.14'
+					'HTML::OSM' => '0.14',
+					# script/bi-alert reads CSV faster with it, and falls back to Text::CSV.
+					'Text::CSV_XS' => 0
 				}
 			}, test => {
 				recommends => {

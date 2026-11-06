@@ -276,9 +276,39 @@ The user agent.
 
 =head2 send_request
 
-As L<LWP::UserAgent/send_request>, with the checks above.  A refused request
-gets C<403> with the reason in the message, and C<Client-Warning: Internal
-response>; nothing is sent.
+As L<LWP::UserAgent/send_request>, with the checks above.  LWP calls it for
+every request and each redirect; callers use C<get> and the rest as usual.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $request: HTTP::Request
+    $arg, $size: as LWP::UserAgent (content file or callback, read size)
+
+=head4 OUTPUT
+
+An L<HTTP::Response> whose C<request> is the one given (not the pinned copy).
+A refused request gets C<403 Refused: E<lt>whyE<gt>> and C<Client-Warning: Internal
+response>, and nothing is sent: a scheme other than http or https, no host, a
+name that does not resolve, or any address C<blocked_address> refuses (unless
+C<private_host_allowed> allows the name).
+
+=head2 private_host_allowed
+
+    $ua->private_host_allowed('reports.corp.example');   # 1 with private_hosts => ['*.corp.example']
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $host: a host name (case does not matter)
+
+=head4 OUTPUT
+
+1 when C<private_hosts> names it, or a C<*.suffix> entry ends it (C<*.corp.example>
+matches C<a.corp.example>, not C<corp.example> or C<evilcorp.example>), else 0.
+C<send_request> asks this only for a name, never for an address written as one.
 
 =head1 FUNCTIONS
 

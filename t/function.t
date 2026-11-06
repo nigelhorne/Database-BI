@@ -8063,6 +8063,34 @@ sub croak_rethrow {
 		is_deeply [ map { $_->basename } grep { $_->basename ne 'analyses.json' } @{ $dir->list({ dir => 1 }) } ], [], 'and leaves no temp file behind';
 	};
 
+	subtest 'a folder where a store should be is not set aside as corrupt' => sub {
+		# Why: Linux will not read a folder, but the BSDs read its raw entries
+		# (a CPAN tester's DragonFly 6.4 did).  Those never parse, so the folder
+		# was renamed to <store>.corrupt.<time> and the write it was blocking
+		# went ahead.  This makes slurp do here what it does there.
+		no warnings 'redefine';
+		my $slurp = \&Mojo::File::slurp;
+		local *Mojo::File::slurp = sub { -d ${ $_[0] } ? "\x01\x00\x00\x00. ..\x00" : $slurp->(@_) };
+		my $tm  = isolated_app();
+		my $c   = dash_controller($tm->app, '/');
+		my $dir = Mojo::File->new($tm->app->config->{model_dir});
+		$dir->make_path;
+		for my $store ([ 'models.json', \&Database::BI::Controller::Dashboard::_write_models, {} ],
+				[ 'analyses.json', \&Database::BI::Controller::Dashboard::_write_analyses, { a => {} } ]) {
+			my ($name, $wr, $data) = @{$store};
+			$dir->child($name)->make_path;
+			my @logged;
+			$tm->app->log->level('warn');
+			my $sub = $tm->app->log->on(message => sub { push @logged, $_[2] });
+			lives_ok { $wr->($c, $data) } "$name: a save that cannot complete does not die";
+			$tm->app->log->unsubscribe(message => $sub);
+			ok -d $dir->child($name), "$name: the folder is where it was";
+			ok !(grep { /\.corrupt\./ } map { $_->basename } @{ $dir->list({ dir => 1 }) }), "$name: and was not moved aside";
+			ok !(grep { /could not be parsed/ } @logged), "$name: nor called corrupt in the log";
+		}
+		is Database::BI::Controller::Dashboard::_write_models($c, {}), 0, 'and the model store says the write failed';
+	};
+
 	subtest 'Dashboard::_gen_analysis_id' => sub {
 		my $fn = \&Database::BI::Controller::Dashboard::_gen_analysis_id;
 		my $c  = dash_controller($app, '/');

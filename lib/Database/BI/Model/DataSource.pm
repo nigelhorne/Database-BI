@@ -20,7 +20,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-0.012.0
+0.021.0
 
 =head1 SYNOPSIS
 

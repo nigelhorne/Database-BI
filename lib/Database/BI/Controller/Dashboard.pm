@@ -4583,9 +4583,13 @@ sub _write_models :Protected ($self, $models) {
 # Entry:   $path is the store about to be written; it need not exist.
 # Exit:    A file holding anything but a JSON object is renamed to
 #          <path>.corrupt.<time>, for its owner to repair.
+#          Only a plain file: a folder (or anything else) of that name is left
+#          where it is, and the write then fails as it should.  Linux will not
+#          read a folder, but the BSDs read its raw entries, which never parse,
+#          so a folder was moved aside there and the write went ahead.
 # Side Effects: Renames the file and logs where it went.
 sub _set_aside_corrupt_store :Protected ($self, $path) {
-	return unless -s $path;
+	return unless -f $path && -s _;
 
 	my $json = eval { Mojo::File->new($path)->slurp };
 	return unless defined $json;
@@ -7758,8 +7762,8 @@ None; errors render as 404.
 =head3 FORMAL SPECIFICATION
 
   browse == lambda self .
-    let dir = realpath(param('path') // HOME) in
-    pre  is_dir(dir)
+    let dir = realpath(param('path') // first_root) in
+    pre  inside(dir, file_roots) /\ is_dir(dir)
     post render(browse, dirs: subdirs(dir), files: supported_files(dir))
 
 =head3 EXAMPLE
@@ -8894,7 +8898,8 @@ C<POST /export> -- Write the current logical view to a chosen filesystem path.
   l=         string   (required) Left table spec.
   j=         string   (repeatable) Join steps.
   f=         string   (repeatable) Filter specs.
-  dir=       string   Target directory (must exist; resolved via realpath).
+  dir=       string   Target directory (must exist; resolved via realpath).  Inside
+                      config file_roots and export_dirs when they are set.
   filename=  string   Output filename including extension.  Extension determines
                       format: C<.csv> -> RFC 4180 CSV; C<.sql> -> SQLite;
                       C<.json> -> JSON array of row objects.
@@ -8926,8 +8931,12 @@ C<report.txt>, C<report> (no extension), empty string.
 =head4 OUTPUT
 
   200 application/json   { "saved": "/abs/path/to/file" }
-  403 application/json   { "error": "..." }  -- a hidden target, or a request
+  403 application/json   { "error": "..." }  -- a hidden target; dir outside
+                                                  file_roots or export_dirs; a name
+                                                  that is a link, folder or anything
+                                                  but a plain file; or a request
                                                   another site's page made
+  401 application/json   { "error": "..." }  -- password_hash set, not logged in
   404 application/json   { "error": "..." }  -- bad dir or table not found
   415 application/json   { "error": "..." }  -- unsupported extension
   500 application/json   { "error": "..." }  -- write failure
@@ -8940,9 +8949,19 @@ C<report.txt>, C<report> (no extension), empty string.
                            part starting with a dot (~/.config, .vscode/,
                            .profile.json): those hold settings, and
                            GET /api/dirs never offers them.
+  error_outside_roots   -- dir is outside config file_roots.
+  error_outside_export_dirs
+                        -- dir is outside config export_dirs.
+  error_export_not_file -- the name is already a link, a folder or another
+                           non-file: a link could lead the export anywhere.
   error_cross_site, error_host_refused
                         -- from request_refusal, before this action runs.
   error_write_failed    -- DBI or filesystem write threw.
+
+The file is written to a temporary file (C<.bi-export-XXXXXXXX>) in C<dir> and
+renamed over the name, so a reader never sees half a file and a link made
+after the check is replaced, not followed.  It gets the replaced file's mode,
+or C<0666 & ~umask> for a new one; on failure the temporary file is removed.
 
 =head3 FORMAL SPECIFICATION
 
@@ -9054,30 +9073,35 @@ C<GET /api/dirs> -- Return a JSON directory listing for the export panel.
 
 =head4 INPUT
 
-  ?path=   string   Directory to list (default: $HOME).  Returns 404 when not
-                    a directory.  Hidden entries (names starting with ".") are
-                    excluded.
+  ?path=   string   Directory to list.  Default: the first config export_dirs
+                    entry, else $HOME if it is inside file_roots, else the first
+                    root.  Returns 404 when not a directory.  Hidden entries
+                    (names starting with ".") are excluded.
 
 =head4 OUTPUT
 
   200 application/json
     {
       "path":   "/abs/path",
-      "parent": "/abs/parent" or null (at filesystem root),
+      "parent": "/abs/parent" or null (at the filesystem root, or when the
+                 parent is outside file_roots or export_dirs),
       "dirs":   [ { "name": "alpha", "path": "/abs/path/alpha" }, ... ]
     }
 
+  403 application/json   { "error": "..." }  -- path outside file_roots or
+                                                  export_dirs, whether or not it
+                                                  exists
   404 application/json   { "error": "Not a directory" }
 
 =head3 MESSAGES
 
-None beyond the 404 response.
+  error_outside_roots, error_outside_export_dirs -- the 403 above.
 
 =head3 FORMAL SPECIFICATION
 
   dirs_api == lambda self .
-    let dir = realpath(param('path') // HOME) in
-    pre  is_dir(dir)
+    let dir = realpath(param('path') // first(export_dirs) // first_root) in
+    pre  inside(dir, file_roots) /\ inside(dir, export_dirs) /\ is_dir(dir)
     post render_json({ path: dir, parent: parent(dir), dirs: subdirs(dir) })
 
 =head3 EXAMPLE
@@ -15266,7 +15290,9 @@ rasterise their own SVG in the browser.
 
 =head4 INPUT / OUTPUT
 
-  POST /api/analyses/:id/share   -> 200 { token, url, expires }, 400 invalid id, 404 unknown
+  POST /api/analyses/:id/share   -> 200 { token, url, expires, lasts_restart }, 400 invalid id, 404 unknown
+                                    (lasts_restart: false when neither share_secret nor
+                                    secrets is set, so a restart ends the link)
   GET  /share/:id?token=...      -> 200 text/html, 400 invalid id, 401 missing token,
                                     403 bad or expired token, 404 unknown or no visuals
   GET  /embed/:id?token=...      -> as /share/:id, plus 422 when the data cannot be opened;
@@ -15321,14 +15347,19 @@ returned.  Absent when C<ai_api_key> is not configured.
 =head4 INPUT
 
   l        spec    Required.  Left table spec.
-  q        string  Required.  The question.
+  q        string  Required.  The question.  At most 500 characters.
   f        string  Optional, repeatable.  Result filters.
 
 =head4 OUTPUT
 
   200 application/json  { spec, url, valid => 1 }
-  400 application/json  { error }
+  400 application/json  { error } (missing l or q; q over 500 characters:
+                                   ask_question_too_long)
+  401 application/json  { error } (password_hash set, not logged in)
   404 application/json  { error } (unopenable source)
+  429 application/json  { error } (ai_calls_per_hour provider calls already made
+                                   in the last hour, shared with summary_api:
+                                   ai_limit_reached)
   503 application/json  { error } (no ai_api_key)
 
 =head2 summary_api
@@ -15348,8 +15379,13 @@ paths).  Results are cached in-process for one hour.
 
 =head4 OUTPUT
 
-  200 application/json  { summary, facts, ai => 0|1 }
+  200 application/json  { text, source, cached }
+        source: template (no ai, or no key), llm, template_fallback (the
+                provider failed), or template_limited (ai_calls_per_hour
+                reached: the template text, not cached)
+        cached: 1 when the text came from the hour's cache, which costs no call
   400 application/json  { error }
+  401 application/json  { error } (password_hash set, not logged in)
   404 application/json  { error }
 
 =head2 geo_list / geo_save / geo_delete
