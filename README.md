@@ -285,6 +285,12 @@ perl Makefile.PL
     (repeatable) to pre-filter results, and `?range=name&rcol=column` to keep
     only a relative window of rows (see ["Relative time ranges"](#relative-time-ranges)).
 
+    `?f=col:between:lo:hi` keeps the rows whose `col` lies from `lo` to `hi`,
+    both included.  Two numbers (a range of years, `Year:between:1880:1900`)
+    compare as numbers, whichever is written first; two dates compare as dates; any
+    other pair compares as text.  The filter row offers it for date columns (two
+    date boxes) and number columns (two number boxes).
+
     A name that is not a table in `data_dir` is a `404` page that says so ("There
     is no table called ..."), with the breadcrumb and site navigation; it does not
     show the data directory.
@@ -1085,6 +1091,12 @@ all show the same rows, and one chip in the toolbar names the window with an
 `x` to remove it.  Filters the reader wrote are untouched: the range travels in
 the URL as itself, so submitting a panel form or reopening a link does not turn
 it into frozen dates.
+
+The table page offers Time range in its filter bar only when one of the columns
+on the page holds dates or date-times (`YYYY-MM-DD`, the same with a time after
+`T` or a space, or `M/D/YYYY`) in every non-empty cell, and its column menu
+lists only those columns.  A range already in force stays in the bar, so it can
+be changed or removed.
 
 A window narrower than a day (`last_24_hours`) is compared to the second, so
 it is exact only on a column that holds a time as well as a date.  A
@@ -2089,14 +2101,13 @@ works correctly in production without any special workarounds.
 
 Features planned for future releases (post-0.019.0).  Items are ordered by
 priority.  Items shipped before this release (XLSX export, the copy-link
-button, the column statistics panel, folder filter/join propagation and the
-aggregate/measure layer) are no longer listed.
+button, the column statistics panel, folder filter/join propagation, the
+aggregate/measure layer and the `between` and `in` filter operators) are no
+longer listed.
 
 - **Multi-sheet XLSX** (Medium) -- `_detect_file_info` reads only the
 first worksheet.  A `?sheet=` URL param with a sheet-name picker would
 expose the full workbook.
-- **`between` and `in (a,b,c)` filter operators** (Low) -- Would
-reduce multi-filter chains for common range and set queries.
 - **SSE streaming for large join results** (Low) -- The join pipeline
 blocks the HTTP response until all rows are assembled.  Mojolicious supports
 server-sent events, which could progressively stream rows to a JS table

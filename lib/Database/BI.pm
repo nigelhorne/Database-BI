@@ -419,6 +419,12 @@ Opens the named table from C<data_dir>.  Accepts C<?f=col:op:val>
 (repeatable) to pre-filter results, and C<?range=name&rcol=column> to keep
 only a relative window of rows (see L</Relative time ranges>).
 
+C<?f=col:between:lo:hi> keeps the rows whose C<col> lies from C<lo> to C<hi>,
+both included.  Two numbers (a range of years, C<Year:between:1880:1900>)
+compare as numbers, whichever is written first; two dates compare as dates; any
+other pair compares as text.  The filter row offers it for date columns (two
+date boxes) and number columns (two number boxes).
+
 A name that is not a table in C<data_dir> is a C<404> page that says so ("There
 is no table called ..."), with the breadcrumb and site navigation; it does not
 show the data directory.
@@ -1183,6 +1189,12 @@ all show the same rows, and one chip in the toolbar names the window with an
 C<x> to remove it.  Filters the reader wrote are untouched: the range travels in
 the URL as itself, so submitting a panel form or reopening a link does not turn
 it into frozen dates.
+
+The table page offers Time range in its filter bar only when one of the columns
+on the page holds dates or date-times (C<YYYY-MM-DD>, the same with a time after
+C<T> or a space, or C<M/D/YYYY>) in every non-empty cell, and its column menu
+lists only those columns.  A range already in force stays in the bar, so it can
+be changed or removed.
 
 A window narrower than a day (C<last_24_hours>) is compared to the second, so
 it is exact only on a column that holds a time as well as a date.  A
@@ -2170,17 +2182,15 @@ works correctly in production without any special workarounds.
 
 Features planned for future releases (post-0.019.0).  Items are ordered by
 priority.  Items shipped before this release (XLSX export, the copy-link
-button, the column statistics panel, folder filter/join propagation and the
-aggregate/measure layer) are no longer listed.
+button, the column statistics panel, folder filter/join propagation, the
+aggregate/measure layer and the C<between> and C<in> filter operators) are no
+longer listed.
 
 =over 4
 
 =item * B<Multi-sheet XLSX> (Medium) -- C<_detect_file_info> reads only the
 first worksheet.  A C<?sheet=> URL param with a sheet-name picker would
 expose the full workbook.
-
-=item * B<C<between> and C<in (a,b,c)> filter operators> (Low) -- Would
-reduce multi-filter chains for common range and set queries.
 
 =item * B<SSE streaming for large join results> (Low) -- The join pipeline
 blocks the HTTP response until all rows are assembled.  Mojolicious supports
@@ -2227,10 +2237,6 @@ data is shipped or downloaded.
 # E. [NEW 0.010.0] Multi-sheet XLSX (Medium priority)
 #    _detect_file_info reads only worksheet index 0.  A ?sheet= URL param
 #    with a sheet-name picker would expose the full workbook.
-#
-# G. [NEW 0.010.0] between / in(a,b,c) filter operators (Low priority)
-#    Would reduce multi-f= chains for common range and set queries.  The
-#    operator allowlist in _apply_filter_spec is the only required change.
 #
 # H. [NEW 0.010.0] SSE streaming for large join results (Low priority)
 #    The join pipeline blocks the HTTP response until all rows are assembled.
@@ -2623,6 +2629,22 @@ sub startup ($self) {
 		$c->stash(d3_url =>
 			(defined $d3_url && !ref $d3_url && length $d3_url)
 				? $d3_url : $DEFAULT_D3_URL);
+
+		# Time range filters on a date or time column, so the table page
+		# offers it only when the rows drawn have one (seven actions render
+		# that page; this is the one place they all pass).  A range already
+		# in force keeps its column, so it can be changed or removed even
+		# when it leaves no rows to judge by.
+		if (($args->{template} // '') =~ m{/dashboard\z}) {
+			require Database::BI::Controller::Dashboard;
+			my $columns = $args->{columns} // $c->stash('columns');
+			my $records = $args->{records} // $c->stash('records');
+			my @time = @{ Database::BI::Controller::Dashboard::_time_columns($columns, $records) };
+			my $active = $c->stash('time_range');
+			push @time, $active->{col}
+				if ref($active) eq 'HASH' && !grep { $_ eq $active->{col} } @time;
+			$args->{time_columns} = \@time;
+		}
 
 		# Mojolicious's own 404 page has no navigation and no breadcrumb; an
 		# HTML one is drawn from our not_found template instead.  Its first

@@ -157,6 +157,9 @@
 		<strong>Narrow.</strong> Filters (<code>f=col:op:value</code>) and a
 		relative time range (<code>range=</code>, <code>rcol=</code>) are applied
 		after the joins and before anything is aggregated.
+		<code>Year:between:1880:1900</code> keeps the rows from 1880 to 1900,
+		both included; the filter row offers <em>between</em> for number
+		columns as well as dates.
 	</li>
 	<li>
 		<strong>Add cross-row columns.</strong> A running total, rank or z-score is
@@ -220,6 +223,8 @@ this_year, last_year</code></pre>
 	and a saved canvas all show the same rows. Filters you wrote are untouched.
 	Entries whose window falls entirely outside the data are disabled in the
 	filter bar, with the column's earliest and latest value in the tooltip.
+	The filter bar offers Time range only when the table has a column of dates
+	or dates and times, and its column menu lists only those columns.
 </p>
 <p>
 	An unknown <code>range=</code> is a 400 rather than a silently unfiltered

@@ -463,4 +463,44 @@ subtest 'A canvas refuses a range it cannot honour' => sub {
 	$t->get_ok("/a/$canvas_id?range=last_7_days")->status_is(400);
 };
 
+subtest 'Time range is offered only for a view with a date or time column' => sub {
+	my $tc = \&Database::BI::Controller::Dashboard::_time_columns;
+
+	is_deeply $tc->(
+		[ qw(id day stamp spaced us text bad blank) ],
+		[
+			{ id => 1, day => '2026-01-31', stamp => '2026-01-31T09:15:00', spaced => '2026-01-31 09:15',
+			  us => '1/31/2026', text => 'Jan', bad => '2026-13-01', blank => '' },
+			{ id => 2, day => '',           stamp => '2026-02-01T10:00:00', spaced => '2026-02-01 10:00:30',
+			  us => '12/1/2025', text => '2026-02-01', bad => '2026-01-01', blank => undef },
+		],
+	), [ qw(day stamp spaced us) ],
+		'dates, timestamps and M/D/YYYY qualify; numbers, words, impossible months and empty columns do not';
+	is_deeply $tc->([ 'when' ], []), [], 'no rows, no time columns';
+	is_deeply $tc->(undef, undef), [], 'nothing given, nothing found';
+
+	Mojo::File->new($data_dir)->child('nodates.csv')->spew("id,name,amount\nN1,apple,3\nN2,pear,4\n");
+	Mojo::File->new($data_dir)->child('mixed.csv')->spew(
+		"id,name,opened,closed\nM1,apple,2026-01-31,2026-02-01 09:00\nM2,pear,2026-03-01,\n");
+
+	$t->get_ok('/view/nodates')->status_is(200)
+		->element_exists('#dash-add-filter', 'the filter bar is still drawn')
+		->element_exists_not('#dash-range-preset', 'a view with no dates offers no time range')
+		->element_exists_not('#dash-range-col',    'nor a column to apply one to')
+		->element_exists_not('#dash-range-apply',  'nor an Apply range button');
+
+	$t->get_ok('/view/mixed')->status_is(200)
+		->element_exists('#dash-range-preset', 'a view with a date column offers a time range');
+	my @cols = map { $_->{value} } @{ $t->tx->res->dom->find('#dash-range-col option')->to_array };
+	is_deeply \@cols, [ '', 'opened', 'closed' ],
+		'the column menu lists only the date and time columns, a date and time one included';
+
+	$t->get_ok('/view/days?range=last_7_days&rcol=when&f=' . url_escape('id:eq:nothing'))->status_is(200);
+	my @none = _ids_in($t->tx->res->body, '#bi-table');
+	is scalar(@none), 0, 'the range and filter leave no rows';
+	$t->element_exists('#dash-range-preset', 'a range in force stays changeable with no rows to judge by')
+		->element_exists('option[value="when"][selected]', 'and keeps its column')
+		->element_exists('#chip-remove-range', 'and can be removed');
+};
+
 done_testing();

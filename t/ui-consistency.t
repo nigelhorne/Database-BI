@@ -148,6 +148,16 @@ subtest 'every chart, analysis and model button in the toolbar looks the same' =
 # Print reads the view's rows the way Export saves them, so the two cannot
 # drift apart: both take their parameters from biViewParams.  No browser runs
 # in the suite, so what is printed is checked as written.
+subtest 'A number column can be filtered between two numbers' => sub {
+	my $tt = Mojo::File->new('templates/web/en/dashboard.html.tt')->slurp;
+	my @numeric = $tt =~ /OPS_NUMERIC\s*=\s*(\[.*?\]\]);/g;
+	is(scalar(@numeric), 2, 'the filter row and the Merge / Filter panel each list number operators');
+	like($_, qr/\['between',/, 'and between is among them') for @numeric;
+	like($tt, qr/function biRangeInputs\(inputs, colType\)/, 'the from and to boxes are typed for the column');
+	is(scalar(() = $tt =~ /biRangeInputs\(\[/g), 3,
+		'by the filter row and by each panel row, when it is built and when its column changes');
+};
+
 subtest 'Print sits to the right of Refresh and prints every row of the view' => sub {
 	my $dom = Mojo::DOM->new($t->get_ok('/view/sales')->status_is(200)->tx->res->body);
 	my $refresh = $dom->at('#btn-refresh');

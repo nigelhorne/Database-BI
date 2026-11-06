@@ -365,6 +365,7 @@
   <button id="dash-f-apply" class="btn-dash-filter-apply">Apply filter</button>
 
 
+  [%- IF time_columns.size -%]
   <span class="toolbar-sep" role="separator" aria-hidden="true"></span>
   <label for="dash-range-preset" class="dash-f-range-label">Time range</label>
   <select id="dash-range-preset"
@@ -376,12 +377,13 @@
   </select>
   <select id="dash-range-col" aria-label="Column the time range applies to">
     <option value="">&#x2014; column &#x2014;</option>
-    [%- FOREACH col IN columns -%]
+    [%- FOREACH col IN time_columns -%]
     <option value="[% col | html %]"[% IF time_range and time_range.col == col %] selected[% END %]>[% col | html %]</option>
     [%- END -%]
   </select>
   <button id="dash-range-apply" class="btn-dash-filter-apply" type="button"
           title="Apply the time range to this view">Apply range</button>
+  [%- END -%]
 </div>
 [%- END -%]
 
@@ -2049,6 +2051,23 @@ function biApplyRange(inputs, range) {
   inputs.forEach(function (inp) { inp.min = lo; inp.max = hi; });
 }
 
+// Type the [from, to] boxes of a between for a column of colType: two
+// numbers for a number column (a range of years, say), two dates otherwise.
+// Switching type drops the bounds the other type set, which mean nothing in
+// the new one; a box that already has its type is left alone, value and all.
+function biRangeInputs(inputs, colType) {
+  var type = colType === 'numeric' ? 'number' : 'date';
+  inputs.forEach(function (inp, i) {
+    if (inp.type === type) return;
+    inp.value = '';
+    inp.removeAttribute('min');
+    inp.removeAttribute('max');
+    inp.type = type;
+    inp.placeholder = type === 'number' ? (i ? 'to' : 'from') : '';
+    inp.setAttribute('aria-label', (i ? 'To ' : 'From ') + (type === 'number' ? 'number' : 'date'));
+  });
+}
+
 // Set min/max on date inputs for colName: disable inputs while fetching the
 // full-dataset range from /api/range so the calendar can't open with a
 // page-only estimate; re-enable (with correct min/max) when the response
@@ -2565,7 +2584,7 @@ function biDetectColType(colName) {
 
   // Operator definitions -- three sets, chosen by column type.
   var OPS_STRING  = [['eq','equals'],['ne','not equal to'],['contains','matches'],['starts','starts with'],['empty','is empty'],['notempty','is not empty']];
-  var OPS_NUMERIC = [['eq','equals'],['ne','not equals'],['lt','<'],['le','<='],['gt','>'],['ge','>='],['empty','is empty'],['notempty','is not empty']];
+  var OPS_NUMERIC = [['eq','equals'],['ne','not equals'],['lt','<'],['le','<='],['gt','>'],['ge','>='],['between','between'],['empty','is empty'],['notempty','is not empty']];
   var OPS_DATE    = [['eq','on date'],['ne','not on date'],['lt','before'],['le','on or before'],['gt','after'],['ge','on or after'],['between','date range'],['empty','is empty'],['notempty','is not empty']];
   var OPS = OPS_STRING; // default for join panel (kept for external callers)
 
@@ -2667,6 +2686,11 @@ function biDetectColType(colName) {
     toInp.className = 'filter-to-inp';
     toInp.style.display = 'none';
 
+    // A between on a number column takes two numbers, on a date column two
+    // dates: the same pair of boxes, typed to suit.  Set before a prefill,
+    // which a date box would refuse.
+    biRangeInputs([fromInp, toInp], rowColType);
+
     if (prefill.op === 'between' && prefill.val) {
       var bparts = prefill.val.split(':');
       fromInp.value = bparts[0] || '';
@@ -2680,12 +2704,13 @@ function biDetectColType(colName) {
       var isList    = op === 'in';
       var isDate    = rowColType === 'date' && !isList;
       var isNumeric = rowColType === 'numeric' && !isList;
+      var isRange   = (isDate || isNumeric) && isBetween;
       valInp.style.display  = (!isDate && !isNumeric && !isUnary) ? '' : 'none';
-      numInp.style.display  = (isNumeric && !isUnary)             ? '' : 'none';
+      numInp.style.display  = (isNumeric && !isUnary && !isBetween) ? '' : 'none';
       dateInp.style.display = (isDate && !isUnary && !isBetween)  ? '' : 'none';
-      fromInp.style.display = (isDate && isBetween)               ? '' : 'none';
-      sepSpan.style.display = (isDate && isBetween)               ? '' : 'none';
-      toInp.style.display   = (isDate && isBetween)               ? '' : 'none';
+      fromInp.style.display = isRange                             ? '' : 'none';
+      sepSpan.style.display = isRange                             ? '' : 'none';
+      toInp.style.display   = isRange                             ? '' : 'none';
       checkApply();
     }
 
@@ -2695,14 +2720,15 @@ function biDetectColType(colName) {
               : rowColType === 'numeric' ? OPS_NUMERIC
               : OPS_STRING;
       rebuildRowOps(ops, opSel.value);
+      biRangeInputs([fromInp, toInp], rowColType);
       if (rowColType === 'date') applyRowDateRange(colSel.value);
       toggleValInp();
       checkApply();
     });
     opSel.addEventListener('change', toggleValInp);
     toggleValInp();
-    fromInp.addEventListener('change', function () { if (fromInp.value) toInp.min   = fromInp.value; });
-    toInp.addEventListener('change',   function () { if (toInp.value)   fromInp.max = toInp.value;   });
+    fromInp.addEventListener('change', function () { if (fromInp.value && fromInp.type === 'date') toInp.min   = fromInp.value; });
+    toInp.addEventListener('change',   function () { if (toInp.value && toInp.type === 'date')   fromInp.max = toInp.value;   });
 
     var rmBtn = document.createElement('button');
     rmBtn.type = 'button';
@@ -3115,7 +3141,7 @@ function biDetectColType(colName) {
     var quickTo     = document.getElementById('dash-f-to');
 
     var Q_OPS_STRING  = [['eq','equals'],['ne','not equal to'],['contains','matches'],['starts','starts with'],['empty','is empty'],['notempty','is not empty']];
-    var Q_OPS_NUMERIC = [['eq','equals'],['ne','not equals'],['lt','<'],['le','<='],['gt','>'],['ge','>='],['empty','is empty'],['notempty','is not empty']];
+    var Q_OPS_NUMERIC = [['eq','equals'],['ne','not equals'],['lt','<'],['le','<='],['gt','>'],['ge','>='],['between','between'],['empty','is empty'],['notempty','is not empty']];
     var Q_OPS_DATE    = [['eq','on date'],['ne','not on date'],['lt','before'],['le','on or before'],['gt','after'],['ge','on or after'],['between','date range'],['empty','is empty'],['notempty','is not empty']];
 
     var quickColType = 'string';
@@ -3136,12 +3162,13 @@ function biDetectColType(colName) {
       var isUnary   = op === 'empty' || op === 'notempty';
       var isDate    = quickColType === 'date';
       var isNumeric = quickColType === 'numeric';
+      var isRange   = (isDate || isNumeric) && isBetween;
       quickVal.style.display  = (!isDate && !isNumeric && !isUnary) ? '' : 'none';
-      quickNum.style.display  = (isNumeric && !isUnary)             ? '' : 'none';
+      quickNum.style.display  = (isNumeric && !isUnary && !isBetween) ? '' : 'none';
       quickDate.style.display = (isDate && !isUnary && !isBetween)  ? '' : 'none';
-      quickFrom.style.display = (isDate && isBetween)               ? '' : 'none';
-      quickSep.style.display  = (isDate && isBetween)               ? '' : 'none';
-      quickTo.style.display   = (isDate && isBetween)               ? '' : 'none';
+      quickFrom.style.display = isRange                             ? '' : 'none';
+      quickSep.style.display  = isRange                             ? '' : 'none';
+      quickTo.style.display   = isRange                             ? '' : 'none';
     }
 
     function applyQuickDateRange(col) {
@@ -3155,13 +3182,14 @@ function biDetectColType(colName) {
               : quickColType === 'numeric' ? Q_OPS_NUMERIC
               : Q_OPS_STRING;
       rebuildQuickOps(ops, quickOpSel.value);
+      biRangeInputs([quickFrom, quickTo], quickColType);
       if (quickColType === 'date') applyQuickDateRange(col);
       toggleQuickInputs();
     });
     quickOpSel.addEventListener('change', toggleQuickInputs);
     toggleQuickInputs();
-    quickFrom.addEventListener('change', function () { if (quickFrom.value) quickTo.min = quickFrom.value; });
-    quickTo.addEventListener('change',   function () { if (quickTo.value)   quickFrom.max = quickTo.value; });
+    quickFrom.addEventListener('change', function () { if (quickFrom.value && quickFrom.type === 'date') quickTo.min = quickFrom.value; });
+    quickTo.addEventListener('change',   function () { if (quickTo.value && quickTo.type === 'date')   quickFrom.max = quickTo.value; });
 
     applyBtn.addEventListener('click', function () {
       var col = quickColSel.value;
@@ -3262,16 +3290,10 @@ function biDetectColType(colName) {
       .catch(function () {});
   }
 
-  // A range needs a column.  Offer the first one that looks like a date, so
-  // the common case is one click rather than two.
-  if (!colSel.value) {
-    var dateCol = '';
-    for (var i = 0; i < colSel.options.length && !dateCol; i++) {
-      var v = colSel.options[i].value;
-      if (v && biDetectColType(v) === 'date') dateCol = v;
-    }
-    if (dateCol) colSel.value = dateCol;
-  }
+  // A range needs a column.  The server lists only the date and time
+  // columns, so the first one is preselected: the common case is one click
+  // rather than two.
+  if (!colSel.value && colSel.options.length > 1) colSel.selectedIndex = 1;
 
   presetSel.addEventListener('change', function () {
     ask(presetSel.value, colSel.value);

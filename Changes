@@ -36,10 +36,18 @@ Revision history for Database-BI
 	- Print, to the right of Refresh, prints the header row and every row of
 	  the view (not only the page on screen), in the columns and order the
 	  table shows.
+	- The filter bar offers Time range only when the view has a date or
+	  date-time column, and lists only those columns for it.
+	- The filter row offers "between" for a number column, such as a
+	  year, and f=col:between:lo:hi compares two numbers as numbers.
 	- path:<file>#<table> names one table of a file outside data_dir, as
 	  table:<file>/<table> does inside it, so the charts, panels and exports
 	  of a second SQLite table or JSON list no longer read the first.
 	[ Other ]
+	- t/path-spec.t failed on Windows (CPAN Testers, Strawberry Perl 5.42):
+	  it took the expected path from realpath through the link, which
+	  Windows leaves unresolved.  The code was right; the test now takes it
+	  from the real folder.
 	- HTML::D3 0.30, Database::Abstraction 0.55 (which requires its CSV and
 	  XML readers) and Crypt::URandom are now required; URI and HTTP::Message
 	  are declared.

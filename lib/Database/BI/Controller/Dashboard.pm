@@ -1737,6 +1737,44 @@ sub _to_iso_date {
 	return;
 }
 
+# _time_columns(\@columns, \@records) -> \@names
+#
+# Purpose: The columns a time range can be applied to: those whose every
+#          non-empty cell on the page is a date or a date and time that the
+#          range filter reads (_to_iso_date: YYYY-MM-DD, with an optional
+#          "THH:MM[:SS]" or " HH:MM[:SS]", or M/D/YYYY), with a month and day
+#          that can exist, and at least one such cell.  The dashboard offers
+#          Time range only when this is not empty, and lists only these.
+# Entry:   $columns is the page's column order; $records its rows (hashes).
+# Exit:    Returns the qualifying names, in column order; [] when there are
+#          none, no rows, or either argument is not an array.
+# Notes:   It reads the rows drawn on the page, as the table's own date
+#          detection does: reading every row of the view for this would cost a
+#          second pass over the data on every page.
+sub _time_columns {
+	my ($columns, $records) = @_;
+	return [] unless ref($columns) eq 'ARRAY' && ref($records) eq 'ARRAY';
+	my @found;
+	COLUMN: for my $col (@{$columns}) {
+		next unless defined $col;
+		my $seen = 0;
+		for my $row (@{$records}) {
+			next unless ref($row) eq 'HASH';
+			my $v = $row->{$col};
+			next unless defined $v;
+			$v =~ s/\A\s+|\s+\z//g;
+			next unless length $v;
+			my $iso = _to_iso_date($v);
+			next COLUMN unless defined $iso;
+			my ($m, $d) = $iso =~ /\A\d{4}-(\d{2})-(\d{2})/;
+			next COLUMN unless $m >= 1 && $m <= 12 && $d >= 1 && $d <= 31;
+			$seen = 1;
+		}
+		push @found, $col if $seen;
+	}
+	return \@found;
+}
+
 # _date_key($value, $precision) -> comparable key | undef
 #
 # Purpose: Put a cell and a filter bound on the same footing so that a
@@ -1991,6 +2029,17 @@ sub _apply_filter_spec {
 	# one, so it matches none of the four, rather than counting as zero.
 	my $by_number = !$is_date && $op =~ /\A(?:lt|le|gt|ge)\z/;
 	my $num_val   = $by_number ? _numeric_cell($val) : undef;
+	# A between of two numbers (a range of years, of prices) compares as
+	# numbers, inclusive at both ends and whichever bound is written first;
+	# "9" sorts after "10" as text.  Anything else keeps the text comparison.
+	my ($num_lo, $num_hi);
+	if (!$is_date && $op eq 'between') {
+		my ($lo, $hi) = split /:/, $val, 2;
+		($num_lo, $num_hi) = (_numeric_cell($lo), _numeric_cell($hi))
+			if length($lo // '') && length($hi // '');
+		($num_lo, $num_hi) = (undef, undef) unless defined $num_lo && defined $num_hi;
+		($num_lo, $num_hi) = ($num_hi, $num_lo) if defined $num_lo && $num_lo > $num_hi;
+	}
 	my %in_set    = $op eq 'in' ? (map { lc($_) => 1 } _filter_in_values($val)) : ();
 	return [grep {
 		my $cell  = $_->{$col} // '';
@@ -2012,6 +2061,10 @@ sub _apply_filter_spec {
 		$op eq 'empty'    ? $cell eq ''                                         :
 		$op eq 'notempty' ? $cell ne ''                                         :
 		$op eq 'in'       ? $in_set{ lc($cell) }                                 :
+		$op eq 'between' && defined $num_lo ? do {
+			my $n = _numeric_cell($cell);
+			defined $n && $n >= $num_lo && $n <= $num_hi
+		} :
 		$op eq 'between'  ? do {
 			my ($lo, $hi) = split /:/, $val, 2;
 			length($lo // '') && length($hi // '') && $ncell ge $lo && $ncell le $hi

@@ -768,6 +768,25 @@ subtest '_apply_filter_spec -- between operator (date range, string comparison)'
 	is scalar(@$bad), 0,                     'between with no hi value returns empty';
 };
 
+subtest '_apply_filter_spec -- between operator on numbers compares as numbers' => sub {
+	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
+	my @rows = map { { year => $_ } } ('1844', '1885', '1900', '1912', '', 'unknown', '9', '10', '-3', '(2)');
+	my $years = sub { [ map { $_->{year} } @{ $fn->(\@rows, $_[0]) } ] };
+
+	is_deeply $years->('year:between:1880:1900'), [ '1885', '1900' ],
+		'a range of years keeps the years inside it, both ends included';
+	is_deeply $years->('year:between:1900:1880'), [ '1885', '1900' ],
+		'the bounds may be written either way round';
+	is_deeply $years->('year:between:9:10'), [ '9', '10' ],
+		'9 to 10 is two numbers, not an empty text range ("9" sorts after "10")';
+	is_deeply $years->('year:between:-5:0'), [ '-3', '(2)' ],
+		'negative bounds and accounting negatives are numbers too';
+	is_deeply $years->('year:between:1880:'), [],
+		'a range missing a bound keeps nothing';
+	is_deeply [ map { $_->{name} } @{ $fn->([ map { { name => $_ } } qw(apple kiwi pear) ], 'name:between:b:l') } ],
+		[ 'kiwi' ], 'a range of words still compares as text';
+};
+
 subtest '_apply_filter_spec -- unknown operator passes all rows through' => sub {
 	my $fn = \&Database::BI::Controller::Dashboard::_apply_filter_spec;
 	my $records = [{ x => 1 }, { x => 2 }];
