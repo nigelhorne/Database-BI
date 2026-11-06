@@ -385,6 +385,13 @@ POST /export  l=...&amp;dir=/tmp&amp;filename=out.csv</code></pre>
 	table's label. JSON is available from the pivot and from a canvas card, and
 	XLSX from the pivot.
 </p>
+<p>
+	<code>POST /export</code> saves into a folder on the server, so it keeps to
+	<code>file_roots</code> and <code>export_dirs</code> when they are set (and
+	<code>export_dirs</code> must be set with a password), never into a dot-folder,
+	and never over a link or a folder of that name. See
+	<a href="install.html#file-roots">Which folders it may use</a>.
+</p>
 
 <h2>Limits worth knowing</h2>
 <ul class="plain">

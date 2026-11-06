@@ -738,7 +738,7 @@ my @CHAPTERS = (
 			'Click Run it to open that chart.',
 			'Click Save to canvas to keep it as a card on a new canvas.',
 		],
-		tip   => 'Ask appears only when the person who runs the program has set an AI key. Only the column names and their types are sent, never your rows.',
+		tip   => 'Ask appears only when the person who runs the program has set an AI key. Only the column names and their types are sent, never your rows. A question can be up to 500 characters.',
 	},
 
 	# ---------------------------------------------------------------
@@ -1077,6 +1077,14 @@ my @FAQ = (
 	{
 		question => 'Export will not save into a folder whose name starts with a dot.',
 		answer   => 'Those folders hold settings for other programs, so saving there is refused. Choose another folder.',
+	},
+	{
+		question => 'Export says the name is already there and is not a plain file.',
+		answer   => 'A folder or a link has that name, and Export only replaces an ordinary file. Type another file name.',
+	},
+	{
+		question => 'Ask says the AI has been asked too often this hour.',
+		answer   => 'Whoever runs the program limits how often it asks the AI each hour. Try again later. Insights still work, without the AI wording.',
 	},
 	{
 		question => 'A chart says it cannot be drawn.',

@@ -1,261 +1,35 @@
 Revision history for Database-BI
 
 0.021.0
-	[ Enhancements ]
-	- A login.  With password_hash set in database_bi.conf, every page asks
-	  for a password first; script/database-bi password asks for one and
-	  prints the line.  Only a PBKDF2-HMAC-SHA256 hash of it is kept, and a
-	  plain password there stops the start.  A browser goes to /login and
-	  back to the page it asked for; any other request gets 401.  Log out is
-	  at the top of every page.  The session cookie is signed, HttpOnly,
-	  SameSite=Lax, and Secure over https; login_expiration (default eight
-	  hours) is how long it lasts after the last request, and a new password
-	  logs every session out.  Ten wrong passwords from one address in 15
-	  minutes lock it out for the rest of them.  Share and embed links still
-	  open without it.  Without password_hash nothing changes.
-	- file_roots => [ '/srv/reports', ... ] fences in the folders readers may
-	  use: /browse, /open, the Export panel's folder list (/api/dirs), /tables,
-	  /api/columns, /api/stat, a path: source anywhere (tables, charts,
-	  merges, canvas cards, accelerated copies) and POST /export.  data_dir
-	  and uploads_dir are always among them.  Anything outside is refused
-	  (403; a path: source is not found) whether or not it exists, a link
-	  that leads outside is outside, and browsing goes no higher than a
-	  root.  Unset, the whole filesystem, as before.  A root that is not an
-	  existing folder stops the start.  A refused page a browser opened gets
-	  the error page with a way back, not plain text.
-	- A server other machines could reach must have a password.  Without
-	  password_hash, a listen (or MOJO_LISTEN, -l, or hypnotoad's listen)
-	  that is not loopback stops the start, saying what to change; a bare
-	  "morbo script/database-bi", which listens on every interface, does
-	  too.  A request from an address that is not loopback, such as one a
-	  reverse proxy on this machine brings in, is refused with 403.  The
-	  defaults listen on 127.0.0.1, so they start as before.
-	- embed_frame_ancestors => [ 'https://intranet.example.com', ... ] lets
-	  those sites show /embed/:id in a frame, and no other page.  Each entry
-	  must be an origin (a scheme, a host, an optional port; * only as the
-	  first label), or the application does not start.  However the policy is
-	  configured (report-only, none, or one without frame-ancestors), an
-	  enforced frame-ancestors names them, so naming one site never lets
-	  every site in.  The Share panel names the sites its embed code works on.
-	- content_security_policy_report_only => 1 sends the policy as
-	  Content-Security-Policy-Report-Only, and content_security_policy sets
-	  the whole policy ('' or 0 sends none; {nonce} in it becomes the nonce).
-	[ Bug fixes ]
-	- Every HTML page is sent with a Content-Security-Policy.  The pages show
-	  cells from files the application did not write, and HTML::D3 before 0.27
-	  and 0.29 let such a cell run script; the policy backs up the escaping.
-	  Scripts, stylesheets and images come only from this site and the hosts
-	  named by d3_url, the leaflet_*_url keys, tile_url and tile_sources (by
-	  default cdnjs.cloudflare.com, unpkg.com and OpenStreetMap's tiles).  A
-	  page's scripts may talk only to this site (connect-src 'self'), and no
-	  other site may frame a page (frame-ancestors 'self'); before, only
-	  /embed/ refused that.  JSON replies and downloads carry no policy.
-	- Inline script runs only with the request's nonce: a random value made
-	  for each request, named in script-src, and written on every <script>
-	  the templates, HTML::D3 and HTML::OSM write.  A script or an onerror=
-	  that came in with a cell's text no longer runs.  The pages' onclick
-	  attributes (chart exports, Copy link, Back on an error page) are bound
-	  from their scripts instead.  A canvas card added or changed without a
-	  reload names its nonce in the JSON reply, and the page runs only the
-	  card scripts that carry it.  A page from the page cache keeps the
-	  header it was stored with, so its nonce still matches.
-	- Every HTML page also carries X-Frame-Options: SAMEORIGIN, not only
-	  /embed/.  With content_security_policy_report_only, which only reports
-	  frame-ancestors, with content_security_policy set to '' or to a policy
-	  without frame-ancestors, and in browsers that read only that header,
-	  another site could frame any page and lure a reader into clicking it.
-	- Every reply carries Referrer-Policy: strict-origin-when-cross-origin.
-	  Specs, filter values and share tokens travel in query strings, and
-	  without it an older browser sent the whole URL, a share link's token
-	  among it, to the CDNs, OpenStreetMap's tile servers and any site a
-	  reader followed a link to.  Now another site gets the origin alone,
-	  which OpenStreetMap's tile policy asks for.
-	- Every reply carries X-Content-Type-Options: nosniff, so a browser takes
-	  it for the type it names.  Without it a browser could guess that a CSV
-	  export, or text from a data file, was HTML or script, and run what a
-	  cell held.
-	- Every page carries Cross-Origin-Opener-Policy: same-origin, so a window
-	  another site opened, or one a page opened on another site, cannot reach
-	  the page through window.opener.  cross_origin_opener_policy sets another
-	  value ('' or 0 for none); an unknown one stops the start.  The footer's
-	  link to GitHub, the one target=_blank link without it, is now
-	  rel="noopener".
-	- POST /export could be used by any web page the reader had open: a form
-	  posted from another site needs no permission, and the application has
-	  no login, so a page anywhere could write a .csv, .json or .sql file of
-	  its choosing into any folder the server can write.  Every write (any
-	  method but GET, HEAD and OPTIONS) is now refused with 403 when the
-	  browser's Sec-Fetch-Site says another site sent it, or, without that,
-	  when its Origin is not this server.  Scripts, which send neither, still
-	  work.  Every request is also refused when its Host is a name other than
-	  localhost or *.localhost and not an IP address, which stops a page
-	  whose name was made to resolve to 127.0.0.1 (DNS rebinding) from
-	  reading or writing as if it were this site.  allowed_hosts lists the
-	  names it may be reached by ('*.example.com', or '*' for any); behind a
-	  trusted proxy only that list is checked.  POST /export also refuses a
-	  folder or file whose name starts with a dot, where other programs keep
-	  their settings.
-	- A server listens on this machine only: script/database-bi, daemon and
-	  prefork on http://127.0.0.1:3000, hypnotoad on http://127.0.0.1:8080.
-	  Mojolicious's default is every interface, which put an application with
-	  no login on the local network.  listen (a location, several separated
-	  by commas, or a list) changes the port, or opens it with
-	  'http://*:3000'; hypnotoad => { listen } does the same for hypnotoad.
-	  A listen that is not an http or https location stops the start.  -l
-	  and MOJO_LISTEN still win.  Opening it to other machines needs a
-	  password (see the login, under Enhancements).
-	- Every reply carries a Permissions-Policy that turns off the browser
-	  features no page uses (camera, microphone, location, payment, USB,
-	  serial, HID, screen capture, full screen, reading the clipboard and
-	  more), so a script that got in cannot ask the reader for them.  Writing
-	  to the clipboard stays, for Copy link.  permissions_policy replaces the
-	  value ('' or 0 for none); one that cannot be a header value stops the
-	  start.  Only feature names Chromium knows are sent: it logs an error for
-	  any other.
-	- A reply to an https request carries Strict-Transport-Security:
-	  max-age=31536000, so a browser that reached the server over https does
-	  not fall back to http, where a share link's token travels in clear.  It
-	  binds this host only; strict_transport_security sets another value
-	  (includeSubDomains, preload) or turns it off ('' or 0), and a value a
-	  browser would not read stops the start.  Nothing is sent over http, to
-	  localhost (it would move every server on the machine to https) or to an
-	  IP address.  Behind a proxy, a request counts as https when Mojolicious
-	  trusts the proxy (MOJO_REVERSE_PROXY=1, hypnotoad's proxy => 1).
-	- HTML::D3 0.30 is now required, and HTML::OSM 0.14 is the version maps
-	  need: they put the nonce on the scripts they write.
-	- POST /export wrote through a link: a link inside the allowed folders
-	  (file_roots) to a file outside them, or to a dot-file, had the export
-	  written there, past both checks.  An export now never replaces a link,
-	  a folder or anything but a plain file (403), and is written to a
-	  temporary file beside its name and renamed into place, so a link made
-	  after the check is replaced, not followed, and nobody reads half a
-	  file.  A file it replaces keeps its permissions, as before.
-	- export_dirs => [ '/srv/reports/exports' ] confines exports to those
-	  folders: POST /export saves only in them or below, and the Export
-	  panel opens on the first and lists no other.  Reading is still
-	  file_roots' business.  An export replaces a file of the same name, and
-	  some .json files are settings another program obeys (package.json),
-	  so a server other people use must set it: with password_hash set and
-	  no export_dirs, the start stops, saying what to add.  A folder that
-	  does not exist, is outside file_roots or is a dot-folder stops it too.
-	- /api/ask and /api/summary?ai=1 spend ai_api_key on every call, and
-	  nothing bounded how often or how much: a question could be as long as
-	  a request, and a summary's cache is missed by changing a filter.  A
-	  question is now at most 500 characters (the box stops there too), and
-	  each server process makes at most ai_calls_per_hour provider calls in
-	  any hour, the two routes together (default 60; 0 for no limit).  Past
-	  it, Ask answers 429 saying why, and a summary gives the template text,
-	  marked as such and not cached.  A value that is not a whole number
-	  stops the start.  Both routes already needed the login when
-	  password_hash is set, and without one only this machine can reach them.
-	- Share and embed links could be forged.  Without share_secret, which was
-	  not documented, tokens were signed with a fixed string that is the same
-	  on every install and in the source, so with a password set anyone who
-	  knew a canvas's id could sign a link to it, with any expiry, and read it
-	  without logging in.  The key is now share_secret, else one derived from
-	  secrets (not the session key itself); with neither, it is new at each
-	  start, so a restart ends the links, and the Share panel says so.  A
-	  share_secret shorter than 16 characters, not a string, or the old fixed
-	  string stops the start.  Signatures are compared in constant time.
-	  share_secret set as before keeps its links.
-	- /import and url: sources could be pointed at this machine or a private
-	  network.  Only a dotted IPv4 address in the URL was checked, so a name
-	  whose DNS answers 127.0.0.1 (localtest.me, 127.0.0.1.nip.io), an
-	  address written another way (2130706433, 0x7f000001, 0177.0.0.1,
-	  127.1), localhost. with its dot, or an IPv6 form of one went through,
-	  as did a redirect from a public site to any of them, the cloud
-	  metadata service on 169.254.169.254 included.  Every request,
-	  redirects too (at most 5), is now resolved, refused when any address
-	  is on this machine, a private or shared network, link-local,
-	  multicast or reserved (an IPv4 address inside IPv6 counts as itself),
-	  and sent to the address that was checked, so DNS that answers
-	  differently the second time gains nothing; over https the certificate
-	  must still be the site's.  The refusal says why.  An intranet name that
-	  resolves to a private address is refused too unless listed in
-	  url_private_hosts (names, or '*.corp.example'); an address written as
-	  such never is.  One that is not a list of host names stops the start.
-	  An address written another way is read the same on every platform;
-	  on macOS 0177.0.0.1 was not read as 127.0.0.1, so it passed.
-	- On Windows, file_roots and export_dirs refused every path, inside
-	  them or not: one spelling had C:/ and the other C:\, so nothing
-	  matched.  The two are now compared as one, ignoring case as Windows
-	  does.
-	- Crypt::URandom is now required.  Without it, script/database-bi
-	  password could not make a hash on Windows, which has no /dev/urandom.
-	[ Tests ]
-	- t/safe-ua.t checks that numeric_host reads octal, hex and short forms
-	  itself, not by the system inet_aton.  t/file-roots.t checks that
-	  forward and back slashes, and case, name one folder on Windows.
-	- t/csp.t checks the policy, the config keys, which replies carry it, and
-	  that every script and stylesheet the chart and map pages load is
-	  allowed by it.  On every kind of page, and on a canvas card's JSON, it
-	  checks that each <script> carries the nonce and that nothing has an on*
-	  attribute; it reads every template for the same; and it checks that a
-	  page served from the page cache keeps a nonce matching its header.  It
-	  checks X-Frame-Options under each policy setting, Referrer-Policy and
-	  X-Content-Type-Options on every kind of reply, that a self-hosted
-	  script and stylesheet are served as what they are, that
-	  Cross-Origin-Opener-Policy is on pages and that no template opens a
-	  window, reads an opener or links to a new window without noopener, that
-	  Permissions-Policy turns off what no template uses and keeps the
-	  clipboard for Copy link, that
-	  Strict-Transport-Security is sent over https (TLS, or a trusted proxy)
-	  and not over http, to localhost or to an address, and that
-	  embed_frame_ancestors reaches /embed/ alone under each of them, admits
-	  only origins, and stops a start with anything else.
-	- t/file-roots.t checks that an export does not write through a link
-	  (the file it points to is unchanged), nor replace a folder, leaves no
-	  temporary file, gives a new file the usual mode and a replaced one its
-	  own; and that export_dirs confines exports and the folder list, even
-	  inside file_roots, opens the panel there, and its startup checks.
-	  t/login.t checks that a password without export_dirs does not start;
-	  its apps, and those of t/launcher.t and t/unit.t with a password, now
-	  name an export folder.
-	- t/ask.t checks that a question over 500 characters is not sent, that
-	  the hour's budget is shared by Ask and Summary, that Ask then answers
-	  429 and Summary the uncached template, that 0 means no limit, and the
-	  startup check; t/unit.t raises the two new messages.
-	- t/login.t checks that a share or embed token signed with the old fixed
-	  key, or with the session key, is refused, that the real one opens the
-	  canvas, that the Share panel is told whether links outlive a restart,
-	  that share_secret still signs as before, and the startup checks.
-	- t/safe-ua.t checks, with no network, that names resolving to this
-	  machine, a private network or the metadata service are refused and
-	  nothing is sent; that every written form of such an address is refused
-	  without a lookup; that a public name is sent to the address checked
-	  with its Host, TLS server name and certificate name kept; that a
-	  redirect to a private address is refused; url_private_hosts; and that
-	  /import and url: sources use it.  t/edge_cases.t and t/data-flow.t,
-	  which recorded the decimal, octal and hex forms as getting through, now
-	  expect them refused.
-	- t/file-roots.t checks that with file_roots each route that takes a
-	  local path keeps to them and without it nothing changes; that what is
-	  outside is refused the same whether or not it exists, through '..' and
-	  through a link; that a merge or canvas card over a file outside shows
-	  none of it; that browsing stops at a root; that the refusal page
-	  escapes the path; and the startup checks.
-	- t/login.t checks the password hash against the RFC test vectors; that
-	  with password_hash every page, download, write and /api/ route waits
-	  for the login while /login, share and embed links do not; the redirect
-	  back, only ever to a page of this site; the cookie's flags over http
-	  and https; logging out; that a new password ends old sessions; the
-	  lockout; that a login or logout from another site is refused; the
-	  startup checks; that without a password a listen other machines could
-	  reach does not start, and a request from one through a proxy is
-	  refused; and script/database-bi password.  t/launcher.t checks that
-	  the launcher and daemon on * do not start without a password, and
-	  answer both this machine and its network address with one.
-	- t/csp.t checks that a write from another site (by Sec-Fetch-Site or
-	  Origin) is refused and writes nothing, on every write route and method,
-	  while this site's pages and scripts still write; that a Host other than
-	  localhost or an address is refused unless allowed_hosts lists it, as
-	  text, never HTML; how a trusted proxy changes both; that no export goes
-	  into a dot-folder or dot-file; and that a bad allowed_hosts stops the
-	  start.
-	- t/launcher.t checks where a server listens by default and with listen,
-	  that MOJO_LISTEN and hypnotoad's own listen are kept, that a bad listen
-	  stops the start, and that the launcher and daemon on 127.0.0.1 answer
-	  this machine and not its network address, while on * they answer both.
+	[ Security ]
+	- Optional login: password_hash (from script/database-bi password),
+	  PBKDF2-HMAC-SHA256, with session expiry and lockout after repeated
+	  failures.
+	- Listens on 127.0.0.1 by default; a non-loopback listen, or a request
+	  from another machine, needs password_hash.
+	- file_roots confines the folders readers may browse, open and export to.
+	- export_dirs confines POST /export, and is required with password_hash.
+	- POST /export no longer writes through a link, into a dot-folder or over
+	  a non-file; it writes a temporary file and renames it into place.
+	- Cross-site writes and unexpected Host headers (DNS rebinding) are
+	  refused; allowed_hosts lists extra names.
+	- /import and url: sources refuse addresses on this machine or a private
+	  network, including names resolving there, other spellings of an
+	  address and redirects; url_private_hosts allows intranet names.
+	- Share and embed tokens are no longer signed with a fixed key:
+	  share_secret, else a key derived from secrets.
+	- /api/ask and /api/summary are bounded: questions of 500 characters at
+	  most, and ai_calls_per_hour (default 60).
+	- Content-Security-Policy with per-request script nonces, plus
+	  X-Frame-Options, Referrer-Policy, X-Content-Type-Options,
+	  Cross-Origin-Opener-Policy, Permissions-Policy and, over https,
+	  Strict-Transport-Security; embed_frame_ancestors allows framing of
+	  /embed/.
+	- A setting that would not do what it says stops the start.
+	[ Other ]
+	- HTML::D3 0.30 and Crypt::URandom are now required.
+	- file_roots and export_dirs work on Windows.
+	- Tests for each of the above.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026
 	[ Enhancements ]
