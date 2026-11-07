@@ -155,12 +155,20 @@ subtest 'export_dirs' => sub {
 	$u->get_ok('/view/sales', $HTML)->element_exists(qq{[data-default-dir="$shown"]}, 'the Export panel opens on it');
 
 	# Configured through another spelling (a link here; on Windows, the \
-	# that child() joins with), the panel still opens on the real folder.
+	# that child() joins with), the folder list, an export and the panel all
+	# take it as the folder it leads to.  On Windows (and under
+	# BI::Test::WinRealpath) realpath keeps the link, and the folder list
+	# refused it.
 	SKIP: {
 		my $link = $root->child('exports-link');
-		skip 'no symlinks here', 1 unless eval { symlink("$exports", "$link") };
-		app_with(file_roots => ["$root"], export_dirs => ["$link"])->get_ok('/view/sales', $HTML)
-			->element_exists(qq{[data-default-dir="$shown"]}, 'a link to the export folder opens on the folder');
+		skip 'no symlinks here', 5 unless eval { symlink("$exports", "$link") };
+		my $l = app_with(file_roots => ["$root"], export_dirs => ["$link"]);
+		$l->get_ok('/api/dirs')->status_is(200, 'the folder list opens on an export folder named through a link');
+		my $listed = $l->tx->res->json('/path') // '';
+		$l->post_ok('/export' => form => { l => 'table:sales', dir => "$link", filename => 'via-link.csv' })
+			->status_is(200, 'and an export can be saved there');
+		$l->get_ok('/view/sales', $HTML)
+			->element_exists(qq{[data-default-dir="$listed"]}, 'a link to the export folder opens where the folder list starts');
 		unlink "$link";
 	}
 

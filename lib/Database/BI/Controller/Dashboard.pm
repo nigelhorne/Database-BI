@@ -568,7 +568,10 @@ sub _export_dirs :Protected ($self) {
 # The configured folders (relative ones under the application home) and
 # @always, resolved, without repeats.  A list none of which resolves gives a
 # folder that cannot exist, so that it fences everything out rather than
-# nothing.
+# nothing.  Resolved as a requested path is (_resolved_path), so a folder
+# configured through a link is compared as the folder it leads to: on
+# Windows realpath keeps the link, while _resolved_path follows it, and every
+# path inside such a folder was refused.
 sub _real_folders {
 	my ($self, $list, @always) = @_;
 	my $home = $self->app->home;
@@ -576,7 +579,8 @@ sub _real_folders {
 		grep { defined && !ref && length } @{$list};
 	my (%seen, @real);
 	for my $dir (@dirs, @always) {
-		my $real = eval { $dir->realpath->to_string } // next;
+		next unless -e "$dir";
+		my $real = _resolved_path("$dir") // next;
 		push @real, $real unless $seen{$real}++;
 	}
 	return @real ? @real : ('/nonexistent-file-root');

@@ -65,9 +65,11 @@ Revision history for Database-BI
 	  Database::Join::Catalog, so DBI is no longer a runtime prerequisite.
 	- File::Temp no longer needs 0.2308: Database::Join 0.011.1 makes its
 	  SQLite files without the BSD lock that version was asked for to avoid.
-	- file_roots and export_dirs work on Windows.  The Export panel opens on
-	  the first export folder as its real path, as the folder list names
-	  it, not as the configuration spells it.
+	- file_roots and export_dirs work on Windows, including a folder named
+	  there through a link or junction, which refused every path inside it
+	  (realpath keeps the link on Windows; a requested path's links were
+	  followed).  The Export panel opens on the first export folder as the
+	  folder list names it, not as the configuration spells it.
 	- A timestamp ending in Z, an offset (+01:00) or a fraction of a second,
 	  as JSON APIs write them, is a time to the filters, Time range, /api/range
 	  and the calculated-field time functions; the dates and times are read

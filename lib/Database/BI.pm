@@ -2415,9 +2415,10 @@ sub startup ($self) {
 	# else system tmpdir.  Resolved once per process and stored as a stash
 	# default so every action can read $self->stash('download_dir').
 	# With export_dirs, the first of them: the panel would open on a refusal.
-	# Its realpath, as /api/dirs lists it and the export checks compare it, so
-	# the panel opens on the folder spelled as the rest of the application
-	# spells it (on Windows, child() joins with \ and realpath gives /).
+	# Resolved as the export checks resolve it (_real_folders), so the panel
+	# opens on the folder spelled as /api/dirs and the rest of the application
+	# spell it (on Windows, child() joins with \, realpath gives /, and a
+	# link is followed by hand).
 	my $home   = $ENV{HOME} // '';
 	my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
 	           : ($home || File::Spec->tmpdir());
@@ -2425,7 +2426,8 @@ sub startup ($self) {
 	if (ref($exports) eq 'ARRAY' && @{$exports}) {
 		my $first = $exports->[0];
 		my $dir   = File::Spec->file_name_is_absolute($first) ? Mojo::File->new($first) : $self->home->child($first);
-		$dl_dir   = eval { $dir->realpath->to_string } // $dir->to_string;
+		require Database::BI::Controller::Dashboard;
+		$dl_dir   = (-e "$dir" ? Database::BI::Controller::Dashboard::_resolved_path("$dir") : undef) // "$dir";
 	}
 	$self->defaults(download_dir => $dl_dir);
 
