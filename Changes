@@ -97,7 +97,9 @@ Revision history for Database-BI
 	  On Windows CI, t/edge_cases.t and t/file-roots.t compared a path
 	  with backslashes against the same one with forward slashes, and
 	  t/login.t read the password command's \r\n line ends as extra
-	  output.
+	  output, and then hung until the job's limit: a child started with
+	  open3 there can inherit its own STDIN pipe, so it never saw the end
+	  of an empty input.
 	- Tests for each of the above.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026

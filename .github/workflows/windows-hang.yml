@@ -8,6 +8,11 @@
 # t/login.t does (input from a pipe, through open3) on its own, since that is
 # where t/login.t was when it stopped.
 #
+# First run (42376305382): t/login.t hung on both, at its empty-pipe case of
+# the password command, and the open3 step hung at the same case; fixed in
+# t/login.t.  t/function.t hung on 5.38 after the /dates tests, but prove's
+# buffering hid which subtest, so it is now run without prove.
+#
 # Kept apart from perl-ci.yml, which App::GHGen writes and would overwrite.
 # Remove it once the hang is found.
 name: Windows hang
@@ -29,7 +34,7 @@ permissions:
 jobs:
   test:
     runs-on: windows-latest
-    timeout-minutes: 75
+    timeout-minutes: 90
     strategy:
       fail-fast: false
       matrix:
@@ -83,15 +88,32 @@ jobs:
           set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
           prove -lv --timer t/login.t
 
-      - name: t/function.t, verbose
-        timeout-minutes: 20
+      # Run without prove: prove's own STDOUT is block-buffered when it is
+      # not a terminal, so the last run showed every "ok" line at once, at
+      # the end, and could not say which subtest hung.  Test::Builder flushes
+      # each line, so straight from perl each one is timestamped as it comes.
+      - name: t/function.t, unbuffered
+        timeout-minutes: 15
         continue-on-error: true
         shell: cmd
         run: |
           @echo off
           set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
           set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
-          prove -lv --timer t/function.t
+          perl -Ilib t/function.t 2>&1
+
+      # The same with STDIN from nul.  If this one finishes where the one
+      # above hangs, something in the file waits for end-of-file on an
+      # inherited STDIN that never sends it.
+      - name: t/function.t, unbuffered, STDIN from nul
+        timeout-minutes: 15
+        continue-on-error: true
+        shell: cmd
+        run: |
+          @echo off
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          perl -Ilib t/function.t < nul 2>&1
 
       # The three ways t/login.t runs the command, one step each, so a step
       # that is cut off at its limit names the case.

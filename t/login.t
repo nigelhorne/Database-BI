@@ -373,7 +373,12 @@ subtest 'script/database-bi password' => sub {
 	my $t = app_with(password_hash => $hash);
 	log_in($t, 's3cret pass')->status_is(302, 'and the server takes it');
 
-	($status, undef, my $err) = $run->('');
+	# On Windows a child started by open3 can inherit the write end of its
+	# own STDIN pipe, so closing it here never ends its input: a command
+	# waiting for end-of-file waits for ever (the Windows CI jobs hung here
+	# until their 60-minute limit).  An empty line is the same "no password"
+	# without needing end-of-file; elsewhere the empty pipe itself is tried.
+	($status, undef, my $err) = $run->($^O eq 'MSWin32' ? "\n" : '');
 	isnt $status, 0, 'no password: an error';
 	like $err, qr/no password given/, '... that says so';
 	($status, undef, $err) = $run->("x\n", 'extra');
