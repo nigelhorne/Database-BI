@@ -1996,7 +1996,7 @@ the same and shows that database, with a command word it runs that command, and 
 - **The download\_dir default is computed once at startup**
 
     When the application starts, it picks the export directory in this order:
-    the first of `export_dirs` (if set), `~/Downloads` (if it exists), then
+    the first of `export_dirs` (if set, as its real path), `~/Downloads` (if it exists), then
     `$HOME`, then the system temp directory.
     This value is fixed for the life of the process.  Renaming or creating
     `~/Downloads` after the server starts has no effect.  To force a different

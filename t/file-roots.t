@@ -154,6 +154,16 @@ subtest 'export_dirs' => sub {
 	$u->get_ok('/open?path=' . $e->("$inner/in.csv"))->status_is(200, 'reading is still file_roots\' business');
 	$u->get_ok('/view/sales', $HTML)->element_exists(qq{[data-default-dir="$shown"]}, 'the Export panel opens on it');
 
+	# Configured through another spelling (a link here; on Windows, the \
+	# that child() joins with), the panel still opens on the real folder.
+	SKIP: {
+		my $link = $root->child('exports-link');
+		skip 'no symlinks here', 1 unless eval { symlink("$exports", "$link") };
+		app_with(file_roots => ["$root"], export_dirs => ["$link"])->get_ok('/view/sales', $HTML)
+			->element_exists(qq{[data-default-dir="$shown"]}, 'a link to the export folder opens on the folder');
+		unlink "$link";
+	}
+
 	my $alone = app_with(export_dirs => ["$exports"]);
 	$alone->post_ok('/export' => form => { l => 'table:sales', dir => "$out", filename => 'c.csv' })
 		->status_is(403, 'without file_roots too');

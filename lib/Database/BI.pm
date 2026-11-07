@@ -6,6 +6,7 @@ use warnings;
 use Mojo::Base 'Mojolicious', -strict, -signatures;
 
 use Carp qw(croak);
+use Mojo::File ();
 use Mojo::URL;
 use Database::BI::Sessions;
 use CHI	();
@@ -2101,7 +2102,7 @@ run the server from.  An absolute path works on any system:
 =item B<The download_dir default is computed once at startup>
 
 When the application starts, it picks the export directory in this order:
-the first of C<export_dirs> (if set), C<~/Downloads> (if it exists), then
+the first of C<export_dirs> (if set, as its real path), C<~/Downloads> (if it exists), then
 C<$HOME>, then the system temp directory.
 This value is fixed for the life of the process.  Renaming or creating
 C<~/Downloads> after the server starts has no effect.  To force a different
@@ -2414,13 +2415,17 @@ sub startup ($self) {
 	# else system tmpdir.  Resolved once per process and stored as a stash
 	# default so every action can read $self->stash('download_dir').
 	# With export_dirs, the first of them: the panel would open on a refusal.
+	# Its realpath, as /api/dirs lists it and the export checks compare it, so
+	# the panel opens on the folder spelled as the rest of the application
+	# spells it (on Windows, child() joins with \ and realpath gives /).
 	my $home   = $ENV{HOME} // '';
 	my $dl_dir = ($home && -d "$home/Downloads") ? "$home/Downloads"
 	           : ($home || File::Spec->tmpdir());
 	my $exports = $self->config('export_dirs');
 	if (ref($exports) eq 'ARRAY' && @{$exports}) {
 		my $first = $exports->[0];
-		$dl_dir = File::Spec->file_name_is_absolute($first) ? $first : $self->home->child($first)->to_string;
+		my $dir   = File::Spec->file_name_is_absolute($first) ? Mojo::File->new($first) : $self->home->child($first);
+		$dl_dir   = eval { $dir->realpath->to_string } // $dir->to_string;
 	}
 	$self->defaults(download_dir => $dl_dir);
 
