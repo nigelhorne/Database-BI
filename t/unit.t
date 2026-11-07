@@ -3487,7 +3487,9 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		SKIP: {
 			skip 'no symlinks here', 2 unless eval { symlink("$outdir/elsewhere.csv", "$outdir/link.csv") };
 			$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=link.csv')->status_is(403);
-			message_ok(Dashboard => 'error_export_not_file', $tm->tx->res->json->{error}, ["$outdir/link.csv"]);
+			# Named as the app joins it (Mojo::File, so with \ on Windows).
+			message_ok(Dashboard => 'error_export_not_file', $tm->tx->res->json->{error},
+				[Mojo::File->new($outdir)->child('link.csv')->to_string]);
 		}
 		$tm->app->config->{export_dirs} = [ tempdir(CLEANUP => 1) ];
 		$tm->post_ok("/export?l=$SPEC&dir=" . $e->($outdir) . '&filename=x.csv')->status_is(403);

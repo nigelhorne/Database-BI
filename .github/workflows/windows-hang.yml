@@ -13,6 +13,10 @@
 # t/login.t.  t/function.t hung on 5.38 after the /dates tests, but prove's
 # buffering hid which subtest, so it is now run without prove.
 #
+# Second run (42382270316): t/login.t passed on both.  t/function.t, run
+# without prove, stopped at its 4th test: Sub::Protected enforces :Protected
+# subs unless HARNESS_ACTIVE is set, as prove sets it; now set here.
+#
 # Kept apart from perl-ci.yml, which App::GHGen writes and would overwrite.
 # Remove it once the hang is found.
 name: Windows hang
@@ -100,6 +104,8 @@ jobs:
           @echo off
           set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
           set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          rem Outside prove, :Protected subs are enforced without this.
+          set HARNESS_ACTIVE=1
           perl -Ilib t/function.t 2>&1
 
       # The same with STDIN from nul.  If this one finishes where the one
@@ -113,6 +119,8 @@ jobs:
           @echo off
           set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
           set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          rem Outside prove, :Protected subs are enforced without this.
+          set HARNESS_ACTIVE=1
           perl -Ilib t/function.t < nul 2>&1
 
       # The three ways t/login.t runs the command, one step each, so a step
