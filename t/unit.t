@@ -310,7 +310,7 @@ for my $module (sort keys %MESSAGE_FILES) {
 
 # Those the POD documents that are not messages.
 $ledger{"api.$_"} = "documented behaviour: $_" for qw(
-	Util.parse_number Util.iso_datetime Calc.new Calc.error Calc.has_error Calc.evaluate Calc.span_interval Calc.date_normalise Calc.compile_pattern Calc.capture_of
+	Util.parse_number Util.iso_datetime Util.minute_stamp Util.iso8601_utc Calc.new Calc.error Calc.has_error Calc.evaluate Calc.span_interval Calc.date_normalise Calc.compile_pattern Calc.capture_of
 	Extract.new Extract.path Extract.get Extract.put Extract.evict
 	Tutorial.intro Tutorial.chapters Tutorial.faq Tutorial.glossary Tutorial.parts
 	Tutorial.covered_routes Tutorial.exempt_routes Tutorial.chapter_for_action
@@ -2408,6 +2408,44 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		}
 		is scalar(@typed), 0, '... and read once';
 		restore_all();
+	};
+
+	subtest 'Util.minute_stamp and Util.iso8601_utc' => sub {
+		my $stamp = \&Database::BI::Util::minute_stamp;
+		my $iso   = \&Database::BI::Util::iso8601_utc;
+		is $stamp->(gmtime 0), '1970-01-01 00:00', 'the epoch, to the minute';
+		is $stamp->(gmtime 1_794_060_309), '2026-11-07 14:05', 'a day this year';
+		is $stamp->(5, 4, 3, 2, 0, 99), '1999-01-02 03:04', 'a list as localtime gives it';
+		is $stamp->(), '', 'nothing given';
+		is $stamp->(1, 2, 3), '', 'too few values';
+		is $iso->(0), '1970-01-01T00:00:00Z', 'the epoch in UTC';
+		is $iso->(1_794_060_309), '2026-11-07T14:05:09Z', 'to the second';
+		like $iso->(), qr/\A\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z\z/, 'now, when no time is given';
+		SKIP: {
+			# The same as strftime gives, where strftime can be asked.
+			skip 'POSIX::strftime is not asked on Windows', 2 if $^O eq 'MSWin32';
+			require POSIX;
+			my $t = 1_794_060_309;
+			is $stamp->(localtime $t), POSIX::strftime('%Y-%m-%d %H:%M', localtime $t), 'as strftime, local time';
+			is $iso->($t), POSIX::strftime('%Y-%m-%dT%H:%M:%SZ', gmtime $t), 'as strftime, UTC';
+		}
+		# And nothing else formats a time with strftime, outside comments and POD.
+		my @calls;
+		for my $file (Mojo::File->new('lib')->list_tree->grep(qr/\.pm\z/)->each,
+				map { Mojo::File->new("script/$_") } qw(database-bi bi-extract bi-geocode bi-alert)) {
+			(my $code = $file->slurp) =~ s/\r\n/\n/g;
+			$code =~ s/^=\w.*?(?:^=cut\n|\z)//msg;
+			$code =~ s/^__END__\n.*//ms;
+			my $n = 0;
+			for my $line (split /\n/, $code) {
+				$n++;
+				(my $bare = $line) =~ s/#.*//;
+				push @calls, "$file:$n" if $bare =~ /\bstrftime\b/;
+			}
+		}
+		is_deeply \@calls, [], 'lib/ and script/ call no strftime';
+		delete $ledger{'api.Util.minute_stamp'};
+		delete $ledger{'api.Util.iso8601_utc'};
 	};
 
 	subtest 'Util.iso_datetime' => sub {

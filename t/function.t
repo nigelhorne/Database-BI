@@ -6933,8 +6933,9 @@ sub croak_rethrow {
 	subtest 'Calc::_iso_week -- agrees with the Thursday rule (and strftime %V)' => sub {
 		require Time::Local;
 		# strftime is asked only off Windows: there, perl 5.38's
-		# POSIX::strftime('%V', ...) never returned, and the CI job sat
-		# here until its 60-minute limit.
+		# POSIX::strftime never returned (for %V, and for a plain
+		# %Y-%m-%dT%H:%M:%SZ too), and the CI job sat until its limit.  The
+		# application no longer calls it (Util::minute_stamp, iso8601_utc).
 		my $strftime = $^O ne 'MSWin32'
 			&& (POSIX::strftime('%V', gmtime(0)) // '') =~ /\A\d+\z/;
 		my ($bad, $bad_strftime) = (0, 0);

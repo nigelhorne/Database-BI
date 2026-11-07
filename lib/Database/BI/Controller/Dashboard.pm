@@ -1398,7 +1398,7 @@ sub _accelerated_source :Protected ($self, $spec) {
 		spec       => $spec,
 		state      => ($src ? 'fresh' : 'stale'),
 		built      => $built,
-		built_text => (defined $built && $built =~ /\A\d+\z/ ? POSIX::strftime('%Y-%m-%d %H:%M', localtime $built) : ''),
+		built_text => (defined $built && $built =~ /\A\d+\z/ ? Database::BI::Util::minute_stamp(localtime $built) : ''),
 	}) unless $self->stash('acceleration');
 	return $src;
 }
@@ -6874,7 +6874,7 @@ sub canvas_render ($self) {
 			$freshness_stale = 1;
 			$freshness_msg   = $MESSAGES{freshness_stale_msg};
 			require POSIX;
-			$freshness_source_mtime = POSIX::strftime('%Y-%m-%d %H:%M UTC', gmtime($newest_src_mtime));
+			$freshness_source_mtime = Database::BI::Util::minute_stamp(gmtime($newest_src_mtime)) . ' UTC';
 		}
 	}
 
@@ -14034,9 +14034,7 @@ sub _color_hex {
 #
 # When a geocode cache was built, in the form the model store records.
 sub _iso8601_utc {
-	require POSIX;
-
-	return POSIX::strftime('%Y-%m-%dT%H:%M:%SZ', gmtime());
+	return Database::BI::Util::iso8601_utc();
 }
 
 # _catalog_entry($self, $mf, $analyses) -> \%entry
@@ -14049,7 +14047,7 @@ sub _catalog_entry :Protected ($self, $mf, $analyses) {
 	my $mtime = (stat($path))[9] // 0;
 
 	require POSIX;
-	my $mtime_str = $mtime ? POSIX::strftime('%Y-%m-%d %H:%M UTC', gmtime($mtime)) : '';
+	my $mtime_str = $mtime ? Database::BI::Util::minute_stamp(gmtime($mtime)) . ' UTC' : '';
 
 	# Find which analyses reference this file.
 	# Normalize path separators so that Windows paths stored with backslashes

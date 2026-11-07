@@ -31,7 +31,7 @@ use FindBin qw($Bin);
 use lib "$Bin/../lib";
 
 use Getopt::Long qw(GetOptions :config no_ignore_case);
-use POSIX qw(strftime);
+use Database::BI::Util qw(minute_stamp);
 
 my (@opt_spec, $opt_all, $opt_remove, $opt_list, $opt_data_dir, $opt_model_dir, $opt_help);
 
@@ -100,7 +100,7 @@ for my $spec (@specs) {
 		printf "%s: %d row%s, %d column%s -> %s (built %s)\n",
 			$spec, $built->{rows}, ($built->{rows} == 1 ? '' : 's'),
 			$built->{columns}, ($built->{columns} == 1 ? '' : 's'),
-			$built->{path}, strftime('%Y-%m-%d %H:%M', localtime $built->{built});
+			$built->{path}, minute_stamp(localtime $built->{built});
 	} else {
 		(my $e = $@ // 'unknown error') =~ s/(?:\s+at \S.*? line \d+\.?)+\s*\z//;
 		print STDERR "bi-extract: $e\n";

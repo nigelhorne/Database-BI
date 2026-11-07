@@ -8,7 +8,7 @@ our $VERSION = '0.021.0';
 use Exporter qw(import);
 use Readonly;
 
-our @EXPORT_OK = qw( urlencode parse_number iso_datetime );
+our @EXPORT_OK = qw( urlencode parse_number iso_datetime minute_stamp iso8601_utc );
 
 # A list rather than any three capitals, or 'SKU 100' would be read as 100.
 Readonly my $CURRENCY_CODES => join '|', qw(AUD BRL CAD CHF CNY DKK EUR GBP HKD INR JPY MXN NOK NZD SEK SGD USD ZAR);
@@ -80,6 +80,24 @@ sub iso_datetime {
 	return () unless defined $value && !ref $value;
 	my ($day, $hour, $minute, $second) = $value =~ $ISO_DATETIME_RE or return ();
 	return ($day, $hour, $minute, $second);
+}
+
+# minute_stamp(@tm) -> 'YYYY-MM-DD HH:MM'
+# iso8601_utc($epoch) -> 'YYYY-MM-DDTHH:MM:SSZ'
+#
+# Written with sprintf rather than POSIX::strftime: on Windows, perl 5.38's
+# strftime did not return (CI sat in t/function.t until the job's limit),
+# and these fixed formats need nothing from the C library.
+sub minute_stamp {
+	my @tm = @_;
+	return '' unless @tm >= 6;
+	return sprintf '%04d-%02d-%02d %02d:%02d', $tm[5] + 1900, $tm[4] + 1, $tm[3], $tm[2], $tm[1];
+}
+
+sub iso8601_utc {
+	my ($epoch) = @_;
+	my @tm = gmtime(defined $epoch ? $epoch : time);
+	return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ', $tm[5] + 1900, $tm[4] + 1, $tm[3], $tm[2], $tm[1], $tm[0];
 }
 
 1;
@@ -175,6 +193,44 @@ it themselves.
 A list: the day (C<YYYY-MM-DD>), then the hour, minute and second as written
 (two digits each, C<undef> when absent), or the empty list when the value is
 not an ISO date or timestamp.
+
+=head2 minute_stamp
+
+A time to the minute, from the list C<localtime> or C<gmtime> gives.
+
+    minute_stamp(localtime $mtime);   # '2026-11-07 14:05'
+    minute_stamp(gmtime $mtime) . ' UTC';
+
+It is C<POSIX::strftime('%Y-%m-%d %H:%M', ...)> written out: on Windows,
+perl 5.38's C<strftime> did not return.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    @tm: the list from localtime or gmtime (at least six values)
+
+=head4 OUTPUT
+
+A string, C<YYYY-MM-DD HH:MM>; the empty string when fewer than six values
+are given.
+
+=head2 iso8601_utc
+
+A moment as ISO 8601 in UTC, to the second.
+
+    iso8601_utc();             # now, '2026-11-07T14:05:09Z'
+    iso8601_utc(0);            # '1970-01-01T00:00:00Z'
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $epoch: integer, optional (default: now)
+
+=head4 OUTPUT
+
+A string, C<YYYY-MM-DDTHH:MM:SSZ>.
 
 =head1 AUTHOR
 

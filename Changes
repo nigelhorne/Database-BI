@@ -99,10 +99,13 @@ Revision history for Database-BI
 	  t/login.t read the password command's \r\n line ends as extra
 	  output, and then hung until the job's limit: a child started with
 	  open3 there can inherit its own STDIN pipe, so it never saw the end
-	  of an empty input.  t/function.t hung there too, on Perl 5.38: its
-	  check of the ISO week asked POSIX::strftime for %V, which never
-	  returned; it now checks against the Thursday rule, and asks strftime
-	  only off Windows.
+	  of an empty input.  t/function.t hung there too, on Perl 5.38, in
+	  POSIX::strftime (see below); it checks the ISO week against the
+	  Thursday rule, and asks strftime only off Windows.
+	- On Windows with Perl 5.38, POSIX::strftime did not return, so the
+	  catalog's file times, an extract's build time, the canvas freshness
+	  note, bi-extract and bi-geocode could hang.  Times are now written
+	  without it (Database::BI::Util's minute_stamp and iso8601_utc).
 	- Tests for each of the above.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026

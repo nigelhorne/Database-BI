@@ -40,7 +40,7 @@ use Getopt::Long qw(GetOptions :config no_ignore_case);
 use File::Spec;
 use Mojo::JSON qw(decode_json encode_json);
 use Mojo::File;
-use POSIX qw(strftime);
+use Database::BI::Util qw(iso8601_utc);
 
 # ---------------------------------------------------------------------------
 # Parse arguments
@@ -230,7 +230,7 @@ if ($counts->{attempted} // 0) {
 	my $updated = Database::BI::Model::Geocode->models_with_shared_cache(
 		$models, $result->{cache},
 		(defined($backend) ? (backend => $backend) : ()),
-		built => strftime('%Y-%m-%dT%H:%M:%SZ', gmtime),
+		built => iso8601_utc(),
 	);
 
 	eval {
