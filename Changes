@@ -1,112 +1,54 @@
 Revision history for Database-BI
 
-0.021.0
+0.021.0	Sat Nov  7 03:26:25 PM EST 2026
 	[ Security ]
-	- Optional login: password_hash (from script/database-bi password),
-	  PBKDF2-HMAC-SHA256, with session expiry and lockout after repeated
-	  failures.
-	- Listens on 127.0.0.1 by default; a non-loopback listen, or a request
-	  from another machine, needs password_hash.
-	- file_roots confines the folders readers may browse, open and export to.
-	  A link inside them that leads outside is outside, on Windows too,
-	  where realpath leaves a link as it is.
-	- export_dirs confines POST /export, and is required with password_hash.
-	- POST /export no longer writes through a link, into a dot-folder or over
-	  a non-file; it writes a temporary file and renames it into place.
+	- Optional login (password_hash, made by script/database-bi password),
+	  with session expiry and lockout.
+	- Listens on 127.0.0.1 by default; listening elsewhere, or answering
+	  another machine, needs password_hash.
+	- file_roots confines the folders readers may browse, open and export
+	  to; export_dirs confines exports, and is required with a password.
+	- Exports no longer write through a link, into a dot-folder or over a
+	  non-file.
 	- Cross-site writes and unexpected Host headers (DNS rebinding) are
-	  refused; allowed_hosts lists extra names.
-	- /import and url: sources refuse addresses on this machine or a private
-	  network, including names resolving there, other spellings of an
-	  address and redirects; url_private_hosts allows intranet names.
-	- Share and embed tokens are no longer signed with a fixed key:
-	  share_secret, else a key derived from secrets.
-	- /api/ask and /api/summary are bounded: questions of 500 characters at
-	  most, and ai_calls_per_hour (default 60).
-	- Content-Security-Policy with per-request script nonces, plus
-	  X-Frame-Options, Referrer-Policy, X-Content-Type-Options,
-	  Cross-Origin-Opener-Policy, Permissions-Policy and, over https,
-	  Strict-Transport-Security; embed_frame_ancestors allows framing of
-	  /embed/.
+	  refused; allowed_hosts adds names.
+	- /import and url: sources refuse local and private-network addresses;
+	  url_private_hosts allows intranet names.
+	- Share and embed tokens are no longer signed with a fixed key.
+	- /api/ask and /api/summary are bounded (ai_calls_per_hour, default 60).
+	- Content-Security-Policy with script nonces, and the usual hardening
+	  headers; embed_frame_ancestors allows framing of /embed/.
 	- A setting that would not do what it says stops the start.
 	[ Enhancements ]
-	- A .json file can be dropped on a page, opened from the browser or put
-	  in data_dir, as a JSON URL already could be read.  A list of objects,
-	  an object of objects, or an object holding lists of objects (a scan
-	  report's findings and hosts) is a table; a file of several lists opens
-	  on /tables with a card for each.  Columns keep the file's order, and a
-	  nested value shows as its JSON text.
-	- Print, to the right of Refresh, prints the header row and every row of
-	  the view (not only the page on screen), in the columns and order the
-	  table shows.  Past 10,000 rows it asks first.
-	- The filter bar offers Time range only when the view has a date or
-	  date-time column, and lists only those columns for it.
-	- The filter row offers "between" for a number column, such as a
-	  year, and f=col:between:lo:hi compares two numbers as numbers.  Its
-	  bounds may be written either way round, for dates and text as for
-	  numbers (a date range written latest first matched nothing), two
-	  timestamps are split at the colon between them, and text compares
-	  without regard to case, as eq does.
-	- A filter whose operator is unknown (f=amount:gtx:5, or GT in
-	  capitals) is a 400 that lists the operators, where it kept every row;
-	  one on a column the view does not have, or a time range's rcol=, is a
-	  400 that lists the columns, where it kept no rows.  Both looked like
-	  a working filter.
-	- path:<file>#<table> names one table of a file outside data_dir, as
-	  table:<file>/<table> does inside it, so the charts, panels and exports
-	  of a second SQLite table or JSON list no longer read the first.
-	- bi-extract, bi-geocode and bi-alert are installed with database-bi, and
-	  each has a manual page.
-	[ Other ]
-	- HTML::D3 0.30, Database::Abstraction 0.55 (which requires its CSV and
-	  XML readers) and Crypt::URandom are now required; URI and HTTP::Message
-	  are declared.
-	- Database::Join 0.011.1 is required: listing a database's tables and
-	  columns, and writing Export > SQLite, now go through its
-	  Database::Join::Catalog, so DBI is no longer a runtime prerequisite.
-	- File::Temp no longer needs 0.2308: Database::Join 0.011.1 makes its
-	  SQLite files without the BSD lock that version was asked for to avoid.
-	- file_roots and export_dirs work on Windows, including a folder named
-	  there through a link or junction, which refused every path inside it
-	  (realpath keeps the link on Windows; a requested path's links were
-	  followed).  The Export panel opens on the first export folder as the
-	  folder list names it, not as the configuration spells it.
-	- A timestamp ending in Z, an offset (+01:00) or a fraction of a second,
-	  as JSON APIs write them, is a time to the filters, Time range, /api/range
-	  and the calculated-field time functions; the dates and times are read
-	  as written, and the zone is not applied.  Such cells were dropped by a
-	  date filter that kept the same time without the suffix.
-	- A CSV, TSV or PSV file that starts with a UTF-8 byte-order mark (Excel's
-	  "CSV UTF-8") no longer has it in its first column's name, where a
-	  filter, chart or calculated field naming that column missed it; a
-	  header-less file's first cell is read as written too.
-	- Database::BI::Password and the password command keep their messages
-	  in %MESSAGES, and Password no longer falls back to /dev/urandom:
-	  Crypt::URandom is required.
-	- On the BSDs, a folder where a store file should be is no longer moved
-	  aside as a corrupt store (a CPAN tester's DragonFly 6.4).
-	- script/bi-alert finds Database::BI's modules when run from a source
-	  folder, as the other scripts do.
-	- Mojo::Base and Mojo::JSON are no longer listed separately: they come
-	  with Mojolicious.
-	- Tests that compared a requested path with a resolved one failed where
-	  the two differ: t/path-spec.t on Windows (CPAN Testers, Strawberry Perl
-	  5.42, where realpath leaves a link as it is), and t/json.t, t/unit.t
-	  and t/edge_cases.t on macOS (whose temporary folder is a link).  The
-	  code was right.  t/lib/BI/Test/WinRealpath.pm and a linked TMPDIR
-	  reproduce both on Linux, and the Platform paths workflow runs them.
-	  On Windows CI, t/edge_cases.t and t/file-roots.t compared a path
-	  with backslashes against the same one with forward slashes, and
-	  t/login.t read the password command's \r\n line ends as extra
-	  output, and then hung until the job's limit: a child started with
-	  open3 there can inherit its own STDIN pipe, so it never saw the end
-	  of an empty input.  t/function.t hung there too, on Perl 5.38, in
-	  POSIX::strftime (see below); it checks the ISO week against the
-	  Thursday rule, and asks strftime only off Windows.
-	- On Windows with Perl 5.38, POSIX::strftime did not return, so the
-	  catalog's file times, an extract's build time, the canvas freshness
-	  note, bi-extract and bi-geocode could hang.  Times are now written
-	  without it (Database::BI::Util's minute_stamp and iso8601_utc).
-	- Tests for each of the above.
+	- .json files open like any other file: a list of objects, an object of
+	  objects, or an object of such lists (one card each on /tables).
+	- Print prints every row of the view, as the table shows it; past
+	  10,000 rows it asks first.
+	- Time range is offered only when the view has a date or time column.
+	- "between" works on number columns too, and its bounds may be written
+	  either way round.
+	- path:<file>#<table> names one table of a file outside data_dir.
+	- bi-extract, bi-geocode and bi-alert are installed, with manual pages.
+	- Now required: Database::Abstraction 0.55, Database::Join 0.011.1
+	  (DBI is no longer a runtime prerequisite), HTML::D3 0.30 and
+	  Crypt::URandom.  File::Temp 0.2308 is no longer needed.
+	[ Bug fixes ]
+	- An unknown filter operator, or a filter or time range on a missing
+	  column, is now a 400 that says so, instead of silently keeping every
+	  row or none.
+	- Timestamps ending in Z, an offset or a fraction of a second are read
+	  as dates and times (as written; the zone is not applied).
+	- A UTF-8 byte-order mark (Excel's "CSV UTF-8") is no longer part of
+	  the first column's name.
+	- Windows: file_roots and export_dirs work, including folders named
+	  through a link; Perl 5.38 no longer hangs where a time is shown
+	  (POSIX::strftime did not return there).
+	- The BSDs: a folder where a store file should be is no longer moved
+	  aside as corrupt.
+	- bi-alert finds the modules when run from a source folder.
+	- Tests no longer fail where paths are spelt differently (Windows,
+	  macOS) or hang on Windows CI; a Platform paths workflow simulates
+	  both on Linux.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026
 	[ Enhancements ]
