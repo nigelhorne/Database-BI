@@ -21,7 +21,24 @@ use warnings;
 # Windows way too, and the run would test nothing real.
 # ---------------------------------------------------------------------------
 
+use Cwd ();
+use File::Basename ();
 use File::Spec ();
+
+# This checkout's lib/, found from this file (t/lib/BI/Test/WinRealpath.pm).
+# PERL5OPT loads this module into every perl, prove's own among them, before
+# prove -l has put lib/ on @INC, so the INIT below would otherwise find no
+# Dashboard.pm (a fresh CI runner) or an older installed one (a machine with
+# Database::BI installed, where it looked as if it worked).
+BEGIN {
+	my $here = File::Spec->rel2abs(File::Basename::dirname(__FILE__));
+	my $lib  = File::Spec->catdir($here, (File::Spec->updir) x 4, 'lib');
+	# Resolved, so the app's home (found from where its modules were loaded)
+	# has no ../ in it.  Cwd's, not Mojo::File's realpath, replaced below.
+	$lib = Cwd::abs_path($lib) if -d $lib;
+	unshift @INC, $lib if defined $lib && -d $lib && !grep { !ref && $_ eq $lib } @INC;
+}
+
 use Mojo::File ();
 
 our $VERSION = '0.021.0';
