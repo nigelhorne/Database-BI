@@ -6921,24 +6921,43 @@ sub croak_rethrow {
 
 	# week() is worked out in Perl, because strftime('%V') is '' on Windows.
 	# Where %V works, the two must agree, above all around the new year.
-	subtest 'Calc::_iso_week -- agrees with strftime %V' => sub {
+	# The ISO week by another reckoning: the week that holds this week's
+	# Thursday, counted in the Thursday's own year.
+	sub iso_week_by_thursday {
+		my ($epoch) = @_;
+		my @g     = gmtime $epoch;
+		my $thu   = $epoch + (4 - ($g[6] || 7)) * 86_400;
+		return int((gmtime $thu)[7] / 7) + 1;
+	}
+
+	subtest 'Calc::_iso_week -- agrees with the Thursday rule (and strftime %V)' => sub {
 		require Time::Local;
-		plan skip_all => "strftime has no %V here"
-			unless (POSIX::strftime('%V', gmtime(0)) // '') =~ /\A\d+\z/;
-		my $bad = 0;
+		# strftime is asked only off Windows: there, perl 5.38's
+		# POSIX::strftime('%V', ...) never returned, and the CI job sat
+		# here until its 60-minute limit.
+		my $strftime = $^O ne 'MSWin32'
+			&& (POSIX::strftime('%V', gmtime(0)) // '') =~ /\A\d+\z/;
+		my ($bad, $bad_strftime) = (0, 0);
 		for my $year (1999 .. 2030) {
 			for my $k (1 .. 7) {
 				for my $md ([1, $k], [12, 32 - $k]) {
-					my @g = gmtime Time::Local::timegm(0, 0, 12, $md->[1], $md->[0] - 1, $year);
-					my $want = POSIX::strftime('%V', @g) + 0;
-					my $got  = Database::BI::Calc::_iso_week($g[5] + 1900, $g[6], $g[7]);
-					next if $got == $want;
-					$bad++;
-					diag("$year-$md->[0]-$md->[1]: $got, not $want");
+					my $epoch = Time::Local::timegm(0, 0, 12, $md->[1], $md->[0] - 1, $year);
+					my @g     = gmtime $epoch;
+					my $got   = Database::BI::Calc::_iso_week($g[5] + 1900, $g[6], $g[7]);
+					my $want  = iso_week_by_thursday($epoch);
+					if ($got != $want) {
+						$bad++;
+						diag("$year-$md->[0]-$md->[1]: $got, not $want");
+					}
+					$bad_strftime++ if $strftime && $want != POSIX::strftime('%V', @g);
 				}
 			}
 		}
 		is $bad, 0, 'the first and last seven days of 1999 to 2030';
+		SKIP: {
+			skip 'strftime %V is not asked here', 1 unless $strftime;
+			is $bad_strftime, 0, 'and the Thursday rule agrees with strftime %V';
+		}
 	};
 
 	subtest 'Calc functions -- dates' => sub {

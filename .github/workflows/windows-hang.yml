@@ -17,6 +17,11 @@
 # without prove, stopped at its 4th test: Sub::Protected enforces :Protected
 # subs unless HARNESS_ACTIVE is set, as prove sets it; now set here.
 #
+# Third run (42385872739): on 5.38, t/function.t stopped at its subtest 543,
+# "Calc::_iso_week -- agrees with strftime %V", with STDIN from nul as well:
+# POSIX::strftime('%V', ...) never returned.  The subtest no longer asks it on
+# Windows.  This workflow can go once Perl CI's Windows jobs pass.
+#
 # Kept apart from perl-ci.yml, which App::GHGen writes and would overwrite.
 # Remove it once the hang is found.
 name: Windows hang

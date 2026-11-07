@@ -161,7 +161,10 @@ subtest 'export_dirs' => sub {
 	# refused it.
 	SKIP: {
 		my $link = $root->child('exports-link');
-		skip 'no symlinks here', 5 unless eval { symlink("$exports", "$link") };
+		# On Windows perl can make a link to a folder that does not then act
+		# as one (-d is false), which the app rightly refuses at startup.
+		skip 'no symlinks to folders here', 5
+			unless eval { symlink("$exports", "$link") } && -d "$link";
 		my $l = app_with(file_roots => ["$root"], export_dirs => ["$link"]);
 		$l->get_ok('/api/dirs')->status_is(200, 'the folder list opens on an export folder named through a link');
 		my $listed = $l->tx->res->json('/path') // '';
