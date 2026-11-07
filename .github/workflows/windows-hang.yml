@@ -1,0 +1,137 @@
+---
+# A diagnostic: on Windows, Perl CI's test step has hung until the job's
+# 60-minute limit, inside t/function.t (Perl 5.38) and t/login.t (Perl 5.36),
+# in three runs in a row.  prove holds back the output of a file that has not
+# finished, so those logs cannot say which subtest was running.  This runs the
+# two files verbosely, each under a limit of its own, so the log names the
+# last subtest before a hang, and runs the password command the way
+# t/login.t does (input from a pipe, through open3) on its own, since that is
+# where t/login.t was when it stopped.
+#
+# Kept apart from perl-ci.yml, which App::GHGen writes and would overwrite.
+# Remove it once the hang is found.
+name: Windows hang
+
+"on":
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - master
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: windows-latest
+    timeout-minutes: 75
+    strategy:
+      fail-fast: false
+      matrix:
+        perl:
+          - "5.36"
+          - "5.38"
+    name: Hang on Perl ${{ matrix.perl }}
+    env:
+      AUTOMATED_TESTING: 1
+      NO_NETWORK_TESTING: 1
+      NONINTERACTIVE_TESTING: 1
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Perl
+        uses: shogo82148/actions-setup-perl@v1.44.4
+        with:
+          perl-version: ${{ matrix.perl }}
+
+      - name: Install cpanm and local::lib
+        run: cpanm --notest App::cpanminus local::lib
+
+      # Tried up to three times: a distribution whose configure step needs a
+      # module cpanm installs in the same run (DBD::SQLite and DBD::CSV need
+      # DBI) fails the first time and installs the next.
+      - name: Install dependencies
+        shell: cmd
+        run: |
+          @echo off
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          for /L %%i in (1,1,3) do (
+            cpanm --notest --installdeps . && exit /b 0
+            echo ::warning::cpanm --installdeps failed, try %%i of 3
+          )
+          exit /b 1
+
+      - name: Reinstall YAML::XS against current Perl
+        shell: cmd
+        run: cpanm --notest --reinstall YAML::XS
+
+      # Each line of the log is timestamped, so the last one before a gap
+      # is the subtest that hung.
+      - name: t/login.t, verbose
+        timeout-minutes: 10
+        continue-on-error: true
+        shell: cmd
+        run: |
+          @echo off
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          prove -lv --timer t/login.t
+
+      - name: t/function.t, verbose
+        timeout-minutes: 20
+        continue-on-error: true
+        shell: cmd
+        run: |
+          @echo off
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          prove -lv --timer t/function.t
+
+      # The three ways t/login.t runs the command, one step each, so a step
+      # that is cut off at its limit names the case.
+      - name: password command, a password from a pipe
+        timeout-minutes: 3
+        continue-on-error: true
+        shell: cmd
+        run: |
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          echo s3cret pass| perl script\database-bi password
+          echo exit status %ERRORLEVEL%
+
+      - name: password command, an empty pipe
+        timeout-minutes: 3
+        continue-on-error: true
+        shell: cmd
+        run: |
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          type nul | perl script\database-bi password
+          echo exit status %ERRORLEVEL%
+
+      - name: password command, an extra argument
+        timeout-minutes: 3
+        continue-on-error: true
+        shell: cmd
+        run: |
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          echo x| perl script\database-bi password extra
+          echo exit status %ERRORLEVEL%
+
+      # As t/login.t does it: open3, write, close, read STDOUT then STDERR,
+      # waitpid.  Each stage is printed as it is reached.
+      - name: password command through open3, as t/login.t runs it
+        timeout-minutes: 3
+        continue-on-error: true
+        shell: cmd
+        run: |
+          set "PATH=%USERPROFILE%\perl5\bin;%PATH%"
+          set "PERL5LIB=%USERPROFILE%\perl5\lib\perl5"
+          perl -MIPC::Open3 -MSymbol=gensym -e "$|=1; for my $c (['s3cret pass'.chr(10)], [''], ['x'.chr(10), 'extra']) { my ($in, @a) = @$c; my $err = gensym; print qq{start [@a]\n}; my $pid = open3(my $w, my $r, $err, $^X, 'script/database-bi', 'password', @a); print qq{spawned $pid\n}; print {$w} $in; close $w; print qq{stdin closed\n}; my $o = do { local $/; <$r> } // ''; print qq{stdout read: $o\n}; my $e = do { local $/; <$err> } // ''; print qq{stderr read: $e\n}; waitpid $pid, 0; print qq{exit $?\n}; }"
