@@ -90,6 +90,10 @@ Revision history for Database-BI
 	  and t/edge_cases.t on macOS (whose temporary folder is a link).  The
 	  code was right.  t/lib/BI/Test/WinRealpath.pm and a linked TMPDIR
 	  reproduce both on Linux, and the Platform paths workflow runs them.
+	  On Windows CI, t/edge_cases.t and t/file-roots.t compared a path
+	  with backslashes against the same one with forward slashes, and
+	  t/login.t read the password command's \r\n line ends as extra
+	  output.
 	- Tests for each of the above.
 
 0.020.0	Wed Nov  4 09:25:26 PM EST 2026

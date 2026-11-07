@@ -1039,6 +1039,14 @@ subtest 'GET /pie -- very long category name does not crash the page' => sub {
 # location by supplying ../../etc/passwd.csv as the filename.
 # ---------------------------------------------------------------------------
 
+# same_dir($path) -> $string: a folder as the platform spells it.  On Windows
+# the saved path comes back with backslashes and Mojo's realpath gives forward
+# slashes (and either may differ in case), though both name one folder.
+sub same_dir {
+	my $dir = File::Spec->canonpath("$_[0]");
+	return $^O eq 'MSWin32' ? lc $dir : $dir;
+}
+
 subtest 'POST /export -- filename with ../ is sanitized to basename only' => sub {
 	my $out_dir = tempdir(CLEANUP => 1);
 
@@ -1054,7 +1062,7 @@ subtest 'POST /export -- filename with ../ is sanitized to basename only' => sub
 	# The saved path must be inside $out_dir, not two levels up.
 	# saved is the file's realpath, so compare it with the folder's: under a
 	# linked TMPDIR (macOS's /var is /private/var) the spellings differ.
-	is(Mojo::File->new($saved)->dirname->to_string, Mojo::File->new($out_dir)->realpath->to_string,
+	is(same_dir(Mojo::File->new($saved)->dirname), same_dir(Mojo::File->new($out_dir)->realpath),
 		'saved path is inside the requested output dir');
 	unlike $saved, qr{\.\.},       'saved path contains no .. components';
 };
@@ -1070,7 +1078,7 @@ subtest 'POST /export -- absolute path as filename is stripped to basename' => s
 
 	my $saved = $t->tx->res->json('/saved');
 	# Must land inside the specified output directory.
-	is(Mojo::File->new($saved)->dirname->to_string, Mojo::File->new($out_dir)->realpath->to_string,
+	is(same_dir(Mojo::File->new($saved)->dirname), same_dir(Mojo::File->new($out_dir)->realpath),
 		'absolute-path filename written inside the output dir only');
 };
 

@@ -144,12 +144,15 @@ subtest 'export_dirs' => sub {
 			->status_is(403, "not in $dir")->json_like('/error' => qr/export folders \(export_dirs|outside the folders/);
 	}
 	ok !-e "$inner/b.csv", 'nothing written elsewhere, even inside file_roots';
-	$u->get_ok('/api/dirs')->json_is('/path' => "$exports", 'the folder list starts there')
+	# The folders come back as their realpath: on Windows that has forward
+	# slashes, where child() joined $exports with a backslash.
+	my $shown = $exports->realpath->to_string;
+	$u->get_ok('/api/dirs')->json_is('/path' => $shown, 'the folder list starts there')
 		->json_is('/parent' => undef, 'and goes no higher');
-	$u->get_ok('/api/dirs?path=' . $e->("$exports/deeper"))->json_is('/parent' => "$exports");
+	$u->get_ok('/api/dirs?path=' . $e->("$exports/deeper"))->json_is('/parent' => $shown);
 	$u->get_ok('/api/dirs?path=' . $e->("$inner"))->status_is(403, 'nor lists another folder');
 	$u->get_ok('/open?path=' . $e->("$inner/in.csv"))->status_is(200, 'reading is still file_roots\' business');
-	$u->get_ok('/view/sales', $HTML)->element_exists(qq{[data-default-dir="$exports"]}, 'the Export panel opens on it');
+	$u->get_ok('/view/sales', $HTML)->element_exists(qq{[data-default-dir="$shown"]}, 'the Export panel opens on it');
 
 	my $alone = app_with(export_dirs => ["$exports"]);
 	$alone->post_ok('/export' => form => { l => 'table:sales', dir => "$out", filename => 'c.csv' })

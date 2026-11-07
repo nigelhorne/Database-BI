@@ -359,6 +359,8 @@ subtest 'script/database-bi password' => sub {
 		my $stdout = do { local $/; <$out> } // '';
 		my $stderr = do { local $/; <$err> } // '';
 		waitpid $pid, 0;
+		# On Windows the child writes its lines in text mode, ending \r\n.
+		s/\r\n/\n/g for $stdout, $stderr;
 		return ($? >> 8, $stdout, $stderr);
 	};
 
