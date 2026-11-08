@@ -12,6 +12,8 @@ use Cwd			qw(realpath);
 use List::Util		qw(min max sum);
 use CGI::Info;
 use CGI::Lingua;
+use Database::BI::I18N ();
+use Unicode::Normalize ();
 use Database::BI::Tutorial;
 use Database::BI::Util;
 use Mojo::File;
@@ -527,6 +529,15 @@ sub _pagination {
 	return ($page, $per_page, $offset);
 }
 
+# _message_text($key) -> $template | undef
+#
+# The %MESSAGES template for $key in the reader's language (Database::BI::I18N,
+# which CGI::Lingua chose from the request's Accept-Language).  A plain function:
+# the package-level checks (request_refusal, _outside_roots) have no $self.
+sub _message_text ($key) {
+	return Database::BI::I18N::text(__PACKAGE__, \%MESSAGES, $key);
+}
+
 # _i18n($self, $key, @sprintf_args) -> $string
 #
 # Purpose: Look up a user-visible string from %MESSAGES and apply sprintf
@@ -535,7 +546,7 @@ sub _pagination {
 # Entry:   $key must be a key in %MESSAGES; @args are sprintf positionals.
 # Exit:    Returns the formatted string, or a fallback containing $key.
 sub _i18n :Protected ($self, $key, @args) {
-	my $tmpl = $MESSAGES{$key} // return "Internal error: unknown message key '$key'";
+	my $tmpl = _message_text($key) // return "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
 }
 
@@ -621,7 +632,7 @@ sub _path_key {
 sub _outside_export_dirs :Protected ($self, $path) {
 	my @dirs = _export_dirs($self) or return undef;
 	return undef if _inside_any($path, @dirs);
-	return sprintf($MESSAGES{error_outside_export_dirs}, $path // '');
+	return sprintf(_message_text('error_outside_export_dirs'), $path // '');
 }
 
 # _resolved_path($path) -> $absolute | undef
@@ -668,7 +679,7 @@ sub _resolved_path {
 sub _outside_roots :Protected ($self, $path) {
 	my @roots = _file_roots($self) or return undef;
 	return undef if _inside_any($path, @roots);
-	return sprintf($MESSAGES{error_outside_roots}, $path // '');
+	return sprintf(_message_text('error_outside_roots'), $path // '');
 }
 
 # _first_root($self) -> $folder
@@ -717,7 +728,7 @@ sub request_refusal {
 	my $hash = $c->app->config('password_hash');
 	unless (defined $hash && length $hash) {
 		my $from = $c->tx->remote_address // '';
-		return $MESSAGES{error_remote_needs_password}
+		return _message_text('error_remote_needs_password')
 			unless $from eq '' || $from =~ /\A(?:::ffff:)?127\./i || $from eq '::1';
 	}
 
@@ -729,7 +740,7 @@ sub request_refusal {
 		my $local   = $host eq 'localhost' || $host =~ /\.localhost\z/
 			|| $host =~ /\A\d{1,3}(?:\.\d{1,3}){3}\z/ || $host =~ /[:\[]/;
 		my $ok = $req->reverse_proxy ? (!@allowed || $listed) : ($local || $listed);
-		return sprintf($MESSAGES{error_host_refused}, $host) unless $ok;
+		return sprintf(_message_text('error_host_refused'), $host) unless $ok;
 	}
 
 	return if $req->method =~ /\A(?:GET|HEAD|OPTIONS)\z/;
@@ -738,7 +749,7 @@ sub request_refusal {
 	my $site    = lc($headers->header('Sec-Fetch-Site') // '');
 	if (length $site) {
 		return if $site eq 'same-origin' || $site eq 'none';
-		return sprintf($MESSAGES{error_cross_site}, $site);
+		return sprintf(_message_text('error_cross_site'), $site);
 	}
 	my $origin = $headers->origin;
 	return unless defined $origin;
@@ -746,7 +757,7 @@ sub request_refusal {
 	my $to   = lc($req->url->to_abs->host_port // '');
 	my $fwd  = $req->reverse_proxy ? lc($headers->header('X-Forwarded-Host') // '') : '';
 	return if length($from) && ($from eq $to || (length($fwd) && $from eq $fwd));
-	return sprintf($MESSAGES{error_cross_site}, $origin);
+	return sprintf(_message_text('error_cross_site'), $origin);
 }
 
 # _is_safe_url($url) -> bool
@@ -1163,20 +1174,11 @@ sub _resolve_language :Protected ($self, $platform, $default) {
 		my @supported = _template_languages($self->app->home, $platform);
 		push @supported, $default unless grep { $_ eq $default } @supported;
 
-		my $chosen = eval {
-			local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
-			my $lingua = CGI::Lingua->new(supported => \@supported);
-			my $code   = $lingua->language_code_alpha2();
-
-			# A regional variant (templates/web/en-us/ for a browser asking for
-			# en-US) is served when it has a directory; otherwise the language
-			# itself.  CGI::Lingua answers the language and the region apart:
-			# en-GB, en-CA and plain en give no region of ours, so they get en.
-			my $region = defined $code ? $lingua->sublanguage_code_alpha2() : undef;
-			(defined $region && _has_templates($self->app->home, $platform, lc "$code-$region"))
-				? lc "$code-$region"
-				: $code;
-		};
+		# A regional variant (templates/web/en-us/ for a browser asking for
+		# en-US) is chosen when it has a directory, otherwise the language
+		# itself: en-GB, en-CA and plain en get en.  Database::BI::I18N makes
+		# the same CGI::Lingua call for the messages, so the two agree.
+		my $chosen = Database::BI::I18N::lingua_choice($accept, \@supported);
 		$language = $chosen if defined $chosen;
 	}
 
@@ -1329,7 +1331,7 @@ sub _tidy_error {
 #          but was an array or a scalar, and otherwise ends in a library's path.
 sub _analysis_json_error {
 	my $reason = _tidy_error($_[0]);
-	return sprintf($MESSAGES{error_analysis_json}, length($reason) ? $reason : 'expected a JSON object');
+	return sprintf(_message_text('error_analysis_json'), length($reason) ? $reason : 'expected a JSON object');
 }
 
 # ---------------------------------------------------------------------------
@@ -2008,14 +2010,14 @@ sub _time_range_request ($c) {
 	my $preset = $TIME_RANGE{$name};
 	unless ($preset) {
 		$c->render(
-			text   => sprintf($MESSAGES{error_range_name}, $name,
+			text   => sprintf(_message_text('error_range_name'), $name,
 				join(', ', map { $_->{name} } @TIME_RANGES)),
 			status => 400,
 		);
 		return 0;
 	}
 	unless (defined $col && length $col && $col !~ /:/) {
-		$c->render(text => $MESSAGES{error_range_column}, status => 400);
+		$c->render(text => _message_text('error_range_column'), status => 400);
 		return 0;
 	}
 
@@ -2057,7 +2059,7 @@ sub _filter_request ($c) {
 		next unless length($col // '') && defined $op && length $op;
 		next if $FILTER_OP{$op};
 		$c->render(
-			text   => sprintf($MESSAGES{error_filter_op}, $op, $spec, join(', ', @FILTER_OPS)),
+			text   => sprintf(_message_text('error_filter_op'), $op, $spec, join(', ', @FILTER_OPS)),
 			status => 400,
 		);
 		return 0;
@@ -2093,11 +2095,11 @@ sub _unknown_filter_column {
 		my ($col, $op) = split /:/, $spec, 3;
 		next unless length($col // '') && defined $op && length $op;
 		next if $known{$col};
-		return sprintf($MESSAGES{error_filter_column}, $col, $spec, $listed->());
+		return sprintf(_message_text('error_filter_column'), $col, $spec, $listed->());
 	}
 	my $range = $self->stash('time_range');
 	if (ref $range eq 'HASH' && !$known{ $range->{col} // '' }) {
-		return sprintf($MESSAGES{error_range_column_unknown}, $range->{col}, $range->{col}, $listed->());
+		return sprintf(_message_text('error_range_column_unknown'), $range->{col}, $range->{col}, $listed->());
 	}
 	return undef;
 }
@@ -3375,12 +3377,118 @@ sub _rows_of_page {
 	return [ @{$rows}[$offset .. $last] ];
 }
 
+# Where a cell with no date or number sorts: first, ascending, as -Infinity
+# does in the browser.
+Readonly my $NO_NUMBER => -9**9**9;
+
+# _sort_records(\@rows, $column, $dir) -> \@sorted
+#
+# Every row, in the order the table's own header sort gives a page of them
+# (biValueComparator in dashboard.html.tt), so the first page of a table too
+# long for one page is the first page of the sorted rows rather than the first
+# rows sorted.  The column sorts as dates when every non-empty cell is one
+# (YYYY-MM-DD, or M/D/YYYY unless a cell shows the day comes first), else as
+# numbers when every non-empty cell holds one the browser's parseAccounting
+# reads, else as text the way localeCompare(..., { numeric: true, sensitivity:
+# 'base' }) does: case and accents ignored, a run of digits compared as a
+# number.  An empty cell sorts first, ascending.  Rows that compare equal keep
+# their order, in either direction.  A new array: the rows may be read-only.
+sub _sort_records ($rows, $column, $dir) {
+	my @text = map {
+		my $v = $_->{$column} // '';
+		$v =~ s/\A\s+|\s+\z//g;
+		$v;
+	} @$rows;
+	my @filled = grep { length } @text;
+
+	my $key_of;	# cell text -> number; text sorts when there is none
+	if (@filled && !(grep { !m{\A(?:\d{4}-\d{2}-\d{2}|\d{1,2}/\d{1,2}/\d{4})\z} } @filled)) {
+		my $month_first = 1;
+		for (@filled) {
+			my ($p1, $p2) = m{\A(\d{1,2})/(\d{1,2})/} or next;
+			if ($p1 > 12) { $month_first = 0; last }
+			if ($p2 > 12) { last }
+		}
+		$key_of = sub ($v) {
+			return $1 * 10_000 + $2 * 100 + $3 if $v =~ /\A(\d{4})-(\d{2})-(\d{2})\z/;
+			if ($v =~ m{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}) {
+				return $month_first ? $3 * 10_000 + $1 * 100 + $2 : $3 * 10_000 + $2 * 100 + $1;
+			}
+			return $NO_NUMBER;
+		};
+	} elsif (@filled && !(grep { !defined _accounting_number($_) } @filled)) {
+		$key_of = sub ($v) { _accounting_number($v) // $NO_NUMBER };
+	}
+
+	# Equal rows keep their order in either direction, as the browser's stable
+	# sort of -cmp does: the direction turns the comparison, not the result.
+	my $sign = $dir eq 'desc' ? -1 : 1;
+	my @order;
+	if ($key_of) {
+		my @key = map { $key_of->($_) } @text;
+		@order = sort { $sign * ($key[$a] <=> $key[$b]) || $a <=> $b } 0 .. $#$rows;
+	} else {
+		my @key = map { _collation_key($_) } @text;
+		@order = sort { $sign * _collate($key[$a], $key[$b]) || $a <=> $b } 0 .. $#$rows;
+	}
+	return [ @{$rows}[@order] ];
+}
+
+# _accounting_number($text) -> $number | undef
+#
+# The number the browser's parseAccounting reads in a cell: "(1,234.56)" is
+# -1234.56, "$5" is 5.  Like it, every character but digits, "." and "-" is
+# dropped first, and the number is the longest one at the start of what is
+# left; undef when there is none.
+sub _accounting_number ($text) {
+	return undef unless length $text;	## no critic (ProhibitExplicitReturnUndef)
+	my $negative = $text =~ /\A\(.*\)\z/s;
+	(my $s = $text) =~ s/[^\d.\-]//g;
+	return undef unless $s =~ /\A(-?(?:\d+(?:\.\d*)?|\.\d+))/;	## no critic (ProhibitExplicitReturnUndef)
+	my $n = $1 + 0;
+	return $negative ? -abs($n) : $n;
+}
+
+# _collation_key($text) -> \@tokens
+#
+# The text as localeCompare with sensitivity 'base' and numeric sees it: case
+# and accents folded away, each run of digits one number, every other
+# character ranked as ICU's root collation does -- spaces, then punctuation and
+# symbols, then digits, then letters.
+sub _collation_key ($text) {
+	my $folded = CORE::fc(Unicode::Normalize::NFD($text));
+	$folded =~ s/\p{Mn}+//g;
+	my @tokens;
+	while ($folded =~ /(\d+)|(.)/gs) {
+		if (defined $1) {
+			push @tokens, [2, $1 + 0];
+		} else {
+			my $c = $2;
+			push @tokens, [ $c =~ /\s/ ? 0 : $c =~ /\p{L}/ ? 3 : 1, $c ];
+		}
+	}
+	return \@tokens;
+}
+
+# _collate(\@a, \@b) -> -1 | 0 | 1
+sub _collate ($x, $y) {
+	my $n = @$x < @$y ? @$x : @$y;
+	for my $i (0 .. $n - 1) {
+		my ($p, $q) = ($x->[$i], $y->[$i]);
+		my $c = $p->[0] <=> $q->[0]
+			|| ($p->[0] == 2 ? $p->[1] <=> $q->[1] : $p->[1] cmp $q->[1]);
+		return $c if $c;
+	}
+	return @$x <=> @$y;
+}
+
 # _fetch_page( $self, $source, \%params ) -> ( $records, $has_next )
 #   params: per_page  -- page size (required)
 #           offset    -- 0-based row offset (required)
 #           dedup     -- truthy when ?d=1 dedup is requested
-#           sort_col  -- column name to sort by (optional)
-#           sort_dir  -- 'asc' or 'desc' (default 'asc'; ignored unless sort_col set)
+#           sort_col  -- column name to sort by (optional; default the request's
+#                        sort= parameter)
+#           sort_dir  -- 'asc' or 'desc' (default the request's dir=, else 'asc')
 #
 # Purpose: Fetch and reduce one page of records from $source, honouring the
 #          reduce-before-paginate ordering contract.  Two modes:
@@ -3395,9 +3503,15 @@ sub _rows_of_page {
 #     the Nth page contains the Nth page of the *reduced* set, not the Nth page
 #     of the raw set reduced to fewer rows.  Memory cost: the full reduced set.
 #
-# Sort: sort_col/sort_dir are forwarded to selectall_arrayref as
-#   sort_by => [$sort_col, $sort_dir].  Both Database::Abstraction 0.49+
-#   and Database::Join 0.009.0 honour this parameter natively.
+# Sort: a sort column takes the reduction path, and every row is sorted by
+#   _sort_records -- after the fields, filters and cross-row columns, so any
+#   column the table shows can be sorted on -- before the page is cut.  The
+#   table's header sort works on the rows it was given, so on a table longer
+#   than a page it sorted only those, and the page was not the first of the
+#   sorted table; the page asks for sort= instead whenever there is more than
+#   one page.  The backend's sort_by is not used: it compares as text, and
+#   ignores a column whose name is not a safe identifier.  When the sort is
+#   applied, stash sorted_by => { col, dir } tells the page what it shows.
 #
 # Returns (undef, 0) when the underlying fetch throws; the caller must handle
 # $records being undef.
@@ -3405,12 +3519,9 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	my $per_page = $params->{per_page};
 	my $offset   = $params->{offset};
 	my $dedup    = $params->{dedup};
-	my $sort_col = $params->{sort_col};
-	my $sort_dir = ($params->{sort_dir} // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
-
-	# sort_by args forwarded to the backend when a sort column is requested.
-	# D::A 0.49+ and D::J 0.009.0 both support sort_by => [$col, $dir].
-	my @sort_args = $sort_col ? (sort_by => [$sort_col, $sort_dir]) : ();
+	my $sort_col = $params->{sort_col} // $self->param('sort');
+	$sort_col = undef unless defined $sort_col && length $sort_col;
+	my $sort_dir = ($params->{sort_dir} // $self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
 
 	# Collect and validate the filters, the range's bounds included.
 	my @f_specs = grep {
@@ -3432,19 +3543,19 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# restart every running total on page 2.
 	my $cross = length($self->param('cs') // '') ? 1 : 0;
 
-	unless (@f_specs || $dedup || $cross) {
+	unless (@f_specs || $dedup || $cross || defined $sort_col) {
 		if ($is_sql) {
 			# Fast path (SQL-backed): delegate LIMIT/OFFSET to the backend N+1 trick.
 			# Copy before pop: D::A may return a read-only ref to its internal cache.
 			my @records = @{ $source->selectall_arrayref(
-				limit => $per_page + 1, offset => $offset, @sort_args,
+				limit => $per_page + 1, offset => $offset,
 			) // [] };
 			my $has_next = (@records > $per_page) ? 1 : 0;
 			pop @records if $has_next;
 			return (\@records, $has_next);
 		}
-		# Non-SQL fast path: fetch all, sort in Perl, then paginate.
-		my $all = $source->selectall_arrayref(@sort_args) // [];
+		# Non-SQL fast path: fetch all, then paginate.
+		my $all = $source->selectall_arrayref() // [];
 		my $has_next = (@$all > $offset + $per_page) ? 1 : 0;
 		return (_rows_of_page($all, $offset, $per_page), $has_next);
 	}
@@ -3455,7 +3566,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	# clause is silently dropped, returning the full unfiltered set.  The Perl
 	# path is correct on every supported version.  Memory cost: bounded by the
 	# source file size (the same as the dedup path already accepted).
-	my $all = $source->selectall_arrayref(@sort_args) // [];
+	my $all = $source->selectall_arrayref() // [];
 
 	# A stored date or time pattern is what makes a patterned column comparable
 	# with the ISO bounds a relative time range carries, and it belongs to stage 2
@@ -3534,6 +3645,18 @@ sub _fetch_page :Protected ($self, $source, $params) {
 			return ();
 		}
 		$all = _apply_filter_spec($all, $_) for @late;
+	}
+
+	# The whole reduced set, sorted, before the page is cut.  A column the view
+	# does not have is left alone (the order is the file's), as the header sort
+	# ignores one it cannot find.
+	if (defined $sort_col) {
+		my %known = map { $_ => 1 } (@cols_so_far ? @cols_so_far : _get_columns($source, $all)), keys %written;
+		$known{$sort_col} = 1 if $cross && @$all && exists $all->[0]{$sort_col};
+		if ($known{$sort_col}) {
+			$all = _sort_records($all, $sort_col, $sort_dir);
+			$self->stash(sorted_by => { col => $sort_col, dir => $sort_dir });
+		}
 	}
 
 	my $total    = scalar @$all;
@@ -4942,7 +5065,7 @@ Readonly my $MAX_ROW_SPAN => 6;
 sub _save_analyses_or_503 :Protected ($self, $analyses) {
 	return 1 if $self->_write_analyses($analyses);
 
-	$self->render(json => { error => $MESSAGES{error_analysis_storage} }, status => 503);
+	$self->render(json => { error => _message_text('error_analysis_storage') }, status => 503);
 	return 0;
 }
 
@@ -5036,7 +5159,7 @@ sub _validate_analysis_parts :Protected ($self, $doc) {
 		}
 	}
 	if (defined $doc->{version}) {
-		return sprintf($MESSAGES{error_analysis_version}, $doc->{version})
+		return sprintf(_message_text('error_analysis_version'), $doc->{version})
 			unless !ref $doc->{version} && $doc->{version} =~ /\A\d+\z/ && $doc->{version} <= 1;
 	}
 	for my $key (qw( visuals joins measures combines bookmarks layout hierarchies )) {
@@ -5118,12 +5241,12 @@ sub analyses_create ($self) {
 		unless ref $body eq 'HASH';
 
 	my $err = $self->_validate_analysis($body);
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_invalid'), $err) }, status => 400)
 		if $err;
 
 	my $analyses = $self->_read_analyses;
 	unless ($self->_analyses_path) {
-		return $self->render(json => { error => $MESSAGES{error_analysis_storage} }, status => 503);
+		return $self->render(json => { error => _message_text('error_analysis_storage') }, status => 503);
 	}
 
 	my $id;
@@ -5149,11 +5272,11 @@ sub analyses_create ($self) {
 # GET /api/analyses/:id
 sub analyses_get ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 
 	$self->render(json => $analyses->{$id});
@@ -5162,11 +5285,11 @@ sub analyses_get ($self) {
 # PUT /api/analyses/:id  (full replace)
 sub analyses_update ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 
 	my $body = eval { decode_json($self->req->body) };
@@ -5174,7 +5297,7 @@ sub analyses_update ($self) {
 		unless ref $body eq 'HASH';
 
 	my $err = $self->_validate_analysis($body);
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_invalid'), $err) }, status => 400)
 		if $err;
 
 	_drop_unknown_keys($body);
@@ -5192,11 +5315,11 @@ sub analyses_update ($self) {
 # PATCH /api/analyses/:id  (partial update -- merges supplied keys)
 sub analyses_patch ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 
 	my $body = eval { decode_json($self->req->body) };
@@ -5207,7 +5330,7 @@ sub analyses_patch ($self) {
 	# nothing but the layout (a drag) or the bookmarks, and a document that
 	# fails on some other field it never mentioned is not this request's fault.
 	my $perr = $self->_validate_analysis_parts($body);
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $perr) }, status => 400)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_invalid'), $perr) }, status => 400)
 		if $perr;
 
 	_drop_unknown_keys($body);
@@ -5227,11 +5350,11 @@ sub analyses_patch ($self) {
 # DELETE /api/analyses/:id
 sub analyses_delete ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 
 	delete $analyses->{$id};
@@ -5254,11 +5377,11 @@ sub analyses_delete ($self) {
 # entry once the reader moves or resizes it.
 sub analyses_add_visual ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
@@ -5389,11 +5512,11 @@ sub analyses_add_visual ($self) {
 # runs one, and leaving the key out is no request to change it at all.
 sub analyses_update_visual ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
@@ -5410,9 +5533,9 @@ sub analyses_update_visual ($self) {
 
 	# A text card's only settings are its options, and it reads no data.
 	if (($a->{visuals}[$index]{kind} // '') eq 'text') {
-		return $self->render(json => { error => $MESSAGES{error_text_card_columns} }, status => 400)
+		return $self->render(json => { error => _message_text('error_text_card_columns') }, status => 400)
 			if exists $body->{encode} || exists $body->{cross_row};
-		return $self->render(json => { error => $MESSAGES{error_text_card_options} }, status => 400)
+		return $self->render(json => { error => _message_text('error_text_card_options') }, status => 400)
 			unless ref $body->{options} eq 'HASH';
 
 		my ($options, $errors) = _text_card_options($body->{options});
@@ -5503,11 +5626,11 @@ sub analyses_update_visual ($self) {
 # afterwards, because the cards on screen carry the old numbers.
 sub analyses_delete_visual ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
@@ -5517,7 +5640,7 @@ sub analyses_delete_visual ($self) {
 	$index += 0;
 	return $self->render(json => { error => "No visual at index $index" }, status => 404)
 		unless $index < scalar @{ $a->{visuals} // [] };
-	return $self->render(json => { error => $MESSAGES{error_visual_not_text} }, status => 400)
+	return $self->render(json => { error => _message_text('error_visual_not_text') }, status => 400)
 		unless ($a->{visuals}[$index]{kind} // '') eq 'text';
 
 	$a->{visuals} = [ @{ $a->{visuals} }[ grep { $_ != $index } 0 .. $#{ $a->{visuals} } ] ];
@@ -5584,16 +5707,16 @@ sub _text_card_options {
 	my $text = (defined $raw->{text} && !ref $raw->{text}) ? $raw->{text} : '';
 	$text =~ s/\r\n?/\n/g;
 	if ($text !~ /\S/) {
-		push @errors, $MESSAGES{error_text_card_empty};
+		push @errors, _message_text('error_text_card_empty');
 	}
 	elsif (length($text) > $MAX_TEXT_CHARS) {
-		push @errors, sprintf($MESSAGES{error_text_card_long}, $MAX_TEXT_CHARS);
+		push @errors, sprintf(_message_text('error_text_card_long'), $MAX_TEXT_CHARS);
 	}
 	$clean{text} = $text;
 
 	if (length(my $font = $raw->{font} // '')) {
 		if (!ref $font && exists $TEXT_FONT_CSS{$font}) { $clean{font} = $font }
-		else { push @errors, $MESSAGES{error_text_card_font} }
+		else { push @errors, _message_text('error_text_card_font') }
 	}
 
 	if (length(my $size = $raw->{size} // '')) {
@@ -5601,7 +5724,7 @@ sub _text_card_options {
 			$clean{size} = $size + 0;
 		}
 		else {
-			push @errors, sprintf($MESSAGES{error_text_card_size}, $MIN_TEXT_POINTS, $MAX_TEXT_POINTS);
+			push @errors, sprintf(_message_text('error_text_card_size'), $MIN_TEXT_POINTS, $MAX_TEXT_POINTS);
 		}
 	}
 
@@ -5609,12 +5732,12 @@ sub _text_card_options {
 		my $value = $raw->{$key} // '';
 		next unless length $value;
 		if (!ref $value && $value =~ /\A#[0-9a-fA-F]{6}\z/) { $clean{$key} = lc $value }
-		else { push @errors, $MESSAGES{error_text_card_colour} }
+		else { push @errors, _message_text('error_text_card_colour') }
 	}
 
 	if (length(my $align = $raw->{align} // '')) {
 		if (!ref $align && $TEXT_ALIGNS{$align}) { $clean{align} = $align }
-		else { push @errors, $MESSAGES{error_text_card_align} }
+		else { push @errors, _message_text('error_text_card_align') }
 	}
 
 	for my $key (qw(bold italic plain)) {
@@ -5694,11 +5817,11 @@ sub _text_card_reply {
 # GET /api/analyses/:id/export
 sub analyses_export ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 
 	my $json = encode_json($analyses->{$id});
@@ -5720,11 +5843,11 @@ sub analyses_import ($self) {
 	_drop_unknown_keys($body);
 
 	my $err = $self->_validate_analysis($body);
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_invalid}, $err) }, status => 400)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_invalid'), $err) }, status => 400)
 		if $err;
 
 	unless ($self->_analyses_path) {
-		return $self->render(json => { error => $MESSAGES{error_analysis_storage} }, status => 503);
+		return $self->render(json => { error => _message_text('error_analysis_storage') }, status => 503);
 	}
 
 	my $analyses = $self->_read_analyses;
@@ -6809,18 +6932,18 @@ sub _bound_canvas_params :Protected ($self, $a, $lookup) {
 			# looks_like_number accepts these, and every comparison with NaN is
 			# false, so it would walk straight past min and max below.
 			unless (Scalar::Util::looks_like_number($val) && $val !~ /\A\s*[-+]?(?:nan|inf)/i) {
-				push @errors, sprintf($MESSAGES{error_param_type}, $pname);
+				push @errors, sprintf(_message_text('error_param_type'), $pname);
 				next;
 			}
 			$val = $val + 0;
 			my ($lo, $hi) = ($def->{min}, $def->{max});
 			if (defined $lo && $val < $lo) {
-				push @errors, sprintf($MESSAGES{error_param_range},
+				push @errors, sprintf(_message_text('error_param_range'),
 					$pname, $lo, defined $hi ? $hi : '+inf');
 				next;
 			}
 			if (defined $hi && $val > $hi) {
-				push @errors, sprintf($MESSAGES{error_param_range},
+				push @errors, sprintf(_message_text('error_param_range'),
 					$pname, defined $lo ? $lo : '-inf', $hi);
 				next;
 			}
@@ -6833,7 +6956,7 @@ sub _bound_canvas_params :Protected ($self, $a, $lookup) {
 
 sub canvas_render ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+	return $self->render(text => _message_text('error_analysis_id_invalid'), status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
@@ -6848,7 +6971,7 @@ sub canvas_render ($self) {
 			status      => 404,
 			title       => 'Canvas not found',
 			canvas_name => $id,
-			error_msg   => sprintf($MESSAGES{error_analysis_not_found}, $id),
+			error_msg   => sprintf(_message_text('error_analysis_not_found'), $id),
 			error_specs => [],
 			language    => $language,
 		);
@@ -6883,7 +7006,7 @@ sub canvas_render ($self) {
 		}
 		if ($newest_src_mtime && $analysis_updated && $newest_src_mtime > $analysis_updated) {
 			$freshness_stale = 1;
-			$freshness_msg   = $MESSAGES{freshness_stale_msg};
+			$freshness_msg   = _message_text('freshness_stale_msg');
 			require POSIX;
 			$freshness_source_mtime = Database::BI::Util::minute_stamp(gmtime($newest_src_mtime)) . ' UTC';
 		}
@@ -7300,9 +7423,10 @@ sub _run_export_pipeline :Protected ($self) {
 	my $sort = $self->param('sort');
 	my $dir  = ($self->param('dir') // 'asc') =~ /\Adesc\z/i ? 'desc' : 'asc';
 	if (defined $sort && grep { $_ eq $sort } @columns) {
-		# A new array: the backend's own can be read-only, as a SQLite one is.
-		$records = [ sort { ($a->{$sort} // '') cmp ($b->{$sort} // '') } @$records ];
-		$records = [ reverse @$records ] if $dir eq 'desc';
+		# By the same rule as the table pages (_sort_records returns a new
+		# array: the backend's own can be read-only, as a SQLite one is).
+		$records = _sort_records($records, $sort, $dir);
+		$self->stash(sorted_by => { col => $sort, dir => $dir });
 	} elsif (defined $sort) {
 		carp $self->_i18n('error_sort_column', $sort);
 	}
@@ -7607,7 +7731,7 @@ sub require_login ($self) {
 		$self->redirect_to($url);
 		return undef;
 	}
-	$self->render(json => { error => $MESSAGES{error_login_required} }, status => 401);
+	$self->render(json => { error => _message_text('error_login_required') }, status => 401);
 	return undef;
 }
 
@@ -7649,13 +7773,13 @@ sub login ($self) {
 	my $seen = $failures->{$who} // [];
 	if (@{$seen} >= $LOGIN_ATTEMPTS) {
 		my $minutes = int(($seen->[0] + $LOGIN_WINDOW - $now + 59) / 60) || 1;
-		return $self->_render_login(error => sprintf($MESSAGES{error_login_locked}, $minutes), status => 429);
+		return $self->_render_login(error => sprintf(_message_text('error_login_locked'), $minutes), status => 429);
 	}
 
 	unless (Database::BI::Password::verify_password(scalar($self->param('password')) // '', $hash)) {
 		push @{ $failures->{$who} //= [] }, $now;
 		$self->app->log->warn("Wrong password from $who");
-		return $self->_render_login(error => $MESSAGES{error_login_failed}, status => 401);
+		return $self->_render_login(error => _message_text('error_login_failed'), status => 401);
 	}
 
 	delete $failures->{$who};
@@ -9247,7 +9371,7 @@ sub export_write ($self) {
 	# through, a link inside the folders would put the export wherever it
 	# points, outside file_roots or export_dirs, or into a dot-file.
 	if (-l $dest || (-e $dest && !-f $dest)) {
-		return $self->render(json => { error => sprintf($MESSAGES{error_export_not_file}, $asked->child($filename)->to_string) }, status => 403);
+		return $self->render(json => { error => sprintf(_message_text('error_export_not_file'), $asked->child($filename)->to_string) }, status => 403);
 	}
 	my $tmp;
 	my $ok = eval {
@@ -14227,11 +14351,11 @@ sub _verify_share_token :Protected ($self, $id, $token) {
 # POST /api/analyses/:id/share
 sub analyses_share ($self) {
 	my $id = $self->stash('id') // '';
-	return $self->render(json => { error => $MESSAGES{error_analysis_id_invalid} }, status => 400)
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(json => { error => sprintf($MESSAGES{error_analysis_not_found}, $id) }, status => 404)
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
 		unless exists $analyses->{$id};
 
 	my $expires = time() + $SHARE_TOKEN_TTL;
@@ -14248,16 +14372,16 @@ sub analyses_share ($self) {
 sub share_view ($self) {
 	my $id    = $self->stash('id') // '';
 	my $token = $self->param('token') // '';
-	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+	return $self->render(text => _message_text('error_analysis_id_invalid'), status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
-	return $self->render(text => $MESSAGES{error_token_missing}, status => 401)
+	return $self->render(text => _message_text('error_token_missing'), status => 401)
 		unless length $token;
 	unless ($self->_verify_share_token($id, $token)) {
-		return $self->render(text => $MESSAGES{error_token_invalid}, status => 403);
+		return $self->render(text => _message_text('error_token_invalid'), status => 403);
 	}
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+	return $self->render(text => sprintf(_message_text('error_analysis_not_found'), $id), status => 404)
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
@@ -14277,16 +14401,16 @@ sub share_view ($self) {
 sub embed_view ($self) {
 	my $id    = $self->stash('id') // '';
 	my $token = $self->param('token') // '';
-	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+	return $self->render(text => _message_text('error_analysis_id_invalid'), status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
-	return $self->render(text => $MESSAGES{error_token_missing}, status => 401)
+	return $self->render(text => _message_text('error_token_missing'), status => 401)
 		unless length $token;
 	unless ($self->_verify_share_token($id, $token)) {
-		return $self->render(text => $MESSAGES{error_token_invalid}, status => 403);
+		return $self->render(text => _message_text('error_token_invalid'), status => 403);
 	}
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+	return $self->render(text => sprintf(_message_text('error_analysis_not_found'), $id), status => 404)
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
@@ -14350,7 +14474,7 @@ sub visual_download ($self) {
 	my $n      = $self->stash('n')      // 0;
 	my $format = $self->stash('fmt') // '';
 
-	return $self->render(text => $MESSAGES{error_analysis_id_invalid}, status => 400)
+	return $self->render(text => _message_text('error_analysis_id_invalid'), status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
 	return $self->render(text => 'Format must be csv or png', status => 400)
 		unless $format =~ /\A(?:csv|png)\z/;
@@ -14358,14 +14482,14 @@ sub visual_download ($self) {
 		unless $n =~ /\A\d+\z/;
 
 	my $analyses = $self->_read_analyses;
-	return $self->render(text => sprintf($MESSAGES{error_analysis_not_found}, $id), status => 404)
+	return $self->render(text => sprintf(_message_text('error_analysis_not_found'), $id), status => 404)
 		unless exists $analyses->{$id};
 	my $a = $analyses->{$id};
 
 	my @visuals = @{ $a->{visuals} // [] };
 	return $self->render(text => "Visual $n not found", status => 404)
 		unless $n < scalar @visuals;
-	return $self->render(text => $MESSAGES{error_text_card_no_data}, status => 404)
+	return $self->render(text => _message_text('error_text_card_no_data'), status => 404)
 		if ($visuals[$n]{kind} // '') eq 'text';
 
 	if ($format eq 'csv') {
@@ -14409,7 +14533,7 @@ sub visual_download ($self) {
 # On error:     { error } with 400, 503, or 502 status
 sub ask_api ($self) {
 	my $api_key = $self->app->config('ai_api_key') // '';
-	return $self->render(json => { error => $MESSAGES{ask_unavailable} }, status => 503)
+	return $self->render(json => { error => _message_text('ask_unavailable') }, status => 503)
 		unless length $api_key;
 
 	my $left_spec = $self->param('l') // '';
@@ -14417,9 +14541,9 @@ sub ask_api ($self) {
 		unless length $left_spec;
 
 	my $question = $self->param('q') // '';
-	return $self->render(json => { error => $MESSAGES{ask_no_question} }, status => 400)
+	return $self->render(json => { error => _message_text('ask_no_question') }, status => 400)
 		unless length $question;
-	return $self->render(json => { error => sprintf($MESSAGES{ask_question_too_long}, $ASK_MAX_QUESTION) }, status => 400)
+	return $self->render(json => { error => sprintf(_message_text('ask_question_too_long'), $ASK_MAX_QUESTION) }, status => 400)
 		if length($question) > $ASK_MAX_QUESTION;
 
 	my ($src, $records, $columns, $left_label) = $self->_run_pipeline_source;
@@ -14440,7 +14564,7 @@ sub ask_api ($self) {
 		model    => $self->app->config('ai_model')    // 'claude-haiku-5-5',
 	};
 
-	return $self->render(json => { error => sprintf($MESSAGES{ai_limit_reached}, _ai_calls_per_hour($self)) }, status => 429)
+	return $self->render(json => { error => sprintf(_message_text('ai_limit_reached'), _ai_calls_per_hour($self)) }, status => 429)
 		unless _ai_call_allowed($self);
 
 	my $result = Database::BI::Ask::ask(
@@ -14453,11 +14577,11 @@ sub ask_api ($self) {
 
 	if (my $err = $result->{error}) {
 		my ($status, $msg) =
-			$err eq 'ask_unavailable'              ? (503, $MESSAGES{ask_unavailable})
-		  : $err eq 'ask_no_question'              ? (400, $MESSAGES{ask_no_question})
-		  : $err eq 'ask_provider_error'           ? (502, $MESSAGES{ask_provider_error})
-		  : $err eq 'ask_unparseable'              ? (422, $MESSAGES{ask_unparseable})
-		  : $err =~ /\Aask_invalid_spec:(.+)\z/   ? (422, sprintf($MESSAGES{ask_invalid_spec}, $1))
+			$err eq 'ask_unavailable'              ? (503, _message_text('ask_unavailable'))
+		  : $err eq 'ask_no_question'              ? (400, _message_text('ask_no_question'))
+		  : $err eq 'ask_provider_error'           ? (502, _message_text('ask_provider_error'))
+		  : $err eq 'ask_unparseable'              ? (422, _message_text('ask_unparseable'))
+		  : $err =~ /\Aask_invalid_spec:(.+)\z/   ? (422, sprintf(_message_text('ask_invalid_spec'), $1))
 		  :                                          (500, $err);
 		return $self->render(json => { error => $msg }, status => $status);
 	}

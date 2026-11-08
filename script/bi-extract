@@ -32,6 +32,11 @@ use lib "$Bin/../lib";
 
 use Getopt::Long qw(GetOptions :config no_ignore_case);
 use Database::BI::Util qw(minute_stamp);
+use Database::BI::I18N ();
+
+# Messages in the language the locale names: LANG=en_US.UTF-8 is American
+# English, anything else British (CGI::Lingua chooses).
+$Database::BI::I18N::LANGUAGE = Database::BI::I18N::from_locale();
 
 my (@opt_spec, $opt_all, $opt_remove, $opt_list, $opt_data_dir, $opt_model_dir, $opt_help);
 

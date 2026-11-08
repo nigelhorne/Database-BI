@@ -5,6 +5,7 @@ use warnings;
 
 use Carp	qw(croak);
 use POSIX	qw(floor ceil);
+use Database::BI::I18N ();
 use Readonly;
 use Database::BI::Util ();
 use Scalar::Util	qw(looks_like_number);
@@ -76,7 +77,7 @@ our %MESSAGES = (
 
 sub _fmt {
 	my ($key, @args) = @_;
-	return sprintf $MESSAGES{$key}, @args;
+	return sprintf Database::BI::I18N::text(__PACKAGE__, \%MESSAGES, $key), @args;
 }
 
 # --- built-in function dispatch table ---

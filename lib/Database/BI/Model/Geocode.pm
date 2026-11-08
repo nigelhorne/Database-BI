@@ -33,6 +33,7 @@ use strict;
 use warnings;
 
 use Carp			qw(croak carp);
+use Database::BI::I18N ();
 use Readonly;
 use Scalar::Util		qw(blessed);
 use Time::HiRes			();
@@ -144,7 +145,7 @@ Readonly our %MESSAGES => (
 sub _fmt {
 	my ($key, @args) = @_;
 
-	my $tmpl = (defined($key) ? $MESSAGES{$key} : undef)
+	my $tmpl = Database::BI::I18N::text(__PACKAGE__, \%MESSAGES, $key)
 	         // "Internal error: unknown message key '" . ($key // 'undef') . "'";
 
 	return @args ? sprintf($tmpl, @args) : $tmpl;

@@ -8,6 +8,7 @@ use Mojo::Base 'Mojolicious', -strict, -signatures;
 use Carp qw(croak);
 use Mojo::File ();
 use Mojo::URL;
+use Database::BI::I18N ();
 use Database::BI::Sessions;
 use CHI	();
 use File::Spec ();
@@ -183,7 +184,9 @@ filesystem and open any supported data file, not just files in C<data_dir>.
 
 B<Column sort and reorder> -- clicking a header sorts the table; headers
 are draggable to reorder.  Both settings are persisted in C<localStorage>
-by column name and survive page reloads.
+by column name and survive page reloads.  A table too long for one page is
+sorted by the server (C<sort=> and C<dir=> in the address), every row of it,
+so page 1 is the start of the sorted table and Next goes on from there.
 
 =item *
 
@@ -2133,8 +2136,16 @@ The distribution ships C<en> (British English) and C<en-us> (American
 English).  C<en-us> is not edited by hand: it is made from C<en> by
 C<author/make-en-us>, which respells the prose (colour, centre, summarise) and
 leaves the names the code reads alone.  Run it after changing an C<en>
-template; C<t/en-us.t> fails until the two agree.  Messages that come from the
-server, and the tutorial's text, are still in British English.
+template; C<t/en-us.t> fails until the two agree.
+
+The server's messages (errors, warnings, refusals) follow the same choice.
+L<CGI::Lingua> picks the language from the request's C<Accept-Language>, or,
+for the command-line scripts, from the locale (C<LANG=en_US.UTF-8>), and
+L<Database::BI::I18N> gives each message in it.  A translation is a module,
+L<Database::BI::I18N::en_us> for American English, listing only the messages
+that read differently; C<t/i18n.t> fails when a British message needs an
+American spelling it does not list.  The tutorial's text is still in British
+English.
 
 =item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json>
 
@@ -2499,6 +2510,23 @@ sub startup ($self) {
 	# request: markup that reached a page through its data cannot know it.
 	$self->hook(before_dispatch => sub {
 		shift->stash(csp_nonce => _new_nonce());
+	});
+
+	# The language this request's messages are given in, chosen by CGI::Lingua
+	# from its Accept-Language (Database::BI::I18N::choose), with the
+	# configured language when it names none we have.  It is set with local
+	# around the whole dispatch, so a message raised anywhere while the request
+	# is answered - a refusal in the hook below, a model's croak - is in the
+	# reader's language, and the next request starts afresh.  Every action
+	# answers before it returns; one that answered later, from the event loop,
+	# would need to set it again there.
+	$self->hook(around_dispatch => sub {
+		my ($next, $c) = @_;
+		local $Database::BI::I18N::LANGUAGE = Database::BI::I18N::choose(
+			accept  => scalar $c->req->headers->accept_language,
+			default => $c->app->config->{language},
+		);
+		return $next->();
 	});
 	# Refuse what another site's page asks of this one through the reader's
 	# browser: a form posted from there, or a page whose name was made to

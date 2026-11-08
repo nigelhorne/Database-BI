@@ -33,7 +33,9 @@ every supported file.  Recently opened filesystem files appear in a
 filesystem and open any supported data file, not just files in `data_dir`.
 - **Column sort and reorder** -- clicking a header sorts the table; headers
 are draggable to reorder.  Both settings are persisted in `localStorage`
-by column name and survive page reloads.
+by column name and survive page reloads.  A table too long for one page is
+sorted by the server (`sort=` and `dir=` in the address), every row of it,
+so page 1 is the start of the sorted table and Next goes on from there.
 - **Left join** -- the "Merge data" panel on any table view lets the user
 join one or more additional tables on a shared key via [Database::Join](https://metacpan.org/pod/Database%3A%3AJoin).
 Every left row is kept; right-table columns are appended for matching rows.
@@ -2029,8 +2031,16 @@ the same and shows that database, with a command word it runs that command, and 
     English).  `en-us` is not edited by hand: it is made from `en` by
     `author/make-en-us`, which respells the prose (colour, centre, summarise) and
     leaves the names the code reads alone.  Run it after changing an `en`
-    template; `t/en-us.t` fails until the two agree.  Messages that come from the
-    server, and the tutorial's text, are still in British English.
+    template; `t/en-us.t` fails until the two agree.
+
+    The server's messages (errors, warnings, refusals) follow the same choice.
+    [CGI::Lingua](https://metacpan.org/pod/CGI%3A%3ALingua) picks the language from the request's `Accept-Language`, or,
+    for the command-line scripts, from the locale (`LANG=en_US.UTF-8`), and
+    [Database::BI::I18N](https://metacpan.org/pod/Database%3A%3ABI%3A%3AI18N) gives each message in it.  A translation is a module,
+    [Database::BI::I18N::en\_us](https://metacpan.org/pod/Database%3A%3ABI%3A%3AI18N%3A%3Aen_us) for American English, listing only the messages
+    that read differently; `t/i18n.t` fails when a British message needs an
+    American spelling it does not list.  The tutorial's text is still in British
+    English.
 
 - **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json**
 

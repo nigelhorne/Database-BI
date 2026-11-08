@@ -41,6 +41,11 @@ use File::Spec;
 use Mojo::JSON qw(decode_json encode_json);
 use Mojo::File;
 use Database::BI::Util qw(iso8601_utc);
+use Database::BI::I18N ();
+
+# Messages in the language the locale names: LANG=en_US.UTF-8 is American
+# English, anything else British (CGI::Lingua chooses).
+$Database::BI::I18N::LANGUAGE = Database::BI::I18N::from_locale();
 
 # ---------------------------------------------------------------------------
 # Parse arguments

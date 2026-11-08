@@ -39,6 +39,7 @@ WriteMakefile(
 		'HTTP::Message'			=> 0,		# HTTP::Response, for SafeUA's refusals (the dist HTTP::Request comes from)
 		'URI'				=> 0,		# _is_safe_url's early check of an import URL
 		'Encode'			=> 0,		# Extract.pm and Summary.pm (core, listed for completeness)
+		'Unicode::Normalize'	=> 0,		# Dashboard.pm's table sort folds accents (core)
 		'LWP::UserAgent'		=> 0,		# Needed for Test::Mojo HTTP testing; LWP::UserAgent::Cached is used by D::A url fetch path
 		'LWP::UserAgent::Cached'	=> 0,		# Used by Database::Abstraction for URL-backed tables (import_url)
 		'Scalar::Util'			=> 0,		# Used in DataSource.pm (blessed, looks_like_number)

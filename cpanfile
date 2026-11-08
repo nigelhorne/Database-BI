@@ -13,6 +13,7 @@ requires 'Database::Abstraction', '0.55';   # 0.55 requires the CSV and XML read
 requires 'Database::Join', '0.011.1';   # 0.011.1: a driver failure always has a message; 0.011.0 added Database::Join::Catalog; 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
 requires 'Digest::MD5';   # For Extract.pm fingerprinting (Phase 4.1)
 requires 'Encode';   # Extract.pm and Summary.pm (core)
+requires 'Unicode::Normalize';   # Dashboard.pm's table sort folds accents (core)
 requires 'Digest::SHA';   # HMAC-SHA256 share tokens, and the login's PBKDF2 password hash (core since Perl 5.10)
 requires 'Excel::Writer::XLSX', '1.07';
 requires 'File::Path', '2.07';   # For remove_tree in Dashboard.pm at runtime

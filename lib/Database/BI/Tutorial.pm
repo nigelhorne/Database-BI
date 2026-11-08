@@ -133,6 +133,7 @@ my @CHAPTERS = (
 		lead  => 'A table has rows and columns. A row is one record. A column is one kind of value.',
 		steps => [
 			'Click a column heading to sort by that column. Click it again to reverse the order.',
+			'When the table has more than one page, sorting goes back to page 1. The whole table is sorted, not only the page you see.',
 			'Drag a column heading to move that column to a new place.',
 			'Use the page links below the table to see more rows.',
 			'Click Totals to add a row of sums at the bottom.',

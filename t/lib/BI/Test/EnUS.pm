@@ -52,6 +52,7 @@ my %WORDS = (
 	catalogue => 'catalog', catalogues => 'catalogs',
 	licence => 'license', licences => 'licenses',
 	defence => 'defense', offence => 'offense',
+	totalled => 'totaled', totalling => 'totaling',
 	whilst => 'while', amongst => 'among',
 	(map { my ($b, $a) = @{$_}; map { ("$b$_" => "$a$_") } qw(e es ed ing er ers ation ations) }
 		[ summaris => 'summariz' ], [ recognis => 'recogniz' ],

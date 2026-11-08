@@ -6,6 +6,7 @@ use autodie qw(:all);
 
 use Carp		qw(croak carp);
 use File::Spec		();
+use Database::BI::I18N ();
 use Readonly;
 use Scalar::Util	qw(blessed);
 use Sub::Protected;
@@ -358,7 +359,7 @@ sub _url_label {
 # so that a caller-supplied i18n object can override the built-in strings.
 sub _fmt :Protected {
 	my ($key, @args) = @_;
-	my $tmpl = $MESSAGES{$key} // "Internal error: unknown message key '$key'";
+	my $tmpl = Database::BI::I18N::text(__PACKAGE__, \%MESSAGES, $key) // "Internal error: unknown message key '$key'";
 	return @args ? sprintf($tmpl, @args) : $tmpl;
 }
 
