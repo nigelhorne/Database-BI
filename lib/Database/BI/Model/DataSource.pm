@@ -12,7 +12,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.021.0';
+our $VERSION = '0.022.0';
 
 =head1 NAME
 
@@ -20,7 +20,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-0.021.0
+0.022.0
 
 =head1 SYNOPSIS
 

@@ -3,7 +3,7 @@ package Database::BI::Tutorial;
 use strict;
 use warnings;
 
-our $VERSION = '0.021.0';
+our $VERSION = '0.022.0';
 
 # ---------------------------------------------------------------------------
 # The tutorial that the application shows at GET /tutorial.
@@ -1172,6 +1172,10 @@ my @FAQ = (
 	{
 		question => 'The page says Page not found.',
 		answer   => 'The address names a table, a canvas or a page that is not there. Use the breadcrumb or Go to Home to find it again.',
+	},
+	{
+		question => 'Some words are not spelled the way I expected.',
+		answer   => 'The pages follow the language your browser asks for. English (United States) gets American spelling, such as color. Any other English gets British spelling, such as colour.',
 	},
 );
 

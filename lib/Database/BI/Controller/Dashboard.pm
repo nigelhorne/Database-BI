@@ -3,7 +3,7 @@ package Database::BI::Controller::Dashboard;
 use strict;
 use warnings;
 
-our $VERSION = '0.021.0';
+our $VERSION = '0.022.0';
 
 use Mojo::Base 'Mojolicious::Controller', -strict, -signatures;
 
@@ -1146,7 +1146,9 @@ sub _detect_platform ($user_agent, $fallback) {
 #          what was asked for.
 # Entry:   $platform is the resolved VWF platform string.
 #          $default  is a non-empty fallback language code (e.g. 'en').
-# Exit:    Returns a two-letter ISO 639-1 language code string.
+# Exit:    Returns a two-letter ISO 639-1 language code string, or a code
+#          and region (en-us) when the browser names that region and
+#          templates/<platform>/<code>-<region>/ exists.
 # Side Effects: filesystem stats for template directories;
 #               temporarily sets $ENV{HTTP_ACCEPT_LANGUAGE} with local().
 sub _resolve_language :Protected ($self, $platform, $default) {
@@ -1164,7 +1166,16 @@ sub _resolve_language :Protected ($self, $platform, $default) {
 		my $chosen = eval {
 			local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
 			my $lingua = CGI::Lingua->new(supported => \@supported);
-			$lingua->language_code_alpha2();
+			my $code   = $lingua->language_code_alpha2();
+
+			# A regional variant (templates/web/en-us/ for a browser asking for
+			# en-US) is served when it has a directory; otherwise the language
+			# itself.  CGI::Lingua answers the language and the region apart:
+			# en-GB, en-CA and plain en give no region of ours, so they get en.
+			my $region = defined $code ? $lingua->sublanguage_code_alpha2() : undef;
+			(defined $region && _has_templates($self->app->home, $platform, lc "$code-$region"))
+				? lc "$code-$region"
+				: $code;
 		};
 		$language = $chosen if defined $chosen;
 	}

@@ -4,7 +4,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 ## Version
 
-0.021.0
+0.022.0
 
 ## Description
 
@@ -243,6 +243,10 @@ otherwise.  It takes no database on its command line: use
 { data_dir => 'data', language => 'fr', platform => 'web' }
 # Then create templates/web/fr/ and put your French .html.tt files there.
 ```
+
+**American spelling:** a browser that asks for English (United States) gets the
+pages from `templates/web/en-us/`; set `language => 'en-us'` to make that
+the default for every browser that names no other English.
 
 **Run the test suite to verify everything is working:**
 
@@ -2015,6 +2019,18 @@ the same and shows that database, with a command word it runs that command, and 
     serves.  To add German support: (1) create `templates/web/de/`, (2) copy and
     translate the `.html.tt` files from `templates/web/en/`, then (3) set the
     config.
+
+    A directory may also name a region, as `templates/web/en-us/` does: a browser
+    whose Accept-Language asks for that region (`en-US`) gets it, and every other
+    request for the language (`en-GB`, `en-CA`, plain `en`) gets
+    `templates/web/en/`.  `language => 'en-us'` makes it the default.
+
+    The distribution ships `en` (British English) and `en-us` (American
+    English).  `en-us` is not edited by hand: it is made from `en` by
+    `author/make-en-us`, which respells the prose (colour, centre, summarise) and
+    leaves the names the code reads alone.  Run it after changing an `en`
+    template; `t/en-us.t` fails until the two agree.  Messages that come from the
+    server, and the tutorial's text, are still in British English.
 
 - **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json**
 

@@ -16,7 +16,7 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
-use version; our $VERSION = version->declare('0.021.0');
+use version; our $VERSION = version->declare('0.022.0');
 
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
@@ -144,7 +144,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.021.0
+0.022.0
 
 =head1 DESCRIPTION
 
@@ -430,6 +430,10 @@ B<Change the language used for templates:>
     # In database_bi.conf:
     { data_dir => 'data', language => 'fr', platform => 'web' }
     # Then create templates/web/fr/ and put your French .html.tt files there.
+
+B<American spelling:> a browser that asks for English (United States) gets the
+pages from C<templates/web/en-us/>; set C<< language => 'en-us' >> to make that
+the default for every browser that names no other English.
 
 B<Run the test suite to verify everything is working:>
 
@@ -2119,6 +2123,18 @@ the same fallback applies when a browser asks for a language no directory
 serves.  To add German support: (1) create C<templates/web/de/>, (2) copy and
 translate the C<.html.tt> files from C<templates/web/en/>, then (3) set the
 config.
+
+A directory may also name a region, as C<templates/web/en-us/> does: a browser
+whose Accept-Language asks for that region (C<en-US>) gets it, and every other
+request for the language (C<en-GB>, C<en-CA>, plain C<en>) gets
+C<templates/web/en/>.  C<< language => 'en-us' >> makes it the default.
+
+The distribution ships C<en> (British English) and C<en-us> (American
+English).  C<en-us> is not edited by hand: it is made from C<en> by
+C<author/make-en-us>, which respells the prose (colour, centre, summarise) and
+leaves the names the code reads alone.  Run it after changing an C<en>
+template; C<t/en-us.t> fails until the two agree.  Messages that come from the
+server, and the tutorial's text, are still in British English.
 
 =item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json>
 

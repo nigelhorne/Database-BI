@@ -9,7 +9,7 @@ use Readonly;
 use Database::BI::Util ();
 use Scalar::Util	qw(looks_like_number);
 
-our $VERSION = '0.021.0';
+our $VERSION = '0.022.0';
 
 Readonly my $MAX_EXPR_LEN => 512;
 Readonly my $MAX_DEPTH    => 20;
@@ -1256,7 +1256,7 @@ Database::BI::Calc - Safe recursive-descent expression evaluator for Database::B
 
 =head1 VERSION
 
-0.021.0
+0.022.0
 
 =head1 SYNOPSIS
 
