@@ -88,6 +88,17 @@ subtest 'numbers sort as numbers, dates as dates, across pages' => sub {
 		'descending, the empty cell last');
 };
 
+subtest 'a code with digits in it is text, not a number' => sub {
+	# T27 was read as 27 (every letter dropped), so CT4 came before T27 and
+	# a column of catalogue numbers sorted by its digits alone.
+	$data_dir->child('codes.csv')->spew(join("\n", 'id,code,price',
+		'1,T27,$5', '2,CT4,USD 7', '3,T3,(2)', '4,B10,45%', '5,T100,"1,000"') . "\n");
+	is_deeply([ map { @$_ } column_pages('/view/codes?sort=code&dir=asc', 'code', 2) ],
+		[ 'B10', 'CT4', 'T3', 'T27', 'T100' ], 'by letters, then the digits as a number');
+	is_deeply([ map { @$_ } column_pages('/view/codes?sort=price&dir=asc', 'price', 2) ],
+		[ '(2)', '$5', 'USD 7', '45%', '1,000' ], 'what only dresses a number up is still a number');
+};
+
 subtest 'rows that tie keep their order in either direction' => sub {
 	my @ids = map { $_->{id} } @{ _rows('grp', 'asc') };
 	is_deeply(\@ids, [ 2, 4, 6, 1, 3, 5, 7 ], 'ascending: a, then b, each in file order');
@@ -136,6 +147,21 @@ subtest 'filters, calculated fields and /open sort the same way' => sub {
 	my @open = map { @$_ } column_pages("/open?path=$path&sort=title&dir=asc", 'title', 3);
 	is($open[0], 'Apple', '/open sorts every row too');
 	is(scalar @open, 7, 'each row once');
+};
+
+subtest 'the browser reads numbers by the server\'s rule' => sub {
+	my $js = Mojo::File->new('templates/web/en/layouts/parse_accounting.html.tt')->slurp;
+	like($js, qr/^function parseAccounting\(v\)/m, 'parseAccounting is defined once, in a layout');
+	my ($codes) = $js =~ /BI_CURRENCY_CODES = '([A-Z|]+)'/;
+	my $util = Mojo::File->new('lib/Database/BI/Util.pm')->slurp;
+	my ($perl) = $util =~ /\$CURRENCY_CODES\s*=>\s*join '\|', qw\(([A-Z ]+)\)/;
+	is($codes, join('|', split ' ', $perl // ''), 'with the same currency codes');
+	for my $page ('dashboard', 'pivot') {
+		like(Mojo::File->new("templates/web/en/$page.html.tt")->slurp,
+			qr{PROCESS "web/en/layouts/parse_accounting\.html\.tt"}, "$page uses it");
+	}
+	unlike(Mojo::File->new('templates/web/en/pivot.html.tt')->slurp, qr/\[\^\\d\.\\-\]/,
+		'the pivot no longer strips letters to find a number');
 };
 
 subtest 'the page asks the server when there is more than one page' => sub {

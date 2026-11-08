@@ -1916,14 +1916,7 @@ function biClosePanels(keep) {
 // parseAccounting is defined at module scope (outside any IIFE) so it is
 // accessible from all script blocks on this page -- the sort block uses it for
 // numeric column detection, and the graph panel's isNumericVal delegates to it.
-function parseAccounting(v) {
-  if (v === '') return NaN;
-  var s   = v.trim();
-  var neg = /^\(.*\)$/.test(s);      // (value) means negative
-  s = s.replace(/[^\d.\-]/g, '');    // strip $, commas, parens, spaces, etc.
-  var n = parseFloat(s);
-  return isNaN(n) ? NaN : (neg ? -Math.abs(n) : n);
-}
+[% PROCESS "web/en/layouts/parse_accounting.html.tt" %]
 
 // Returns a YYYYMMDD integer sort key for recognized date strings, else null.
 // Handles YYYY-MM-DD (ISO) and M/D/YYYY or D/M/YYYY slash formats.

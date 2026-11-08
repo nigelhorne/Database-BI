@@ -3388,8 +3388,9 @@ Readonly my $NO_NUMBER => -9**9**9;
 # long for one page is the first page of the sorted rows rather than the first
 # rows sorted.  The column sorts as dates when every non-empty cell is one
 # (YYYY-MM-DD, or M/D/YYYY unless a cell shows the day comes first), else as
-# numbers when every non-empty cell holds one the browser's parseAccounting
-# reads, else as text the way localeCompare(..., { numeric: true, sensitivity:
+# numbers when every non-empty cell holds one (Util::parse_number, which the
+# browser's parseAccounting copies: "$1,000" and "(5)" are numbers, "T27" is
+# text), else as text the way localeCompare(..., { numeric: true, sensitivity:
 # 'base' }) does: case and accents ignored, a run of digits compared as a
 # number.  An empty cell sorts first, ascending.  Rows that compare equal keep
 # their order, in either direction.  A new array: the rows may be read-only.
@@ -3416,8 +3417,8 @@ sub _sort_records ($rows, $column, $dir) {
 			}
 			return $NO_NUMBER;
 		};
-	} elsif (@filled && !(grep { !defined _accounting_number($_) } @filled)) {
-		$key_of = sub ($v) { _accounting_number($v) // $NO_NUMBER };
+	} elsif (@filled && !(grep { !defined Database::BI::Util::parse_number($_) } @filled)) {
+		$key_of = sub ($v) { Database::BI::Util::parse_number($v) // $NO_NUMBER };
 	}
 
 	# Equal rows keep their order in either direction, as the browser's stable
@@ -3432,21 +3433,6 @@ sub _sort_records ($rows, $column, $dir) {
 		@order = sort { $sign * _collate($key[$a], $key[$b]) || $a <=> $b } 0 .. $#$rows;
 	}
 	return [ @{$rows}[@order] ];
-}
-
-# _accounting_number($text) -> $number | undef
-#
-# The number the browser's parseAccounting reads in a cell: "(1,234.56)" is
-# -1234.56, "$5" is 5.  Like it, every character but digits, "." and "-" is
-# dropped first, and the number is the longest one at the start of what is
-# left; undef when there is none.
-sub _accounting_number ($text) {
-	return undef unless length $text;	## no critic (ProhibitExplicitReturnUndef)
-	my $negative = $text =~ /\A\(.*\)\z/s;
-	(my $s = $text) =~ s/[^\d.\-]//g;
-	return undef unless $s =~ /\A(-?(?:\d+(?:\.\d*)?|\.\d+))/;	## no critic (ProhibitExplicitReturnUndef)
-	my $n = $1 + 0;
-	return $negative ? -abs($n) : $n;
 }
 
 # _collation_key($text) -> \@tokens

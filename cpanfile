@@ -9,7 +9,7 @@ requires 'Carp';
 requires 'Cwd';   # For realpath() in the data_dir guard (Dashboard.pm)
 requires 'Crypt::URandom';   # the login's password salt; Windows has no /dev/urandom
 requires 'DB_File';   # Used in DataSource.pm for Berkeley DB magic-byte detection
-requires 'Database::Abstraction', '0.55';   # 0.55 requires the CSV and XML readers it loads; 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+requires 'Database::Abstraction', '0.56';   # 0.56 reads "" inside a quoted field as one quote; 0.55 requires the CSV and XML readers it loads; 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
 requires 'Database::Join', '0.011.1';   # 0.011.1: a driver failure always has a message; 0.011.0 added Database::Join::Catalog; 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
 requires 'Digest::MD5';   # For Extract.pm fingerprinting (Phase 4.1)
 requires 'Encode';   # Extract.pm and Summary.pm (core)

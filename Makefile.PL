@@ -25,7 +25,7 @@ WriteMakefile(
 		'CHI'			=> 0,
 		'CGI::Info'	=> 0,
 		'CGI::Lingua'		=> '0.85',
-		'Database::Abstraction'	=> '0.55',	# 0.55 requires the CSV and XML readers it loads (DBD::CSV, Text::xSV::Slurp, XML::Simple); 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
+		'Database::Abstraction'	=> '0.56',	# 0.56 reads "" inside a quoted field as one quote; 0.55 requires the CSV and XML readers it loads (DBD::CSV, Text::xSV::Slurp, XML::Simple); 0.54 reads a table named data (Export > SQLite); 0.50 added redis_key + standalone-key support; 0.49 added aggregate(); 0.48 added limit/offset support in selectall_arrayref
 		'Database::Join' => '0.011.1',	# 0.011.1: a driver failure always has a message; 0.011.0 added Database::Join::Catalog, through which every table list, column list and SQLite write goes; 0.009.0 added aggregate(), limit/offset/sort_by, dbi_source(); 0.004.0 added backend=>'auto' SQLite spill
 		'Net::SFTP::Foreign' => 0,
 		'File::Path'	=> '2.07',	# For remove_tree in Dashboard.pm at runtime

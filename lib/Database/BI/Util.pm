@@ -51,6 +51,9 @@ sub urlencode {
 # separators, a percent sign, currency symbols and a known currency code.  Any
 # other letter stays and fails the match, so 'SKU123' and 'AB-100' are text
 # rather than 123 and -100.  The bracket is read before it is removed.
+# The browser's parseAccounting (layouts/parse_accounting.html.tt) is a copy,
+# so a table sorts the same on the server as on the page: change one, change
+# the other.
 sub parse_number {
 	my $value = $_[0];
 

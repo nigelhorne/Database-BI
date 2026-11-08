@@ -36,6 +36,10 @@ are draggable to reorder.  Both settings are persisted in `localStorage`
 by column name and survive page reloads.  A table too long for one page is
 sorted by the server (`sort=` and `dir=` in the address), every row of it,
 so page 1 is the start of the sorted table and Next goes on from there.
+A column sorts as dates when every cell is one, as numbers when every cell
+is one (`$1,234`, `(5)` and `45%` are numbers; `T27` is not), and
+otherwise as text, with case and accents ignored and the digits in it
+compared as numbers, so `T3` comes before `T27`.
 - **Left join** -- the "Merge data" panel on any table view lets the user
 join one or more additional tables on a shared key via [Database::Join](https://metacpan.org/pod/Database%3A%3AJoin).
 Every left row is kept; right-table columns are appended for matching rows.

@@ -843,7 +843,35 @@ sub _new_from_mariadb :Protected {
 # Protected initialisation
 # ---------------------------------------------------------------------------
 
-# _best_id_column($fh, $sep, \@header_fields) -> $column_name | undef
+# _csv_escape_char($path) -> '"' | '\\'
+#
+# Purpose: The escape character a delimited file is written with, chosen as
+#          Database::Abstraction (>= 0.56) chooses it, so this module parses a
+#          file as D::A will.
+# Entry:   $path names a CSV, TSV or PSV file.
+# Exit:    '\\' when the file holds a backslash before a quote anywhere (or
+#          will not open); else '"' when it holds two quotes in a row (RFC
+#          4180's "Adeste ""Overture"""); else '\\'.
+sub _csv_escape_char {
+	my ($path) = @_;
+	local ($@, $!);
+	local $/ = "\n";
+
+	my $fh;
+	{ no autodie 'open'; open($fh, '<:raw', $path) or return '\\' }
+	my $doubled = 0;
+	while (my $line = <$fh>) {
+		if ($line =~ /\\"/) {
+			close $fh;
+			return '\\';
+		}
+		$doubled ||= ($line =~ /""/);
+	}
+	close $fh;
+	return $doubled ? '"' : '\\';
+}
+
+# _best_id_column($fh, $sep, \@header_fields, $escape) -> $column_name | undef
 #
 # Purpose: The column Database::Abstraction should key rows on.
 # Entry:   $fh is open just after the header line; @header_fields is the header
@@ -853,17 +881,18 @@ sub _new_from_mariadb :Protected {
 #          (an empty cell, or one starting with '#', which D::A reads as a
 #          comment), the earliest on a tie; undef when no header name is safe.
 #          Reads $fh to its end.  The file is parsed as D::A's slurp parses it
-#          (escape_char '\\'), or a row like "Joe\"s Bar" would end the count
-#          there; a line that still will not parse is skipped, not the end.
+#          (with $escape, from _csv_escape_char), or a row like "Joe\"s Bar"
+#          would end the count there; a line that still will not parse is
+#          skipped, not the end.
 sub _best_id_column {
-	my ($fh, $sep, $fields) = @_;
+	my ($fh, $sep, $fields, $escape) = @_;
 
 	my @safe = grep { defined($fields->[$_]) && $fields->[$_] =~ $TABLE_NAME_RE } 0 .. $#{$fields};
 	return undef unless @safe;
 
 	require Text::CSV;
 	my $csv = Text::CSV->new({
-		binary => 1, sep_char => $sep, escape_char => '\\',
+		binary => 1, sep_char => $sep, escape_char => $escape // '\\',
 		allow_loose_quotes => 1, allow_whitespace => 1,
 	});
 	my %dropped = map { $_ => 0 } @safe;
@@ -1029,7 +1058,7 @@ sub _detect_file_info :Protected {
 		# rows that had none.  D::A reads the whole file anyway (max_slurp_size
 		# is the file's size), so one more pass costs no more than that.  With
 		# no data rows, the first safe column in the header.
-		my $safe_id = _best_id_column($fh, $sep, \@fields);
+		my $safe_id = _best_id_column($fh, $sep, \@fields, _csv_escape_char($path));
 
 		# If no safe identifier was found in the header, check whether the first
 		# row looks like data values rather than column names.  A CSV exported
@@ -1490,17 +1519,19 @@ sub _synthesize_col_names {
 #          last value, so an unquoted comma in a description is not lost.
 #          D::A drops a row whose id is empty or starts with '#', so the id is
 #          the column with the fewest such values, and normally has none.
-#          The reader takes RFC 4180 quoting; the writer escapes as D::A's
-#          reader expects, which is with a backslash.
+#          The copy is read and written with the escape the file uses
+#          (_csv_escape_char), so D::A, which chooses the same way, reads the
+#          copy with it too.
 sub _copy_with_header :Protected {
 	my ($self, $headerless, $names, $sep, $stem) = @_;
 	require File::Temp;
 	require Text::CSV;
 
-	my $tmp  = File::Temp->newdir(CLEANUP => 1);
-	my $copy = File::Spec->catfile("$tmp", "$stem.$headerless->{ext}");
-	my $in   = Text::CSV->new({ binary => 1, sep_char => $sep, allow_loose_quotes => 1 });
-	my $out  = Text::CSV->new({ binary => 1, sep_char => $sep, eol => "\n", escape_char => '\\' });
+	my $tmp    = File::Temp->newdir(CLEANUP => 1);
+	my $copy   = File::Spec->catfile("$tmp", "$stem.$headerless->{ext}");
+	my $escape = _csv_escape_char($headerless->{path});
+	my $in     = Text::CSV->new({ binary => 1, sep_char => $sep, allow_loose_quotes => 1, escape_char => $escape });
+	my $out    = Text::CSV->new({ binary => 1, sep_char => $sep, eol => "\n", escape_char => $escape });
 
 	open my $ifh, '<:raw', $headerless->{path};
 	open my $ofh, '>:raw', $copy;

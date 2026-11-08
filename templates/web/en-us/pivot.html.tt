@@ -211,6 +211,8 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
 [%- END -%]
 
 <script nonce="[% csp_nonce | html %]">
+[% PROCESS "web/en/layouts/parse_accounting.html.tt" %]
+
 // ---------------------------------------------------------------------------
 // Pivot table: click-to-sort and (flat header only) drag-to-reorder columns
 // ---------------------------------------------------------------------------
@@ -265,8 +267,7 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
       .filter(Boolean);
 
     var numeric = nonEmpty.length > 0 && nonEmpty.every(function (v) {
-      var s = v.replace(/[^\d.\-]/g, '');
-      return s.length > 0 && !isNaN(parseFloat(s));
+      return !isNaN(parseAccounting(v));
     });
 
     rows.sort(function (a, b) {
@@ -274,9 +275,8 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
       var bv = b.cells[dIdx] ? b.cells[dIdx].textContent.trim() : '';
       var cmp;
       if (numeric) {
-        var an = parseFloat(av.replace(/[^\d.\-]/g, '') || '0');
-        var bn = parseFloat(bv.replace(/[^\d.\-]/g, '') || '0');
-        cmp = an - bn;
+        var an = parseAccounting(av), bn = parseAccounting(bv);
+        cmp = (isNaN(an) ? 0 : an) - (isNaN(bn) ? 0 : bn);
       } else {
         cmp = av.localeCompare(bv, undefined, { numeric: true, sensitivity: 'base' });
       }
