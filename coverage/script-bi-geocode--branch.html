@@ -25,36 +25,36 @@ https://pjcj.net
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
-<tr><td class="h"><a id="L66">66</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (&amp;GetOptions(&quot;spec|s=s&quot;, \$opt_spec, &quot;col|c=s&quot;, \@opt_cols, &quot;data-dir|d=s&quot;, \$opt_data_dir, &quot;model-dir|m=s&quot;, \$opt_model_dir, &quot;openaddr|o=s&quot;, \$opt_openaddr, &quot;region|r=s&quot;, \$opt_region, &quot;offline&quot;, \$opt_offline, &quot;online-max=i&quot;, \$opt_online_max, &quot;dry-run|n&quot;, \$opt_dry_run, &quot;verbose|v&quot;, \$opt_verbose, &quot;help|h&quot;, \$opt_help))</td></tr>
-<tr><td class="h"><a id="L68">68</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($opt_help)</td></tr>
-<tr><td class="h"><a id="L70">70</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (defined $opt_online_max and $opt_online_max &lt; 1)</td></tr>
-<tr><td class="h"><a id="L75">75</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $opt_spec and length $opt_spec)</td></tr>
-<tr><td class="h"><a id="L80">80</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@opt_cols)</td></tr>
-<tr><td class="h"><a id="L96">96</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($opt_spec =~ /\Atable:(.+)\z/) { }</td></tr>
+<tr><td class="h"><a id="L71">71</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (&amp;GetOptions(&quot;spec|s=s&quot;, \$opt_spec, &quot;col|c=s&quot;, \@opt_cols, &quot;data-dir|d=s&quot;, \$opt_data_dir, &quot;model-dir|m=s&quot;, \$opt_model_dir, &quot;openaddr|o=s&quot;, \$opt_openaddr, &quot;region|r=s&quot;, \$opt_region, &quot;offline&quot;, \$opt_offline, &quot;online-max=i&quot;, \$opt_online_max, &quot;dry-run|n&quot;, \$opt_dry_run, &quot;verbose|v&quot;, \$opt_verbose, &quot;help|h&quot;, \$opt_help))</td></tr>
+<tr><td class="h"><a id="L73">73</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($opt_help)</td></tr>
+<tr><td class="h"><a id="L75">75</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (defined $opt_online_max and $opt_online_max &lt; 1)</td></tr>
+<tr><td class="h"><a id="L80">80</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless (defined $opt_spec and length $opt_spec)</td></tr>
+<tr><td class="h"><a id="L85">85</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (@opt_cols)</td></tr>
+<tr><td class="h"><a id="L101">101</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($opt_spec =~ /\Atable:(.+)\z/) { }</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif ($opt_spec =~ /\Apath:(.+)\z/) { }</td></tr>
 <tr><td class="h"></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">elsif ($opt_spec =~ /\Aurl:(.+)\z/) { }</td></tr>
-<tr><td class="h"><a id="L98">98</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $table =~ m[\A([^/]+)/(.+)\z]</td></tr>
-<tr><td class="h"><a id="L110">110</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (defined $table) { }</td></tr>
+<tr><td class="h"><a id="L103">103</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $table =~ m[\A([^/]+)/(.+)\z]</td></tr>
+<tr><td class="h"><a id="L115">115</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (defined $table) { }</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">elsif (defined $path) { }</td></tr>
-<tr><td class="h"><a id="L111">111</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">defined $internal ? :</td></tr>
-<tr><td class="h"><a id="L121">121</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $internal ? :</td></tr>
-<tr><td class="h"><a id="L130">130</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not defined $source)</td></tr>
-<tr><td class="h"><a id="L137">137</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not defined $records or not @$records)</td></tr>
-<tr><td class="h"><a id="L139">139</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$e ? :</td></tr>
-<tr><td class="h"><a id="L147">147</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $col_set{$col}</td></tr>
-<tr><td class="h"><a id="L161">161</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (-f $models_file)</td></tr>
-<tr><td class="h"><a id="L163">163</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $@</td></tr>
-<tr><td class="h"><a id="L177">177</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $opt_openaddr and length $opt_openaddr</td></tr>
-<tr><td class="h"><a id="L180">180</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($opt_dry_run)</td></tr>
-<tr><td class="h"><a id="L184">184</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$opt_offline ? :</td></tr>
-<tr><td class="h"><a id="L185">185</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $opt_online_max</td></tr>
-<tr><td class="h"><a id="L194">194</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (defined $opt_region and $opt_region =~ /\A[A-Za-z]{2}\z/)</td></tr>
-<tr><td class="h"><a id="L223">223</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($opt_dry_run)</td></tr>
-<tr><td class="h"><a id="L228">228</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($counts-&gt;{&#39;attempted&#39;} // 0) { }</td></tr>
-<tr><td class="h"><a id="L232">232</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">defined $backend ? :</td></tr>
-<tr><td class="h"><a id="L240">240</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless rename $tmp-&gt;to_string, $models_file-&gt;to_string</td></tr>
-<tr><td class="h"><a id="L243">243</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($@)</td></tr>
-<tr><td class="h"><a id="L260">260</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $opt_verbose</td></tr>
+<tr><td class="h"><a id="L116">116</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">defined $internal ? :</td></tr>
+<tr><td class="h"><a id="L126">126</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">defined $internal ? :</td></tr>
+<tr><td class="h"><a id="L135">135</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not defined $source)</td></tr>
+<tr><td class="h"><a id="L142">142</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if ($@ or not defined $records or not @$records)</td></tr>
+<tr><td class="h"><a id="L144">144</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">$e ? :</td></tr>
+<tr><td class="h"><a id="L152">152</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $col_set{$col}</td></tr>
+<tr><td class="h"><a id="L166">166</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (-f $models_file)</td></tr>
+<tr><td class="h"><a id="L168">168</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if $@</td></tr>
+<tr><td class="h"><a id="L182">182</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $opt_openaddr and length $opt_openaddr</td></tr>
+<tr><td class="h"><a id="L185">185</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ($opt_dry_run)</td></tr>
+<tr><td class="h"><a id="L189">189</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$opt_offline ? :</td></tr>
+<tr><td class="h"><a id="L190">190</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $opt_online_max</td></tr>
+<tr><td class="h"><a id="L199">199</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if (defined $opt_region and $opt_region =~ /\A[A-Za-z]{2}\z/)</td></tr>
+<tr><td class="h"><a id="L228">228</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($opt_dry_run)</td></tr>
+<tr><td class="h"><a id="L233">233</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($counts-&gt;{&#39;attempted&#39;} // 0) { }</td></tr>
+<tr><td class="h"><a id="L237">237</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">defined $backend ? :</td></tr>
+<tr><td class="h"><a id="L245">245</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">unless rename $tmp-&gt;to_string, $models_file-&gt;to_string</td></tr>
+<tr><td class="h"><a id="L248">248</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($@)</td></tr>
+<tr><td class="h"><a id="L265">265</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $opt_verbose</td></tr>
 </table>
 </body>
 </html>

@@ -25,101 +25,101 @@ https://pjcj.net
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
-<tr><td class="h"><a id="L276">276</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch ne &quot;%&quot;)</td></tr>
-<tr><td class="h"><a id="L283">283</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length($tok // &#39;&#39;) ? :</td></tr>
+<tr><td class="h"><a id="L277">277</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch ne &quot;%&quot;)</td></tr>
+<tr><td class="h"><a id="L284">284</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length($tok // &#39;&#39;) ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length($tok // &quot;&quot;) and exists $_FMT_RE{$tok}</td></tr>
-<tr><td class="h"><a id="L299">299</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _fmt_has_date($tokens)</td></tr>
-<tr><td class="h"><a id="L311">311</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$has{&#39;Y&#39;} &amp;&amp; $has{&#39;d&#39;} &amp;&amp; ($has{&#39;m&#39;} || $has{&#39;b&#39;}) ? :</td></tr>
-<tr><td class="h"><a id="L322">322</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _fmt_has_date($dtokens)</td></tr>
-<tr><td class="h"><a id="L334">334</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @caps</td></tr>
-<tr><td class="h"><a id="L361">361</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $y % 4 == 0 and $y % 100 != 0</td></tr>
-<tr><td class="h"><a id="L369">369</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$j1 == 4 || &amp;$leap($y) &amp;&amp; $j1 == 3 ? :</td></tr>
-<tr><td class="h"><a id="L371">371</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($week &lt; 1)</td></tr>
-<tr><td class="h"><a id="L372">372</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">&amp;$leap($year - 1) ? :</td></tr>
-<tr><td class="h"><a id="L375">375</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $week &gt; &amp;$weeks($year, $jan1)</td></tr>
-<tr><td class="h"><a id="L386">386</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $epoch</td></tr>
-<tr><td class="h"><a id="L390">390</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $lt[5] + 1900 == $y and $lt[4] + 1 == $mon and $lt[3] == $day</td></tr>
-<tr><td class="h"><a id="L394">394</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if abs $got - $want &gt; 7200</td></tr>
-<tr><td class="h"><a id="L410">410</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and not ref $value and length $value</td></tr>
-<tr><td class="h"><a id="L412">412</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $s</td></tr>
-<tr><td class="h"><a id="L415">415</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $ymd)</td></tr>
-<tr><td class="h"><a id="L419">419</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $epoch</td></tr>
-<tr><td class="h"><a id="L420">420</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $h ? :</td></tr>
-<tr><td class="h"><a id="L423">423</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $s =~ /\A\d{10}\z/</td></tr>
-<tr><td class="h"><a id="L424">424</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $s =~ /\A\d{13}\z/</td></tr>
-<tr><td class="h"><a id="L431">431</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and not ref $value</td></tr>
-<tr><td class="h"><a id="L432">432</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $part = _fmt_parts($value, $compiled)</td></tr>
-<tr><td class="h"><a id="L436">436</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $$part{&#39;b&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L300">300</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _fmt_has_date($tokens)</td></tr>
+<tr><td class="h"><a id="L312">312</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$has{&#39;Y&#39;} &amp;&amp; $has{&#39;d&#39;} &amp;&amp; ($has{&#39;m&#39;} || $has{&#39;b&#39;}) ? :</td></tr>
+<tr><td class="h"><a id="L323">323</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _fmt_has_date($dtokens)</td></tr>
+<tr><td class="h"><a id="L335">335</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @caps</td></tr>
+<tr><td class="h"><a id="L362">362</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $y % 4 == 0 and $y % 100 != 0</td></tr>
+<tr><td class="h"><a id="L370">370</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$j1 == 4 || &amp;$leap($y) &amp;&amp; $j1 == 3 ? :</td></tr>
+<tr><td class="h"><a id="L372">372</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($week &lt; 1)</td></tr>
+<tr><td class="h"><a id="L373">373</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">&amp;$leap($year - 1) ? :</td></tr>
+<tr><td class="h"><a id="L376">376</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $week &gt; &amp;$weeks($year, $jan1)</td></tr>
+<tr><td class="h"><a id="L387">387</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $epoch</td></tr>
+<tr><td class="h"><a id="L391">391</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $lt[5] + 1900 == $y and $lt[4] + 1 == $mon and $lt[3] == $day</td></tr>
+<tr><td class="h"><a id="L395">395</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if abs $got - $want &gt; 7200</td></tr>
+<tr><td class="h"><a id="L411">411</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and not ref $value and length $value</td></tr>
+<tr><td class="h"><a id="L413">413</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $s</td></tr>
+<tr><td class="h"><a id="L416">416</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $ymd)</td></tr>
+<tr><td class="h"><a id="L420">420</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $epoch</td></tr>
+<tr><td class="h"><a id="L421">421</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $h ? :</td></tr>
+<tr><td class="h"><a id="L424">424</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $s =~ /\A\d{10}\z/</td></tr>
+<tr><td class="h"><a id="L425">425</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $s =~ /\A\d{13}\z/</td></tr>
+<tr><td class="h"><a id="L432">432</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and not ref $value</td></tr>
+<tr><td class="h"><a id="L433">433</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $part = _fmt_parts($value, $compiled)</td></tr>
+<tr><td class="h"><a id="L437">437</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $$part{&#39;b&#39;} ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $$part{&#39;m&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L437">437</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $mon and $mon &gt;= 1 and $mon &lt;= 12</td></tr>
-<tr><td class="h"><a id="L441">441</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $epoch</td></tr>
-<tr><td class="h"><a id="L442">442</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $$part{&#39;H&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L459">459</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$mon &lt;= 2 ? :</td></tr>
-<tr><td class="h"><a id="L460">460</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$y &gt;= 0 ? :</td></tr>
-<tr><td class="h"><a id="L462">462</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$mon &gt; 2 ? :</td></tr>
-<tr><td class="h"><a id="L476">476</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $delta</td></tr>
-<tr><td class="h"><a id="L494">494</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $interval and not ref $interval and length $interval</td></tr>
-<tr><td class="h"><a id="L495">495</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my($n, $unit) = $interval =~ /\A(\d+)(mon|s|m|h|d|w|q|y)\z/</td></tr>
-<tr><td class="h"><a id="L497">497</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $n &lt; 1</td></tr>
-<tr><td class="h"><a id="L499">499</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$unit eq &#39;h&#39; ? :</td></tr>
+<tr><td class="h"><a id="L438">438</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $mon and $mon &gt;= 1 and $mon &lt;= 12</td></tr>
+<tr><td class="h"><a id="L442">442</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $epoch</td></tr>
+<tr><td class="h"><a id="L443">443</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $$part{&#39;H&#39;} ? :</td></tr>
+<tr><td class="h"><a id="L460">460</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$mon &lt;= 2 ? :</td></tr>
+<tr><td class="h"><a id="L461">461</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$y &gt;= 0 ? :</td></tr>
+<tr><td class="h"><a id="L463">463</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$mon &gt; 2 ? :</td></tr>
+<tr><td class="h"><a id="L477">477</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $delta</td></tr>
+<tr><td class="h"><a id="L495">495</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $interval and not ref $interval and length $interval</td></tr>
+<tr><td class="h"><a id="L496">496</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my($n, $unit) = $interval =~ /\A(\d+)(mon|s|m|h|d|w|q|y)\z/</td></tr>
+<tr><td class="h"><a id="L498">498</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $n &lt; 1</td></tr>
+<tr><td class="h"><a id="L500">500</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$unit eq &#39;h&#39; ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$unit eq &#39;m&#39; ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$unit eq &#39;s&#39; ? :</td></tr>
-<tr><td class="h"><a id="L503">503</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $secs ? :</td></tr>
-<tr><td class="h"><a id="L521">521</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $pattern and not ref $pattern</td></tr>
-<tr><td class="h"><a id="L522">522</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">length $pattern &gt; 40 ? :</td></tr>
+<tr><td class="h"><a id="L504">504</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $secs ? :</td></tr>
+<tr><td class="h"><a id="L522">522</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $pattern and not ref $pattern</td></tr>
+<tr><td class="h"><a id="L523">523</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">length $pattern &gt; 40 ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if length $pattern &gt; $MAX_PATTERN_LEN</td></tr>
-<tr><td class="h"><a id="L524">524</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($pattern =~ /$REFUSED_PATTERN_RE/)</td></tr>
-<tr><td class="h"><a id="L529">529</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($re)</td></tr>
-<tr><td class="h"><a id="L545">545</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $1 ? :</td></tr>
-<tr><td class="h"><a id="L546">546</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $known{$n} and not $seen{$n}++</td></tr>
-<tr><td class="h"><a id="L562">562</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and not ref $value and defined $group</td></tr>
-<tr><td class="h"><a id="L565">565</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$group =~ /\A[0-9]+\z/ ? :</td></tr>
-<tr><td class="h"><a id="L566">566</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $number) { }</td></tr>
-<tr><td class="h"><a id="L567">567</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $number &lt; 1 or $number &gt; $$compiled{&quot;groups&quot;}</td></tr>
-<tr><td class="h"><a id="L569">569</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {$_ eq $group;} @{$$compiled{&quot;names&quot;};}</td></tr>
-<tr><td class="h"><a id="L571">571</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $value =~ /$$compiled{&quot;re&quot;}/</td></tr>
-<tr><td class="h"><a id="L572">572</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $number ? :</td></tr>
-<tr><td class="h"><a id="L573">573</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $got</td></tr>
-<tr><td class="h"><a id="L574">574</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $got &gt; $MAX_CAPTURE_LEN ? :</td></tr>
-<tr><td class="h"><a id="L593">593</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $t</td></tr>
-<tr><td class="h"><a id="L598">598</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $$interval{&quot;secs&quot;})</td></tr>
-<tr><td class="h"><a id="L606">606</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;d&quot;)</td></tr>
-<tr><td class="h"><a id="L607">607</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $n == 1</td></tr>
-<tr><td class="h"><a id="L612">612</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;w&quot;)</td></tr>
-<tr><td class="h"><a id="L619">619</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$dow == 0 ? :</td></tr>
-<tr><td class="h"><a id="L628">628</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;mon&quot;)</td></tr>
-<tr><td class="h"><a id="L634">634</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;q&quot;)</td></tr>
-<tr><td class="h"><a id="L677">677</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$self{&quot;_columns&quot;}{$p})</td></tr>
-<tr><td class="h"><a id="L688">688</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (length $expr &gt; $MAX_EXPR_LEN)</td></tr>
-<tr><td class="h"><a id="L695">695</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($ok)</td></tr>
-<tr><td class="h"><a id="L704">704</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($ok)</td></tr>
-<tr><td class="h"><a id="L709">709</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tokens[$pos]{&quot;type&quot;} ne $T_EOF)</td></tr>
-<tr><td class="h"><a id="L728">728</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $$self{&quot;_code&quot;}</td></tr>
-<tr><td class="h"><a id="L730">730</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $row eq &quot;HASH&quot;</td></tr>
-<tr><td class="h"><a id="L738">738</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">%{$$self{&#39;_params&#39;};} ? :</td></tr>
-<tr><td class="h"><a id="L742">742</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $ok</td></tr>
-<tr><td class="h"><a id="L765">765</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch =~ /\A\s/)</td></tr>
-<tr><td class="h"><a id="L768">768</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (substr($expr, $pos) =~ /\A(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/)</td></tr>
-<tr><td class="h"><a id="L775">775</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;\&quot;&quot;)</td></tr>
-<tr><td class="h"><a id="L777">777</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $end &lt; 0</td></tr>
-<tr><td class="h"><a id="L788">788</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;&#39;&quot;)</td></tr>
-<tr><td class="h"><a id="L790">790</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $end &lt; 0</td></tr>
-<tr><td class="h"><a id="L801">801</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (substr($expr, $pos) =~ /\A([a-zA-Z_][a-zA-Z0-9_]*)/)</td></tr>
-<tr><td class="h"><a id="L808">808</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($pos + 1 &lt; $len)</td></tr>
-<tr><td class="h"><a id="L810">810</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;!=&quot;)</td></tr>
-<tr><td class="h"><a id="L814">814</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;&lt;=&quot;)</td></tr>
-<tr><td class="h"><a id="L818">818</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;&gt;=&quot;)</td></tr>
-<tr><td class="h"><a id="L822">822</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;==&quot;)</td></tr>
-<tr><td class="h"><a id="L828">828</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;=&quot;)</td></tr>
-<tr><td class="h"><a id="L832">832</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;&lt;&quot;)</td></tr>
-<tr><td class="h"><a id="L836">836</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;&gt;&quot;)</td></tr>
-<tr><td class="h"><a id="L842">842</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (exists $single_ops{$ch})</td></tr>
-<tr><td class="h"><a id="L861">861</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $$depth_ref &gt;= $MAX_DEPTH</td></tr>
-<tr><td class="h"><a id="L868">868</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $$tok{&quot;type&quot;} eq $expected</td></tr>
-<tr><td class="h"><a id="L884">884</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($type eq $T_EQ or $type eq $T_NEQ or $type eq $T_LT or $type eq $T_LE or $type eq $T_GT or $type eq $T_GE)</td></tr>
-<tr><td class="h"><a id="L894">894</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
-<tr><td class="h"><a id="L895">895</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (&amp;looks_like_number($lv) and &amp;looks_like_number($rv)) { }</td></tr>
-<tr><td class="h"><a id="L896">896</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$lv == $rv ? :</td></tr>
+<tr><td class="h"><a id="L525">525</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($pattern =~ /$REFUSED_PATTERN_RE/)</td></tr>
+<tr><td class="h"><a id="L530">530</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($re)</td></tr>
+<tr><td class="h"><a id="L546">546</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $1 ? :</td></tr>
+<tr><td class="h"><a id="L547">547</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if $known{$n} and not $seen{$n}++</td></tr>
+<tr><td class="h"><a id="L563">563</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and not ref $value and defined $group</td></tr>
+<tr><td class="h"><a id="L566">566</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$group =~ /\A[0-9]+\z/ ? :</td></tr>
+<tr><td class="h"><a id="L567">567</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $number) { }</td></tr>
+<tr><td class="h"><a id="L568">568</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $number &lt; 1 or $number &gt; $$compiled{&quot;groups&quot;}</td></tr>
+<tr><td class="h"><a id="L570">570</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {$_ eq $group;} @{$$compiled{&quot;names&quot;};}</td></tr>
+<tr><td class="h"><a id="L572">572</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $value =~ /$$compiled{&quot;re&quot;}/</td></tr>
+<tr><td class="h"><a id="L573">573</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $number ? :</td></tr>
+<tr><td class="h"><a id="L574">574</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $got</td></tr>
+<tr><td class="h"><a id="L575">575</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $got &gt; $MAX_CAPTURE_LEN ? :</td></tr>
+<tr><td class="h"><a id="L594">594</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $t</td></tr>
+<tr><td class="h"><a id="L599">599</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $$interval{&quot;secs&quot;})</td></tr>
+<tr><td class="h"><a id="L607">607</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;d&quot;)</td></tr>
+<tr><td class="h"><a id="L608">608</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $n == 1</td></tr>
+<tr><td class="h"><a id="L613">613</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;w&quot;)</td></tr>
+<tr><td class="h"><a id="L620">620</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$dow == 0 ? :</td></tr>
+<tr><td class="h"><a id="L629">629</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;mon&quot;)</td></tr>
+<tr><td class="h"><a id="L635">635</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($unit eq &quot;q&quot;)</td></tr>
+<tr><td class="h"><a id="L678">678</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$self{&quot;_columns&quot;}{$p})</td></tr>
+<tr><td class="h"><a id="L689">689</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (length $expr &gt; $MAX_EXPR_LEN)</td></tr>
+<tr><td class="h"><a id="L696">696</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($ok)</td></tr>
+<tr><td class="h"><a id="L705">705</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($ok)</td></tr>
+<tr><td class="h"><a id="L710">710</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tokens[$pos]{&quot;type&quot;} ne $T_EOF)</td></tr>
+<tr><td class="h"><a id="L729">729</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $$self{&quot;_code&quot;}</td></tr>
+<tr><td class="h"><a id="L731">731</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $row eq &quot;HASH&quot;</td></tr>
+<tr><td class="h"><a id="L739">739</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">%{$$self{&#39;_params&#39;};} ? :</td></tr>
+<tr><td class="h"><a id="L743">743</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $ok</td></tr>
+<tr><td class="h"><a id="L766">766</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch =~ /\A\s/)</td></tr>
+<tr><td class="h"><a id="L769">769</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (substr($expr, $pos) =~ /\A(\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)/)</td></tr>
+<tr><td class="h"><a id="L776">776</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;\&quot;&quot;)</td></tr>
+<tr><td class="h"><a id="L778">778</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $end &lt; 0</td></tr>
+<tr><td class="h"><a id="L789">789</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;&#39;&quot;)</td></tr>
+<tr><td class="h"><a id="L791">791</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $end &lt; 0</td></tr>
+<tr><td class="h"><a id="L802">802</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (substr($expr, $pos) =~ /\A([a-zA-Z_][a-zA-Z0-9_]*)/)</td></tr>
+<tr><td class="h"><a id="L809">809</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($pos + 1 &lt; $len)</td></tr>
+<tr><td class="h"><a id="L811">811</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;!=&quot;)</td></tr>
+<tr><td class="h"><a id="L815">815</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;&lt;=&quot;)</td></tr>
+<tr><td class="h"><a id="L819">819</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;&gt;=&quot;)</td></tr>
+<tr><td class="h"><a id="L823">823</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($two eq &quot;==&quot;)</td></tr>
+<tr><td class="h"><a id="L829">829</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;=&quot;)</td></tr>
+<tr><td class="h"><a id="L833">833</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;&lt;&quot;)</td></tr>
+<tr><td class="h"><a id="L837">837</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($ch eq &quot;&gt;&quot;)</td></tr>
+<tr><td class="h"><a id="L843">843</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (exists $single_ops{$ch})</td></tr>
+<tr><td class="h"><a id="L862">862</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $$depth_ref &gt;= $MAX_DEPTH</td></tr>
+<tr><td class="h"><a id="L869">869</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $$tok{&quot;type&quot;} eq $expected</td></tr>
+<tr><td class="h"><a id="L885">885</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($type eq $T_EQ or $type eq $T_NEQ or $type eq $T_LT or $type eq $T_LE or $type eq $T_GT or $type eq $T_GE)</td></tr>
+<tr><td class="h"><a id="L895">895</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
+<tr><td class="h"><a id="L896">896</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (&amp;looks_like_number($lv) and &amp;looks_like_number($rv)) { }</td></tr>
+<tr><td class="h"><a id="L897">897</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$lv == $rv ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$lv != $rv ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$lv &lt; $rv ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$lv &lt;= $rv ? :</td></tr>
@@ -130,7 +130,7 @@ https://pjcj.net
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq $T_LT ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq $T_NEQ ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq $T_EQ ? :</td></tr>
-<tr><td class="h"><a id="L904">904</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$cmp == 0 ? :</td></tr>
+<tr><td class="h"><a id="L905">905</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$cmp == 0 ? :</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$cmp != 0 ? :</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$cmp &lt; 0 ? :</td></tr>
 <tr><td class="h"></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$cmp &lt;= 0 ? :</td></tr>
@@ -141,70 +141,70 @@ https://pjcj.net
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq $T_LT ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq $T_NEQ ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$op eq $T_EQ ? :</td></tr>
-<tr><td class="h"><a id="L932">932</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($op eq $T_PLUS) { }</td></tr>
-<tr><td class="h"><a id="L935">935</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
-<tr><td class="h"><a id="L936">936</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
-<tr><td class="h"><a id="L942">942</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
-<tr><td class="h"><a id="L943">943</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
-<tr><td class="h"><a id="L965">965</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($op eq $T_STAR) { }</td></tr>
-<tr><td class="h"><a id="L968">968</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
-<tr><td class="h"><a id="L969">969</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
-<tr><td class="h"><a id="L975">975</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
-<tr><td class="h"><a id="L976">976</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
-<tr><td class="h"><a id="L977">977</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $rv == 0</td></tr>
-<tr><td class="h"><a id="L992">992</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_MINUS)</td></tr>
-<tr><td class="h"><a id="L1000">1000</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $v and &amp;looks_like_number($v)</td></tr>
-<tr><td class="h"><a id="L1006">1006</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_PLUS)</td></tr>
-<tr><td class="h"><a id="L1016">1016</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_LPAREN)</td></tr>
-<tr><td class="h"><a id="L1024">1024</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_NUM)</td></tr>
-<tr><td class="h"><a id="L1031">1031</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_STR)</td></tr>
-<tr><td class="h"><a id="L1038">1038</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_IDENT)</td></tr>
-<tr><td class="h"><a id="L1043">1043</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$$tokens[$$pos_ref]{&#39;type&#39;} eq $T_LPAREN ? :</td></tr>
-<tr><td class="h"><a id="L1056">1056</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless exists $FUNCTIONS{$lc} or $lc eq &quot;if&quot; or $lc eq &quot;rx&quot; or $TIME_CONST_FNS{$lc}</td></tr>
-<tr><td class="h"><a id="L1061">1061</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lc eq &quot;rx&quot;)</td></tr>
-<tr><td class="h"><a id="L1069">1069</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $$tok{&quot;type&quot;} eq $T_STR or $$tok{&quot;type&quot;} eq $T_NUM</td></tr>
-<tr><td class="h"><a id="L1074">1074</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @const == 1 or @const == 2</td></tr>
-<tr><td class="h"><a id="L1076">1076</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const[1] ? :</td></tr>
-<tr><td class="h"><a id="L1084">1084</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($TIME_CONST_FNS{$lc})</td></tr>
-<tr><td class="h"><a id="L1088">1088</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tokens[$$pos_ref]{&quot;type&quot;} eq $T_COMMA)</td></tr>
-<tr><td class="h"><a id="L1092">1092</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $$tok{&quot;type&quot;} eq $T_STR</td></tr>
-<tr><td class="h"><a id="L1098">1098</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lc eq &quot;epoch&quot;)</td></tr>
-<tr><td class="h"><a id="L1099">1099</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const ? :</td></tr>
-<tr><td class="h"><a id="L1102">1102</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $compiled ? :</td></tr>
-<tr><td class="h"><a id="L1105">1105</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $t ? :</td></tr>
-<tr><td class="h"><a id="L1109">1109</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const ? :</td></tr>
+<tr><td class="h"><a id="L933">933</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($op eq $T_PLUS) { }</td></tr>
+<tr><td class="h"><a id="L936">936</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
+<tr><td class="h"><a id="L937">937</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
+<tr><td class="h"><a id="L943">943</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
+<tr><td class="h"><a id="L944">944</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
+<tr><td class="h"><a id="L966">966</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($op eq $T_STAR) { }</td></tr>
+<tr><td class="h"><a id="L969">969</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
+<tr><td class="h"><a id="L970">970</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
+<tr><td class="h"><a id="L976">976</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $lv and defined $rv</td></tr>
+<tr><td class="h"><a id="L977">977</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;looks_like_number($lv) and &amp;looks_like_number($rv)</td></tr>
+<tr><td class="h"><a id="L978">978</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $rv == 0</td></tr>
+<tr><td class="h"><a id="L993">993</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_MINUS)</td></tr>
+<tr><td class="h"><a id="L1001">1001</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $v and &amp;looks_like_number($v)</td></tr>
+<tr><td class="h"><a id="L1007">1007</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_PLUS)</td></tr>
+<tr><td class="h"><a id="L1017">1017</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_LPAREN)</td></tr>
+<tr><td class="h"><a id="L1025">1025</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_NUM)</td></tr>
+<tr><td class="h"><a id="L1032">1032</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_STR)</td></tr>
+<tr><td class="h"><a id="L1039">1039</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tok{&quot;type&quot;} eq $T_IDENT)</td></tr>
+<tr><td class="h"><a id="L1044">1044</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$$tokens[$$pos_ref]{&#39;type&#39;} eq $T_LPAREN ? :</td></tr>
+<tr><td class="h"><a id="L1057">1057</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless exists $FUNCTIONS{$lc} or $lc eq &quot;if&quot; or $lc eq &quot;rx&quot; or $TIME_CONST_FNS{$lc}</td></tr>
+<tr><td class="h"><a id="L1062">1062</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lc eq &quot;rx&quot;)</td></tr>
+<tr><td class="h"><a id="L1070">1070</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $$tok{&quot;type&quot;} eq $T_STR or $$tok{&quot;type&quot;} eq $T_NUM</td></tr>
+<tr><td class="h"><a id="L1075">1075</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @const == 1 or @const == 2</td></tr>
+<tr><td class="h"><a id="L1077">1077</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const[1] ? :</td></tr>
+<tr><td class="h"><a id="L1085">1085</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($TIME_CONST_FNS{$lc})</td></tr>
+<tr><td class="h"><a id="L1089">1089</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tokens[$$pos_ref]{&quot;type&quot;} eq $T_COMMA)</td></tr>
+<tr><td class="h"><a id="L1093">1093</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $$tok{&quot;type&quot;} eq $T_STR</td></tr>
+<tr><td class="h"><a id="L1099">1099</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lc eq &quot;epoch&quot;)</td></tr>
+<tr><td class="h"><a id="L1100">1100</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const ? :</td></tr>
+<tr><td class="h"><a id="L1103">1103</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $compiled ? :</td></tr>
+<tr><td class="h"><a id="L1106">1106</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $t ? :</td></tr>
 <tr><td class="h"><a id="L1110">1110</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const ? :</td></tr>
+<tr><td class="h"><a id="L1111">1111</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $const ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $interval</td></tr>
-<tr><td class="h"><a id="L1117">1117</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tokens[$$pos_ref]{&quot;type&quot;} ne $T_RPAREN)</td></tr>
-<tr><td class="h"><a id="L1127">1127</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lc eq &quot;if&quot;)</td></tr>
-<tr><td class="h"><a id="L1130">1130</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">&amp;$cond_fn($_[0]) ? :</td></tr>
-<tr><td class="h"><a id="L1149">1149</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $$cols{$name}</td></tr>
-<tr><td class="h"><a id="L1155">1155</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (lc $col eq $lc_spaced)</td></tr>
-<tr><td class="h"><a id="L1184">1184</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $$pattern{&quot;date&quot;} and length $$pattern{&quot;date&quot;}</td></tr>
-<tr><td class="h"><a id="L1189">1189</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $time_fmt and length $time_fmt)</td></tr>
-<tr><td class="h"><a id="L1190">1190</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $compiled = eval {
+<tr><td class="h"><a id="L1118">1118</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($$tokens[$$pos_ref]{&quot;type&quot;} ne $T_RPAREN)</td></tr>
+<tr><td class="h"><a id="L1128">1128</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($lc eq &quot;if&quot;)</td></tr>
+<tr><td class="h"><a id="L1131">1131</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">&amp;$cond_fn($_[0]) ? :</td></tr>
+<tr><td class="h"><a id="L1150">1150</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $$cols{$name}</td></tr>
+<tr><td class="h"><a id="L1156">1156</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (lc $col eq $lc_spaced)</td></tr>
+<tr><td class="h"><a id="L1185">1185</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $$pattern{&quot;date&quot;} and length $$pattern{&quot;date&quot;}</td></tr>
+<tr><td class="h"><a id="L1190">1190</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $time_fmt and length $time_fmt)</td></tr>
+<tr><td class="h"><a id="L1191">1191</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $compiled = eval {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;do {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_fmt_compile_pair($$pattern{&quot;date&quot;}, $time_fmt)
 }
 }</td></tr>
-<tr><td class="h"><a id="L1192">1192</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $t</td></tr>
-<tr><td class="h"><a id="L1196">1196</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $compiled = eval {
+<tr><td class="h"><a id="L1193">1193</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $t</td></tr>
+<tr><td class="h"><a id="L1197">1197</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $compiled = eval {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;do {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;_fmt_compile($$pattern{&quot;date&quot;})
 }
 }</td></tr>
-<tr><td class="h"><a id="L1198">1198</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $t</td></tr>
-<tr><td class="h"><a id="L1201">1201</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">($$pattern{&#39;as&#39;} // &#39;&#39;) eq &#39;timestamp&#39; ? :</td></tr>
-<tr><td class="h"><a id="L1211">1211</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined _epoch_of($y + 0, $mon + 0, $day + 0, 12, 0, 0)</td></tr>
-<tr><td class="h"><a id="L1232">1232</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $val and defined $pattern and length $val</td></tr>
-<tr><td class="h"><a id="L1233">1233</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $pattern eq &quot;HASH&quot;</td></tr>
-<tr><td class="h"><a id="L1234">1234</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($pattern eq &#39;%m/%d/%Y&#39;) { }</td></tr>
+<tr><td class="h"><a id="L1199">1199</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $t</td></tr>
+<tr><td class="h"><a id="L1202">1202</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">($$pattern{&#39;as&#39;} // &#39;&#39;) eq &#39;timestamp&#39; ? :</td></tr>
+<tr><td class="h"><a id="L1212">1212</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined _epoch_of($y + 0, $mon + 0, $day + 0, 12, 0, 0)</td></tr>
+<tr><td class="h"><a id="L1233">1233</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $val and defined $pattern and length $val</td></tr>
+<tr><td class="h"><a id="L1234">1234</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ref $pattern eq &quot;HASH&quot;</td></tr>
+<tr><td class="h"><a id="L1235">1235</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($pattern eq &#39;%m/%d/%Y&#39;) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($pattern eq &#39;%d/%m/%Y&#39;) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($pattern eq &#39;%d-%b-%Y&#39;) { }</td></tr>
-<tr><td class="h"><a id="L1235">1235</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $val =~ m[\A(\d{1,2})/(\d{1,2})/(\d{4})\z]</td></tr>
-<tr><td class="h"><a id="L1238">1238</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $val =~ m[\A(\d{1,2})/(\d{1,2})/(\d{4})\z]</td></tr>
-<tr><td class="h"><a id="L1241">1241</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $val =~ /\A(\d{1,2})-([A-Za-z]{3})-(\d{4})\z/</td></tr>
-<tr><td class="h"><a id="L1243">1243</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $mon</td></tr>
+<tr><td class="h"><a id="L1236">1236</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $val =~ m[\A(\d{1,2})/(\d{1,2})/(\d{4})\z]</td></tr>
+<tr><td class="h"><a id="L1239">1239</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $val =~ m[\A(\d{1,2})/(\d{1,2})/(\d{4})\z]</td></tr>
+<tr><td class="h"><a id="L1242">1242</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $val =~ /\A(\d{1,2})-([A-Za-z]{3})-(\d{4})\z/</td></tr>
+<tr><td class="h"><a id="L1244">1244</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $mon</td></tr>
 </table>
 </body>
 </html>
