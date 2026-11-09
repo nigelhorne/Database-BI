@@ -3417,6 +3417,16 @@ sub _rows_of_page {
 	return [ @{$rows}[$offset .. $last] ];
 }
 
+# _page_count($total, $per_page) -> $pages
+#
+# How many pages $total rows make, for the table's "Page N of M".  No rows is
+# still one page, the empty one the table shows.
+sub _page_count {
+	my ($total, $per_page) = @_;
+	return 1 unless $total && $per_page && $per_page > 0;
+	return int(($total + $per_page - 1) / $per_page);
+}
+
 # Where a cell with no date or number sorts: first, ascending, as -Infinity
 # does in the browser.
 Readonly my $NO_NUMBER => -9**9**9;
@@ -3509,6 +3519,8 @@ sub _collate ($x, $y) {
 }
 
 # _fetch_page( $self, $source, \%params ) -> ( $records, $has_next )
+#   (also stashes page_count, the number of pages, whenever every row was read:
+#   on every path but the SQL fast path, which asks for one page and a row)
 #   params: per_page  -- page size (required)
 #           offset    -- 0-based row offset (required)
 #           dedup     -- truthy when ?d=1 dedup is requested
@@ -3580,9 +3592,11 @@ sub _fetch_page :Protected ($self, $source, $params) {
 			pop @records if $has_next;
 			return (\@records, $has_next);
 		}
-		# Non-SQL fast path: fetch all, then paginate.
+		# Non-SQL fast path: fetch all, then paginate.  Every row is in hand, so
+		# the number of pages costs nothing; the SQL path above never counts.
 		my $all = $source->selectall_arrayref() // [];
 		my $has_next = (@$all > $offset + $per_page) ? 1 : 0;
+		$self->stash(page_count => _page_count(scalar(@$all), $per_page));
 		return (_rows_of_page($all, $offset, $per_page), $has_next);
 	}
 
@@ -3688,6 +3702,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	my $total    = scalar @$all;
 	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
 	my @page     = @{ _rows_of_page($all, $offset, $per_page) };
+	$self->stash(page_count => _page_count($total, $per_page));
 
 	return (\@page, $has_next);
 }
@@ -9121,6 +9136,7 @@ sub combine_tables ($self) {
 	my $has_next = ($total > $offset + $per_page) ? 1 : 0;
 	my @page_recs = @{ _rows_of_page($records, $offset, $per_page) };
 	$records = \@page_recs;
+	$self->stash(page_count => _page_count($total, $per_page));
 
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 

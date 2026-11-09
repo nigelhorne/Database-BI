@@ -1877,7 +1877,9 @@ dragging it moves it.</p>
   <span class="page-btn page-btn-dis">Next &raquo;</span>
   [% END %]
 
-  <span class="page-info">Page [% page %][% IF per_page %] &mdash; [% per_page %] rows/page[% END %]</span>
+  [%# page_count is known when every row was read (see _fetch_page); a SQL table
+      paged on the server is never counted, so it shows the page alone. %]
+  <span class="page-info">Page [% page %][% IF page_count %] of [% page_count %][% END %][% IF per_page %] &mdash; [% per_page %] rows/page[% END %]</span>
 </nav>
 [% END %]
 
