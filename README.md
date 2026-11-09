@@ -293,15 +293,23 @@ perl Makefile.PL
 - `GET /preferences`
 
     Sets the reader's preferences: the theme, one of light, dark or the same as the
-    device (the default).  They are kept in the browser's `localStorage`, not on
-    the server, and apply to every page.  Saved charts, printed pages and embedded
-    canvases stay light.
+    device (the default), and the rows a table or pivot shows on a page (25, 50,
+    100, 200 -- the default -- or All).  The theme is kept in the browser's
+    `localStorage` and the page size in its cookie `bi_per_page`, because the
+    server reads it; neither is stored on the server, and both apply to every page.
+    Saved charts, printed pages and embedded canvases stay light.
 
 - `GET /view/:table`
 
     Opens the named table from `data_dir`.  Accepts `?f=col:op:val`
     (repeatable) to pre-filter results, and `?range=name&rcol=column` to keep
     only a relative window of rows (see ["Relative time ranges"](#relative-time-ranges)).
+
+    A long table is shown a page at a time: `?page=` is the page, and
+    `?per_page=` its size (else the reader's preference, else 200; up to 2000;
+    `0` is every row on one page).  The page says "Page 2 of 7", and its Rows per
+    page list (25, 50, 100, 200, All) changes the size, keeping the first row on
+    screen.  A pivot pages its row groups the same way.
 
     `?f=col:between:lo:hi` keeps the rows whose `col` lies from `lo` to `hi`,
     both included, whichever bound is written first.  Two numbers (a range of

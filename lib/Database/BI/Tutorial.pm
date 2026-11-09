@@ -926,7 +926,7 @@ my @CHAPTERS = (
 		id    => 'preferences',
 		part  => 'Help',
 		title => 'Set your preferences',
-		lead  => 'The Preferences page chooses how the program looks to you. It has one setting: the theme.',
+		lead  => 'The Preferences page chooses how the program looks to you: the theme, and how many rows a table shows on a page.',
 		steps => [
 			'Click Preferences at the top of any page.',
 			'Under Theme, choose Same as this device, Light or Dark.',
@@ -934,6 +934,9 @@ my @CHAPTERS = (
 			'The page changes as soon as you choose. There is no Save button.',
 			'Every other page follows, including pages that are open in other tabs.',
 			'Tables and charts change with the page. A map keeps its usual colours.',
+			'Under Tables, choose how many rows a table or pivot shows on each page: 25, 50, 100, 200 or All.',
+			'The number takes effect from the next table you open. All can be slow for a big file.',
+			'The Rows per page list under a long table changes that table only.',
 		],
 		tip   => 'The choice is saved in this browser, so another browser or computer keeps its own. Saved charts and printed pages always use the light colours.',
 		try   => { href => '/preferences', label => 'Open your preferences' },

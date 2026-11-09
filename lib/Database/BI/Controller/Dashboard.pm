@@ -307,6 +307,15 @@ Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
 Readonly my $MAX_PER_PAGE          => 2_000;
+# The page sizes offered under a table or pivot and on /preferences; 0 is every
+# row on one page.  The preference is the cookie $PAGE_SIZE_COOKIE (the server
+# must see it before it reads the page), and only these values are taken from it.
+Readonly my @PAGE_SIZES       => (25, 50, 100, 200, 0);
+Readonly my %PAGE_SIZE_OK     => map { $_ => 1 } @PAGE_SIZES;
+Readonly my $PAGE_SIZE_COOKIE => 'bi_per_page';
+# per_page=0 (all rows) as a page size the arithmetic can use: one page that
+# holds any table this application can read.
+Readonly my $ALL_ROWS         => 2_000_000_000;
 Readonly my %SCATTER_SCHEMES       => map { $_ => 1 } qw(tableau10 category10 set2 set3 paired);
 
 # Categorical palettes for map series colouring, matching the D3 schemes the
@@ -515,18 +524,51 @@ sub _scatter_radii {
 #
 # Reads ?page= and ?per_page= from the current request, clamps them to sane
 # ranges, and returns the 1-based page number, the page size, and the
-# 0-based row offset.  Pagination is optional: when neither param is present
-# per_page defaults to DEFAULT_PER_PAGE.
+# 0-based row offset.  Without per_page= the size is the reader's preference
+# (_page_size_preference), else DEFAULT_PER_PAGE.  0 is every row: one page of
+# $ALL_ROWS, so it bypasses MAX_PER_PAGE, which bounds only a number typed in
+# the URL.
+#
+# Also stashes, for layouts/page_size.html.tt: page_size (0 for every row),
+# page_size_asked (the URL named one) and page_size_choices.
 sub _pagination {
 	my $self = $_[0];
 
-	my $per_page = _whole_number($self->param('per_page')) || $DEFAULT_PER_PAGE;
-	$per_page = 1         if $per_page < 1;
-	$per_page = $MAX_PER_PAGE if $per_page > $MAX_PER_PAGE;
-	my $page = _whole_number($self->param('page')) || 1;
-	$page = 1 if $page < 1;
+	my $asked_in_url = defined $self->param('per_page') && length $self->param('per_page');
+	my $asked = _whole_number($self->param('per_page'));
+	$asked = _page_size_preference($self) unless defined $asked;
+
+	my ($per_page, $page);
+	if (defined $asked && $asked == 0) {
+		($per_page, $page) = ($ALL_ROWS, 1);
+	} else {
+		$per_page = $asked || $DEFAULT_PER_PAGE;
+		$per_page = 1         if $per_page < 1;
+		$per_page = $MAX_PER_PAGE if $per_page > $MAX_PER_PAGE;
+		$page = _whole_number($self->param('page')) || 1;
+		$page = 1 if $page < 1;
+	}
 	my $offset = ($page - 1) * $per_page;
+
+	$self->stash(
+		page_size         => ($per_page == $ALL_ROWS ? 0 : $per_page),
+		page_size_asked   => ($asked_in_url ? 1 : 0),
+		page_size_choices => [ @PAGE_SIZES ],
+	);
 	return ($page, $per_page, $offset);
+}
+
+# _page_size_preference($self) -> $size | undef
+#
+# The page size set on /preferences, from the bi_per_page cookie: one of
+# @PAGE_SIZES (0 = every row), or undef when there is none or it is anything
+# else.
+sub _page_size_preference {
+	my $self = $_[0];
+	my $value = $self->cookie($PAGE_SIZE_COOKIE);
+	return undef unless defined $value && $value =~ /\A\d{1,4}\z/;
+	$value += 0;
+	return $PAGE_SIZE_OK{$value} ? $value : undef;
 }
 
 # _message_text($key) -> $template | undef
@@ -7847,17 +7889,20 @@ sub logout ($self) {
 =head2 preferences
 
 C<GET /preferences> -- Render the page where a reader sets their preferences:
-for now, the light or dark theme.
+the light or dark theme, and how many rows a table shows on a page.
 
-Preferences belong to the browser, in C<localStorage>, not to the server, so
-this action only renders the form.  The script that stores and applies them is
-in C<layouts/theme.html.tt>, which every page loads.
+Preferences belong to the browser, not to the server, so this action only
+renders the form.  The theme is kept in C<localStorage>; the script that
+stores and applies it is in C<layouts/theme.html.tt>, which every page loads.
+The page size is kept in the cookie C<bi_per_page> (25, 50, 100, 200, or 0 for
+every row), because the server needs it before it reads the page; this action
+reads it to show the current choice.
 
 =head3 API SPECIFICATION
 
 =head4 INPUT
 
-None.
+  cookie bi_per_page   optional; the saved page size, shown as chosen
 
 =head4 OUTPUT
 
@@ -7876,11 +7921,14 @@ sub preferences ($self) {
 	my ($platform, $language) = $self->_resolve_template;
 
 	$self->render(
-		template => "$platform/$language/preferences",
-		handler  => 'tt',
-		format   => 'html',
-		title    => 'Preferences',
-		language => $language,
+		template          => "$platform/$language/preferences",
+		handler           => 'tt',
+		format            => 'html',
+		title             => 'Preferences',
+		language          => $language,
+		page_size         => _page_size_preference($self) // $DEFAULT_PER_PAGE,
+		page_size_choices => [ @PAGE_SIZES ],
+		page_size_cookie  => $PAGE_SIZE_COOKIE,
 	);
 }
 

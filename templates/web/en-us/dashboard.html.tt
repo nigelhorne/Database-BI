@@ -1860,9 +1860,13 @@ dragging it moves it.</p>
 </div>
 
 [% SET pnum = page ? page : 0 %]
-[% IF pnum > 1 OR has_next %]
+[% SET show_pages = (pnum > 1 OR has_next) ? 1 : 0 %]
+[%# The rows-per-page list comes with the page buttons, and also without them
+    when the URL chose a size or every row is shown: there must be a way back. %]
+[% IF show_pages OR page_size_asked OR (page_size.length AND page_size == 0) %]
 [% SET sep = page_base_url.search('\?') ? '&amp;' : '?' %]
 <nav class="pagination" aria-label="Page navigation">
+  [% IF show_pages %]
   [% IF pnum > 1 %]
   <a class="page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>
   [% ELSE %]
@@ -1877,9 +1881,10 @@ dragging it moves it.</p>
   <span class="page-btn page-btn-dis">Next &raquo;</span>
   [% END %]
 
-  [%# page_count is known when every row was read (see _fetch_page); a SQL table
-      paged on the server is never counted, so it shows the page alone. %]
+  [%# page_count is missing only when a SQL table's count failed (see _fetch_page). %]
   <span class="page-info">Page [% page %][% IF page_count %] of [% page_count %][% END %][% IF per_page %] &mdash; [% per_page %] rows/page[% END %]</span>
+  [% END %]
+  [% PROCESS "web/en/layouts/page_size.html.tt" ps_id = 'page-size' ps_mode = 'view' %]
 </nav>
 [% END %]
 

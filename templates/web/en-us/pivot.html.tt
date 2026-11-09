@@ -192,9 +192,11 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
 </div>
 
 [%- SET pnum = page ? page : 0 -%]
-[%- IF pnum > 1 OR has_next -%]
+[%- SET show_pages = (pnum > 1 OR has_next) ? 1 : 0 -%]
+[%- IF show_pages OR page_size_asked OR (page_size.length AND page_size == 0) -%]
 [%- SET sep = page_base_url.search('\?') ? '&amp;' : '?' -%]
 <nav class="piv-pagination" aria-label="Pivot page navigation">
+  [%- IF show_pages -%]
   [%- IF pnum > 1 -%]
   <a class="piv-page-btn" href="[% page_base_url | html %][% sep %]page=[% pnum - 1 %]&amp;per_page=[% per_page %]">&laquo; Prev</a>
   [%- ELSE -%]
@@ -207,6 +209,8 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
   <span class="piv-page-btn piv-page-btn-dis">Next &raquo;</span>
   [%- END -%]
   <span class="piv-page-info">Page [% page %][% IF page_count %] of [% page_count %][% END %] &mdash; [% per_page %] row groups/page</span>
+  [%- END %]
+  [% PROCESS "web/en/layouts/page_size.html.tt" ps_id = 'page-size' ps_mode = 'view' %]
 </nav>
 [%- END -%]
 
