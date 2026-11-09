@@ -3,7 +3,7 @@
 requires 'perl', '5.028000';
 
 requires 'CGI::Info';
-requires 'CGI::Lingua', '0.85';
+requires 'CGI::Lingua', '0.88';   # 0.88 reads the locale (LC_ALL, LC_MESSAGES, LANG) for the scripts
 requires 'CHI';
 requires 'Carp';
 requires 'Crypt::URandom';   # The login's password salt (script/database-bi password); Windows has no /dev/urandom
@@ -31,7 +31,7 @@ requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::Buffer', '0.001.1';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Net::SFTP::Foreign';
-requires 'Object::Configure';   # cache_dir for each object that keeps a cache (Database::BI::CacheDir)
+requires 'Object::Configure', '0.25';   # cache_dir for each object that keeps a cache (Database::BI::CacheDir); 0.25: configure($class, \%params), and logger => [] keeps a syslog universal.yml from opening
 requires 'POSIX';   # For floor/ceil in Calc.pm (core module, listed for completeness)
 requires 'Params::Get', '0.17';
 requires 'Params::Validate::Strict', '0.41';

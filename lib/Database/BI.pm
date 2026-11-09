@@ -17,6 +17,8 @@ use Readonly;
 use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
+# version->declare here alone: this is VERSION_FROM, and with it MakeMaker
+# writes 0.022.0 into META; a plain dotted string becomes v0.022.0 there.
 use version; our $VERSION = version->declare('0.022.0');
 
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
@@ -485,7 +487,8 @@ Sets the reader's preferences: the theme, one of light, dark or the same as the
 device (the default), and the rows a table or pivot shows on a page (25, 50,
 100, 200 -- the default -- or All).  The theme is kept in the browser's
 C<localStorage> and the page size in its cookie C<bi_per_page>, because the
-server reads it; neither is stored on the server, and both apply to every page.
+server reads it (a value other than 25, 50, 100, 200 or 0 is ignored, and the
+page is 200 rows); neither is stored on the server, and both apply to every page.
 Saved charts, printed pages and embedded canvases stay light.  The Preferences
 link at the top of each page passes C<back=> (that page), so the breadcrumb
 here leads back to it.
@@ -498,9 +501,10 @@ only a relative window of rows (see L</Relative time ranges>).
 
 A long table is shown a page at a time: C<?page=> is the page, and
 C<?per_page=> its size (else the reader's preference, else 200; up to 2000;
-C<0> is every row on one page).  The page says "Page 2 of 7", and its Rows per
-page list (25, 50, 100, 200, All) changes the size, keeping the first row on
-screen.  A pivot pages its row groups the same way.
+C<0> is every row on one page, and then C<page=> is ignored).  The page says
+"Page 2 of 7", and its Rows per page list (25, 50, 100, 200, All) changes the
+size, keeping the first row on screen.  A pivot pages its row groups the same
+way.
 
 C<?f=col:between:lo:hi> keeps the rows whose C<col> lies from C<lo> to C<hi>,
 both included, whichever bound is written first.  Two numbers (a range of
@@ -645,7 +649,9 @@ Renders a D3.js v7 zoomable line chart of any two columns.  Parameters:
 
 A one-line chart offers check boxes above it for reference lines: Min, Avg,
 Max, and Trend, the straight line closest to the points (least squares, by
-L<Statistics::LineFit>), labelled with its slope per point and its R squared.
+L<Statistics::LineFit>), labelled with its slope per point and its R squared
+(a flat series is slope 0 and R squared 1: the line passes through every
+point).
 The points are evenly spaced along the axis, so the fit is of Y against each
 point's place, not its label.  After a zoom, every line is worked out again
 from the points in view.  None is offered on a chart with C<series=>, and Trend

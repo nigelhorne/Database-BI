@@ -65,6 +65,21 @@ subtest 'the scripts follow the locale' => sub {
 	local $ENV{LANG} = 'en_GB.UTF-8';
 	local $ENV{LC_ALL} = 'en_US.UTF-8';
 	is(Database::BI::I18N::from_locale(), 'en-us', 'LC_ALL comes before LANG');
+	{
+		delete local $ENV{LC_ALL};
+		local $ENV{LC_MESSAGES} = 'en_US.UTF-8';
+		is(Database::BI::I18N::from_locale(), 'en-us', 'so does LC_MESSAGES');
+	}
+	{
+		local $ENV{LC_ALL} = 'C';
+		local $ENV{LANG}   = 'en_US.UTF-8';
+		is(Database::BI::I18N::from_locale(), 'en', 'LC_ALL=C names no language, whatever LANG says');
+	}
+	{
+		local $ENV{LC_ALL} = 'en_US.UTF-8';
+		local $ENV{HTTP_ACCEPT_LANGUAGE} = 'en-GB';
+		is(Database::BI::I18N::from_locale(), 'en-us', 'a request header left in the environment is not read');
+	}
 
 	is(Database::BI::I18N::language(), 'en', 'but a module called directly is British whatever the locale');
 	local $Database::BI::I18N::LANGUAGE = 'en-us';

@@ -72,11 +72,22 @@ sub lingua_choice {
 
 	return undef unless defined $accept && length $accept;	## no critic (ProhibitExplicitReturnUndef)
 
+	local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
+	return _lingua($supported);
+}
+
+# _lingua(\@supported) -> $code | undef
+#
+# CGI::Lingua's choice from @supported, from whatever it reads: the
+# Accept-Language header when there is one, else (0.88 and later) the locale.
+# "<code>-<region>" when the region is offered, else the language's code.
+sub _lingua {
+	my ($supported) = @_;
+
 	my %offered = map { lc($_) => 1 } @{$supported};
 	local ($@, $!);
 	my $code = eval {
 		require CGI::Lingua;
-		local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
 		my $lingua = CGI::Lingua->new(supported => $supported, dont_use_ip => 1);
 		my $language = $lingua->language_code_alpha2();
 		my $region   = defined $language ? $lingua->sublanguage_code_alpha2() : undef;
@@ -94,27 +105,17 @@ sub language {
 
 # from_locale() -> $code
 #
-# The language the locale names (LC_ALL, then LC_MESSAGES, then LANG:
-# en_US.UTF-8 is en-us), for a script to set $LANGUAGE from.
+# The language the locale names, for a script to set $LANGUAGE from.
+# CGI::Lingua (0.88 and later) reads the locale itself, as POSIX does: LC_ALL,
+# then LC_MESSAGES, then LANG, so en_US.UTF-8 is en-us and LC_ALL=C names no
+# language whatever LANG says.  No request header is consulted: one left in
+# the environment by a CGI caller would otherwise win.  Remembered per locale.
 sub from_locale {
-	my ($locale) = grep { defined && length } @ENV{qw(LC_ALL LC_MESSAGES LANG)};
-	$locale //= '';
-	return $FROM_LOCALE{$locale} //= _from_locale($locale);
-}
-
-# _from_locale($locale) -> $code
-#
-# CGI::Lingua reads LANG itself, but as a language tag, and a locale is not
-# one: it reads en_US.UTF-8 as no language at all.  The locale is turned into
-# the tag it stands for (the codeset and modifier dropped, _ written -) and
-# given to CGI::Lingua as a header would be.  C and POSIX name no language.
-sub _from_locale {
-	my ($locale) = @_;
-
-	(my $tag = $locale) =~ s/[.@].*\z//s;
-	return $BASE if $tag eq '' || $tag eq 'C' || $tag eq 'POSIX';
-	$tag =~ tr/_/-/;
-	return choose(accept => $tag);
+	my $locale = join "\0", map { $_ // '' } @ENV{qw(LC_ALL LC_MESSAGES LANG)};
+	return $FROM_LOCALE{$locale} //= do {
+		delete local $ENV{HTTP_ACCEPT_LANGUAGE};
+		_lingua([ @LANGUAGES ]) // $BASE;
+	};
 }
 
 # text($package, \%messages, $key) -> $template | undef
@@ -262,7 +263,9 @@ module directly gets British English whatever the locale.
 
 =head4 INPUT
 
-None.  Reads C<LC_ALL>, C<LC_MESSAGES> and C<LANG>, the first that is set.
+None.  L<CGI::Lingua> (0.88 and later) reads C<LC_ALL>, then C<LC_MESSAGES>,
+then C<LANG>, as POSIX does; C<LC_ALL=C> names no language whatever C<LANG>
+says.  C<HTTP_ACCEPT_LANGUAGE> is ignored here, even when set.
 
 =head4 OUTPUT
 

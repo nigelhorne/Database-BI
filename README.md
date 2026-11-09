@@ -296,7 +296,8 @@ perl Makefile.PL
     device (the default), and the rows a table or pivot shows on a page (25, 50,
     100, 200 -- the default -- or All).  The theme is kept in the browser's
     `localStorage` and the page size in its cookie `bi_per_page`, because the
-    server reads it; neither is stored on the server, and both apply to every page.
+    server reads it (a value other than 25, 50, 100, 200 or 0 is ignored, and the
+    page is 200 rows); neither is stored on the server, and both apply to every page.
     Saved charts, printed pages and embedded canvases stay light.  The Preferences
     link at the top of each page passes `back=` (that page), so the breadcrumb
     here leads back to it.
@@ -309,9 +310,10 @@ perl Makefile.PL
 
     A long table is shown a page at a time: `?page=` is the page, and
     `?per_page=` its size (else the reader's preference, else 200; up to 2000;
-    `0` is every row on one page).  The page says "Page 2 of 7", and its Rows per
-    page list (25, 50, 100, 200, All) changes the size, keeping the first row on
-    screen.  A pivot pages its row groups the same way.
+    `0` is every row on one page, and then `page=` is ignored).  The page says
+    "Page 2 of 7", and its Rows per page list (25, 50, 100, 200, All) changes the
+    size, keeping the first row on screen.  A pivot pages its row groups the same
+    way.
 
     `?f=col:between:lo:hi` keeps the rows whose `col` lies from `lo` to `hi`,
     both included, whichever bound is written first.  Two numbers (a range of
@@ -466,7 +468,9 @@ perl Makefile.PL
 
     A one-line chart offers check boxes above it for reference lines: Min, Avg,
     Max, and Trend, the straight line closest to the points (least squares, by
-    [Statistics::LineFit](https://metacpan.org/pod/Statistics%3A%3ALineFit)), labelled with its slope per point and its R squared.
+    [Statistics::LineFit](https://metacpan.org/pod/Statistics%3A%3ALineFit)), labelled with its slope per point and its R squared
+    (a flat series is slope 0 and R squared 1: the line passes through every
+    point).
     The points are evenly spaced along the axis, so the fit is of Y against each
     point's place, not its label.  After a zoom, every line is worked out again
     from the points in view.  None is offered on a chart with `series=`, and Trend
