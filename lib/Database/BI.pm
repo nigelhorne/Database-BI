@@ -486,7 +486,9 @@ device (the default), and the rows a table or pivot shows on a page (25, 50,
 100, 200 -- the default -- or All).  The theme is kept in the browser's
 C<localStorage> and the page size in its cookie C<bi_per_page>, because the
 server reads it; neither is stored on the server, and both apply to every page.
-Saved charts, printed pages and embedded canvases stay light.
+Saved charts, printed pages and embedded canvases stay light.  The Preferences
+link at the top of each page passes C<back=> (that page), so the breadcrumb
+here leads back to it.
 
 =item C<GET /view/:table>
 
@@ -2886,6 +2888,13 @@ sub startup ($self) {
 		if (!defined $c->stash('trail')) {
 			require Database::BI::Controller::Dashboard;
 			$c->stash(trail => Database::BI::Controller::Dashboard::_breadcrumb_trail($c));
+		}
+
+		# The nav's Preferences link names this page with back=, so the
+		# preferences page's trail leads back to it (Dashboard::_crumb_parent).
+		if (!defined $c->stash('preferences_url')) {
+			require Database::BI::Controller::Dashboard;
+			$c->stash(preferences_url => Database::BI::Controller::Dashboard::_preferences_url($c));
 		}
 
 		return if defined $c->stash('tutorial_chapter');

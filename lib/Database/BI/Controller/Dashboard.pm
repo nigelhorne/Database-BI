@@ -924,6 +924,24 @@ sub _breadcrumb_trail {
 	return \@trail;
 }
 
+# _preferences_url($c) -> $href
+#
+# Where the nav's Preferences link goes: /preferences?back=<this page>, so
+# the preferences page's trail ends with a way back here.  This page is the
+# last crumb of its trail; a page with no trail (Home, an error page) gets the
+# plain link, and so does the preferences page, which keeps its own back=.
+# A plain function, called from the before_render hook in Database::BI.
+sub _preferences_url {
+	my ($c) = @_;
+	my $plain = '/preferences';
+	return $plain unless ref $c && $c->isa(__PACKAGE__);
+	my $trail = $c->stash('trail');
+	return $plain unless ref $trail eq 'ARRAY' && @$trail;
+	my $here = $trail->[-1]{url} // '';
+	return $plain if !length($here) || Mojo::URL->new($here)->path->to_string eq $plain;
+	return "$plain?back=" . url_escape(encode('UTF-8', $here));
+}
+
 # _crumb_local($self, $raw) -> Mojo::URL | undef
 #
 # A parent link as a URL on this site, or undef when there is none to follow:
@@ -976,6 +994,10 @@ sub _crumb_parent :Protected ($self, $url) {
 		return undef unless $spec =~ /\Apath:(.+)\z/;
 		my ($file) = _split_path($1);
 		return Mojo::URL->new('/browse?path=' . url_escape(Mojo::File->new($file)->dirname->to_string));
+	}
+	# Preferences came from the page whose nav link opened it (_preferences_url).
+	if ($path eq '/preferences') {
+		return $self->_crumb_local($q->param('back'));
 	}
 	# A canvas came from where its back= says, else from the list of canvases.
 	if ($path =~ m{\A/a/}) {

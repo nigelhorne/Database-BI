@@ -1440,7 +1440,7 @@
       <a id="site-nav-canvases" href="/canvases" title="Your saved canvases">Canvases</a>
       <a id="site-nav-catalog" href="/catalog" title="Every data file, and the canvases that use it">Catalog</a>
       <a id="site-nav-open" href="/browse" title="Open a data file from anywhere on the server">Open file&hellip;</a>
-      <a id="site-nav-preferences" href="/preferences" title="Choose light or dark, and other settings">Preferences</a>
+      <a id="site-nav-preferences" href="[% (preferences_url.length ? preferences_url : '/preferences') | html %]" title="Choose light or dark, and other settings">Preferences</a>
       <a id="site-nav-tutorial" href="/tutorial" target="_blank" rel="noopener"
          title="Open the tutorial in a new tab (F1)">Tutorial</a>
       [%- IF tutorial_chapter %]

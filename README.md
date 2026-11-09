@@ -297,7 +297,9 @@ perl Makefile.PL
     100, 200 -- the default -- or All).  The theme is kept in the browser's
     `localStorage` and the page size in its cookie `bi_per_page`, because the
     server reads it; neither is stored on the server, and both apply to every page.
-    Saved charts, printed pages and embedded canvases stay light.
+    Saved charts, printed pages and embedded canvases stay light.  The Preferences
+    link at the top of each page passes `back=` (that page), so the breadcrumb
+    here leads back to it.
 
 - `GET /view/:table`
 
