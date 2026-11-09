@@ -63,7 +63,7 @@ the exception: one on a column its dataset no longer has is ignored.
 second (or further) file beneath the current rows, using a unified column
 set and leaving blanks where a source file lacks a column.
 - **Charts** -- nine [HTML::D3](https://metacpan.org/pod/HTML%3A%3AD3) D3.js v7 chart types are accessible from
-the toolbar: line chart (brush-to-zoom, reference lines for min/avg/max,
+the toolbar: line chart (brush-to-zoom, reference lines for min/avg/max and a trend line,
 multi-series interactive legend), pie chart (click-a-slice to filter,
 top-N, donut mode, configurable colour scheme), heatmap (two categorical
 axes, count or sum mode), bar chart (horizontal or vertical, sort,
@@ -463,6 +463,14 @@ perl Makefile.PL
     back2_label=<text> Label for the back2 link (optional; default "Back")
     j=, f=, d=         pipeline params (same as /join)
     ```
+
+    A one-line chart offers check boxes above it for reference lines: Min, Avg,
+    Max, and Trend, the straight line closest to the points (least squares, by
+    [Statistics::LineFit](https://metacpan.org/pod/Statistics%3A%3ALineFit)), labelled with its slope per point and its R squared.
+    The points are evenly spaced along the axis, so the fit is of Y against each
+    point's place, not its label.  After a zoom, every line is worked out again
+    from the points in view.  None is offered on a chart with `series=`, and Trend
+    needs two points.
 
 - `GET /pie`
 

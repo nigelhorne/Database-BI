@@ -10115,10 +10115,18 @@ sub graph_view ($self) {
 	}
 	# Perl fallback: compute from the already-stripped @y_vals.
 	unless (defined $min_y) {
-		$min_y = min(@y_vals);
-		$max_y = max(@y_vals);
-		$avg_y = sum(@y_vals) / scalar(@y_vals);
+		require Statistics::Lite;
+		$min_y = Statistics::Lite::min(@y_vals);
+		$max_y = Statistics::Lite::max(@y_vals);
+		$avg_y = Statistics::Lite::mean(@y_vals);
 	}
+
+	# The trend line: a least-squares fit of Y against the point's place on the
+	# axis.  The axis is a d3.scalePoint, which spaces the points evenly whatever
+	# their labels say, so the place (0, 1, 2, ...) is what makes the fit a
+	# straight line on this chart.  The page refits the points in view after a
+	# zoom, the same way; this is the whole chart's.
+	my $trend = _trend_line(\@y_vals);
 
 	my ($source_url, $source_accessed) = $self->_url_attribution;
 
@@ -10151,10 +10159,33 @@ sub graph_view ($self) {
 		ref_min_y        => $min_y,
 		ref_max_y        => $max_y,
 		ref_avg_y        => sprintf('%.4g', $avg_y),
+		($trend ? (
+			trend_slope     => sprintf('%.4g', $trend->{slope}),
+			trend_intercept => sprintf('%.6g', $trend->{intercept}),
+			trend_r2        => sprintf('%.2f', $trend->{r_squared}),
+		) : ()),
 		source_url       => $source_url,
 		source_accessed  => $source_accessed,
 		language         => $language,
 	);
+}
+
+# _trend_line(\@y) -> { slope, intercept, r_squared } | undef
+#
+# The least-squares line through the values, each at its place 0, 1, 2, ...
+# (Statistics::LineFit).  undef for fewer than two values, or when the fit
+# fails.  A flat series has slope 0 and an R squared of 1 (LineFit's answer:
+# the line passes through every point).
+sub _trend_line {
+	my ($ys) = @_;
+	return undef unless ref $ys eq 'ARRAY' && @$ys >= 2;
+	require Statistics::LineFit;
+	my $fit = Statistics::LineFit->new;
+	return undef unless $fit->setData([ 0 .. $#$ys ], $ys);
+	my ($intercept, $slope) = $fit->coefficients;
+	return undef unless defined $slope && defined $intercept;
+	my $r2 = $fit->rSquared;
+	return { slope => $slope, intercept => $intercept, r_squared => $r2 // 0 };
 }
 
 sub pie_view ($self) {

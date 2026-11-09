@@ -32,6 +32,8 @@ WriteMakefile(
 		'File::Path'	=> '2.07',	# For remove_tree in Dashboard.pm at runtime
 		'File::Spec'	=> '3.40',
 		'List::Util'	=> '1.40',
+		'Statistics::LineFit'	=> '0.06',	# the line graph's trend line
+		'Statistics::Lite'	=> '3.62',	# the line graph's min, max and mean when not pushed to SQL
 		'IPC::System::Simple' => 0,	# For autodie (:all) in DataSource.pm at runtime
 		'HTML::D3' => '0.30',	# 0.30 puts a Content-Security-Policy nonce on its scripts; 0.29 colours treemap tiles by a measure, takes a combo scheme and escapes tooltip text; 0.27 stops a label ending the script it is written into; 0.20 added radius_range support for render_scatter_chart_snippet; 0.19 added scatter/stacked/combo/treemap/histogram snippets
 		'HTML::TagCloud' => '0.38',	# word cloud page (/wordcloud)

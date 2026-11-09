@@ -229,7 +229,7 @@ set and leaving blanks where a source file lacks a column.
 =item *
 
 B<Charts> -- nine L<HTML::D3> D3.js v7 chart types are accessible from
-the toolbar: line chart (brush-to-zoom, reference lines for min/avg/max,
+the toolbar: line chart (brush-to-zoom, reference lines for min/avg/max and a trend line,
 multi-series interactive legend), pie chart (click-a-slice to filter,
 top-N, donut mode, configurable colour scheme), heatmap (two categorical
 axes, count or sum mode), bar chart (horizontal or vertical, sort,
@@ -642,6 +642,14 @@ Renders a D3.js v7 zoomable line chart of any two columns.  Parameters:
                      needed (optional; e.g. /tables?l=... for the schema browser)
   back2_label=<text> Label for the back2 link (optional; default "Back")
   j=, f=, d=         pipeline params (same as /join)
+
+A one-line chart offers check boxes above it for reference lines: Min, Avg,
+Max, and Trend, the straight line closest to the points (least squares, by
+L<Statistics::LineFit>), labelled with its slope per point and its R squared.
+The points are evenly spaced along the axis, so the fit is of Y against each
+point's place, not its label.  After a zoom, every line is worked out again
+from the points in view.  None is offered on a chart with C<series=>, and Trend
+needs two points.
 
 =item C<GET /pie>
 
