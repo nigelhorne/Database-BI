@@ -89,9 +89,12 @@ WriteMakefile(
 				url  => 'https://github.com/nigelhorne/Database-BI.git',
 				web => 'https://github.com/nigelhorne/Database-BI',
 			}, bugtracker => {
-				web => 'https://github.com/nigelhorne/Database-BI/issues',
+				url => 'https://rt.cpan.org/Public/Dist/Display.html?Name=Database-BI',
+				web => 'https://rt.cpan.org/Public/Dist/Display.html?Name=Database-BI',
+				# web => 'https://github.com/nigelhorne/Database-BI/issues',
+				mailto => 'bug-Database-BI@rt.cpan.org'
 			}
-		},		prereqs => {
+		}, prereqs => {
 			runtime => {
 				recommends => {
 					# Geocoding a dataset's location column (Phase 6.2).  Loaded with a

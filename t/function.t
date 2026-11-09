@@ -5584,6 +5584,13 @@ sub croak_rethrow {
 		is $number->('1e999'), undef, 'nor is what would be infinity';
 		is $number->('-1e999'), undef, 'in either direction';
 		is $number->('9' x 400), undef, 'however it is spelled';
+		# The limit is a double's, which is the browser's, on every perl.  A perl
+		# built with -Duselongdouble or -Dusequadmath holds these as finite
+		# numbers, and passed them through until GitHub issue 6.
+		ok defined $number->('1.79e308'), 'the largest a double holds is a number';
+		is $number->('1.8e308'), undef, 'one past it is not, whatever this perl holds';
+		is $number->('-1.8e308'), undef, '... nor below';
+		is $number->('1e4000'), undef, '... nor far past it';
 		keeps_globals_ok('parse_number', sub { $number->('$5') });
 	};
 }

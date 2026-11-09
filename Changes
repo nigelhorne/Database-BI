@@ -21,6 +21,8 @@ Revision history for Database-BI
 	  disc are kept where Object::Configure's cache_dir, CACHEDIR, CACHE_DIR
 	  or cache_dir in database_bi.conf says, else where they were.
 	[ Bug fixes ]
+	- A number too large for the browser (1e999) is not a number on a perl
+	  built with long doubles either (GitHub #6).
 	- Sorting a table of more than one page sorts every row, so page 1 is the
 	  start of the sorted table; it sorted only the rows on the page.
 	- A code with digits in it (T27, CT4) sorts as text, not as its digits;
