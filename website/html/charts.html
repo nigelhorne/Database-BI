@@ -112,7 +112,7 @@
 		</tr>
 		<tr>
 			<td><code>/map</code></td>
-			<td>OpenStreetMap map with clustered markers, an optional heat layer, bubbles and colour rules.</td>
+			<td>OpenStreetMap map with clustered markers, an optional heat layer, county outlines, bubbles and colour rules.</td>
 			<td>see <a href="#maps">Maps</a></td>
 		</tr>
 		<tr>
@@ -223,6 +223,17 @@
 	<dd>A named tile source from the <code>tile_sources</code> configuration key, for a tile server on your own network.</dd>
 	<dt><code>heat=1</code>, <code>weight=&lt;col&gt;</code></dt>
 	<dd>A heat layer over the markers, optionally weighted by a numeric column.</dd>
+	<dt><code>bounds=county</code></dt>
+	<dd>
+		The outline of the county each marker is in, with a checkbox on the map
+		to hide them; the map panel's <em>Show county boundaries</em>. The
+		outlines come from OpenStreetMap, which is sent each marker's position
+		rounded to about 100 metres, and are remembered, so a later map asks
+		again only for a point outside every outline it has. Those not known yet
+		are looked up after the page is shown, with the same progress bar as
+		places. A county is a US county or independent city, an English county,
+		or an Indian sub-district.
+	</dd>
 	<dt><code>size=&lt;col&gt;</code></dt>
 	<dd>Markers become circles with a radius from a numeric column.</dd>
 	<dt><code>color=&lt;col&gt;</code> with <code>color_rule=op:value:colour</code></dt>

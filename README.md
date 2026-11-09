@@ -728,6 +728,7 @@ perl Makefile.PL
     max_zoom=N     tile layer maxZoom 0..28 (default: map_max_zoom, if set)
     tiles=<name>   named tile source from the tile_sources config key
     heat=1         add a heatmap layer over the markers
+    bounds=county  draw the outline of the county around each marker
     weight=<col>   numeric heatmap intensity column (normalised to 0..1)
     size=<col>     numeric bubble-radius column; markers become circles
     color=<col>    colour markers from a column
@@ -741,6 +742,19 @@ perl Makefile.PL
     back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
     f=            result filters (repeatable)
     ```
+
+    With `bounds=county` (the map panel's "Show county boundaries"), the map draws
+    the outline of the county each marker is in, with a checkbox on the map to hide
+    them.  The outlines come from Nominatim's reverse lookup, which is sent each
+    marker's position rounded to three decimal places (about 110 metres), and only
+    when `map_geocode_online` allows it.  Each outline is remembered under
+    `model_dir` (`boundary-cache`), with the points found in it, so a point inside
+    an outline already known costs no lookup.  A county is Nominatim's place rank
+    12: a US county or independent city, an English county, an Indian sub-district.
+    Outlines not known yet are looked up as places are: by the progress bar, through
+    `POST /geo/boundary`, or in the request for `geocode=wait`; at most
+    `map_geocode_online_max` in one request.  The checkbox needs [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.15;
+    with 0.14 the outlines are always shown.
 
     A marker stands for every row at its place, and its popup lists them all: a
     value every row shares is shown once ("Person: Valentin Puntar"), and the
@@ -1030,6 +1044,16 @@ perl Makefile.PL
     `{ place, status, stored, online_failed, messages }`, where `status` is
     `found`, `not_found`, `held` (not looked up now, and not remembered) or
     `refused`.  See ["Maps"](#maps).
+
+- `POST /geo/boundary`
+
+    Finds the outline of the county around one point, for the map page's progress
+    bar, and remembers it at once.  Body: `point=&level=county&sig=`, where
+    `point` is `lat,lon` rounded to three places and `sig` the signature the map
+    page gave it (any other point is refused with 403), plus `online=0` to ask
+    nothing.  Returns `{ point, status, stored, online_failed, name }`, where
+    `status` is `found`, `nowhere` (no county there, such as the sea) or `held`
+    (not settled now, and not remembered).
 
 - `GET /insights`
 
@@ -1676,8 +1700,9 @@ so nothing typed on a map page is sent anywhere.
 
 Map-specific config keys: `map_geocode_max` (new geocoder lookups per request,
 default 500), `map_geocode_online` (0 keeps geocoding on this machine: a place
-the local data does not know is not sent to OpenStreetMap's Nominatim; default
-1), `map_geocode_online_max` (places asked of Nominatim per request, default 20;
+the local data does not know is not sent to OpenStreetMap's Nominatim, nor a
+marker's position for its county outline; default 1), `map_geocode_online_max`
+(places, and outlines, asked of Nominatim per request, default 20;
 at one a second, the rest are left for the next request or for
 `script/bi-geocode`; the map page's progress bar asks one place a request, so
 it reaches every place), `secrets` (a list; the first signs the places a map

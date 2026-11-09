@@ -793,22 +793,9 @@ sub _online_geocoder {
 	my $ok = eval {
 		require Geo::Coder::OSM;
 		Geo::Coder::OSM->VERSION($OSM_FLOOR);
-		require LWP::UserAgent::Throttled;
-		LWP::UserAgent::Throttled->VERSION($THROTTLED_FLOOR);
 		1;
 	};
-	return unless $ok;
-
-	if (!$online_ua) {
-		my $ua = LWP::UserAgent::Throttled->new(
-			agent      => $USER_AGENT,
-			timeout    => $ONLINE_TIMEOUT,
-			keep_alive => 1,
-		);
-		$ua->env_proxy();
-		$ua->throttle({ $NOMINATIM_HOST => $NOMINATIM_GAP });
-		$online_ua = $ua;
-	}
+	return unless $ok && nominatim_ua();
 
 	{
 		no warnings qw(once);	# the module's own variable, which only it reads
@@ -816,6 +803,53 @@ sub _online_geocoder {
 	}
 
 	return Geo::Coder::OSM->new(ua => $online_ua, sources => $NOMINATIM_SOURCE);
+}
+
+=head2 nominatim_ua
+
+    my $ua = Database::BI::Model::Geocode::nominatim_ua()
+        or return;    # LWP::UserAgent::Throttled is not installed
+
+The user agent every request to Nominatim goes through, from the geocoder and
+from L<Database::BI::Model::Boundary> alike: one per process, so the gap of a
+second Nominatim's usage policy asks for holds across both, and across map
+pages opened together.  It names this application, gives up after ten seconds,
+and follows the environment's proxy settings.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+None.
+
+=head4 OUTPUT
+
+An L<LWP::UserAgent::Throttled> (an L<LWP::UserAgent>), the same object on
+every call; or an empty list when LWP::UserAgent::Throttled 0.14 or later
+cannot be loaded.
+
+=cut
+
+sub nominatim_ua {
+	return $online_ua if $online_ua;
+
+	my $ok = eval {
+		require LWP::UserAgent::Throttled;
+		LWP::UserAgent::Throttled->VERSION($THROTTLED_FLOOR);
+		1;
+	};
+	return unless $ok;
+
+	my $ua = LWP::UserAgent::Throttled->new(
+		agent      => $USER_AGENT,
+		timeout    => $ONLINE_TIMEOUT,
+		keep_alive => 1,
+	);
+	$ua->env_proxy();
+	$ua->throttle({ $NOMINATIM_HOST => $NOMINATIM_GAP });
+	$online_ua = $ua;
+
+	return $online_ua;
 }
 
 # _judge() -> the object whose valid_location() decides what is a place

@@ -1458,6 +1458,12 @@
           Heatmap layer
         </label>
       </div>
+      <div class="join-field">
+        <label class="check-label" title="Draw the outline of the county each marker is in. The outlines come from OpenStreetMap, which is sent each marker's position, rounded to about 100 metres; each outline is then remembered.">
+          <input type="checkbox" id="map-bounds-chk">
+          Show county boundaries
+        </label>
+      </div>
       <div class="join-field" id="map-weight-field" hidden>
         <label for="map-weight-sel">Heat weight column</label>
         <select id="map-weight-sel">
@@ -4815,6 +4821,8 @@ function biDetectColType(colName) {
     }
     var zVal = zoomInpEl ? zoomInpEl.value.trim() : '';
     if (zVal !== '') addHidden('zoom', zVal);
+    var boundsChkEl = document.getElementById('map-bounds-chk');
+    if (boundsChkEl && boundsChkEl.checked) addHidden('bounds', 'county');
 
     var col = colorSel ? colorSel.value : '';
     if (!col) return;

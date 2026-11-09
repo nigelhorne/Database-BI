@@ -3626,6 +3626,57 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->post_ok('/geo/lookup' => form => { place => 'Paris', sig => 'forged' })->status_is(403);
 		message_ok(Dashboard => 'error_geo_lookup_unsigned', $tm->tx->res->json->{error});
 
+		# County outlines (bounds=county), with Nominatim's reverse lookup and
+		# HTML::OSM stood in for: geo.csv has two points, one in each box.
+		{
+			require BI::Test::Boundary;
+			my $areas = [
+				{ name => 'Ten', id => 1, box => [ 9, 19, 11, 21 ] },
+				{ name => 'Thirty', id => 2, box => [ 29, 39, 31, 41 ] },
+			];
+			my $bounds = "/map?$l&lat=lat&lon=lon&bounds=county";
+			$tm->get_ok("/map?$l&lat=lat&lon=lon&bounds=shire")->status_is(400);
+			message_ok(Dashboard => 'error_map_bounds_unknown', $tm->tx->res->body, ['shire']);
+
+			no warnings qw(redefine once);
+			local *Database::BI::Controller::Dashboard::_map_renderer_version = sub { (1, '0.15') };
+			my @layers;
+			local *HTML::OSM::new = sub { bless {}, 'Unit::FakeOSM' };
+			local *Unit::FakeOSM::add_marker = sub { 1 };
+			local *Unit::FakeOSM::add_geojson = sub { my (undef, undef, %o) = @_; push @layers, $o{name}; 1 };
+			local *Unit::FakeOSM::onload_render = sub { ('', '<div id="map"></div>') };
+
+			my $outlines = unit_app();
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$outlines->get_ok($bounds)->status_is(200);
+			});
+			message_ok(Dashboard => 'map_bounds_layer', $layers[0]);
+
+			my $capped = unit_app();
+			$capped->app->config->{map_geocode_online_max} = 1;
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$capped->get_ok($bounds)->status_is(200);
+			});
+			message_ok(Dashboard => 'warn_map_bounds_pending', $capped->tx->res->body, [1, 2], 1);
+
+			my $offline = unit_app();
+			$offline->app->config->{map_geocode_online} = 0;
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$offline->get_ok($bounds)->status_is(200);
+			});
+			message_ok(Dashboard => 'warn_map_bounds_offline', $offline->tx->res->body, [2, 2], 1);
+
+			my $down = unit_app();
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas, fail => 1), sub {
+				$down->get_ok($bounds)->status_is(200);
+			});
+			message_ok(Dashboard => 'warn_map_bounds_failed', $down->tx->res->body, [2, 2], 1);
+		}
+		$tm->post_ok('/geo/boundary')->status_is(400);
+		message_ok(Dashboard => 'error_geo_boundary_point', $tm->tx->res->json->{error});
+		$tm->post_ok('/geo/boundary' => form => { point => '10.000,20.000', sig => 'forged' })->status_is(403);
+		message_ok(Dashboard => 'error_geo_boundary_unsigned', $tm->tx->res->json->{error});
+
 		# The AI routes: the provider is the only thing replaced.
 		require HTTP::Response;
 		$tm->post_ok("/api/ask?l=$SPEC&q=x")->status_is(503);

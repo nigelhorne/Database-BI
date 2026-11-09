@@ -1210,7 +1210,7 @@ subtest 'A browser is shown the map at once, with the places to look up listed' 
 		'it counts the places that are not cached, once each, without the bare number');
 	like($body, qr/L\.marker\(\[51\.33, 1\.42\]/, 'a cached place is on the map already');
 	unlike($body, qr/class="map-notes"/, 'the notes wait until the places are looked up');
-	like($body, qr{fetch\('/geo/lookup'}, 'the page posts to /geo/lookup');
+	like($body, qr{fetch\(outline \? '/geo/boundary' : '/geo/lookup'}, 'the page posts to /geo/lookup (and an outline to /geo/boundary)');
 
 	my ($json) = $body =~ m{<script\b[^>]*\stype="application/json" id="map-pending">(.*?)</script>}s;
 	ok(defined($json), 'the places are listed for the script');

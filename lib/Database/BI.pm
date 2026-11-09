@@ -886,6 +886,7 @@ browser, the page waits for the lookups instead (C<geocode=wait>).  Parameters:
   max_zoom=N     tile layer maxZoom 0..28 (default: map_max_zoom, if set)
   tiles=<name>   named tile source from the tile_sources config key
   heat=1         add a heatmap layer over the markers
+  bounds=county  draw the outline of the county around each marker
   weight=<col>   numeric heatmap intensity column (normalised to 0..1)
   size=<col>     numeric bubble-radius column; markers become circles
   color=<col>    colour markers from a column
@@ -898,6 +899,19 @@ browser, the page waits for the lookups instead (C<geocode=wait>).  Parameters:
   geocode=cached look nothing up: plot what the cache knows (where Cancel leads)
   back=<url>, back2=<url>, back2_label=<text>  breadcrumb links
   f=            result filters (repeatable)
+
+With C<bounds=county> (the map panel's "Show county boundaries"), the map draws
+the outline of the county each marker is in, with a checkbox on the map to hide
+them.  The outlines come from Nominatim's reverse lookup, which is sent each
+marker's position rounded to three decimal places (about 110 metres), and only
+when C<map_geocode_online> allows it.  Each outline is remembered under
+C<model_dir> (C<boundary-cache>), with the points found in it, so a point inside
+an outline already known costs no lookup.  A county is Nominatim's place rank
+12: a US county or independent city, an English county, an Indian sub-district.
+Outlines not known yet are looked up as places are: by the progress bar, through
+C<POST /geo/boundary>, or in the request for C<geocode=wait>; at most
+C<map_geocode_online_max> in one request.  The checkbox needs L<HTML::OSM> 0.15;
+with 0.14 the outlines are always shown.
 
 A marker stands for every row at its place, and its popup lists them all: a
 value every row shares is shown once ("Person: Valentin Puntar"), and the
@@ -1187,6 +1201,16 @@ plus C<online=0> to keep the lookup on this machine.  Returns
 C<{ place, status, stored, online_failed, messages }>, where C<status> is
 C<found>, C<not_found>, C<held> (not looked up now, and not remembered) or
 C<refused>.  See L</Maps>.
+
+=item C<POST /geo/boundary>
+
+Finds the outline of the county around one point, for the map page's progress
+bar, and remembers it at once.  Body: C<point=&level=county&sig=>, where
+C<point> is C<lat,lon> rounded to three places and C<sig> the signature the map
+page gave it (any other point is refused with 403), plus C<online=0> to ask
+nothing.  Returns C<{ point, status, stored, online_failed, name }>, where
+C<status> is C<found>, C<nowhere> (no county there, such as the sea) or C<held>
+(not settled now, and not remembered).
 
 =item C<GET /insights>
 
@@ -1803,8 +1827,9 @@ so nothing typed on a map page is sent anywhere.
 
 Map-specific config keys: C<map_geocode_max> (new geocoder lookups per request,
 default 500), C<map_geocode_online> (0 keeps geocoding on this machine: a place
-the local data does not know is not sent to OpenStreetMap's Nominatim; default
-1), C<map_geocode_online_max> (places asked of Nominatim per request, default 20;
+the local data does not know is not sent to OpenStreetMap's Nominatim, nor a
+marker's position for its county outline; default 1), C<map_geocode_online_max>
+(places, and outlines, asked of Nominatim per request, default 20;
 at one a second, the rest are left for the next request or for
 C<script/bi-geocode>; the map page's progress bar asks one place a request, so
 it reaches every place), C<secrets> (a list; the first signs the places a map
@@ -3054,6 +3079,7 @@ sub startup ($self) {
 	$r->post('/geo/save')     ->to('Dashboard#geo_save');
 	$r->post('/geo/delete')   ->to('Dashboard#geo_delete');
 	$r->post('/geo/lookup')   ->to('Dashboard#geo_lookup');
+	$r->post('/geo/boundary') ->to('Dashboard#geo_boundary');
 	$r->get('/geo/list')      ->to('Dashboard#geo_list');
 	$r->get('/scatter')       ->to('Dashboard#scatter_view');
 	$r->get('/stacked')       ->to('Dashboard#stacked_view');

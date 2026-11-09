@@ -235,11 +235,18 @@ Readonly my %MESSAGES => (
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
 	map_legend_empty            => 'Nothing in this view',
+	map_bounds_layer            => 'County boundaries',
 	warn_map_cache_unwritten    => 'The resolved places could not be remembered in the model store, so the next request will look them up again',
 	error_map_tiles_unknown     => 'Unknown tile source "%s"; define it under tile_sources in database_bi.conf',
 	error_map_geocode_mode      => 'geocode= must be "wait" (look places up before the page is sent) or "cached" (look nothing up), not "%s"',
 	error_geo_lookup_place      => 'A lookup needs place= and the sig= the map page gave it',
 	error_geo_lookup_unsigned   => 'This place was not listed by a map page, or the server has restarted since; open the map again',
+	error_map_bounds_unknown    => 'bounds= must be "county", the only kind of boundary so far, not "%s"',
+	warn_map_bounds_pending     => '%d of %d places have no county outline yet; open the map again to look them up',
+	warn_map_bounds_offline     => '%d of %d places have no county outline: outlines come from OpenStreetMap, which this server does not ask (map_geocode_online is off, or LWP::UserAgent::Throttled is not installed)',
+	warn_map_bounds_failed      => 'OpenStreetMap did not answer, so %d of %d places have no county outline; they are tried again next time',
+	error_geo_boundary_point    => 'A lookup needs point= and the sig= the map page gave it',
+	error_geo_boundary_unsigned => 'This point was not listed by a map page, or the server has restarted since; open the map again',
 	error_insights_no_data      => 'No data available to analyse',
 	insights_insufficient_data  => 'Insufficient data for this insight type (need more rows or periods)',
 	ask_unavailable    => 'Ask a question is not available: no AI provider is configured',
@@ -13127,6 +13134,44 @@ sub _map_geocoder :Protected ($self, $online) {
 	);
 }
 
+# _map_boundary($self, $level, $online) -> Database::BI::Model::Boundary
+#
+# What finds the outline around each marker, for the map and /geo/boundary
+# alike.  It asks OpenStreetMap only when the operator allows the geocoder to
+# (map_geocode_online), and at most map_geocode_online_max times a request.
+# Its answers are kept beside the geocode cache, under model_dir, so they
+# outlive the process and are shared by every worker; with no model_dir it
+# keeps them in memory.
+sub _map_boundary :Protected ($self, $level, $online) {
+	require Database::BI::Model::Boundary;
+
+	my $cfg         = $self->app->config;
+	my $models_path = $self->_calc_models_path;
+	my $cache;
+	if (defined $models_path) {
+		my $dir = Mojo::File->new($models_path)->dirname->to_string;
+		$cache = eval { Database::BI::Model::Boundary->file_cache($dir) };
+	}
+
+	return Database::BI::Model::Boundary->new(
+		level      => $level,
+		online     => (($online && ($cfg->{map_geocode_online} // 1)) ? 1 : 0),
+		online_max => _map_limit($cfg->{map_geocode_online_max}, $DEFAULT_MAP_GEOCODE_ONLINE_MAX),
+		(defined($cache) ? (cache => $cache) : ()),
+	);
+}
+
+# _map_bounds_level($value) -> the level, or undef when $value names none
+#
+# bounds= on the map page, and a map card's options.bounds, which is stored
+# unchecked.
+sub _map_bounds_level {
+	my ($value) = @_;
+	return unless defined($value) && !ref($value) && length($value);
+	require Database::BI::Model::Boundary;
+	return (grep { $_ eq $value } Database::BI::Model::Boundary->levels) ? $value : undef;
+}
+
 # _map_data($self, \@records, \@columns, \%encode, \%options, $spec_key, $id_suffix)
 #     -> \%result
 #
@@ -13358,6 +13403,30 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		text => $self->_i18n('error_map_no_markers'),
 	} unless @markers;
 
+	# The outline of the county around each marker (bounds=county).  Those
+	# not known yet are looked up here, up to the online limit, unless the
+	# caller said lookup => 0: the map page in a browser lists them for its
+	# progress bar instead, as it does places.
+	my $bounds_level = _map_bounds_level($options->{bounds});
+	my ($outlines, @bounds_pending);
+	if (defined($bounds_level) && @markers) {
+		my $lookup = (defined($options->{lookup}) && !$options->{lookup}) ? 0 : 1;
+		$outlines = $self->_map_boundary($bounds_level, 1)->outlines(
+			[ map { [ $_->{lat}, $_->{lon} ] } @markers ],
+			lookup => $lookup,
+		);
+		@bounds_pending = @{ $outlines->{pending} };
+		if (@bounds_pending) {
+			my $key = $outlines->{offline} ? 'warn_map_bounds_offline'
+				: $outlines->{failed}      ? 'warn_map_bounds_failed'
+				:                            'warn_map_bounds_pending';
+			push @messages, {
+				key  => $key,
+				text => $self->_i18n($key, scalar(@bounds_pending), $outlines->{counts}{points}),
+			};
+		}
+	}
+
 	# Leaflet's CSS and JS belong in the head, which the layout owns; the rest of
 	# the map - the search box, the buttons, the div and its script - goes in the
 	# body where the map should appear.
@@ -13518,6 +13587,24 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 					eval { $map->add_heatmap(\@heat_pts) };
 				}
 
+				# The county outlines, under the markers, with a checkbox on
+				# the map to hide them (HTML::OSM 0.15; an older copy ignores
+				# name and draws them always).  Leaflet reads a popup as HTML,
+				# and a name from OpenStreetMap is text, so it is escaped.
+				if ($outlines && @{ $outlines->{features} }) {
+					$map->add_geojson(
+						{
+							type     => 'FeatureCollection',
+							features => [ map {
+								{ %{$_}, properties => { name => xml_escape($_->{properties}{name} // '') } }
+							} @{ $outlines->{features} } ],
+						},
+						style => { color => '#555555', weight => 1.5, opacity => 0.8, fill => \0 },
+						popup => 'name',
+						name  => $self->_i18n('map_bounds_layer'),
+					);
+				}
+
 				($map_head, $map_body) = $map->onload_render();
 				($map_head, $map_body) = _canvas_map_html($map_head, $map_body, $id_suffix)
 					if defined($id_suffix) && length($id_suffix);
@@ -13555,6 +13642,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		if defined($options->{max}) && $options->{max} =~ /\A\d+\z/ && $options->{max} > 0;
 	$chart_spec{options}{zoom}  = $options->{zoom}  if defined $options->{zoom};
 	$chart_spec{options}{heat}  = 1                 if $options->{heat};
+	$chart_spec{options}{bounds} = $bounds_level    if defined $bounds_level;
 	$chart_spec{options}{weight} = $options->{weight}
 		if defined($options->{weight}) && length($options->{weight});
 	if (defined($options->{size}) && length($options->{size})) {
@@ -13587,6 +13675,9 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		unplotted    => \@unplotted,
 		unplotted_filters => \@unplotted_filters,
 		pending      => \@pending,
+		bounds_level   => $bounds_level,
+		bounds_pending => \@bounds_pending,
+		bounds_drawn   => ($outlines ? $outlines->{counts}{drawn} : 0),
 	};
 }
 
@@ -13713,6 +13804,7 @@ sub map_view ($self) {
 	my $max_zoom_raw = $self->param('max_zoom') // '';
 	my $tiles_name   = $self->param('tiles')    // '';
 	my $heat         = $self->param('heat')     // 0;
+	my $bounds_raw   = $self->param('bounds')   // '';
 	my $weight_col   = $self->param('weight')   // '';
 	my $size_col     = $self->param('size')     // '';
 	my $series_col   = $self->param('series')   // '';
@@ -13752,6 +13844,13 @@ sub map_view ($self) {
 
 	my $by_location = length $loc_col;
 
+	my $bounds_level;
+	if (length $bounds_raw) {
+		$bounds_level = _map_bounds_level($bounds_raw);
+		return $self->render(text => $self->_i18n('error_map_bounds_unknown', $bounds_raw), status => 400)
+			unless defined $bounds_level;
+	}
+
 	return $self->render(text => $self->_i18n('error_map_source'), status => 400)
 		unless $by_location || length($lat_col) || length($lon_col);
 	return $self->render(text => $self->_i18n('error_map_coordinates'), status => 400)
@@ -13777,7 +13876,7 @@ sub map_view ($self) {
 	my $geocode_mode = $self->param('geocode') // '';
 	return $self->render(text => $self->_i18n('error_map_geocode_mode', $geocode_mode), status => 400)
 		unless $geocode_mode =~ /\A(?:wait|cached|)\z/;
-	my $progress = $by_location && !length($geocode_mode)
+	my $progress = ($by_location || defined($bounds_level)) && !length($geocode_mode)
 		&& $self->req->method eq 'GET'
 		&& ($self->req->headers->accept // '') =~ m{\btext/html\b};
 
@@ -13849,6 +13948,7 @@ sub map_view ($self) {
 	$options{max_zoom} = $max_zoom_val   if defined $max_zoom_val;
 	$options{tile_url} = $tile_url_override if defined $tile_url_override;
 	$options{heat}     = 1               if $heat;
+	$options{bounds}   = $bounds_level   if defined $bounds_level;
 	$options{weight}   = $weight_col     if length($weight_col) && $col_set{$weight_col};
 	$options{lookup}   = 0               if $progress || $geocode_mode eq 'cached';
 
@@ -13906,12 +14006,26 @@ sub map_view ($self) {
 	# map page listed: without that, any page on the web could post a string
 	# for this server to send to OpenStreetMap.
 	my @pending = $progress ? @{ $result->{pending} // [] } : ();
+	# The points whose county outline is not known yet go on the same list,
+	# after the places, each signed with its level for /geo/boundary.
+	my @bounds_pending = $progress ? @{ $result->{bounds_pending} // [] } : ();
+	my @messages = @{ $result->{messages} };
+	@messages = grep { $_->{key} ne 'warn_map_bounds_pending' } @messages if @bounds_pending;
 	my %progress;
-	if (@pending) {
-		my $json = to_json([ map { { place => $_, sig => $self->_geo_lookup_sig($_) } } @pending ]);
+	if (@pending || @bounds_pending) {
+		my $json = to_json([
+			(map { { place => $_, sig => $self->_geo_lookup_sig($_) } } @pending),
+			(map { {
+				point => $_,
+				level => $result->{bounds_level},
+				sig   => $self->_geo_boundary_sig($result->{bounds_level}, $_),
+			} } @bounds_pending),
+		]);
 		$json =~ s{</}{<\\/}g;
 		%progress = (
-			geocode_pending      => scalar @pending,
+			geocode_pending      => scalar(@pending) + scalar(@bounds_pending),
+			geocode_places       => scalar @pending,
+			geocode_outlines     => scalar @bounds_pending,
 			geocode_pending_json => $json,
 			geocode_done_url     => $here_with->(undef),
 			geocode_cached_url   => $here_with->('cached'),
@@ -13934,8 +14048,9 @@ sub map_view ($self) {
 		title           => $result->{title},
 		extra_head      => $result->{map_head},
 		map_body        => $result->{map_body},
-		messages        => $result->{messages},
+		messages        => \@messages,
 		marker_count    => $result->{marker_count},
+		bounds_drawn    => $result->{bounds_drawn},
 		row_count       => $result->{row_count},
 		source_rows     => $result->{source_rows},
 		loc_col         => $result->{loc_col},
@@ -13962,6 +14077,55 @@ sub map_view ($self) {
 # another installation.
 sub _geo_lookup_sig :Protected ($self, $place) {
 	return hmac_sha1_sum(encode('UTF-8', "geo-lookup\0$place"), $self->app->secrets->[0]);
+}
+
+# _geo_boundary_sig($self, $level, $point) -> $hex
+#
+# The same for a point whose outline the map page lists.  Its own prefix, so a
+# place's signature is never a point's.
+sub _geo_boundary_sig :Protected ($self, $level, $point) {
+	return hmac_sha1_sum(encode('UTF-8', "geo-boundary\0$level\0$point"), $self->app->secrets->[0]);
+}
+
+# ---------------------------------------------------------------------------
+# POST /geo/boundary  point=<lat,lon>&level=county&sig=<sig>[&online=0]
+#
+# One point's outline, for the map page's progress bar: found as the map would
+# find it, and remembered at once, so a run that is cancelled keeps what it
+# found.  The point must carry the signature the map page gave it, or any page
+# on the web could have this server send coordinates to OpenStreetMap.
+# online=0 asks nothing, after OpenStreetMap has failed once.
+#
+# Replies 200 JSON:
+#   { point, status => 'found' | 'nowhere' | 'held', stored => 0|1,
+#     online_failed => 0|1, name }
+# 'nowhere' is a point in no county (at sea); 'held' could not be settled now
+# and is asked again next time.
+# 400 JSON { error } without point= or sig=, or with an unknown level=;
+# 403 JSON { error } for a bad sig=.
+# ---------------------------------------------------------------------------
+sub geo_boundary ($self) {
+	my $point = $self->param('point') // '';
+	my $sig   = $self->param('sig')   // '';
+	my $level = _map_bounds_level($self->param('level') // 'county');
+
+	return $self->render(json => { error => $self->_i18n('error_geo_boundary_point') }, status => 400)
+		unless length($point) && length($sig) && defined($level);
+	return $self->render(json => { error => $self->_i18n('error_geo_boundary_unsigned') }, status => 403)
+		unless secure_compare($sig, $self->_geo_boundary_sig($level, $point));
+
+	my $online = ($self->param('online') // 1) ? 1 : 0;
+	my $answer = eval { $self->_map_boundary($level, $online)->lookup_point($point) };
+	return $self->render(json => { error => $self->_i18n('error_geo_boundary_point') }, status => 400)
+		unless $answer;
+
+	return $self->render(json => {
+		point         => $point,
+		status        => $answer->{status},
+		stored        => ($answer->{status} eq 'held' ? 0 : 1),
+		online_failed => (($answer->{status} eq 'held' && $answer->{asked}) ? 1 : 0),
+		name          => $answer->{name},
+	});
 }
 
 # ---------------------------------------------------------------------------

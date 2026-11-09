@@ -617,6 +617,7 @@ my @CHAPTERS = (
 			'Tick Remember columns. Next time, the panel chooses the same columns for this table. Click Forget remembered columns to stop this.',
 			'Tick Heatmap layer to colour the busy areas. Choose a Heat weight column to make some rows count for more.',
 			'Type an Initial zoom from 0 to 19 to start closer in. Leave it empty to fit every marker.',
+			'Tick Show county boundaries to outline the county each marker is in. A checkbox on the map hides the outlines again.',
 			'To colour the markers, choose Colour by column, then click Add rule. The first rule that matches gives the colour.',
 			'Type a Default colour for the markers that match no rule.',
 			'Click Open map.',
@@ -625,7 +626,7 @@ my @CHAPTERS = (
 			'Or click List the places that were not plotted to see each place.',
 			'Click the number of rows beside a place to see those rows in the table.',
 		],
-		tip   => 'Rows at one place become one marker. Click a marker to see every row it stands for. What the rows share is shown once, and the rest is a short table. A place with many rows shows the first ten, with a link to them all. The scale bar and the key change as you zoom. The key lists only the colours you can see. To size each marker by a number, add &size= and a column name to the map address. To give each category its own colour and a legend, add &series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. The map opens at once with the places already known. A bar shows each new place as it is looked up. Click Cancel to stop and see the map with the places found so far. Every place found is kept, so the next map of it opens at once.',
+		tip   => 'Rows at one place become one marker. Click a marker to see every row it stands for. What the rows share is shown once, and the rest is a short table. A place with many rows shows the first ten, with a link to them all. The scale bar and the key change as you zoom. The key lists only the colours you can see. To size each marker by a number, add &size= and a column name to the map address. To give each category its own colour and a legend, add &series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. The map opens at once with the places already known. A bar shows each new place as it is looked up. Click Cancel to stop and see the map with the places found so far. Every place found is kept, so the next map of it opens at once. County outlines come from OpenStreetMap too. It is sent each marker\'s position, rounded to about 100 metres.',
 		walkthrough => {
 			title => 'Walk through: Virginia counties on a map',
 			intro => 'This example uses the virginia_counties table in the data folder.',
