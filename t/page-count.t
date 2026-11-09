@@ -11,6 +11,7 @@ use DBI;
 use File::Spec;
 use File::Temp qw(tempdir);
 use Mojo::File;
+use Mojo::Util ();
 use Test::Mojo;
 use Test::Most;
 
@@ -52,6 +53,18 @@ subtest 'SQLite: counted only when every row is read anyway' => sub {
 
 subtest '/combine counts the stacked rows' => sub {
 	like info('/combine?l=table:stock&c=table:items&per_page=10'), qr/\APage 1 of 5\b/, '50 rows, 5 pages';
+};
+
+subtest 'the pivot counts its row groups' => sub {
+	my $url = '/pivot?l=table:stock&rows=sku&m=' . Mojo::Util::url_escape('qty:sum:total') . '&per_page=10';
+	for ([ '', 1 ], [ '&page=3', 3 ]) {
+		my ($q, $n) = @$_;
+		$t->get_ok("$url$q")->status_is(200);
+		my $el = $t->tx->res->dom->at('.piv-page-info');
+		like $el ? $el->all_text : '', qr/\APage $n of 3\b/, "page $n of 3 (25 groups)";
+	}
+	$t->get_ok('/pivot?l=table:stock&rows=colour&m=' . Mojo::Util::url_escape('qty:sum:total') . '&per_page=10')->status_is(200);
+	ok !$t->tx->res->dom->at('.piv-page-info'), 'two groups: one page, no pagination';
 };
 
 subtest '_page_count' => sub {

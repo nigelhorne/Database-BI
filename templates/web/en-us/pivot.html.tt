@@ -206,7 +206,7 @@ single header row.  Clicking a header sorts it, and dragging it moves it.</p>
   [%- ELSE -%]
   <span class="piv-page-btn piv-page-btn-dis">Next &raquo;</span>
   [%- END -%]
-  <span class="piv-page-info">Page [% page %] &mdash; [% per_page %] row groups/page</span>
+  <span class="piv-page-info">Page [% page %][% IF page_count %] of [% page_count %][% END %] &mdash; [% per_page %] row groups/page</span>
 </nav>
 [%- END -%]
 

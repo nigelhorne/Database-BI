@@ -11426,6 +11426,7 @@ sub pivot_view ($self) {
 		page              => $page,
 		per_page          => $per_page,
 		has_next          => $piv_has_next,
+		page_count        => _page_count($total_row_groups, $per_page),
 		page_base_url     => $piv_page_url->to_string,
 		total_row_groups  => $total_row_groups,
 		language      => $language,
