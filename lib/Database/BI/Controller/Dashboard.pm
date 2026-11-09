@@ -1414,8 +1414,7 @@ sub _accelerated_source :Protected ($self, $spec) {
 	my $file = $self->_accel_file($spec) // return undef;
 
 	my @st = stat $file;
-	require Database::BI::Extract;
-	my $cache = Database::BI::Extract->new(model_dir => _model_dir_of($self->app)->to_string);
+	my $cache = _extract_store($self->app);
 	my $path  = $cache->get($spec, $st[9], $st[7]);
 	my $src;
 	if (defined $path) {
@@ -1434,6 +1433,31 @@ sub _accelerated_source :Protected ($self, $spec) {
 	return $src;
 }
 
+# _extract_store($app) -> Database::BI::Extract
+#
+# Purpose: The extract store, in the cache directory Database::BI::CacheDir
+#          chooses (Object::Configure, CACHEDIR, CACHE_DIR, cache_dir in the
+#          config), else in <model_dir>/extracts as before.  A cache directory
+#          inside data_dir is not used for them: each extract is a .db file,
+#          which the home page would list as a table of the user's own, and
+#          nothing is written under data_dir.  They then go in model_dir, whose
+#          own check (_calc_models_path) stops a store inside data_dir.
+sub _extract_store {
+	my ($app) = @_;
+	require Database::BI::Extract;
+	my $model_dir = _model_dir_of($app);
+	my $store = Database::BI::Extract->new(
+		model_dir => $model_dir->to_string,
+		config    => $app->config,
+		home      => $app->home->to_string,
+	);
+	if (_inside_dir(_canonical_path(Mojo::File->new($store->dir)), _canonical_path(_data_dir_for($app)))) {
+		carp 'The cache directory is inside data_dir; extracts are kept in model_dir instead';
+		$store = Database::BI::Extract->new(dir => $model_dir->child('extracts')->to_string);
+	}
+	return $store;
+}
+
 # _is_sqlite_file($path) -> $bool
 #
 # Purpose: True for a SQLite database, whatever its extension (a .db may be one).
@@ -1448,7 +1472,7 @@ sub _is_sqlite_file {
 # accelerate($c, $spec) -> \%built
 #
 # Purpose: Mark a dataset accelerated and build its extract: the rows its file
-#          gives, in a SQLite file under <model_dir>/extracts/.  Called by
+#          gives, in a SQLite file in the extract store (_extract_store).  Called by
 #          script/bi-extract; not a route.
 # Entry:   $c is a controller of the application (Mojolicious build_controller);
 #          $spec is a table: or path: spec naming a local, non-SQLite file.
@@ -1484,8 +1508,7 @@ sub accelerate {
 	my $bytes = eval { $c->_write_sqlite_db($records, \@columns, 'extract') };
 	croak $c->_i18n('error_accel_build', $spec, _tidy_error($@)) unless defined $bytes;
 
-	require Database::BI::Extract;
-	my $cache = Database::BI::Extract->new(model_dir => _model_dir_of($c->app)->to_string);
+	my $cache = _extract_store($c->app);
 	my $path  = eval { $cache->put($key, $st[9], $st[7], $bytes) };
 	croak $c->_i18n('error_accel_build', $spec, _tidy_error($@)) unless defined $path;
 
@@ -1514,7 +1537,7 @@ sub unaccelerate {
 	my $entry  = delete $models->{accelerated}{$spec};
 	return 0 unless ref $entry eq 'HASH';
 	if (defined $entry->{file} && $entry->{file} =~ /\A[0-9a-f]{32}\.db\z/) {
-		unlink _model_dir_of($c->app)->child('extracts', $entry->{file})->to_string;
+		unlink Mojo::File->new(_extract_store($c->app)->dir)->child($entry->{file})->to_string;
 	}
 	$c->_write_models($models);
 	return 1;

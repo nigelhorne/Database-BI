@@ -1241,7 +1241,8 @@ use Merge.
 A large CSV, TSV, PSV, XLSX or XML file can be read from a SQLite copy of
 itself, an _extract_, which is faster to page through and lets totals be
 worked out in SQL.  `script/bi-extract --spec table:sales` marks the dataset
-accelerated and builds the extract under `<model_dir>/extracts/`.
+accelerated and builds the extract under `<model_dir>/extracts/`, or in
+the cache directory set (see ["Where caches are kept"](#where-caches-are-kept)).
 
 An extract is used only while it matches the file: its name is a fingerprint
 of the spec and the file's modification time and size.  Once the file changes,
@@ -1249,7 +1250,7 @@ the file itself is read, and the table page says the extract is stale and how
 to rebuild it.  Stale numbers are never shown.  The table page also says when
 a dataset is read from its extract, and when that was built.
 
-An extract is a cache.  Deleting `extracts/` loses nothing: each accelerated
+An extract is a cache.  Deleting its folder loses nothing: each accelerated
 dataset reads its file until the next build.  Nothing is written under
 `data_dir`, and a `model_dir` inside it is refused.  Only a `table:` or
 `path:` spec naming a local file can be accelerated; a SQLite file is one
@@ -1322,15 +1323,18 @@ application directory is read-only can stage uploads somewhere writable:
 
 ### Where Caches Are Kept
 
-The places OpenStreetMap found for maps are kept on disc, and so is the table
-cache when `cache => { driver => 'File' }` (or `FastMmap`) asks for it.
-Each object that keeps one chooses its directory when it is made
-([Database::BI::CacheDir](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACacheDir)), from the first of these that is set:
+The places OpenStreetMap found for maps, the extracts of accelerated datasets
+(see ["Accelerated datasets"](#accelerated-datasets)), the page cache when `page_cache_dir` turns it
+on, and the table cache when `cache => { driver => 'File' }` (or
+`FastMmap`) asks for one, are kept on disc.  Each object that keeps one
+chooses its directory when it is made ([Database::BI::CacheDir](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACacheDir)), from the
+first of these that is set:
 
 - 1. `cache_dir` through [Object::Configure](https://metacpan.org/pod/Object%3A%3AConfigure), for the class making the
 cache: its config files, then the environment variable
 `<Class>__cache_dir` (`Database__BI__Model__Geocode__cache_dir` for
-the places, `Database__BI__cache_dir` for the table cache);
+the places, `Database__BI__Extract__cache_dir` for the extracts,
+`Database__BI__cache_dir` for the page and table caches);
 - 2. `$ENV{CACHEDIR}`;
 - 3. `$ENV{CACHE_DIR}`;
 - 4. `cache_dir` here (relative: under the application home):
@@ -1340,14 +1344,18 @@ the places, `Database__BI__cache_dir` for the table cache);
     ```
 
 - 5. `<model_dir>/geocode-cache` for the places,
-`<model_dir>/cache` for the table cache.
+`<model_dir>/extracts` for the extracts, `page_cache_dir` for the
+page cache, `<model_dir>/cache` for the table cache.
 
-Caches sharing a directory each keep to their own namespace in it.  A
-`cache => { root_dir }` names the table cache's directory outright.
-`script/bi-geocode` reads the same settings, and `database_bi.conf` from
-`MOJO_CONFIG` or the current folder.  `page_cache_dir` (see
-["Compression and the page cache"](#compression-and-the-page-cache)) is separate: it turns the page cache on as
-well as placing it.
+Caches sharing a directory each keep to their own namespace in it; the
+extracts go in its `database-bi-extracts/` folder.  A cache directory inside
+`data_dir` is not used for the extracts, which then stay in `model_dir`: each
+is a `.db` file the home page would list.  `page_cache_dir` still decides
+whether pages are cached at all (see ["Compression and the page cache"](#compression-and-the-page-cache)): a
+cache directory set only says where.  A `cache => { root_dir }` names the
+table cache's directory outright.  `script/bi-geocode` and
+`script/bi-extract` read the same settings, and `database_bi.conf` from
+`MOJO_CONFIG` or the current folder (`bi-extract` through the application).
 
 ### Who Can Reach the Server
 
@@ -1606,7 +1614,8 @@ Two optional keys keep finished pages on disc:
 ```
 
 When `page_cache_dir` is set, `/catalog` and `/tutorial` are stored in a
-[CHI](https://metacpan.org/pod/CHI) File cache there, one copy per `Accept-Language`, and served from it
+[CHI](https://metacpan.org/pod/CHI) File cache there (or in the cache directory set: see
+["Where caches are kept"](#where-caches-are-kept)), one copy per `Accept-Language`, and served from it
 until they expire.  No other page is cached, because the rest read data files
 that can change between requests.  Without the key nothing is cached.
 

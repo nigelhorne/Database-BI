@@ -408,8 +408,10 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td><code>cache_dir</code></td>
 			<td><code>&lt;model_dir&gt;/geocode-cache</code></td>
 			<td>
-				Where the places found for maps are kept (and the table cache, when
-				<code>cache =&gt; { driver =&gt; 'File' }</code>). Object::Configure's
+				Where the places found for maps, the extracts of accelerated datasets
+				(in its <code>database-bi-extracts</code> folder), the page cache (still
+				turned on by <code>page_cache_dir</code>) and a table cache on disc
+				(<code>cache =&gt; { driver =&gt; 'File' }</code>) are kept. Object::Configure's
 				<code>cache_dir</code> (for example the variable
 				<code>Database__BI__Model__Geocode__cache_dir</code>),
 				<code>CACHEDIR</code> and <code>CACHE_DIR</code> come first, in that
@@ -420,7 +422,8 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			<td><code>page_cache_dir</code></td>
 			<td>unset</td>
 			<td>
-				Keeps <code>/catalog</code> and <code>/tutorial</code> on disc. Data
+				Keeps <code>/catalog</code> and <code>/tutorial</code> on disc, here
+				unless a <code>cache_dir</code> is set. Data
 				pages are never cached, because the files behind them change.
 			</td>
 		</tr>
@@ -708,8 +711,9 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 ./script/bi-extract --list
                     [--data-dir DIR] [--model-dir DIR]</code></pre>
 <p>
-	Extracts live in <code>&lt;model_dir&gt;/extracts/</code>, never under
-	<code>data_dir</code>, and deleting that directory loses nothing. Exit status
+	Extracts live in <code>&lt;model_dir&gt;/extracts/</code>, or in
+	<code>database-bi-extracts/</code> under the <code>cache_dir</code> set, never
+	under <code>data_dir</code>, and deleting that directory loses nothing. Exit status
 	is 0 on success, 1 when an extract could not be built, and 2 on bad
 	arguments. Run <code>--all</code> from cron after the files are refreshed.
 </p>

@@ -1388,7 +1388,8 @@ use Merge.
 A large CSV, TSV, PSV, XLSX or XML file can be read from a SQLite copy of
 itself, an I<extract>, which is faster to page through and lets totals be
 worked out in SQL.  C<script/bi-extract --spec table:sales> marks the dataset
-accelerated and builds the extract under C<E<lt>model_dirE<gt>/extracts/>.
+accelerated and builds the extract under C<E<lt>model_dirE<gt>/extracts/>, or in
+the cache directory set (see L</Where caches are kept>).
 
 An extract is used only while it matches the file: its name is a fingerprint
 of the spec and the file's modification time and size.  Once the file changes,
@@ -1396,7 +1397,7 @@ the file itself is read, and the table page says the extract is stale and how
 to rebuild it.  Stale numbers are never shown.  The table page also says when
 a dataset is read from its extract, and when that was built.
 
-An extract is a cache.  Deleting C<extracts/> loses nothing: each accelerated
+An extract is a cache.  Deleting its folder loses nothing: each accelerated
 dataset reads its file until the next build.  Nothing is written under
 C<data_dir>, and a C<model_dir> inside it is refused.  Only a C<table:> or
 C<path:> spec naming a local file can be accelerated; a SQLite file is one
@@ -1461,17 +1462,20 @@ application directory is read-only can stage uploads somewhere writable:
 
 =head2 Where caches are kept
 
-The places OpenStreetMap found for maps are kept on disc, and so is the table
-cache when C<< cache => { driver => 'File' } >> (or C<FastMmap>) asks for it.
-Each object that keeps one chooses its directory when it is made
-(L<Database::BI::CacheDir>), from the first of these that is set:
+The places OpenStreetMap found for maps, the extracts of accelerated datasets
+(see L</Accelerated datasets>), the page cache when C<page_cache_dir> turns it
+on, and the table cache when C<< cache => { driver => 'File' } >> (or
+C<FastMmap>) asks for one, are kept on disc.  Each object that keeps one
+chooses its directory when it is made (L<Database::BI::CacheDir>), from the
+first of these that is set:
 
 =over 4
 
 =item 1. C<cache_dir> through L<Object::Configure>, for the class making the
 cache: its config files, then the environment variable
 C<E<lt>ClassE<gt>__cache_dir> (C<Database__BI__Model__Geocode__cache_dir> for
-the places, C<Database__BI__cache_dir> for the table cache);
+the places, C<Database__BI__Extract__cache_dir> for the extracts,
+C<Database__BI__cache_dir> for the page and table caches);
 
 =item 2. C<$ENV{CACHEDIR}>;
 
@@ -1482,16 +1486,20 @@ the places, C<Database__BI__cache_dir> for the table cache);
     { cache_dir => '/var/cache/database-bi' }
 
 =item 5. F<E<lt>model_dirE<gt>/geocode-cache> for the places,
-F<E<lt>model_dirE<gt>/cache> for the table cache.
+F<E<lt>model_dirE<gt>/extracts> for the extracts, C<page_cache_dir> for the
+page cache, F<E<lt>model_dirE<gt>/cache> for the table cache.
 
 =back
 
-Caches sharing a directory each keep to their own namespace in it.  A
-C<< cache => { root_dir } >> names the table cache's directory outright.
-C<script/bi-geocode> reads the same settings, and F<database_bi.conf> from
-C<MOJO_CONFIG> or the current folder.  C<page_cache_dir> (see
-L</Compression and the page cache>) is separate: it turns the page cache on as
-well as placing it.
+Caches sharing a directory each keep to their own namespace in it; the
+extracts go in its F<database-bi-extracts/> folder.  A cache directory inside
+C<data_dir> is not used for the extracts, which then stay in C<model_dir>: each
+is a C<.db> file the home page would list.  C<page_cache_dir> still decides
+whether pages are cached at all (see L</Compression and the page cache>): a
+cache directory set only says where.  A C<< cache => { root_dir } >> names the
+table cache's directory outright.  C<script/bi-geocode> and
+C<script/bi-extract> read the same settings, and F<database_bi.conf> from
+C<MOJO_CONFIG> or the current folder (C<bi-extract> through the application).
 
 =head2 Who can reach the server
 
@@ -1733,7 +1741,8 @@ Two optional keys keep finished pages on disc:
     }
 
 When C<page_cache_dir> is set, C</catalog> and C</tutorial> are stored in a
-L<CHI> File cache there, one copy per C<Accept-Language>, and served from it
+L<CHI> File cache there (or in the cache directory set: see
+L</Where caches are kept>), one copy per C<Accept-Language>, and served from it
 until they expire.  No other page is cached, because the rest read data files
 that can change between requests.  Without the key nothing is cached.
 
@@ -2549,8 +2558,19 @@ sub startup ($self) {
 	my $page_cache_dir = $self->config->{page_cache_dir};
 	my $page_chi;
 	if ($page_cache_dir) {
-		my $dir = Mojo::File->new($page_cache_dir);
-		$dir = $self->home->child($page_cache_dir) unless $dir->is_abs;
+		# page_cache_dir turns the page cache on, and is where it goes when no
+		# cache directory is set (Object::Configure, CACHEDIR, CACHE_DIR,
+		# cache_dir in this config).  The pages keep to their own namespace,
+		# so they can share that directory with the other caches.
+		my $default = Mojo::File->new($page_cache_dir);
+		$default = $self->home->child($page_cache_dir) unless $default->is_abs;
+		require Database::BI::CacheDir;
+		my $dir = Mojo::File->new(Database::BI::CacheDir::resolve(
+			class   => __PACKAGE__,
+			config  => $self->config,
+			home    => $self->home->to_string,
+			default => $default->to_string,
+		));
 		$dir->make_path;
 		$page_chi = CHI->new(
 			driver    => 'File',

@@ -15,7 +15,7 @@ use Database::BI::CacheDir;
 
 # Nothing from this machine's settings: no CACHEDIR, no Object::Configure
 # environment variables, no config file in the current folder.
-delete local @ENV{qw(CACHEDIR CACHE_DIR Database__BI__Model__Geocode__cache_dir Database__BI__cache_dir)};
+delete local @ENV{qw(CACHEDIR CACHE_DIR Database__BI__Model__Geocode__cache_dir Database__BI__cache_dir Database__BI__Extract__cache_dir)};
 my $cwd_dir = tempdir(CLEANUP => 1);
 local $ENV{MOJO_CONFIG} = File::Spec->catfile($cwd_dir, 'none.conf');
 
@@ -129,6 +129,76 @@ subtest 'a table cache on disc is given a directory' => sub {
 	is_deeply [ Database::BI::_table_cache_root($t->app, { driver => 'File', root_dir => '/r' }) ], [ root_dir => '/r' ],
 		'cache => { root_dir } names it outright';
 	is_deeply [ Database::BI::_table_cache_root($t->app, {}) ], [], 'Memory: no directory';
+};
+
+subtest 'extracts: in <model_dir>/extracts, or database-bi-extracts in the cache directory' => sub {
+	require Database::BI::Extract;
+	my $X     = 'Database::BI::Extract';
+	my $model = tempdir(CLEANUP => 1);
+
+	is $X->new(model_dir => $model, config => {})->dir, Mojo::File->new($model, 'extracts')->to_string,
+		'nothing set: <model_dir>/extracts, as before';
+
+	my $conf = tempdir(CLEANUP => 1);
+	is $X->new(model_dir => $model, config => { cache_dir => $conf })->dir,
+		Mojo::File->new($conf, 'database-bi-extracts')->to_string, 'config cache_dir: a folder of its own in it';
+
+	my $env = tempdir(CLEANUP => 1);
+	local $ENV{CACHE_DIR} = $env;
+	my $x = $X->new(model_dir => $model, config => { cache_dir => $conf });
+	is $x->dir, Mojo::File->new($env, 'database-bi-extracts')->to_string, 'CACHE_DIR before config';
+
+	# evict() removes every .db where the extracts are: never another program's.
+	my $theirs = File::Spec->catfile($env, 'theirs.db');
+	open my $fh, '>', $theirs or die "$theirs: $!";
+	close $fh;
+	my $p = $x->put('table:t', 1, 1, 'bytes');
+	ok -f $p, 'an extract is written';
+	is $x->get('table:t', 1, 1), $p, 'and found';
+	is $x->evict, 1, 'evict removes the extract';
+	ok -f $theirs, "and leaves the cache directory's other files alone";
+
+	my $oc = tempdir(CLEANUP => 1);
+	local $ENV{Database__BI__Extract__cache_dir} = $oc;
+	is $X->new(model_dir => $model)->dir, Mojo::File->new($oc, 'database-bi-extracts')->to_string,
+		'Object::Configure first';
+
+	delete local @ENV{qw(CACHE_DIR Database__BI__Extract__cache_dir)};
+	throws_ok { $X->new(config => {}) } qr/model_dir is required/, 'no model_dir and nothing set: refused';
+	is $X->new(config => { cache_dir => $conf })->dir, Mojo::File->new($conf, 'database-bi-extracts')->to_string,
+		'a cache directory needs no model_dir';
+
+	my $t = Test::Mojo->new('Database::BI', { model_dir => $model, cache_dir => $conf });
+	is Database::BI::Controller::Dashboard::_extract_store($t->app)->dir,
+		Mojo::File->new($conf, 'database-bi-extracts')->to_string, "the app's store reads its config";
+
+	my $data = tempdir(CLEANUP => 1);
+	$t = Test::Mojo->new('Database::BI', { data_dir => $data, model_dir => $model, cache_dir => "$data/cache" });
+	my @warned;
+	local $SIG{__WARN__} = sub { push @warned, @_ };
+	is Database::BI::Controller::Dashboard::_extract_store($t->app)->dir, Mojo::File->new($model, 'extracts')->to_string,
+		'a cache directory inside data_dir: the extracts stay in model_dir, where the home page does not list them';
+	like "@warned", qr/inside data_dir/, 'and it says so';
+};
+
+subtest 'the page cache: page_cache_dir turns it on; a cache directory set places it' => sub {
+	my $pages = tempdir(CLEANUP => 1);
+	my $t     = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1), page_cache_dir => $pages });
+	$t->get_ok('/tutorial')->status_is(200);
+	ok -d File::Spec->catdir($pages, 'Database+3a+3aBI+3a+3aPages'), 'nothing else set: in page_cache_dir';
+
+	my $kept = tempdir(CLEANUP => 1);
+	my $other = tempdir(CLEANUP => 1);
+	$t = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1), page_cache_dir => $other, cache_dir => $kept });
+	$t->get_ok('/tutorial')->status_is(200);
+	ok -d File::Spec->catdir($kept, 'Database+3a+3aBI+3a+3aPages'), 'cache_dir places it';
+	ok !-e File::Spec->catdir($other, 'Database+3a+3aBI+3a+3aPages'), 'and page_cache_dir is not used';
+
+	my $none = tempdir(CLEANUP => 1);
+	local $ENV{CACHEDIR} = $none;
+	$t = Test::Mojo->new('Database::BI', { model_dir => tempdir(CLEANUP => 1) });
+	$t->get_ok('/tutorial')->status_is(200);
+	is scalar(() = glob(File::Spec->catfile($none, '*'))), 0, 'without page_cache_dir, CACHEDIR does not turn it on';
 };
 
 done_testing();
