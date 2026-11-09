@@ -80,7 +80,8 @@ from latitude and longitude columns or from a place column geocoded by a
 OpenStreetMap's Nominatim service ([Geo::Coder::OSM](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AOSM), at most one request a
 second) for the places the local data does not know.  Nominatim is asked over
 https, and what it finds is also kept for a month in
-`<model_dir>/geocode-cache/`.  Each distinct place is
+`<model_dir>/geocode-cache/`, or the `cache_dir` set (see
+["Where caches are kept"](#where-caches-are-kept)).  Each distinct place is
 looked up once, remembered in the model store and shared by every dataset that
 names it.  Rows sharing a position become one marker.
 - **Pivot table** -- the "Pivot table" panel builds a crosstab from any
@@ -1319,6 +1320,35 @@ application directory is read-only can stage uploads somewhere writable:
 { uploads_dir => '/var/tmp/database-bi-uploads' }
 ```
 
+### Where Caches Are Kept
+
+The places OpenStreetMap found for maps are kept on disc, and so is the table
+cache when `cache => { driver => 'File' }` (or `FastMmap`) asks for it.
+Each object that keeps one chooses its directory when it is made
+([Database::BI::CacheDir](https://metacpan.org/pod/Database%3A%3ABI%3A%3ACacheDir)), from the first of these that is set:
+
+- 1. `cache_dir` through [Object::Configure](https://metacpan.org/pod/Object%3A%3AConfigure), for the class making the
+cache: its config files, then the environment variable
+`<Class>__cache_dir` (`Database__BI__Model__Geocode__cache_dir` for
+the places, `Database__BI__cache_dir` for the table cache);
+- 2. `$ENV{CACHEDIR}`;
+- 3. `$ENV{CACHE_DIR}`;
+- 4. `cache_dir` here (relative: under the application home):
+
+    ```perl
+    { cache_dir => '/var/cache/database-bi' }
+    ```
+
+- 5. `<model_dir>/geocode-cache` for the places,
+`<model_dir>/cache` for the table cache.
+
+Caches sharing a directory each keep to their own namespace in it.  A
+`cache => { root_dir }` names the table cache's directory outright.
+`script/bi-geocode` reads the same settings, and `database_bi.conf` from
+`MOJO_CONFIG` or the current folder.  `page_cache_dir` (see
+["Compression and the page cache"](#compression-and-the-page-cache)) is separate: it turns the page cache on as
+well as placing it.
+
 ### Who Can Reach the Server
 
 A server started by `script/database-bi` (with no arguments, a database, or
@@ -1807,7 +1837,8 @@ was unset, and `hypnotoad => { listen }` defaulted to `http://127.0.0.1:8080`
 - Template Toolkit registered as handler `tt`, and the Buffer plugin
 (see ["Compression and the page cache"](#compression-and-the-page-cache));
 - the CHI cache for tables (the `Memory` driver unless `cache => { driver }`
-names another), and the page cache when `page_cache_dir` is set;
+names another; a `File` or `FastMmap` one is kept where ["Where caches are kept"](#where-caches-are-kept)
+says), and the page cache when `page_cache_dir` is set;
 - the `before_dispatch` hooks for relative time ranges, cross-row plans and
 the view context, and the `before_render` hook that sets the breadcrumb, the help link
 and the HTML 404 page;

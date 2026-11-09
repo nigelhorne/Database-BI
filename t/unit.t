@@ -2864,6 +2864,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			[ 'Summary::generate'    => sub { Database::BI::Summary::generate(insights => [], label => 'x') } ],
 			[ 'Tutorial::chapters'   => sub { Database::BI::Tutorial->chapters } ],
 			[ 'Geocode::cache_from_models' => sub { Database::BI::Model::Geocode->cache_from_models({}, $SPEC) } ],
+			[ 'CacheDir::resolve'    => sub { require Database::BI::CacheDir; Database::BI::CacheDir::resolve(class => 'Unit::Cached', config => {}) } ],
 			[ 'Geocode::resolve_values' => sub { Database::BI::Model::Geocode->new(geocoder => Unit::Geocoder->new)->resolve_values(['Paris']) } ],
 			[ 'DataSource::new'       => sub { Database::BI::Model::DataSource->new(directory => $DATA_DIR, table => $SALES_TABLE) } ],
 			[ 'DataSource::fetch_all' => sub { Database::BI::Model::DataSource->new(directory => $DATA_DIR, table => $SALES_TABLE)->fetch_all } ],

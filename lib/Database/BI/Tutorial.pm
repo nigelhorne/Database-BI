@@ -1012,6 +1012,7 @@ my @CHAPTERS = (
 			'uploads_dir is where dropped files are kept. Set it when the application folder cannot be written.',
 			'model_dir holds the saved canvases and settings. It must not be inside data_dir.',
 			'Set page_cache_dir to keep a copy of the Catalog and Tutorial pages on disc. page_cache_duration says for how long.',
+			'cache_dir is where the places found for maps are kept. CACHEDIR or CACHE_DIR in the environment wins over it.',
 			'Set ai_api_key to show the Ask button and the AI choice on the insights page.',
 			'Restart the program after you change the file.',
 		],

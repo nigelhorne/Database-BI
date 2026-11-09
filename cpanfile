@@ -32,6 +32,7 @@ requires 'Mojolicious', '9.49';
 requires 'Mojolicious::Plugin::Buffer', '0.001.1';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Net::SFTP::Foreign';
+requires 'Object::Configure';   # cache_dir for each object that keeps a cache (Database::BI::CacheDir)
 requires 'POSIX';   # For floor/ceil in Calc.pm (core module, listed for completeness)
 requires 'Params::Get', '0.17';
 requires 'Params::Validate::Strict', '0.41';

@@ -7,6 +7,9 @@ Revision history for Database-BI
 	  default.
 	- Messages from the server follow the same language: the browser's for
 	  pages and replies, the locale (LANG) for the scripts.
+	- Map places found online, and a table cache on disc, are kept where
+	  Object::Configure's cache_dir, CACHEDIR, CACHE_DIR or cache_dir in
+	  database_bi.conf says, else under model_dir as before.
 	[ Bug fixes ]
 	- Sorting a table of more than one page sorts every row, so page 1 is the
 	  start of the sorted table; it sorted only the rows on the page.
@@ -14,8 +17,10 @@ Revision history for Database-BI
 	  totals and charts on the page read numbers the same strict way.
 	- A quote inside a quoted CSV field written as two quotes
 	  ("Adeste ""Overture""") shows as one quote, not two.
+	- A table whose file name has a capital letter (BandMusic.csv) can be
+	  pivoted, charted and merged; only its own page opened.
 	[ Other ]
-	- Database::Abstraction 0.56.
+	- Database::Abstraction 0.56; Object::Configure.
 
 0.021.0	Sat Nov  7 03:26:25 PM EST 2026
 	[ Security ]

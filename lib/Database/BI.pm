@@ -139,6 +139,9 @@ Readonly my $HSTS_RE      => qr{\Amax-age=\d{1,10}(?:\s*;\s*includeSubDomains)?(
 Readonly my $MAX_REQUEST_SIZE  => 50 * 1_048_576;	# 50 MiB
 Readonly my $UPLOAD_MAX_AGE_S  => 24 * 3600;		# evict uploads older than 24 h
 
+# CHI drivers that keep the table cache on disc, and so need a directory.
+Readonly my %DISC_CACHE_DRIVER => map { ($_ => 1) } qw(File FastMmap);
+
 =head1 NAME
 
 Database::BI - Web-based Business Intelligence viewer for data files
@@ -246,7 +249,8 @@ L<Geo::Coder::List> chain: L<Geo::Coder::Free>'s local data first, then
 OpenStreetMap's Nominatim service (L<Geo::Coder::OSM>, at most one request a
 second) for the places the local data does not know.  Nominatim is asked over
 https, and what it finds is also kept for a month in
-C<E<lt>model_dirE<gt>/geocode-cache/>.  Each distinct place is
+C<E<lt>model_dirE<gt>/geocode-cache/>, or the C<cache_dir> set (see
+L</Where caches are kept>).  Each distinct place is
 looked up once, remembered in the model store and shared by every dataset that
 names it.  Rows sharing a position become one marker.
 
@@ -1455,6 +1459,40 @@ application directory is read-only can stage uploads somewhere writable:
 
     { uploads_dir => '/var/tmp/database-bi-uploads' }
 
+=head2 Where caches are kept
+
+The places OpenStreetMap found for maps are kept on disc, and so is the table
+cache when C<< cache => { driver => 'File' } >> (or C<FastMmap>) asks for it.
+Each object that keeps one chooses its directory when it is made
+(L<Database::BI::CacheDir>), from the first of these that is set:
+
+=over 4
+
+=item 1. C<cache_dir> through L<Object::Configure>, for the class making the
+cache: its config files, then the environment variable
+C<E<lt>ClassE<gt>__cache_dir> (C<Database__BI__Model__Geocode__cache_dir> for
+the places, C<Database__BI__cache_dir> for the table cache);
+
+=item 2. C<$ENV{CACHEDIR}>;
+
+=item 3. C<$ENV{CACHE_DIR}>;
+
+=item 4. C<cache_dir> here (relative: under the application home):
+
+    { cache_dir => '/var/cache/database-bi' }
+
+=item 5. F<E<lt>model_dirE<gt>/geocode-cache> for the places,
+F<E<lt>model_dirE<gt>/cache> for the table cache.
+
+=back
+
+Caches sharing a directory each keep to their own namespace in it.  A
+C<< cache => { root_dir } >> names the table cache's directory outright.
+C<script/bi-geocode> reads the same settings, and F<database_bi.conf> from
+C<MOJO_CONFIG> or the current folder.  C<page_cache_dir> (see
+L</Compression and the page cache>) is separate: it turns the page cache on as
+well as placing it.
+
 =head2 Who can reach the server
 
 A server started by C<script/database-bi> (with no arguments, a database, or
@@ -1922,7 +1960,8 @@ was unset, and C<< hypnotoad => { listen } >> defaulted to C<http://127.0.0.1:80
 (see L</Compression and the page cache>);
 
 =item * the CHI cache for tables (the C<Memory> driver unless C<cache =E<gt> { driver }>
-names another), and the page cache when C<page_cache_dir> is set;
+names another; a C<File> or C<FastMmap> one is kept where L</Where caches are kept>
+says), and the page cache when C<page_cache_dir> is set;
 
 =item * the C<before_dispatch> hooks for relative time ranges, cross-row plans and
 the view context, and the C<before_render> hook that sets the breadcrumb, the help link
@@ -2376,6 +2415,33 @@ data is shipped or downloaded.
 #    writing code.  The entered prefix would be passed as
 #    collision_prefix => { 1 => $prefix } when constructing Database::Join.
 # =============================================================================
+
+# _table_cache_root($app, \%cache_conf) -> (root_dir => $dir) | ()
+#
+# A driver that keeps the table cache on disc (File, FastMmap) is given a
+# directory: cache => { root_dir } when the config names one, else the one
+# Database::BI::CacheDir chooses for this class (Object::Configure, CACHEDIR,
+# CACHE_DIR, cache_dir in this config, then <model_dir>/cache).  CHI's own
+# default would be a folder under the system temp directory.  The Memory
+# driver keeps nothing on disc and takes no directory.
+sub _table_cache_root ($app, $cache_conf) {
+	my $driver = $cache_conf->{driver} // 'Memory';
+
+	return () unless $DISC_CACHE_DRIVER{$driver};
+	return (root_dir => $cache_conf->{root_dir}) if defined $cache_conf->{root_dir};
+
+	require Database::BI::CacheDir;
+
+	my $model_dir = Mojo::File->new($app->config('model_dir') // '.bi');
+	$model_dir = $app->home->child($model_dir->to_string) unless $model_dir->is_abs;
+
+	return (root_dir => Database::BI::CacheDir::resolve(
+		class   => __PACKAGE__,
+		config  => $app->config,
+		home    => $app->home->to_string,
+		default => $model_dir->child('cache')->to_string,
+	));
+}
 
 sub startup ($self) {
 	$self->plugin('Config', {
@@ -2833,6 +2899,7 @@ sub startup ($self) {
 		driver    => $cache_conf->{driver} // 'Memory',
 		global    => 1,
 		namespace => 'Database::BI',
+		_table_cache_root($self, $cache_conf),
 	);
 
 	$self->helper(open_table => sub($c, $table, %opts) {

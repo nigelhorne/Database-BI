@@ -1356,6 +1356,23 @@ sub _model_dir_of {
 	return $cfg->is_abs ? $cfg : $app->home->child($cfg->to_string);
 }
 
+# _table_stem($data_dir, $name, @exts) -> $stem | undef
+#
+# Purpose: The file stem table:<name> means in data_dir: the name as written
+#          when a file has it, else in lower case, which is what every reader
+#          once looked for (so table:Orders still opens orders.csv); undef
+#          when neither has a file with one of @exts (default @SUPPORTED_EXT).
+#          Reading only the lower case made a file named with a capital,
+#          BandMusic.csv, open on its own page (/view/BandMusic) and nowhere
+#          else: a pivot, chart or merge of table:BandMusic was a 404.
+sub _table_stem ($data_dir, $name, @exts) {
+	@exts = @SUPPORTED_EXT unless @exts;
+	for my $stem ($name, lc $name) {
+		return $stem if grep { -f $data_dir->child("$stem.$_") } @exts;
+	}
+	return undef;	## no critic (ProhibitExplicitReturnUndef)
+}
+
 # _accel_file($self, $spec) -> $path | undef
 #
 # Purpose: The local file a spec can be accelerated from: table:<name> in
@@ -1365,7 +1382,8 @@ sub _accel_file :Protected ($self, $spec) {
 	$spec //= '';
 	if ($spec =~ m{\Atable:([A-Za-z0-9_]+)\z}) {
 		my $data_dir = _data_dir_for($self->app);
-		my ($file) = grep { -f } map { $data_dir->child(lc($1) . ".$_")->to_string } @SUPPORTED_EXT;
+		my $stem     = _table_stem($data_dir, $1) // return undef;
+		my ($file) = grep { -f } map { $data_dir->child("$stem.$_")->to_string } @SUPPORTED_EXT;
 		return $file;
 	}
 	if ($spec =~ m{\Apath:(?!/\.\./)(.+)\z}) {
@@ -1525,15 +1543,14 @@ sub _open_spec :Protected ($self, $spec) {
 	# An accelerated dataset whose extract still matches its file is read from
 	# the extract, under the file's own label.
 	if (my $fast = _accelerated_source($self, $spec)) {
-		my $label = $spec =~ m{\Atable:(.+)\z} ? lc $1
+		my $label = $spec =~ m{\Atable:(.+)\z} ? (_table_stem(_data_dir_for($self->app), $1) // $1)
 			: do { my ($f, $i) = _split_path($spec =~ s/\Apath://r); $i // Mojo::File->new($f)->basename };
 		return ($fast, $label);
 	}
 	if ($spec =~ m{\Atable:([A-Za-z0-9_]+)(?:/([A-Za-z0-9_]+))?\z}) {
-		my ($table, $internal) = ($1, $2);
-		$table = lc $table;
+		my ($name, $internal) = ($1, $2);
 		my $data_dir = _data_dir_for($self->app);
-		return () unless grep { -f $data_dir->child("$table.$_") } @SUPPORTED_EXT;
+		my $table    = _table_stem($data_dir, $name) // return ();
 		my $src = eval {
 			$self->open_table($table, directory => $data_dir->to_string,
 				defined $internal ? (internal_table => $internal) : ())
@@ -8678,10 +8695,11 @@ sub columns_api ($self) {
 	elsif (defined $table_name && $table_name =~ m{\A([A-Za-z_][A-Za-z0-9_]*)(?:/([A-Za-z_][A-Za-z0-9_]*))?\z}) {
 		my ($table, $internal) = ($1, $2);
 		my $data_dir = _data_dir_for($self->app);
+		my $stem     = _table_stem($data_dir, $table);
 		return $self->render(json => { error => 'not found' }, status => 404)
-			unless grep { -f $data_dir->child(lc($table) . ".$_") } @SUPPORTED_EXT;
+			unless defined $stem;
 		$source = eval {
-			$self->open_table(lc $table, directory => $data_dir->to_string,
+			$self->open_table($stem, directory => $data_dir->to_string,
 				defined $internal ? (internal_table => $internal) : ())
 		};
 	}
@@ -10772,9 +10790,10 @@ sub tables_view ($self) {
 	my @tables;
 
 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
-		my $table_name = lc $1;
 		my $data_dir   = _data_dir_for($self->app);
-		for my $ext (qw(sql sqlite sqlite3 db json)) {
+		my @exts       = qw(sql sqlite sqlite3 db json);
+		my $table_name = _table_stem($data_dir, $1, @exts) // lc $1;
+		for my $ext (@exts) {
 			my $p = $data_dir->child("$table_name.$ext");
 			if (-f $p) {
 				$file_path = $p->to_string;
@@ -12928,10 +12947,12 @@ sub _map_region {
 # map_geocode_online => 0 keeps every lookup on this machine: a place the local
 # data does not know is then not sent to OpenStreetMap.  A false $online does
 # the same for one request (the progress run, once Nominatim has failed).
-# Geo::Coder::List keeps its answers in files beside models.json, so a place
-# Nominatim found is not asked again by another request, worker or restart.  A
-# model_dir that is refused (inside data_dir) gets none, and the module falls
-# back on a cache in this process's memory.
+# Geo::Coder::List keeps its answers in files, so a place Nominatim found is not
+# asked again by another request, worker or restart.  Geocode->new chooses the
+# directory (Object::Configure, CACHEDIR, CACHE_DIR, cache_dir in this config,
+# then <model_dir>/geocode-cache).  A model_dir that is refused (inside
+# data_dir) gives no default, and with nothing else set the module falls back
+# on a cache in this process's memory.
 sub _map_geocoder :Protected ($self, $online) {
 	require Database::BI::Model::Geocode;
 
@@ -12941,8 +12962,10 @@ sub _map_geocoder :Protected ($self, $online) {
 
 	return Database::BI::Model::Geocode->new(
 		(defined($models_path)
-			? (cache => Database::BI::Model::Geocode->file_cache(Mojo::File->new($models_path)->dirname->to_string))
+			? (model_dir => Mojo::File->new($models_path)->dirname->to_string)
 			: ()),
+		config => $cfg,
+		home   => $self->app->home->to_string,
 		(defined($injected) && ref($injected) && $injected->can('geocode_many')
 			? (geocoder => $injected) : ()),
 		(defined($cfg->{openaddr}) && length($cfg->{openaddr})

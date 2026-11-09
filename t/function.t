@@ -14,6 +14,12 @@ use Scalar::Util qw(blessed);
 use Test::Mojo;
 use Readonly;
 
+# A geocoder keeps its places in CACHEDIR (or CACHE_DIR, or the Object::Configure
+# variable) before <model_dir>/geocode-cache, so a map drawn with the real
+# geocoder would write into the user's own cache.  Each app here has a temp
+# model_dir, which is where they belong.
+delete @ENV{qw(CACHEDIR CACHE_DIR Database__BI__Model__Geocode__cache_dir Database__BI__cache_dir)};
+
 # ---------------------------------------------------------------------------
 # Constants -- no magic strings/numbers in assertions
 # ---------------------------------------------------------------------------
