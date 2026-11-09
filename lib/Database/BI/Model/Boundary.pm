@@ -22,10 +22,18 @@ package Database::BI::Model::Boundary;
 #      point it does not answer is left pending, not remembered as nowhere.
 #
 # The outlines are simplified by Nominatim (polygon_threshold), a few KB each,
-# because they are written into the page.  The level is a "county": Nominatim's
-# place rank 12, which is a US county or county-equivalent city, an English
-# county, and an Indian sub-district (taluk).  Choosing the level per country
-# comes later; %LEVELS is where it will go.
+# because they are written into the page.
+#
+# The level is a "county": the division of a country below its states.  Which
+# of Nominatim's place ranks that is depends on the country, so %LEVELS gives a
+# rank for most (12: a US county, an English county, a German Landkreis, a
+# French departement, a Pakistani district) and the countries that differ (10:
+# an Indian or Bangladeshi district, a Chinese prefecture, a Spanish province;
+# 8: a Kenyan county), and config map_bounds_ranks can add more.  Each reply
+# names its country, so a point is asked at the zoom of the last country seen,
+# and again at its own country's zoom when that guess was wrong: one extra
+# request at each border a map crosses.  The rank an outline was accepted at is
+# kept with it, so a changed table asks again rather than draw the old level.
 
 use strict;
 use warnings;
@@ -40,13 +48,31 @@ use URI				();
 
 our $VERSION = '0.022.0';
 
-# What each level asks Nominatim: the reverse zoom, and the place rank an
-# answer must have.  A zoom names the most detailed rank it may return, so a
-# point in a country with no area at that rank comes back as something larger
-# (a state), which the rank check turns away rather than drawing.
+# The place rank an answer must have at each level: rank for a country not
+# listed, countries for those that differ, by ISO 3166-1 alpha-2 code.  Checked
+# against Nominatim's reverse lookup in November 2026: rank 12
+# at zoom 8 is the county level in the US, UK, Ireland, Germany, France, Italy,
+# Pakistan, Mexico, Nigeria, South Africa, Russia, Indonesia and Canada.
+# Australia, Brazil and Japan have nothing between their states and their
+# towns, so a point there is nowhere.
 Readonly my %LEVELS => (
-	county => { zoom => 8, rank => 12 },
+	county => {
+		rank      => 12,
+		countries => {
+			bd => 10,	# district (zila); 12 is an upazila
+			cn => 10,	# prefecture-level city; 12 is a district
+			es => 10,	# province; Spain has no rank 12
+			in => 10,	# district; 12 is a sub-district (tehsil, taluk)
+			ke => 8,	# county; 12 is a sub-county
+		},
+	},
 );
+
+# The reverse zoom that asks for each rank.  A zoom names the most detailed
+# rank it may return, so a point with no area at that rank comes back as
+# something larger (a state), which the rank check turns away rather than
+# drawing.
+Readonly my %ZOOM_FOR_RANK => (8 => 5, 10 => 6, 12 => 8);
 
 Readonly my $REVERSE_URL    => 'https://nominatim.openstreetmap.org/reverse';
 Readonly my $THRESHOLD      => 0.005;	# degrees, about 500 m: enough detail at the zoom a county is seen at
@@ -97,9 +123,19 @@ Every answer is cached: a point with the outline it is in, and the outline
 itself.  A point inside an outline already known is matched here, without a
 request, so many points in one county cost one lookup.
 
-A county here is Nominatim's place rank 12: a US county or independent city,
-an English county, an Indian sub-district.  Anything else Nominatim answers is
-taken as "no county here" and remembered as such.
+A county here is the division of a country below its states, whose place rank
+in Nominatim depends on the country: 12 (a US county or independent city, an
+English county, a German Landkreis, a French departement) unless the country is
+listed otherwise: 10 for India, Bangladesh, China and Spain (district,
+prefecture, province), 8 for Kenya.  C<ranks> adds or changes countries.
+Anything else Nominatim answers is taken as "no county here" and remembered as
+such.  A country with nothing at its rank (Australia, Brazil, Japan) gets no
+outlines.
+
+Each reply names the point's country, so a point is asked at the zoom of the
+last country seen, and asked again when its own country wants another rank.
+An outline is kept with the rank it was accepted at; when C<ranks> changes, the
+points it covered are asked again.
 
 =head1 METHODS
 
@@ -116,13 +152,17 @@ taken as "no county here" and remembered as such.
   online     : boolean   optional, default 0: may Nominatim be asked
   online_max : integer   optional, default 20: requests in one outlines() call
   level      : string    optional, default 'county'; the only level so far
+  ranks      : hashref   optional: { country code => place rank }, over the
+               level's own list; codes are two letters (any case), ranks
+               8, 10 or 12
   ua         : object with get()   optional: the user agent to ask with
                (tests); default Geocode::nominatim_ua()
 
 =head4 OUTPUT
 
-A Database::BI::Model::Boundary object.  Croaks on an unknown level, or a
-cache without get and set.
+A Database::BI::Model::Boundary object.  Croaks on an unknown level, a cache
+without get and set, or ranks that are not a hash of two-letter codes to 8, 10
+or 12.
 
 =cut
 
@@ -137,18 +177,81 @@ sub new {
 			online_max => { type => 'integer', optional => 1, default => $DEFAULT_MAX, min => 0 },
 			level      => { type => 'string',  optional => 1, default => 'county' },
 			ua         => { type => 'object',  optional => 1, default => undef, can => 'get' },
+			ranks      => { type => 'hashref', optional => 1, default => undef },
 		},
 		input => $raw,
 	);
 
-	croak "Unknown boundary level '$args->{level}'" unless $LEVELS{ $args->{level} };
+	my $level = $LEVELS{ $args->{level} }
+		or croak "Unknown boundary level '$args->{level}'";
 	croak 'The boundary cache needs get() and set()'
 		if defined($args->{cache}) && !($args->{cache}->can('get') && $args->{cache}->can('set'));
 
 	return bless {
 		%{$args},
+		ranks => { %{ $level->{countries} }, %{ $class->check_ranks($args->{ranks} // {}) } },
 		cache => $args->{cache} // _default_cache(),
 	}, $class;
+}
+
+=head2 check_ranks
+
+    my $ranks = Database::BI::Model::Boundary->check_ranks({ LK => 10 });    # { lk => 10 }
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  ranks : hashref of { country code => place rank }
+
+=head4 OUTPUT
+
+A new hashref with the codes in lower case and the ranks as numbers.  Croaks
+on a value that is not a hashref, a key that is not a two-letter code, or a
+rank that is not 8, 10 or 12, naming the entry.  Used by C<new> and by the
+application's startup check of C<map_bounds_ranks>.
+
+=cut
+
+sub check_ranks {
+	my (undef, $ranks) = @_;
+	croak 'Boundary ranks must be a hash of country codes to place ranks'
+		unless ref($ranks) eq 'HASH';
+	my %checked;
+	for my $code (sort keys %{$ranks}) {
+		my $rank = $ranks->{$code};
+		croak "'$code' is not a two-letter country code" unless $code =~ /\A[A-Za-z]{2}\z/;
+		croak "the rank for '$code' must be one of " . join(', ', sort { $a <=> $b } keys %ZOOM_FOR_RANK)
+			unless defined($rank) && !ref($rank) && $rank =~ /\A\d+\z/ && $ZOOM_FOR_RANK{$rank};
+		croak "'$code' is given twice" if exists $checked{ lc $code };
+		$checked{ lc $code } = $rank + 0;
+	}
+	return \%checked;
+}
+
+=head2 rank_for
+
+    my $rank = $boundary->rank_for('in');    # 10
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  country : string, an ISO 3166-1 alpha-2 code in any case; undef or ''
+            for a point in no country (the sea)
+
+=head4 OUTPUT
+
+The place rank an outline in that country must have at this object's level:
+the country's own, from C<ranks> or the built-in list, else the level's.
+
+=cut
+
+sub rank_for {
+	my ($self, $country) = @_;
+	my $rank = (defined($country) && !ref($country) && length($country))
+		? $self->{ranks}{ lc $country } : undef;
+	return $rank // $LEVELS{ $self->{level} }{rank};
 }
 
 =head2 levels
@@ -435,23 +538,49 @@ sub _known {
 	my ($self, $key, $index) = @_;
 
 	my $remembered = $self->_get($self->_point_cache_key($key));
-	if (defined $remembered) {
-		return (undef, 'nowhere') unless length $remembered;
-		return ($remembered, 'found') if $self->_get("outline:$remembered");
-		# The outline itself has gone from the cache: ask again.
+	if (ref($remembered) eq 'HASH') {
+		# Nowhere, at the rank its country wanted then.
+		return (undef, 'nowhere')
+			if ($remembered->{rank} // -1) == $self->rank_for($remembered->{country});
+	} elsif (defined($remembered) && length($remembered)) {
+		return ($remembered, 'found') if $self->_current($self->_get("outline:$remembered"));
+		# The outline has gone from the cache, or its country's rank changed.
 	}
+	# '' is nowhere from before ranks were kept: ask again.
 
 	my ($lat, $lon) = split /,/, $key;
 	for my $entry (@{$index}) {
 		my ($osm, $south, $west, $north, $east) = @{$entry};
 		next if $lat < $south || $lat > $north || $lon < $west || $lon > $east;
-		my $outline = $self->_get("outline:$osm") or next;
-		next unless _contains($outline->{geometry}, $lat, $lon);
+		my $outline = $self->_get("outline:$osm");
+		next unless $self->_current($outline) && _contains($outline->{geometry}, $lat, $lon);
 		$self->_set($self->_point_cache_key($key), $osm);
 		return ($osm, 'found');
 	}
 
 	return;
+}
+
+# _current($outline) -> 1 when an outline was accepted at the rank its country
+# wants now.  One kept before ranks were (no rank) is not.
+sub _current {
+	my ($self, $outline) = @_;
+	return 0 unless ref($outline) eq 'HASH' && defined($outline->{rank});
+	return $outline->{rank} == $self->rank_for($outline->{country}) ? 1 : 0;
+}
+
+# _last_country() / _last_country($code): the country of the last reply at
+# this level, whose rank the next point is asked at first.  Kept in the cache,
+# so the first point of a later map is not asked twice.
+sub _last_country {
+	my ($self, @set) = @_;
+	my $key = "country:$self->{level}";
+	if (@set) {
+		$self->{last_country} = $set[0];
+		$self->_set($key, $set[0]) unless ($self->_get($key) // '') eq $set[0];
+		return $set[0];
+	}
+	return $self->{last_country} //= $self->_get($key) // '';
 }
 
 sub _can_ask {
@@ -464,54 +593,56 @@ sub _can_ask {
 
 # _ask($key, \@index) -> ($osm, 'found') | (undef, 'nowhere') | (undef, 'failed')
 #
-# One reverse lookup.  A found outline is remembered, added to the index (and
-# to @$index, so the caller's later points are tested against it), and the
-# point remembered with it.  An answer that is not an outline at this level's
-# rank is remembered as nowhere.  A failure is remembered as nothing.
+# A reverse lookup, at the zoom of the rank the last country seen wants; when
+# the reply's country wants another, a second at that rank's zoom.  A found
+# outline is remembered with its country and rank, added to the index (and to
+# @$index, so the caller's later points are tested against it), and the point
+# remembered with it.  An answer that is not an outline at the country's rank
+# is remembered as nowhere, with that country and rank.  A failure is
+# remembered as nothing.
 sub _ask {
 	my ($self, $key, $index) = @_;
-	my $level = $LEVELS{ $self->{level} };
 	my ($lat, $lon) = split /,/, $key;
 
-	my $uri = URI->new($REVERSE_URL);
-	$uri->query_form(
-		lat               => $lat,
-		lon               => $lon,
-		zoom              => $level->{zoom},
-		format            => 'jsonv2',
-		polygon_geojson   => 1,
-		polygon_threshold => $THRESHOLD,
-		'accept-language' => 'en',
-	);
+	my $rank  = $self->rank_for($self->_last_country);
+	my $reply = $self->_reverse($lat, $lon, $rank) or return (undef, 'failed');
 
-	require Database::BI::Model::Geocode;
-	my $ua  = $self->{ua} // Database::BI::Model::Geocode::nominatim_ua();
-	my $res = eval { $ua->get($uri) };
-	return (undef, 'failed') unless blessed($res) && $res->can('is_success') && $res->is_success;
-
-	my $reply = eval { $json->decode($res->decoded_content // '') };
-	return (undef, 'failed') unless ref($reply) eq 'HASH';
+	my $country = ref($reply->{address}) eq 'HASH' ? $reply->{address}{country_code} : undef;
+	$country = (defined($country) && !ref($country) && $country =~ /\A[A-Za-z]{2}\z/) ? lc($country) : '';
+	if (length $country) {
+		$self->_last_country($country);
+		my $wanted = $self->rank_for($country);
+		if ($wanted != $rank) {
+			$rank  = $wanted;
+			$reply = $self->_reverse($lat, $lon, $rank) or return (undef, 'failed');
+		}
+	}
 
 	my $geometry = $reply->{geojson};
 	my $is_outline = ($reply->{category} // '') eq 'boundary'
 		&& ($reply->{type} // '') eq 'administrative'
 		&& ($reply->{osm_type} // '') eq 'relation'
 		&& defined($reply->{osm_id}) && $reply->{osm_id} =~ /\A\d+\z/
-		&& ($reply->{place_rank} // -1) == $level->{rank}
+		&& ($reply->{place_rank} // -1) == $rank
 		&& ref($geometry) eq 'HASH'
 		&& ($geometry->{type} // '') =~ /\A(?:Multi)?Polygon\z/
 		&& ref($geometry->{coordinates}) eq 'ARRAY';
 
 	unless ($is_outline) {
 		# "Unable to geocode" (the sea) and an answer at another rank alike.
-		$self->_set($self->_point_cache_key($key), '');
+		$self->_set($self->_point_cache_key($key), { country => $country, rank => $rank });
 		return (undef, 'nowhere');
 	}
 
 	my $osm  = "R$reply->{osm_id}";
 	my $name = $reply->{name};
 	$name = $reply->{display_name} unless defined($name) && length($name);
-	$self->_set("outline:$osm", { name => $name // $osm, geometry => $geometry });
+	$self->_set("outline:$osm", {
+		name     => $name // $osm,
+		geometry => $geometry,
+		country  => $country,
+		rank     => $rank,
+	});
 
 	unless (grep { $_->[0] eq $osm } @{$index}) {
 		my $box = _bounds($geometry);
@@ -525,6 +656,31 @@ sub _ask {
 	$self->_set($self->_point_cache_key($key), $osm);
 
 	return ($osm, 'found');
+}
+
+# _reverse($lat, $lon, $rank) -> the decoded reply, or undef when Nominatim
+# did not answer with JSON.
+sub _reverse {
+	my ($self, $lat, $lon, $rank) = @_;
+
+	my $uri = URI->new($REVERSE_URL);
+	$uri->query_form(
+		lat               => $lat,
+		lon               => $lon,
+		zoom              => $ZOOM_FOR_RANK{$rank},
+		format            => 'jsonv2',
+		polygon_geojson   => 1,
+		polygon_threshold => $THRESHOLD,
+		'accept-language' => 'en',
+	);
+
+	require Database::BI::Model::Geocode;
+	my $ua  = $self->{ua} // Database::BI::Model::Geocode::nominatim_ua();
+	my $res = eval { $ua->get($uri) };
+	return unless blessed($res) && $res->can('is_success') && $res->is_success;
+
+	my $reply = eval { $json->decode($res->decoded_content // '') };
+	return ref($reply) eq 'HASH' ? $reply : undef;
 }
 
 # _polygons($geometry) -> list of polygons, each an arrayref of rings, each

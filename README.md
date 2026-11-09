@@ -753,8 +753,15 @@ perl Makefile.PL
     marker's position rounded to three decimal places (about 110 metres), and only
     when `map_geocode_online` allows it.  Each outline is remembered under
     `model_dir` (`boundary-cache`), with the points found in it, so a point inside
-    an outline already known costs no lookup.  A county is Nominatim's place rank
-    12: a US county or independent city, an English county, an Indian sub-district.
+    an outline already known costs no lookup.  A county is the division of a
+    country below its states, whose place rank in Nominatim depends on the country:
+    12 (a US county or independent city, an English county, a German Landkreis), or
+    10 for India, Bangladesh, China and Spain (district, prefecture, province), or 8
+    for Kenya.  Australia, Brazil and Japan have nothing at that level.  Config
+    `map_bounds_ranks` (`{ lk => 10 }`: two-letter codes, ranks 8, 10 or 12)
+    adds or changes countries; startup refuses anything else.  Each reply names its
+    country, so a point is asked at the rank of the last country seen, and again
+    at its own when that differs.
     Outlines not known yet are looked up as places are: by the progress bar, through
     `POST /geo/boundary`, or in the request for `geocode=wait`; at most
     `map_geocode_online_max` in one request.  The checkbox needs [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.15;
@@ -1715,7 +1722,8 @@ at one a second, the rest are left for the next request or for
 it reaches every place), `secrets` (a list; the first signs the places a map
 page lists for `POST /geo/lookup`.  Without it each start makes a random one), `map_max_markers` (markers per request, default 2000), `map_popup_rows`
 (rows listed in one marker's popup, default 10),
-`map_region` (a two-letter country hint for ambiguous places), `map_max_zoom`
+`map_region` (a two-letter country hint for ambiguous places),
+`map_bounds_ranks` (the place rank that is a county, by country; see above), `map_max_zoom`
 (the default tile-layer maxZoom) and `tile_sources` (a hashref of named tile
 sources, each `{ url => ... }`, selected with `tiles=`).
 

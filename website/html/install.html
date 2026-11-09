@@ -378,6 +378,17 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 			</td>
 		</tr>
 		<tr>
+			<td><code>map_bounds_ranks</code></td>
+			<td>none</td>
+			<td>
+				Which of Nominatim's place ranks is a county, country by country,
+				for the county outlines on a map: <code>{ lk =&gt; 10 }</code>.
+				Codes are two letters; ranks are 8 (a state), 10 or 12. Countries not
+				listed use the built-in choice: 12, or 10 for India, Bangladesh,
+				China and Spain, and 8 for Kenya.
+			</td>
+		</tr>
+		<tr>
 			<td><code>map_popup_rows</code></td>
 			<td><code>10</code></td>
 			<td>

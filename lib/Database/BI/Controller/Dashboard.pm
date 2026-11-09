@@ -13171,7 +13171,8 @@ sub _map_geocoder :Protected ($self, $online) {
 # (map_geocode_online), and at most map_geocode_online_max times a request.
 # Its answers are kept beside the geocode cache, under model_dir, so they
 # outlive the process and are shared by every worker; with no model_dir it
-# keeps them in memory.
+# keeps them in memory.  Config map_bounds_ranks adds or changes the place rank
+# that is a county in a country (checked at startup).
 sub _map_boundary :Protected ($self, $level, $online) {
 	require Database::BI::Model::Boundary;
 
@@ -13188,6 +13189,7 @@ sub _map_boundary :Protected ($self, $level, $online) {
 		online     => (($online && ($cfg->{map_geocode_online} // 1)) ? 1 : 0),
 		online_max => _map_limit($cfg->{map_geocode_online_max}, $DEFAULT_MAP_GEOCODE_ONLINE_MAX),
 		(defined($cache) ? (cache => $cache) : ()),
+		(ref($cfg->{map_bounds_ranks}) eq 'HASH' ? (ranks => $cfg->{map_bounds_ranks}) : ()),
 	);
 }
 

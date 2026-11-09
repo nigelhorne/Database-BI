@@ -910,8 +910,15 @@ them.  The outlines come from Nominatim's reverse lookup, which is sent each
 marker's position rounded to three decimal places (about 110 metres), and only
 when C<map_geocode_online> allows it.  Each outline is remembered under
 C<model_dir> (C<boundary-cache>), with the points found in it, so a point inside
-an outline already known costs no lookup.  A county is Nominatim's place rank
-12: a US county or independent city, an English county, an Indian sub-district.
+an outline already known costs no lookup.  A county is the division of a
+country below its states, whose place rank in Nominatim depends on the country:
+12 (a US county or independent city, an English county, a German Landkreis), or
+10 for India, Bangladesh, China and Spain (district, prefecture, province), or 8
+for Kenya.  Australia, Brazil and Japan have nothing at that level.  Config
+C<map_bounds_ranks> (C<< { lk => 10 } >>: two-letter codes, ranks 8, 10 or 12)
+adds or changes countries; startup refuses anything else.  Each reply names its
+country, so a point is asked at the rank of the last country seen, and again
+at its own when that differs.
 Outlines not known yet are looked up as places are: by the progress bar, through
 C<POST /geo/boundary>, or in the request for C<geocode=wait>; at most
 C<map_geocode_online_max> in one request.  The checkbox needs L<HTML::OSM> 0.15;
@@ -1842,7 +1849,8 @@ C<script/bi-geocode>; the map page's progress bar asks one place a request, so
 it reaches every place), C<secrets> (a list; the first signs the places a map
 page lists for C<POST /geo/lookup>.  Without it each start makes a random one), C<map_max_markers> (markers per request, default 2000), C<map_popup_rows>
 (rows listed in one marker's popup, default 10),
-C<map_region> (a two-letter country hint for ambiguous places), C<map_max_zoom>
+C<map_region> (a two-letter country hint for ambiguous places),
+C<map_bounds_ranks> (the place rank that is a county, by country; see above), C<map_max_zoom>
 (the default tile-layer maxZoom) and C<tile_sources> (a hashref of named tile
 sources, each C<< { url =E<gt> ... } >>, selected with C<tiles=>).
 
@@ -2537,6 +2545,7 @@ sub startup ($self) {
 	_check_allowed_hosts($self->config('allowed_hosts'));
 	_check_file_roots($self->config('file_roots'), $self->home);
 	_check_url_private_hosts($self->config('url_private_hosts'));
+	_check_map_bounds_ranks($self->config('map_bounds_ranks'));
 	_check_share_secret($self->config('share_secret'));
 	_check_export_dirs($self, $self->config('export_dirs'));
 	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
@@ -3368,6 +3377,27 @@ sub _check_url_private_hosts {
 				&& $name =~ /\A(?:\*\.)?[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+\z/;
 	}
 	return;
+}
+
+# _check_map_bounds_ranks( $value ) -> void
+#
+# Purpose: Refuse a map_bounds_ranks that would not choose the county outlines.
+# Entry:   Config map_bounds_ranks: undef, or { country code => place rank },
+#          such as { lk => 10 }: the rank of Nominatim's that is a county in
+#          that country, over Boundary's own list.
+# Exit:    Returns; croaks on anything but a hash of two-letter codes to 8, 10
+#          or 12 (Boundary->new says which entry), since a mistyped one would
+#          otherwise draw no outlines, or the wrong ones, without a word.
+sub _check_map_bounds_ranks {
+	my ($value) = @_;
+	return unless defined $value;
+	croak "map_bounds_ranks: give a hash of country codes to place ranks, such as { lk => 10 }"
+		unless ref($value) eq 'HASH';
+	require Database::BI::Model::Boundary;
+	my $ok = eval { Database::BI::Model::Boundary->check_ranks($value); 1 };
+	return if $ok;
+	(my $error = $@ // 'unknown error') =~ s/ at \S+ line \d+\.?\n?\z//;
+	croak "map_bounds_ranks: $error";
 }
 
 # _check_share_secret( $value ) -> void

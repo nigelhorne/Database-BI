@@ -6,7 +6,9 @@ Revision history for Database-BI
 	  boundaries in the map panel (bounds=county).  The outlines come from
 	  OpenStreetMap, which is sent each marker's position rounded to about
 	  100 metres, and are remembered.  A checkbox on the map hides them
-	  (HTML::OSM 0.15).
+	  (HTML::OSM 0.15).  A county is the level below a country's states, so
+	  India, Bangladesh and China get districts, Spain provinces, Kenya
+	  counties; map_bounds_ranks in the configuration sets other countries.
 	- Add to each place, in the map panel (loc_text=): text added to the end
 	  of every place before it is looked up, such as "Virginia, USA" for a
 	  column of county names.  Remember columns keeps it too, and
