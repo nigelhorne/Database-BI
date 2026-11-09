@@ -94,6 +94,10 @@ Readonly my $CACHE_DIR       => 'geocode-cache';	# under model_dir, for file_cac
 # request.  A crafted URL must not be able to turn one request into unbounded CPU.
 Readonly my $DEFAULT_MAX => 500;
 
+# The most characters of text place_text() lets be added to each place (the
+# map page's loc_text=, bi-geocode's --text).
+Readonly our $PLACE_TEXT_MAX => 200;
+
 # The model store's shared place cache.  A place name means the same place
 # whichever file's column holds it, so one answer serves every dataset: the
 # second file that names Ramsgate plots it without asking the geocoder.  The
@@ -1717,6 +1721,48 @@ sub place_rows {
 	} @{$rows};
 
 	return (\@places, $name);
+}
+
+=head2 place_text
+
+    my ($text) = Database::BI::Model::Geocode->place_text(' , Virginia,   USA ');   # 'Virginia, USA'
+
+Tidies text to be added to the end of each place (the third argument of
+C<place_rows>): spaces are trimmed and runs of them made one, and a leading
+comma dropped, since the place and the text are joined with C<", ">.  The map
+page's C<loc_text=> and bi-geocode's C<--text> both go through it, so a place
+cached by one is found by the other.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $value    string    # optional; undef is no text
+
+=head4 OUTPUT
+
+    ($text)   the tidied text; '' for undef or blank
+    ()        for a reference, a control character, or more than
+              $PLACE_TEXT_MAX (200) characters once tidied
+
+Never croaks.
+
+=head3 EXAMPLE
+
+    my ($text) = Database::BI::Model::Geocode->place_text($param)
+        or die "Not one short line\n";
+    my ($places, $name) = Database::BI::Model::Geocode->place_rows($rows, [ 'County' ], $text);
+
+=cut
+
+sub place_text {
+	my ($class, $value) = @_;
+	return ('') unless defined $value;
+	return if ref($value) || $value =~ /[\x00-\x1f\x7f]/;
+	(my $text = $value) =~ s/\s+/ /g;
+	$text =~ s/\A[\s,]+|\s+\z//g;
+	return if length($text) > $PLACE_TEXT_MAX;
+	return ($text);
 }
 
 =head2 cache_from_models

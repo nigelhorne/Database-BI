@@ -1007,6 +1007,8 @@ my @CHAPTERS = (
 			'Pass --spec with the table, and --col with the column that holds the place names.',
 			'Give --col twice for a place split over two columns, such as --col Address --col Country.',
 			'For example: bi-geocode --spec table:virginia_counties --col county --region US.',
+			'Pass --text to add the same words to the end of each place, as Add to each place does on the map.',
+			'For example, --text \'Virginia, USA\' looks up Accomack as Accomack, Virginia, USA.',
 			'Pass --region with a country code, such as GB or US, when the names could be in several countries.',
 			'Pass --dry-run to look the places up without keeping the result.',
 			'Places the local data does not know are looked up on OpenStreetMap, one each second. Pass --offline to stop that.',

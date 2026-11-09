@@ -717,4 +717,21 @@ subtest 'place_rows adds text to the end of each place' => sub {
 	ok($undef == \@rows, 'nor is undef');
 };
 
+subtest 'place_text tidies the text, and refuses what is not one short line' => sub {
+	my $G = 'Database::BI::Model::Geocode';
+	is_deeply([ $G->place_text(' , Virginia,   USA ') ], [ 'Virginia, USA' ],
+		'spaces trimmed and made one, the leading comma dropped');
+	is_deeply([ $G->place_text(undef) ], [ '' ], 'undef is no text');
+	is_deeply([ $G->place_text('   ') ], [ '' ], 'nor are spaces');
+	is_deeply([ $G->place_text('0') ],   [ '0' ], '0 is text');
+	is_deeply([ $G->place_text("Virginia\nUSA") ], [], 'a second line is refused');
+	is_deeply([ $G->place_text("a\tb") ], [], 'as is any control character');
+	is_deeply([ $G->place_text([ 'x' ]) ], [], 'and a reference');
+	my $max = $Database::BI::Model::Geocode::PLACE_TEXT_MAX;
+	is($max, 200, 'at most 200 characters');
+	is_deeply([ $G->place_text('x' x $max) ], [ 'x' x $max ], 'which is allowed');
+	is_deeply([ $G->place_text('x' x ($max + 1)) ], [], 'one more is not');
+	is_deeply([ $G->place_text((' ' x 10) . ('x' x $max)) ], [ 'x' x $max ], 'counted once tidied');
+};
+
 done_testing();

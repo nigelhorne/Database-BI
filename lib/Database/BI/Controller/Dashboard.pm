@@ -304,7 +304,6 @@ Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_ge
 Readonly my $DEFAULT_MAP_GEOCODE_ONLINE_MAX => 20;   # map_geocode_online_max
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
 Readonly my $DEFAULT_MAP_POPUP_ROWS  => 10;    # rows listed in one marker's popup (map_popup_rows)
-Readonly my $MAP_LOC_TEXT_MAX        => 200;   # characters of loc_text=, the text added to each place
 Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
 # A bubble map's size key: the bubbles' own colour when they have one, and
 # this grey when the colour says something else (a colour column)
@@ -12060,7 +12059,7 @@ sub geo_save ($self) {
 		unless @kinds == @cols && !grep { !/\A(?:lat|lon|location|location_suffix)\z/ } @kinds;
 	my $loc_text_raw = $self->param('loc_text') // '';
 	my ($loc_text) = _map_loc_text($loc_text_raw);
-	return $self->render(json => { error => $self->_i18n('error_map_loc_text', $MAP_LOC_TEXT_MAX, $loc_text_raw) }, status => 400)
+	return $self->render(json => { error => $self->_i18n('error_map_loc_text', $Database::BI::Model::Geocode::PLACE_TEXT_MAX, $loc_text_raw) }, status => 400)
 		unless defined $loc_text;
 
 	my $models = $self->_read_models;
@@ -13034,19 +13033,14 @@ sub _map_loc_columns {
 # _map_loc_text($value) -> ($text) | ()
 #
 # The text added to the end of each place (loc_text=, a card's
-# encode.loc_text): "Virginia, USA" for a column of county names.  Spaces are
-# trimmed and runs of them made one, and a leading comma dropped, since the
-# place and the text are joined with ", ".  Empty is ''.  Nothing is returned
-# for a value that is not one short line, which the map page refuses and a
-# card, stored unchecked, leaves out.
+# encode.loc_text): "Virginia, USA" for a column of county names, tidied by
+# Geocode->place_text, as bi-geocode's --text is.  Nothing is returned for a
+# value that is not one short line, which the map page refuses and a card,
+# stored unchecked, leaves out.
 sub _map_loc_text {
 	my ($value) = @_;
-	return ('') unless defined $value;
-	return if ref($value) || $value =~ /[\x00-\x1f\x7f]/;
-	(my $text = $value) =~ s/\s+/ /g;
-	$text =~ s/\A[\s,]+|\s+\z//g;
-	return if length($text) > $MAP_LOC_TEXT_MAX;
-	return ($text);
+	require Database::BI::Model::Geocode;
+	return Database::BI::Model::Geocode->place_text($value);
 }
 
 # _map_unplotted(\@records, \@places, $loc_col, \@loc_cols, \%resolved)
@@ -13887,7 +13881,7 @@ sub map_view ($self) {
 	my $by_location = length $loc_col;
 
 	my ($loc_text) = _map_loc_text($loc_text_raw);
-	return $self->render(text => $self->_i18n('error_map_loc_text', $MAP_LOC_TEXT_MAX, $loc_text_raw), status => 400)
+	return $self->render(text => $self->_i18n('error_map_loc_text', $Database::BI::Model::Geocode::PLACE_TEXT_MAX, $loc_text_raw), status => 400)
 		unless defined $loc_text;
 
 	my $bounds_level;

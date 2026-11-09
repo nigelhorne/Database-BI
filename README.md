@@ -1930,9 +1930,13 @@ lookups:
 
 ```
 ./script/bi-geocode --spec table:customers --col city \
-                    [--data-dir DIR] [--model-dir DIR] \
+                    [--text TEXT] [--data-dir DIR] [--model-dir DIR] \
                     [--openaddr PATH] [--region CC] [--dry-run] [--verbose]
 ```
+
+`--text` is the map panel's _Add to each place_ (`loc_text=`): with
+`--col county --text 'Virginia, USA'` it looks up `Accomack, Virginia, USA`,
+the place the map then asks for.
 
 It is idempotent: a second run against a warm cache resolves nothing and says
 so.  Exit status is 0 on success, 1 when the column is missing or no rows load,

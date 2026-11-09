@@ -2058,8 +2058,12 @@ Warms the shared geocode cache for one column, so later map requests make no
 lookups:
 
     ./script/bi-geocode --spec table:customers --col city \
-                        [--data-dir DIR] [--model-dir DIR] \
+                        [--text TEXT] [--data-dir DIR] [--model-dir DIR] \
                         [--openaddr PATH] [--region CC] [--dry-run] [--verbose]
+
+C<--text> is the map panel's I<Add to each place> (C<loc_text=>): with
+C<--col county --text 'Virginia, USA'> it looks up C<Accomack, Virginia, USA>,
+the place the map then asks for.
 
 It is idempotent: a second run against a warm cache resolves nothing and says
 so.  Exit status is 0 on success, 1 when the column is missing or no rows load,
