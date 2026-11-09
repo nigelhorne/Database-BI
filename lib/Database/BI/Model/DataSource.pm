@@ -305,6 +305,13 @@ Readonly my $MARIADB_CONNECT_TIMEOUT => 5;
 # Text::CSV's error_diag code for the plain end of a file.
 Readonly my $CSV_EOF => 2012;
 
+# count() remembers each file table's row count until the file changes (see
+# _count_key): a SQLite table paged in SQL shows its number of pages, and a
+# COUNT(*) on every page of a big file would cost what the N+1 paging saves.
+# Emptied when it reaches $COUNT_MEMO_MAX entries.
+my %COUNT_MEMO;
+Readonly my $COUNT_MEMO_MAX => 256;
+
 # The extensions D::A looks for before .json; a file with one of them is the
 # table, and a .json beside it is not read.
 Readonly my @NON_JSON_EXT => qw(sql sqlite sqlite3 db psv tsv xls xlsx csv xml);
@@ -2735,11 +2742,11 @@ sources (SQLite, large CSV via DBD::CSV) it delegates to
 C<Database::Abstraction::count()>, which issues a
 C<SELECT COUNT(*) FROM E<lt>tableE<gt>> query against the file.
 
-B<Warning: do not call C<count()> on a very large SQLite file> if you
-only need to know whether a next page exists.  The pagination controller
-uses the N+1 trick (fetch C<per_page + 1> rows via C<limit/offset>)
-specifically to avoid a C<COUNT(*)> on multi-gigabyte databases, which
-can block the server for minutes.
+The count of a file's table is remembered for the life of the process, keyed
+by the file, the table, and the file's modification time and size, so asking
+again costs nothing until the file changes.  A URL or MariaDB source is counted
+on every call.  The first count of a very large SQLite file still reads the
+whole table.
 
 =head3 API SPECIFICATION
 
@@ -2762,7 +2769,31 @@ sub count {
 	local ($@, $!);	# the backend opens lazily, and uses both on the way
 	local $/ = "\n";	# a caller's slurp mode (undef $/) read the file as one line: 0 rows
 	return 0 if $self->{_file_is_empty};
-	return $self->{_db}->count();
+
+	my $key = $self->_count_key;
+	return $COUNT_MEMO{$key} if defined $key && exists $COUNT_MEMO{$key};
+
+	my $n = $self->{_db}->count();
+	if (defined $key) {
+		%COUNT_MEMO = () if keys(%COUNT_MEMO) >= $COUNT_MEMO_MAX;
+		$COUNT_MEMO{$key} = $n;
+	}
+	return $n;
+}
+
+# _count_key( $self ) -> $key | undef
+#
+# What count() remembers its answer under: the file, the table in it, and the
+# file's mtime and size, so a changed file is counted again.  undef (count every
+# time) for a URL or a database server, which have no file to stat.
+sub _count_key {
+	my $self = shift;
+	return undef if defined $self->{_url} || defined $self->{_mariadb};
+	my $file = $self->{_file_path};
+	return undef unless defined $file;
+	my @st = stat $file;
+	return undef unless @st;
+	return join "\0", $file, $self->{_table} // '', $self->{_internal_table} // '', $st[9], $st[7];
 }
 
 1;

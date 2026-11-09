@@ -1,8 +1,8 @@
 #!/usr/bin/env perl
 
-# "Page N of M" under a paged table, whenever every row was read; a SQL table
-# paged on the server (no filter, sort, cs= or d=) is never counted, so it
-# shows "Page N" alone (COUNT(*) is too slow on a big SQLite file).
+# "Page N of M" under a paged table.  Every path counts: from the rows read,
+# or, for a SQL table paged on the server, from DataSource::count, which
+# remembers a file's count until the file changes.
 
 use strict;
 use warnings;
@@ -44,15 +44,30 @@ subtest 'a file read whole: the number of pages' => sub {
 	is info('/view/stock?per_page=25'), undef, 'one page: no pagination at all';
 };
 
-subtest 'SQLite: counted only when every row is read anyway' => sub {
-	like info('/view/items?per_page=10'), qr/\APage 1\s*\x{2014}/, 'paged on the server: the page alone';
-	unlike info('/view/items?per_page=10'), qr/ of /, 'with no count';
-	like info('/view/items?per_page=10&f=colour:eq:blue'), qr/\APage 1 of 2\b/, 'a filter reads every row: counted (12 rows)';
+subtest 'SQLite paged on the server is counted too' => sub {
+	like info('/view/items?per_page=10'), qr/\APage 1 of 3\b/, 'paged in SQL: page 1 of 3';
+	like info('/view/items?per_page=10&page=3'), qr/\APage 3 of 3\b/, 'the last page';
+	like info('/view/items?per_page=10&f=colour:eq:blue'), qr/\APage 1 of 2\b/, 'a filter reads every row (12 rows)';
 	like info('/view/items?per_page=10&sort=qty&dir=desc'), qr/\APage 1 of 3\b/, 'so does a sort';
+	is info('/view/items?per_page=25'), undef, 'one page: no pagination at all';
+
+	# The count is remembered; a file that changes is counted again.
+	my $h = DBI->connect("dbi:SQLite:dbname=$db", '', '', { RaiseError => 1, PrintError => 0 });
+	$h->do('INSERT INTO items VALUES (?, ?, ?)', undef, "s$_", 'Red', $_) for 26 .. 31;
+	$h->disconnect;
+	utime undef, time + 5, $db;	# a new mtime even within the same second
+	like info('/view/items?per_page=10'), qr/\APage 1 of 4\b/, 'after six more rows: page 1 of 4';
+};
+
+subtest 'a count that fails costs only the "of"' => sub {
+	no warnings 'redefine';
+	local *Database::BI::Model::DataSource::count = sub { Carp::croak('no count here') };
+	like info('/view/items?per_page=10&page=2'), qr/\APage 2\s*\x{2014}/, 'the page alone';
+	unlike info('/view/items?per_page=10&page=2'), qr/ of /, 'with no count';
 };
 
 subtest '/combine counts the stacked rows' => sub {
-	like info('/combine?l=table:stock&c=table:items&per_page=10'), qr/\APage 1 of 5\b/, '50 rows, 5 pages';
+	like info('/combine?l=table:stock&c=table:items&per_page=10'), qr/\APage 1 of 6\b/, '56 rows (25 + 31), 6 pages';
 };
 
 subtest 'the pivot counts its row groups' => sub {

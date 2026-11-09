@@ -3519,8 +3519,8 @@ sub _collate ($x, $y) {
 }
 
 # _fetch_page( $self, $source, \%params ) -> ( $records, $has_next )
-#   (also stashes page_count, the number of pages, whenever every row was read:
-#   on every path but the SQL fast path, which asks for one page and a row)
+#   (also stashes page_count, the number of pages: from the rows read, or on
+#   the SQL fast path, which reads one page and a row, from the source's count)
 #   params: per_page  -- page size (required)
 #           offset    -- 0-based row offset (required)
 #           dedup     -- truthy when ?d=1 dedup is requested
@@ -3590,10 +3590,21 @@ sub _fetch_page :Protected ($self, $source, $params) {
 			) // [] };
 			my $has_next = (@records > $per_page) ? 1 : 0;
 			pop @records if $has_next;
+			# The number of pages needs the number of rows.  count() remembers a
+			# file's until it changes, so only the first page of a big SQLite
+			# file pays for the COUNT(*).  Only when there is more than one page:
+			# a short table shows no pagination.  A count that fails costs the
+			# page its "of M", never the page.
+			if ($has_next || $offset > 0) {
+				my $total;
+				my $ok = eval { $total = $source->count; 1 };
+				$self->stash(page_count => _page_count($total, $per_page))
+					if $ok && defined $total && $total =~ /\A\d+\z/;
+			}
 			return (\@records, $has_next);
 		}
 		# Non-SQL fast path: fetch all, then paginate.  Every row is in hand, so
-		# the number of pages costs nothing; the SQL path above never counts.
+		# the number of pages costs nothing.
 		my $all = $source->selectall_arrayref() // [];
 		my $has_next = (@$all > $offset + $per_page) ? 1 : 0;
 		$self->stash(page_count => _page_count(scalar(@$all), $per_page));

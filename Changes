@@ -8,8 +8,8 @@ Revision history for Database-BI
 	- Messages from the server follow the same language: the browser's for
 	  pages and replies, the locale (LANG) for the scripts.
 	- A table or pivot of more than one page says how many there are
-	  ("Page 2 of 7"); a SQLite table paged in SQL still shows the page
-	  alone.
+	  ("Page 2 of 7").  A SQLite table is counted once, and again only
+	  when the file changes.
 	- Map places found online, extracts, the page cache and a table cache on
 	  disc are kept where Object::Configure's cache_dir, CACHEDIR, CACHE_DIR
 	  or cache_dir in database_bi.conf says, else where they were.
