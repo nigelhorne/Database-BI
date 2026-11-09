@@ -687,4 +687,34 @@ subtest 'place_rows joins a place written across columns' => sub {
 	throws_ok { $G->place_rows(\@rows, ['']) }  qr/column name is required/, 'not just an empty name';
 };
 
+subtest 'place_rows adds text to the end of each place' => sub {
+	my $G = 'Database::BI::Model::Geocode';
+	my @rows = (
+		{ county => 'Accomack', state => '' },
+		{ county => ' Loudoun ', state => 'VA' },
+		{ county => '',         state => '' },
+		'not a row',
+	);
+	my @copy = map { ref $_ ? { %{$_} } : $_ } @rows;
+
+	my ($one, $name) = $G->place_rows(\@rows, ['county'], ' Virginia, USA ');
+	is($name, 'county', 'named after the column, not the text');
+	ok($one != \@rows, 'one column with text makes new rows');
+	is_deeply($one, [
+		{ county => 'Accomack, Virginia, USA' },
+		{ county => 'Loudoun, Virginia, USA' },
+		{ county => '' },
+		undef,
+	], 'added after ", ", trimmed; a row with no place stays empty, so it is not found at the text');
+	is_deeply(\@rows, \@copy, 'the rows given are not changed');
+
+	my ($two) = $G->place_rows(\@rows, [qw(county state)], 'USA');
+	is($two->[1]{'county, state'}, 'Loudoun, VA, USA', 'after every column');
+
+	my ($none) = $G->place_rows(\@rows, ['county'], '  ');
+	ok($none == \@rows, 'text of spaces is no text');
+	my ($undef) = $G->place_rows(\@rows, ['county'], undef);
+	ok($undef == \@rows, 'nor is undef');
+};
+
 done_testing();

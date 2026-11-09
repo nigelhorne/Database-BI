@@ -1644,6 +1644,9 @@ sub _catdir {
     my ($places, $name) = Database::BI::Model::Geocode->place_rows(\@rows, [ 'Address', 'Country' ]);
     my $result = $geocode->resolve_column($places, $name);
 
+    # Places that need their state and country to be found
+    my ($places, $name) = Database::BI::Model::Geocode->place_rows(\@rows, [ 'County' ], 'Virginia, USA');
+
 A place written across several columns, such as an address and then its
 country, as one column to geocode.  Each row's cells are trimmed and joined in
 the order given, with C<", ">, leaving out the empty ones:
@@ -1651,10 +1654,15 @@ C<"Brezje 8, Cerknica"> and C<"Slovenia"> become
 C<"Brezje 8, Cerknica, Slovenia">.  A row with every cell empty gives C<''>,
 which C<resolve_column> counts as skipped.
 
+Text given as the third argument is added to the end of each place, after
+C<", ">, for places the cells do not name fully: C<"Accomack"> with
+C<"Virginia, USA"> is looked up as C<"Accomack, Virginia, USA">.  A row with
+no place stays C<''>, so it is not found at the place the text names.
+
 The rows themselves are not changed (a SQL backend's are locked): the result is
 a new row for each, in the same order, holding only the joined place, so a
-marker's C<first_row> still indexes C<\@rows>.  With a single column the rows
-are returned as they are, under that column's name.
+marker's C<first_row> still indexes C<\@rows>.  With a single column and no
+text the rows are returned as they are, under that column's name.
 
 =head3 API SPECIFICATION
 
@@ -1662,11 +1670,13 @@ are returned as they are, under that column's name.
 
     \@rows       arrayref of hashrefs        # required; a row that is not a hashref gives undef
     \@columns    arrayref of column names    # required; one or more, in order
+    $text        string                      # optional; added to the end of each place
 
 =head4 OUTPUT
 
     (\@places, $name)
-        \@places   one hashref { $name => $place } per row, or \@rows itself for one column
+        \@places   one hashref { $name => $place } per row, or \@rows itself for one
+                   column and no text
         $name      the columns joined with ", " ("Address, Country")
 
 Croaks with C<error_rows_arrayref> when C<\@rows> is not an arrayref, and with
@@ -1681,7 +1691,7 @@ C<error_column_required> when C<\@columns> names no column.
 =cut
 
 sub place_rows {
-	my ($class, $rows, $columns) = @_;
+	my ($class, $rows, $columns, $text) = @_;
 
 	croak(_fmt('error_rows_arrayref', defined($rows) ? ref($rows) || $rows : 'undef'))
 		unless ref($rows) eq 'ARRAY';
@@ -1691,16 +1701,19 @@ sub place_rows {
 	croak(_fmt('error_column_required')) unless @columns;
 
 	my $name = join(', ', @columns);
-	return ($rows, $name) if @columns == 1;
+	$text = (defined($text) && !ref($text)) ? ($text =~ s/\A\s+|\s+\z//gr) : '';
+	return ($rows, $name) if @columns == 1 && !length($text);
 
 	my @places = map {
 		my $row = $_;
-		(ref($row) eq 'HASH')
-			? +{ $name => join(', ', grep { length } map {
+		my $place = (ref($row) eq 'HASH')
+			? join(', ', grep { length } map {
 				my $cell = $row->{$_};
 				(defined($cell) && !ref($cell)) ? ($cell =~ s/\A\s+|\s+\z//gr) : '';
-			} @columns) }
+			} @columns)
 			: undef;
+		$place .= ", $text" if defined($place) && length($place) && length($text);
+		defined($place) ? +{ $name => $place } : undef;
 	} @{$rows};
 
 	return (\@places, $name);

@@ -877,6 +877,10 @@ browser, the page waits for the lookups instead (C<geocode=wait>).  Parameters:
   loc=<col>      column of places to geocode (required unless lat= and lon= are);
                  repeat it for a place written across columns, which are joined
                  with ", " in that order (loc=Address&loc=Country)
+  loc_text=<text> text added to the end of each place before it is looked
+                 up, after ", " (loc=County&loc_text=Virginia, USA looks up
+                 "Accomack, Virginia, USA"); one line, at most 200 characters;
+                 a row with no place is still not looked up
   lat=<col>      latitude column, -90..90
   lon=<col>      longitude column, -180..180
   popup=<col>    column shown in the marker popup (repeatable; default every
@@ -1175,22 +1179,25 @@ extraction of the spec.
 
 =item C<GET /geo/list>
 
-Returns C<{ columns: { col: { kind: "lat"|"lon"|"location" } } }> for the
-saved coordinate-column preferences of the given C<l=> spec.
+Returns C<{ columns: { col: { kind: "lat"|"lon"|"location"|"location_suffix" } } }>
+for the saved coordinate-column preferences of the given C<l=> spec, with
+C<loc_text> when the text added to each place is remembered too.
 
 =item C<POST /geo/save>
 
 Saves a coordinate-column preference.  Body: C<l=&col=&kind=>,
-where C<kind> is C<lat>, C<lon>, or C<location>.  C<col=> and C<kind=> may
-repeat in pairs, so a latitude and a longitude are saved in one request, and
-C<replace=1> forgets the spec's saved columns first.  The map panel's
-"Remember columns" sends both, so a new choice replaces the old one; its
-"Forget remembered columns" calls C</geo/delete>.
+where C<kind> is C<lat>, C<lon>, C<location> or C<location_suffix>.  C<col=> and
+C<kind=> may repeat in pairs, so a latitude and a longitude are saved in one
+request, and C<replace=1> forgets the spec's saved columns first.  C<loc_text=>
+remembers the text added to each place (as C<loc_text=> on C</map>, and refused
+as it would be there).  The map panel's "Remember columns" sends all of them,
+so a new choice replaces the old one; its "Forget remembered columns" calls
+C</geo/delete>.
 
 =item C<POST /geo/delete>
 
 Removes a coordinate-column preference.  Body: C<l=&col=>.
-Omit C<col=> to clear all preferences for the spec.
+Omit C<col=> to clear all preferences for the spec, and its C<loc_text>.
 
 =item C<POST /geo/lookup>
 

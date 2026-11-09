@@ -719,6 +719,10 @@ perl Makefile.PL
     loc=<col>      column of places to geocode (required unless lat= and lon= are);
                    repeat it for a place written across columns, which are joined
                    with ", " in that order (loc=Address&loc=Country)
+    loc_text=<text> text added to the end of each place before it is looked
+                   up, after ", " (loc=County&loc_text=Virginia, USA looks up
+                   "Accomack, Virginia, USA"); one line, at most 200 characters;
+                   a row with no place is still not looked up
     lat=<col>      latitude column, -90..90
     lon=<col>      longitude column, -180..180
     popup=<col>    column shown in the marker popup (repeatable; default every
@@ -1018,22 +1022,25 @@ perl Makefile.PL
 
 - `GET /geo/list`
 
-    Returns `{ columns: { col: { kind: "lat"|"lon"|"location" } } }` for the
-    saved coordinate-column preferences of the given `l=` spec.
+    Returns `{ columns: { col: { kind: "lat"|"lon"|"location"|"location_suffix" } } }`
+    for the saved coordinate-column preferences of the given `l=` spec, with
+    `loc_text` when the text added to each place is remembered too.
 
 - `POST /geo/save`
 
     Saves a coordinate-column preference.  Body: `l=&col=&kind=`,
-    where `kind` is `lat`, `lon`, or `location`.  `col=` and `kind=` may
-    repeat in pairs, so a latitude and a longitude are saved in one request, and
-    `replace=1` forgets the spec's saved columns first.  The map panel's
-    "Remember columns" sends both, so a new choice replaces the old one; its
-    "Forget remembered columns" calls `/geo/delete`.
+    where `kind` is `lat`, `lon`, `location` or `location_suffix`.  `col=` and
+    `kind=` may repeat in pairs, so a latitude and a longitude are saved in one
+    request, and `replace=1` forgets the spec's saved columns first.  `loc_text=`
+    remembers the text added to each place (as `loc_text=` on `/map`, and refused
+    as it would be there).  The map panel's "Remember columns" sends all of them,
+    so a new choice replaces the old one; its "Forget remembered columns" calls
+    `/geo/delete`.
 
 - `POST /geo/delete`
 
     Removes a coordinate-column preference.  Body: `l=&col=`.
-    Omit `col=` to clear all preferences for the spec.
+    Omit `col=` to clear all preferences for the spec, and its `loc_text`.
 
 - `POST /geo/lookup`
 

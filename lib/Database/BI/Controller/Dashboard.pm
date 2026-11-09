@@ -241,6 +241,7 @@ Readonly my %MESSAGES => (
 	error_map_geocode_mode      => 'geocode= must be "wait" (look places up before the page is sent) or "cached" (look nothing up), not "%s"',
 	error_geo_lookup_place      => 'A lookup needs place= and the sig= the map page gave it',
 	error_geo_lookup_unsigned   => 'This place was not listed by a map page, or the server has restarted since; open the map again',
+	error_map_loc_text          => 'loc_text= is the text added to the end of each place, at most %d characters on one line, not "%s"',
 	error_map_bounds_unknown    => 'bounds= must be "county", the only kind of boundary so far, not "%s"',
 	warn_map_bounds_pending     => '%d of %d places have no county outline yet; open the map again to look them up',
 	warn_map_bounds_offline     => '%d of %d places have no county outline: outlines come from OpenStreetMap, which this server does not ask (map_geocode_online is off, or LWP::UserAgent::Throttled is not installed)',
@@ -303,6 +304,7 @@ Readonly my $DEFAULT_MAP_GEOCODE_MAX => 500;   # new lookups per request (map_ge
 Readonly my $DEFAULT_MAP_GEOCODE_ONLINE_MAX => 20;   # map_geocode_online_max
 Readonly my $DEFAULT_MAP_MAX_MARKERS => 2_000; # markers drawn per request (map_max_markers)
 Readonly my $DEFAULT_MAP_POPUP_ROWS  => 10;    # rows listed in one marker's popup (map_popup_rows)
+Readonly my $MAP_LOC_TEXT_MAX        => 200;   # characters of loc_text=, the text added to each place
 Readonly my $DEFAULT_MARKER_COLOR  => '#3388ff'; # Leaflet default blue
 # A bubble map's size key: the bubbles' own colour when they have one, and
 # this grey when the colour says something else (a colour column)
@@ -12036,9 +12038,11 @@ sub extract_list ($self) {
 # geo.<spec>.places and is written by _map_data independently.
 # ---------------------------------------------------------------------------
 
-# geo_save: POST /geo/save?l=<spec>&col=<col>&kind=lat|lon|location|location_suffix[&replace=1]
+# geo_save: POST /geo/save?l=<spec>&col=<col>&kind=lat|lon|location|location_suffix[&replace=1][&loc_text=<text>]
 # location_suffix is the column whose cells follow the place's, after ", "
-# (a country after an address).
+# (a country after an address).  loc_text= is the text the map adds to the end
+# of each place ("Virginia, USA"); it is not a column, so it is kept beside
+# them, as geo.<spec>.loc_text, and replace=1 forgets it too.
 # col= and kind= may repeat, in pairs, so a latitude and a longitude are saved
 # in one request.  replace=1 forgets the spec's saved columns first: the map
 # panel's "Remember" sends it, so a new choice replaces the old one rather than
@@ -12054,16 +12058,24 @@ sub geo_save ($self) {
 		unless @cols && !grep { !length } @cols;
 	return $self->render(json => { error => 'kind must be lat, lon, location or location_suffix' }, status => 400)
 		unless @kinds == @cols && !grep { !/\A(?:lat|lon|location|location_suffix)\z/ } @kinds;
+	my $loc_text_raw = $self->param('loc_text') // '';
+	my ($loc_text) = _map_loc_text($loc_text_raw);
+	return $self->render(json => { error => $self->_i18n('error_map_loc_text', $MAP_LOC_TEXT_MAX, $loc_text_raw) }, status => 400)
+		unless defined $loc_text;
 
 	my $models = $self->_read_models;
-	delete $models->{geo}{$spec}{columns} if $self->param('replace');
+	if ($self->param('replace')) {
+		delete $models->{geo}{$spec}{columns};
+		delete $models->{geo}{$spec}{loc_text};
+	}
 	$models->{geo}{$spec}{columns}{ $cols[$_] } = { kind => $kinds[$_] } for 0 .. $#cols;
+	$models->{geo}{$spec}{loc_text} = $loc_text if length $loc_text;
 	$self->_write_models($models);
 	$self->render(json => { ok => 1 });
 }
 
 # geo_delete: POST /geo/delete?l=<spec>&col=<col>
-# Omit col= to clear all column preferences for the spec.
+# Omit col= to clear all column preferences for the spec, and its loc_text.
 sub geo_delete ($self) {
 	my $spec = canonical_spec($self->param('l')   // '');
 	my $col  = $self->param('col') // '';
@@ -12076,20 +12088,26 @@ sub geo_delete ($self) {
 		delete $models->{geo}{$spec}{columns}{$col};
 	} else {
 		delete $models->{geo}{$spec}{columns};
+		delete $models->{geo}{$spec}{loc_text};
 	}
 	$self->_write_models($models);
 	$self->render(json => { ok => 1 });
 }
 
 # geo_list: GET /geo/list?l=<spec>
-# Returns { columns: { col: { kind: "lat"|"lon"|"location" }, ... } }.
+# Returns { columns: { col: { kind: "lat"|"lon"|"location"|"location_suffix" }, ... } },
+# with loc_text: "<text>" when that is remembered too.
 sub geo_list ($self) {
 	my $spec = canonical_spec($self->param('l') // '');
 	return $self->render(json => { error => 'l= required' }, status => 400)
 		unless length $spec;
 
 	my $models = $self->_read_models;
-	$self->render(json => { columns => $models->{geo}{$spec}{columns} // {} });
+	my $loc_text = $models->{geo}{$spec}{loc_text};
+	$self->render(json => {
+		columns => $models->{geo}{$spec}{columns} // {},
+		(defined($loc_text) && !ref($loc_text) && length($loc_text) ? (loc_text => $loc_text) : ()),
+	});
 }
 
 # ---------------------------------------------------------------------------
@@ -13013,6 +13031,24 @@ sub _map_loc_columns {
 	return grep { defined($_) && !ref($_) && length($_) && !$seen{$_}++ } @names;
 }
 
+# _map_loc_text($value) -> ($text) | ()
+#
+# The text added to the end of each place (loc_text=, a card's
+# encode.loc_text): "Virginia, USA" for a column of county names.  Spaces are
+# trimmed and runs of them made one, and a leading comma dropped, since the
+# place and the text are joined with ", ".  Empty is ''.  Nothing is returned
+# for a value that is not one short line, which the map page refuses and a
+# card, stored unchecked, leaves out.
+sub _map_loc_text {
+	my ($value) = @_;
+	return ('') unless defined $value;
+	return if ref($value) || $value =~ /[\x00-\x1f\x7f]/;
+	(my $text = $value) =~ s/\s+/ /g;
+	$text =~ s/\A[\s,]+|\s+\z//g;
+	return if length($text) > $MAP_LOC_TEXT_MAX;
+	return ($text);
+}
+
 # _map_unplotted(\@records, \@places, $loc_col, \@loc_cols, \%resolved)
 #     -> (\@entries, \@all_filters)
 #
@@ -13196,6 +13232,8 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my $lat_col = $encode->{lat} // '';
 	my $lon_col = $encode->{lon} // '';
 	my $by_location = length $loc_col;
+	my ($loc_text) = _map_loc_text($encode->{loc_text});
+	$loc_text = '' unless defined($loc_text) && $by_location;
 
 	return { error => $self->_i18n('error_map_source'), status => 400 }
 		unless $by_location || length($lat_col) || length($lon_col);
@@ -13236,7 +13274,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 
 		# What the geocoder is given: one cell a row, under $loc_col, in the
 		# rows' own order, so a marker's first_row still indexes $records.
-		my ($places) = Database::BI::Model::Geocode->place_rows($records, \@loc_cols);
+		my ($places) = Database::BI::Model::Geocode->place_rows($records, \@loc_cols, $loc_text);
 
 		my $geocode = $self->_map_geocoder(1);
 
@@ -13634,8 +13672,10 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my %chart_spec = (
 		kind   => 'map',
 		title  => $title,
-		encode => ($by_location ? { loc => (@loc_cols == 1 ? $loc_cols[0] : [ @loc_cols ]) }
-		                        : { lat => $lat_col, lon => $lon_col }),
+		encode => ($by_location
+			? { loc => (@loc_cols == 1 ? $loc_cols[0] : [ @loc_cols ]),
+			    (length($loc_text) ? (loc_text => $loc_text) : ()) }
+			: { lat => $lat_col, lon => $lon_col }),
 	);
 	$chart_spec{options}{popup} = \@popup if @popup;
 	$chart_spec{options}{max}   = $options->{max}
@@ -13668,6 +13708,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		row_count    => $plotted_rows,
 		source_rows  => scalar @$records,
 		loc_col      => ($by_location ? $loc_col : undef),
+		loc_text     => $loc_text,
 		lat_col      => ($by_location ? undef    : $lat_col),
 		lon_col      => ($by_location ? undef    : $lon_col),
 		backend      => $backend,
@@ -13805,6 +13846,7 @@ sub map_view ($self) {
 	my $tiles_name   = $self->param('tiles')    // '';
 	my $heat         = $self->param('heat')     // 0;
 	my $bounds_raw   = $self->param('bounds')   // '';
+	my $loc_text_raw = $self->param('loc_text') // '';
 	my $weight_col   = $self->param('weight')   // '';
 	my $size_col     = $self->param('size')     // '';
 	my $series_col   = $self->param('series')   // '';
@@ -13843,6 +13885,10 @@ sub map_view ($self) {
 	}
 
 	my $by_location = length $loc_col;
+
+	my ($loc_text) = _map_loc_text($loc_text_raw);
+	return $self->render(text => $self->_i18n('error_map_loc_text', $MAP_LOC_TEXT_MAX, $loc_text_raw), status => 400)
+		unless defined $loc_text;
 
 	my $bounds_level;
 	if (length $bounds_raw) {
@@ -13973,7 +14019,7 @@ sub map_view ($self) {
 
 	my $result = $self->_map_data(
 		$records, $columns,
-		($by_location ? { loc => [ @loc_cols ] } : { lat => $lat_col, lon => $lon_col }),
+		($by_location ? { loc => [ @loc_cols ], loc_text => $loc_text } : { lat => $lat_col, lon => $lon_col }),
 		\%options,
 		$self->param('l') // '',
 		undef,
@@ -14055,6 +14101,7 @@ sub map_view ($self) {
 		source_rows     => $result->{source_rows},
 		loc_col         => $result->{loc_col},
 		loc_many        => (@loc_cols > 1 ? 1 : 0),
+		loc_text        => $result->{loc_text},
 		lat_col         => $result->{lat_col},
 		lon_col         => $result->{lon_col},
 		backend         => $result->{backend},

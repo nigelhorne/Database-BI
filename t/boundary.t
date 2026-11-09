@@ -284,6 +284,20 @@ subtest 'a browser gets a progress bar for the outlines not known' => sub {
 			->content_like(qr/1 of 4 places have no county outline yet/);
 	});
 	is(scalar(@{ $Fake::OSM::geojson[0][0]{features} }), 1, 'the outline found is drawn');
+
+	# Trying again lists only the points still unknown: the two found before
+	# Cancel (and the sea) are remembered, and nothing is asked to draw them.
+	$ua->clear;
+	my @again;
+	with_fakes($ua, sub {
+		$t->get_ok("$map&bounds=county", { Accept => 'text/html' })->status_is(200)
+			->content_like(qr/Looking up\s+1 county outline\s+that is not in the cache yet/);
+		my ($json) = $t->tx->res->body =~ m{<script[^>]*id="map-pending">(.*?)</script>}s;
+		@again = @{ decode_json(html_unescape($json // '[]')) };
+	});
+	is_deeply([ map { $_->{point} } @again ], [ '10.100,21.100' ], 'only the point held at Cancel');
+	is(scalar($ua->asked), 0, 'nothing asked to draw the rest');
+	is(scalar(@{ $Fake::OSM::geojson[0][0]{features} }), 1, 'the outline found before is drawn at once');
 };
 
 subtest 'messages when outlines cannot be had' => sub {

@@ -3635,6 +3635,11 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 				{ name => 'Thirty', id => 2, box => [ 29, 39, 31, 41 ] },
 			];
 			my $bounds = "/map?$l&lat=lat&lon=lon&bounds=county";
+			$tm->get_ok("/map?$l&loc=place&loc_text=" . ('x' x 201))->status_is(400);
+			message_ok(Dashboard => 'error_map_loc_text', $tm->tx->res->body, [200, 'x' x 201]);
+			$tm->post_ok('/geo/save' => form => { l => 'table:x', col => 'place', kind => 'location', loc_text => "a\nb" })
+				->status_is(400);
+			message_ok(Dashboard => 'error_map_loc_text', $tm->tx->res->json->{error}, [200, "a\nb"]);
 			$tm->get_ok("/map?$l&lat=lat&lon=lon&bounds=shire")->status_is(400);
 			message_ok(Dashboard => 'error_map_bounds_unknown', $tm->tx->res->body, ['shire']);
 
