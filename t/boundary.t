@@ -476,6 +476,160 @@ subtest 'map_bounds_ranks in the config' => sub {
 	}
 };
 
+subtest 'outlines() says which outline each point is in' => sub {
+	my $r = boundary(ua => BI::Test::Boundary->new(areas => \@AREAS))
+		->outlines([ [ 10.1, 20.1 ], [ 10.2, 20.2 ], [ 10.5, 21.5 ], [ 50, 50 ] ]);
+	is_deeply($r->{inside}, { '10.100,20.100' => 'R101', '10.200,20.200' => 'R101', '10.500,21.500' => 'R103' },
+		'by point key, the sea left out');
+};
+
+subtest 'with the heat layer, outlines are coloured by what is in them' => sub {
+	my $csv = File::Spec->catfile($data, 'people.csv');
+	open my $fh, '>', $csv or die $!;
+	# West County: two rows at one point and one at another (37); East: 1000;
+	# The City, in East's hole: 5.
+	print {$fh} "name,lat,lon,pop\nA,10.1,20.1,10\nB,10.1,20.1,20\nC,10.5,20.5,7\nD,10.1,21.1,1000\nE,10.5,21.5,5\nF,10.6,20.6,n/a\n";
+	close $fh;
+	my $people = '/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait';
+	my $t  = fresh_app();
+	my $ua = BI::Test::Boundary->new(areas => \@AREAS);
+	my $layers = sub {
+		return [ map {
+			my ($collection, %opts) = @{$_};
+			[ $opts{style}{color}, [ map { html_unescape($_->{properties}{name}) } @{ $collection->{features} } ] ];
+		} @Fake::OSM::geojson ];
+	};
+
+	with_fakes($ua, sub { $t->get_ok("$people&heat=1&weight=pop")->status_is(200) });
+	is_deeply($layers->(), [
+		[ '#1a9850', [ 'The City: 5 pop' ] ],
+		[ '#bea32e', [ 'West County: 37 pop' ] ],
+		[ '#d73027', [ 'East <b>County</b> & Co: 1,000 pop' ] ],
+	], 'green to red by size, low first so the highest is on top; every row counted, a cell not a number none');
+	my (undef, %opts) = @{ $Fake::OSM::geojson[0] };
+	is($opts{name}, 'County boundaries', 'every colour under one name, so one checkbox hides them all');
+	is(${ $opts{style}{fill} }, 0, 'still outlines');
+	like($Fake::OSM::geojson[2][0]{features}[0]{properties}{name}, qr/&lt;b&gt;/, 'the name still escaped');
+	is_deeply($opts{key}, {
+		title   => 'pop in each county',
+		entries => [
+			{ colour => '#d73027', label => '1,000' },
+			{ colour => '#bea32e', label => '37' },
+			{ colour => '#1a9850', label => '5' },
+		],
+	}, 'a key to the colours, highest first, with the first layer');
+	ok(!(grep { my (undef, %o) = @{$_}; $o{key} } @Fake::OSM::geojson[1, 2]), 'and only the first');
+	$t->content_like(qr/with 3 county outlines coloured by pop, from green \(least\) to red \(most\)\./,
+		'the summary says what the colours mean');
+
+	with_fakes($ua, sub { $t->get_ok("$people&heat=1")->status_is(200) });
+	is_deeply($layers->(), [
+		[ '#1a9850', [ 'East <b>County</b> & Co: 1 row', 'The City: 1 row' ] ],
+		[ '#d73027', [ 'West County: 4 rows' ] ],
+	], 'with no weight column, rows counted; equal counts share a colour');
+	is_deeply({ @{ $Fake::OSM::geojson[0] }[1 .. $#{ $Fake::OSM::geojson[0] }] }->{key}, {
+		title   => 'Rows in each county',
+		entries => [ { colour => '#d73027', label => '4' }, { colour => '#1a9850', label => '1' } ],
+	}, 'the key counts rows');
+	$t->content_like(qr/coloured by rows, from green \(fewest\) to red \(most\)\./, 'which the summary says');
+
+	# A total that rounds to nothing is 0, never "-0".
+	is(Database::BI::Controller::Dashboard::_map_total_text(-0.001), '0', 'a tiny negative total is 0');
+	is(Database::BI::Controller::Dashboard::_map_total_text(-1234.5), '-1,234.5', 'a real negative total keeps its sign');
+
+	with_fakes($ua, sub { $t->get_ok($people)->status_is(200) });
+	is_deeply($layers->(), [ [ '#555555', [ 'West County', 'East <b>County</b> & Co', 'The City' ] ] ],
+		'without the heat layer, grey');
+	ok(!{ @{ $Fake::OSM::geojson[0] }[1 .. $#{ $Fake::OSM::geojson[0] }] }->{key}, 'with no key');
+	$t->content_unlike(qr/coloured by/, 'and nothing to explain');
+
+	with_fakes($ua, sub { $t->get_ok("$people&heat=1&weight=pop&f=" . url_escape('name:eq:D'))->status_is(200) });
+	is_deeply($layers->(), [ [ '#555555', [ 'East <b>County</b> & Co: 1,000 pop' ] ] ],
+		'a lone outline has nothing to be compared with: grey, but its popup still gives the total');
+	ok(!{ @{ $Fake::OSM::geojson[0] }[1 .. $#{ $Fake::OSM::geojson[0] }] }->{key}, 'so no key');
+	$t->content_like(qr/with 1 county outline\./, 'and the summary claims no colours');
+
+	# D and E are one row each: equal totals, so again nothing to compare.
+	with_fakes($ua, sub {
+		$t->get_ok("$people&heat=1&f=" . url_escape('name:in:["D","E"]'))->status_is(200);
+	});
+	is_deeply($layers->(), [ [ '#555555', [ 'East <b>County</b> & Co: 1 row', 'The City: 1 row' ] ] ],
+		'outlines with totals all alike are grey too');
+	$t->content_unlike(qr/coloured by/, 'with no colours claimed');
+};
+
+subtest 'colours follow size, so close totals share one' => sub {
+	my $shares = \&Database::BI::Controller::Dashboard::_outline_shares;
+	my $by_size = $shares->([ 1000, 1001, 1_000_000 ]);
+	is($by_size->{1000}, 0, 'the lowest is at the green end');
+	is($by_size->{1_000_000}, 1, 'the highest at the red end');
+	cmp_ok($by_size->{1001}, '<', 0.001, 'a total one above the lowest is beside it, not half way up');
+	my $steps = $shares->([ 1, 10, 100 ]);
+	cmp_ok(abs($steps->{10} - 0.5), '<', 1e-9, 'ten times as much is the same step each time');
+	is_deeply($shares->([ 0, 5, 1000 ]), { 0 => 0, 5 => 0.5, 1000 => 1 },
+		'a total of nothing has no logarithm, so then they are spread by rank');
+	is_deeply($shares->([ -3, 4 ]), { -3 => 0, 4 => 1 }, 'a negative total too');
+};
+
+subtest 'an outline is called what its country calls it' => sub {
+	my $csv = File::Spec->catfile($data, 'called.csv');
+	open my $fh, '>', $csv or die $!;
+	print {$fh} "name,lat,lon,pop\nA,50.5,60.5,10\nB,50.5,61.5,200\nC,50.5,70.5,30\n";
+	close $fh;
+	my $called = '/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait&heat=1&weight=pop';
+	my @india = (
+		{ name => 'Pune', id => 801, box => [ 50, 60, 51, 61 ], rank => 10, country => 'in' },
+		{ name => 'Nashik', id => 802, box => [ 50, 61, 51, 62 ], rank => 10, country => 'in' },
+	);
+	my $t = fresh_app();
+	with_fakes(BI::Test::Boundary->new(areas => \@india), sub {
+		$t->get_ok($called)->status_is(200)
+			->content_like(qr/with 2 district outlines coloured by pop/, 'the summary says district');
+	});
+	my (undef, %opts) = @{ $Fake::OSM::geojson[0] };
+	is($opts{name}, 'District boundaries', 'the checkbox too');
+	is($opts{key}{title}, 'pop in each district', 'and the key');
+
+	# A French departement beside them: no one word covers both.
+	$t = fresh_app();
+	with_fakes(BI::Test::Boundary->new(areas => [ @india,
+		{ name => 'Ain', id => 803, box => [ 50, 70, 51, 71 ], country => 'fr' },
+		# Its region: what a lookup at India's zoom finds, naming the country.
+		{ name => 'A Region', id => 804, box => [ 49, 69, 52, 72 ], rank => 8, country => 'fr' } ]), sub {
+		$t->get_ok($called)->status_is(200)
+			->content_like(qr/with 3 area outlines coloured by pop/, 'a map of mixed kinds says area');
+	});
+	(undef, %opts) = @{ $Fake::OSM::geojson[0] };
+	is($opts{name}, 'Area boundaries', 'on the checkbox');
+	is($opts{key}{title}, 'pop in each area', 'and in the key');
+
+	my $class = 'Database::BI::Model::Boundary';
+	is($class->name_for('IN'), 'district', 'name_for reads a code in any case');
+	is($class->name_for('fr'), 'department', 'a departement');
+	is($class->name_for('us'), 'county', 'a country not listed is a county');
+	is($class->name_for(undef), 'county', 'and so is no country');
+};
+
+subtest 'a colour in the key covers the totals drawn in it' => sub {
+	# Twenty counties in a row, one marker each, populations 1 to 20.
+	my @areas = map { { name => "C$_", id => 700 + $_, box => [ 40, $_, 41, $_ + 1 ] } } 1 .. 20;
+	my $csv = File::Spec->catfile($data, 'row.csv');
+	open my $fh, '>', $csv or die $!;
+	print {$fh} "name,lat,lon,pop\n", map { "P$_,40.5,@{[ $_ + 0.5 ]},$_\n" } 1 .. 20;
+	close $fh;
+	my $t  = fresh_app();
+	with_fakes(BI::Test::Boundary->new(areas => \@areas), sub {
+		$t->get_ok('/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait&heat=1&weight=pop')
+			->status_is(200);
+	});
+	my (undef, %opts) = @{ $Fake::OSM::geojson[0] };
+	my @labels = map { $_->{label} } @{ $opts{key}{entries} };
+	cmp_ok(scalar(@labels), '<=', 9, 'no more than nine colours');
+	is($labels[0], '17 to 20', 'the highest covers those close to it in size, from smallest to largest');
+	is($labels[-1], '1', 'the lowest stands alone: 2 is twice as much');
+	is(scalar(@{ $Fake::OSM::geojson[-1][0]{features} }), 4, 'the four drawn in the highest');
+};
+
 subtest 'the map card keeps bounds' => sub {
 	my $t = fresh_app();
 	with_fakes(BI::Test::Boundary->new(areas => \@AREAS), sub {
@@ -507,6 +661,27 @@ SKIP: {
 		} else {
 			unlike($body, qr/L\.control\.layers/, 'HTML::OSM before 0.15 draws them with no checkbox');
 		}
+	};
+
+	# The key is HTML::OSM 0.16's; an older copy takes the option and draws
+	# nothing, so only a copy that new can show the key reaches the page.
+	subtest 'HTML::OSM draws the key to the colours' => sub {
+		plan skip_all => 'HTML::OSM 0.16 or later is needed to draw a key to the outlines'
+			unless eval { HTML::OSM->VERSION(0.16); 1 };
+		my $csv = File::Spec->catfile($data, 'keyed.csv');
+		open my $fh, '>', $csv or die $!;
+		print {$fh} "name,lat,lon,pop\nA,10.1,20.1,30\nD,10.1,21.1,1000\n";
+		close $fh;
+		my $t = fresh_app();
+		BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => \@AREAS), sub {
+			$t->get_ok('/map?l=' . url_escape("path:$csv")
+				. '&lat=lat&lon=lon&bounds=county&geocode=wait&heat=1&weight=pop')->status_is(200);
+		});
+		my $body = $t->tx->res->body;
+		like($body, qr/layerKey\(group, \{[^\n]*"title":"pop in each county"/, 'the key is given to the layer');
+		like($body, qr/layerKey\(group, [^\n]*"label":"1,000"[^\n]*"label":"30"/, 'highest first');
+		like($body, qr/layerKey\(group, [^\n]*"colour":"#d73027"[^\n]*"colour":"#1a9850"/, 'red down to green');
+		is(scalar(() = $body =~ /layerKey\(group,/g), 1, 'one key for the two colours');
 	};
 }
 

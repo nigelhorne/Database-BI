@@ -924,6 +924,22 @@ C<POST /geo/boundary>, or in the request for C<geocode=wait>; at most
 C<map_geocode_online_max> in one request.  The checkbox needs L<HTML::OSM> 0.15;
 with 0.14 the outlines are always shown.
 
+With C<heat=1> as well, each outline is coloured by what is in it: the
+C<weight=> column summed over every row inside it (or its rows counted, with no
+C<weight=>), from green for the smallest total to red for the largest.  The
+colour follows the size of the total on a logarithmic scale: each step up the
+colours is the same multiple, so totals close in size share a colour and skewed
+totals (one county with 500 times the people of another) still spread across
+the scale.  When a total is zero or less the colours go by rank instead.  With
+one outline, or totals all alike, there is nothing to compare, so the outlines
+stay grey.  Each outline's popup gives its total, and the line under the title
+says what the colours mean.  The checkbox, the key and that line call an
+outline what its country does (a district in India, a province in Spain, an
+area when the map mixes them).  With L<HTML::OSM>
+0.16 a key in the map's bottom right corner lists each colour, highest first,
+with the totals it covers ("29,652 to 37,109"); it hides with the outlines'
+checkbox.
+
 A marker stands for every row at its place, and its popup lists them all: a
 value every row shares is shown once ("Person: Valentin Puntar"), and the
 columns that differ are a small table, one line a row.  The table shows at most

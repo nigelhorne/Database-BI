@@ -3648,14 +3648,58 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			my @layers;
 			local *HTML::OSM::new = sub { bless {}, 'Unit::FakeOSM' };
 			local *Unit::FakeOSM::add_marker = sub { 1 };
-			local *Unit::FakeOSM::add_geojson = sub { my (undef, undef, %o) = @_; push @layers, $o{name}; 1 };
+			my @popups;
+			my @keys;
+			local *Unit::FakeOSM::add_geojson = sub {
+				my (undef, $data, %o) = @_;
+				push @layers, $o{name};
+				push @keys, $o{key} if $o{key};
+				push @popups, map { $_->{properties}{name} } @{ $data->{features} };
+				1;
+			};
+			local *Unit::FakeOSM::add_heatmap = sub { 1 };
 			local *Unit::FakeOSM::onload_render = sub { ('', '<div id="map"></div>') };
 
 			my $outlines = unit_app();
 			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
 				$outlines->get_ok($bounds)->status_is(200);
 			});
-			message_ok(Dashboard => 'map_bounds_layer', $layers[0]);
+			message_ok(Dashboard => 'map_bounds_layer', $layers[0], ['County']);
+
+			# With the heat layer, each outline's popup gives its total.
+			@popups = ();
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$outlines->get_ok("$bounds&heat=1&weight=id")->status_is(200);
+			});
+			message_ok(Dashboard => 'map_bounds_total', $popups[0], ['Ten', 1, 'id']);
+			message_ok(Dashboard => 'map_bounds_key_total', $keys[-1]{title}, ['id', 'county']);
+			@popups = ();
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$outlines->get_ok("$bounds&heat=1")->status_is(200);
+			});
+			message_ok(Dashboard => 'map_bounds_row', $popups[0], ['Ten']);
+			# A colour covering unequal totals names its range: more outlines
+			# than the nine colours, one marker each.
+			my $row = unit_csv('row.csv', "id,lat,lon\n" . join('', map { "$_,40.5,@{[ $_ + 0.5 ]}\n" } 1 .. 20));
+			@keys = ();
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => [
+				map { { name => "C$_", id => 100 + $_, box => [ 40, $_, 41, $_ + 1 ] } } 1 .. 20
+			]), sub {
+				$outlines->get_ok('/map?l=' . $e->("path:$row") . '&lat=lat&lon=lon&bounds=county&heat=1&weight=id')
+					->status_is(200);
+			});
+			message_ok(Dashboard => 'map_bounds_key_range', $keys[-1]{entries}[0]{label}, [17, 20]);
+			# Two rows in one outline are "2 rows"; one alone is "1 row", above.
+			my $pair = unit_csv('pair.csv', "id,lat,lon\n1,50.5,1.5\n2,50.5,1.5\n3,50.5,3.5\n");
+			@popups = ();
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => [
+				{ name => 'Pair', id => 301, box => [ 50, 1, 51, 2 ] },
+				{ name => 'Solo', id => 302, box => [ 50, 3, 51, 4 ] },
+			]), sub {
+				$outlines->get_ok('/map?l=' . $e->("path:$pair") . '&lat=lat&lon=lon&bounds=county&heat=1')->status_is(200);
+			});
+			message_ok(Dashboard => 'map_bounds_rows', $popups[-1], ['Pair', 2]);
+			message_ok(Dashboard => 'map_bounds_key_rows', $keys[-1]{title}, ['county']);
 
 			my $capped = unit_app();
 			$capped->app->config->{map_geocode_online_max} = 1;

@@ -235,7 +235,19 @@ Readonly my %MESSAGES => (
 	warn_map_coordinate_rows    => 'Plotted %d of %d rows; %d hold no usable coordinate',
 	warn_map_markers_capped     => 'Showing the first %d of %d markers; add f= filters to see the rest',
 	map_legend_empty            => 'Nothing in this view',
-	map_bounds_layer            => 'County boundaries',
+	map_bounds_layer            => '%s boundaries',
+	map_bounds_noun_county      => 'county',
+	map_bounds_noun_district    => 'district',
+	map_bounds_noun_province    => 'province',
+	map_bounds_noun_prefecture  => 'prefecture',
+	map_bounds_noun_department  => 'department',
+	map_bounds_noun_area        => 'area',
+	map_bounds_total            => '%s: %s %s',
+	map_bounds_row              => '%s: 1 row',
+	map_bounds_rows             => '%s: %s rows',
+	map_bounds_key_total        => '%s in each %s',
+	map_bounds_key_rows         => 'Rows in each %s',
+	map_bounds_key_range        => '%s to %s',
 	warn_map_cache_unwritten    => 'The resolved places could not be remembered in the model store, so the next request will look them up again',
 	error_map_tiles_unknown     => 'Unknown tile source "%s"; define it under tile_sources in database_bi.conf',
 	error_map_geocode_mode      => 'geocode= must be "wait" (look places up before the page is sent) or "cached" (look nothing up), not "%s"',
@@ -13193,6 +13205,226 @@ sub _map_boundary :Protected ($self, $level, $online) {
 	);
 }
 
+# The colours of county outlines on a heat map, low to high: green, amber,
+# red, as the top of the heat layer's own gradient (lime, yellow, red).  An
+# outline's colour is one of $OUTLINE_STEPS steps between them, so outlines of
+# about the same total share a layer.
+Readonly my @OUTLINE_STOPS => ([ 0x1a, 0x98, 0x50 ], [ 0xf5, 0xa6, 0x23 ], [ 0xd7, 0x30, 0x27 ]);
+Readonly my $OUTLINE_STEPS => 9;
+# How an outline is drawn: thin and grey on a plain map, heavier when its
+# colour carries a meaning, so the colour can be told apart on a busy map.
+Readonly my %OUTLINE_PLAIN => (colour => '#555555', weight => 1.5, opacity => 0.8);
+Readonly my %OUTLINE_HEAT  => (weight => 2.5, opacity => 0.9);
+
+# _map_outline_layers($self, $outlines, \@markers, $records, $weight_col)
+#     -> list of { features, colour, weight, opacity }
+#
+# The county outlines as layers for add_geojson.  Without the heat layer
+# ($weight_col undef) they are one grey layer.  With it, each outline is
+# coloured by the total of what is in it: the weight column summed over every
+# row of every marker inside it (a cell that is not a number adds nothing), or,
+# with no weight column (''), its rows counted.  _outline_shares places each
+# total between green and red.  A lone outline, or totals all alike, stays
+# grey with no key, having nothing to be compared with; $noun is what an
+# outline is called there, for the key's title.  The layers go from low to high, so where two
+# outlines share a border the higher is drawn on top; the first carries the
+# key to the colours, high to low with the totals each covers.  Each popup names the
+# outline and its total.  Leaflet reads a popup as HTML, and a name from
+# OpenStreetMap is text, so it is escaped.
+sub _map_outline_layers :Protected ($self, $outlines, $markers, $records, $weight_col, $noun) {
+	return () unless $outlines && @{ $outlines->{features} };
+
+	my @features = @{ $outlines->{features} };
+	my $named = sub {
+		my ($feature, $text) = @_;
+		return { %{$feature}, properties => { name => xml_escape($text) } };
+	};
+
+	# No heat layer: nothing to total, so one grey layer and no key.
+	unless (defined $weight_col) {
+		return {
+			features => [ map { $named->($_, $_->{properties}{name} // '') } @features ],
+			%OUTLINE_PLAIN,
+		};
+	}
+
+	my $total  = $self->_map_outline_totals($outlines->{inside} // {}, $markers, $records, $weight_col);
+	my @totals = map { $total->{ $_->{properties}{osm} } // 0 } @features;
+
+	my %seen;
+	my @distinct = grep { !$seen{$_}++ } sort { $a <=> $b } @totals;
+
+	# One outline, or totals all alike: there is nothing to compare, so a
+	# colour would mean nothing.  Grey, with no key, but the popups still
+	# give the totals.
+	if (@distinct < 2) {
+		return {
+			features => [ map {
+				$named->($features[$_], $self->_map_outline_popup(
+					$features[$_]{properties}{name} // '', $totals[$_], $weight_col))
+			} 0 .. $#features ],
+			%OUTLINE_PLAIN,
+		};
+	}
+	my $share_of = _outline_shares(\@distinct);
+
+	# Lowest first: a layer is made the first time its step is met, so the
+	# layers come out in the order they must be drawn.
+	my (%layer_of, @layers);
+	for my $i (sort { $totals[$a] <=> $totals[$b] } 0 .. $#features) {
+		my $share = $share_of->{ $totals[$i] };
+		my $step  = int($share * ($OUTLINE_STEPS - 1) + 0.5);
+		my $layer = $layer_of{$step} //= do {
+			push @layers, { features => [], totals => [],
+				colour => _outline_colour($step / ($OUTLINE_STEPS - 1)), %OUTLINE_HEAT };
+			$layers[-1];
+		};
+		# Sorted already, so each layer's totals are low to high for the key.
+		push @{ $layer->{totals} }, $totals[$i];
+		my $feature = $features[$i];
+		push @{ $layer->{features} }, $named->($feature,
+			$self->_map_outline_popup($feature->{properties}{name} // '', $totals[$i], $weight_col));
+	}
+
+	# HTML::OSM 0.16 shows one key a layer name and hides it with the layer;
+	# an older copy ignores it.  The totals were only for the key.
+	$layers[0]{key} = $self->_map_outline_key(\@layers, $weight_col, $noun);
+	delete $_->{totals} for @layers;
+	return @layers;
+}
+
+# _map_outline_totals($self, \%inside, \@markers, $records, $weight_col) -> \%total
+#
+# Purpose: What is in each outline, for its colour.
+# Entry:   %inside maps a point key to the osm of the outline it is in (from
+#          Boundary's outlines()); each marker has lat, lon and row_indexes
+#          (or first_row); $weight_col is a column, or '' to count rows.
+# Exit:    { osm => total }; an outline no marker is in has no entry.
+# Side effects: none.  Rows are only read, so locked SQL rows are safe.
+sub _map_outline_totals :Protected ($self, $inside, $markers, $records, $weight_col) {
+	require Database::BI::Model::Boundary;
+	my %total;
+	for my $marker (@{$markers}) {
+		my $key = Database::BI::Model::Boundary->point_key($marker->{lat}, $marker->{lon});
+		my $osm = defined($key) ? $inside->{$key} : undef;
+		next unless defined $osm;
+		# A marker stands for every row at its place, not only the first.
+		for my $index (@{ $marker->{row_indexes} // [ $marker->{first_row} ] }) {
+			my $row = $records->[$index];
+			next unless ref($row) eq 'HASH';
+			# A cell that is not a number adds nothing, as on the heat layer.
+			$total{$osm} += length($weight_col) ? (_numeric_cell($row->{$weight_col} // '') // 0) : 1;
+		}
+	}
+	return \%total;
+}
+
+# _map_outline_popup($self, $name, $total, $weight_col) -> $text
+#
+# Purpose: The text of a coloured outline's popup: its name and its total.
+# Entry:   $weight_col is the column totalled, or '' when rows were counted.
+# Exit:    Plain text (the caller escapes it); one row is "1 row", not "1 rows".
+# Side effects: none.
+sub _map_outline_popup :Protected ($self, $name, $total, $weight_col) {
+	return $self->_i18n('map_bounds_total', $name, _map_total_text($total), $weight_col) if length $weight_col;
+	return $total == 1
+		? $self->_i18n('map_bounds_row', $name)
+		: $self->_i18n('map_bounds_rows', $name, _map_total_text($total));
+}
+
+# _map_outline_key($self, \@layers, $weight_col) -> { title, entries }
+#
+# Purpose: The key to the outline colours, for add_geojson's key option.
+# Entry:   Each layer has its colour and its totals, low to high; the layers
+#          are low to high too, and there is at least one.
+# Exit:    The entries are the highest colour first, each labelled with the
+#          total it covers, or the range when it covers unequal totals.
+# Side effects: none.
+sub _map_outline_key :Protected ($self, $layers, $weight_col, $noun) {
+	my @entries = map {
+		my ($low, $high) = @{ $_->{totals} }[0, -1];
+		+{
+			colour => $_->{colour},
+			label  => ($low == $high ? _map_total_text($low)
+				: $self->_i18n('map_bounds_key_range', _map_total_text($low), _map_total_text($high))),
+		};
+	} reverse @{$layers};
+	return {
+		title   => (length($weight_col)
+			? $self->_i18n('map_bounds_key_total', $weight_col, $noun)
+			: $self->_i18n('map_bounds_key_rows', $noun)),
+		entries => \@entries,
+	};
+}
+
+# _outline_shares(\@distinct) -> { total => share }
+#
+# Purpose: Where each total sits between the lowest (0) and the highest (1),
+#          which decides its colour.
+# Entry:   At least two distinct totals, sorted low to high.
+# Exit:    When every total is above zero, the share is by size on a log
+#          scale: each step up the colours is the same multiple, so totals
+#          close in size share a colour and totals far apart do not.  A
+#          straight scale would leave most outlines green, because such totals
+#          are skewed (Fairfax County has 500 times the people of Highland).
+#          A total of zero or less has no logarithm, so then the share is by
+#          rank: evenly spread in order, whatever the sizes.
+# Side effects: none.
+sub _outline_shares {
+	my ($distinct) = @_;
+	my %share;
+	if ($distinct->[0] > 0) {
+		my ($low, $high) = (log $distinct->[0], log $distinct->[-1]);
+		# The ends are set exactly, so rounding cannot push them off the scale.
+		%share = map { $_ => (log($_) - $low) / ($high - $low) } @{$distinct};
+		@share{ $distinct->[0], $distinct->[-1] } = (0, 1);
+	} else {
+		%share = map { $distinct->[$_] => $_ / $#{$distinct} } 0 .. $#{$distinct};
+	}
+	return \%share;
+}
+
+# _map_outline_noun($self, $outlines) -> $word
+#
+# Purpose: What the outlines drawn are called ("county", "district"), for the
+#          layer's checkbox, the key and the summary line.
+# Entry:   $outlines as Boundary's outlines() returns it, or undef.
+# Exit:    The word for the one kind drawn; "area" when the map mixes kinds
+#          (a county and a province); "county" when nothing is drawn.
+# Side effects: none.
+sub _map_outline_noun :Protected ($self, $outlines) {
+	my %called = map { ($_->{properties}{called} // 'county') => 1 } @{ $outlines ? $outlines->{features} : [] };
+	my @kinds = keys %called;
+	my $kind  = @kinds > 1 ? 'area' : ($kinds[0] // 'county');
+	return $self->_i18n("map_bounds_noun_$kind");
+}
+
+# _outline_colour($share) -> '#rrggbb' at $share (0..1) along @OUTLINE_STOPS
+sub _outline_colour {
+	my ($share) = @_;
+	$share = 0 if $share < 0;
+	$share = 1 if $share > 1;
+	my $at   = $share * $#OUTLINE_STOPS;
+	my $from = int($at);
+	$from = $#OUTLINE_STOPS - 1 if $from >= $#OUTLINE_STOPS;
+	my $part = $at - $from;
+	my ($lo, $hi) = @OUTLINE_STOPS[ $from, $from + 1 ];
+	return sprintf('#%02x%02x%02x', map { int($lo->[$_] + ($hi->[$_] - $lo->[$_]) * $part + 0.5) } 0 .. 2);
+}
+
+# _map_total_text($n) -> the total as a popup shows it: thousands separated,
+# and at most two decimal places ("1,150,309", "12.5").
+sub _map_total_text {
+	my ($n) = @_;
+	my $text = sprintf('%.2f', $n);
+	$text =~ s/\.?0+\z// if $text =~ /\./;
+	# A small negative total rounds to nothing; say 0, not "-0".
+	$text = '0' if $text eq '-0';
+	my ($whole, $fraction) = split /\./, $text, 2;
+	1 while $whole =~ s/^(-?\d+)(\d{3})/$1,$2/;
+	return defined($fraction) ? "$whole.$fraction" : $whole;
+}
+
 # _map_bounds_level($value) -> the level, or undef when $value names none
 #
 # bounds= on the map page, and a map card's options.bounds, which is stored
@@ -13350,6 +13582,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 			} @loc_cols ]) : '';
 			push @markers, {
 				%{ $marker },
+				'row_indexes' => \@at,
 				'label' => _map_popup(
 					$marker->{value}, [ @{$records}[@at] ], \@popup, $popup_rows, $more_url,
 				),
@@ -13408,6 +13641,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 
 		for my $marker (@markers) {
 			my $key = sprintf('%.6f,%.6f', $marker->{lat}, $marker->{lon});
+			$marker->{row_indexes} = $rows_at{$key};
 			my $row = $records->[ $marker->{first_row} ];
 			my $more_url = $rows_url ? $rows_url->([
 				"$lat_col:eq:" . ($row->{$lat_col} // ''),
@@ -13443,6 +13677,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	# progress bar instead, as it does places.
 	my $bounds_level = _map_bounds_level($options->{bounds});
 	my ($outlines, @bounds_pending);
+	my $bounds_coloured = 0;	# set when the outlines are coloured by their totals
 	if (defined($bounds_level) && @markers) {
 		my $lookup = (defined($options->{lookup}) && !$options->{lookup}) ? 0 : 1;
 		$outlines = $self->_map_boundary($bounds_level, 1)->outlines(
@@ -13623,19 +13858,21 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 
 				# The county outlines, under the markers, with a checkbox on
 				# the map to hide them (HTML::OSM 0.15; an older copy ignores
-				# name and draws them always).  Leaflet reads a popup as HTML,
-				# and a name from OpenStreetMap is text, so it is escaped.
-				if ($outlines && @{ $outlines->{features} }) {
+				# name and draws them always).  Grey, or with heat=1 coloured
+				# by what the heat layer weighs in each, one layer a colour
+				# under one name, so one checkbox still hides them all.
+				my $noun = $self->_map_outline_noun($outlines);
+				for my $layer ($self->_map_outline_layers($outlines, \@markers, $records,
+						($options->{heat} ? ($options->{weight} // '') : undef), $noun)) {
+					# Only a layer with a key was coloured to mean something.
+					$bounds_coloured = 1 if $layer->{key};
 					$map->add_geojson(
-						{
-							type     => 'FeatureCollection',
-							features => [ map {
-								{ %{$_}, properties => { name => xml_escape($_->{properties}{name} // '') } }
-							} @{ $outlines->{features} } ],
-						},
-						style => { color => '#555555', weight => 1.5, opacity => 0.8, fill => \0 },
+						{ type => 'FeatureCollection', features => $layer->{features} },
+						style => { color => $layer->{colour}, weight => $layer->{weight},
+							opacity => $layer->{opacity}, fill => \0 },
 						popup => 'name',
-						name  => $self->_i18n('map_bounds_layer'),
+						name  => $self->_i18n('map_bounds_layer', ucfirst $noun),
+						($layer->{key} ? (key => $layer->{key}) : ()),
 					);
 				}
 
@@ -13715,6 +13952,11 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		bounds_level   => $bounds_level,
 		bounds_pending => \@bounds_pending,
 		bounds_drawn   => ($outlines ? $outlines->{counts}{drawn} : 0),
+		bounds_noun    => $self->_map_outline_noun($outlines),
+		# Coloured by the heat layer's weight column, or its rows when it has
+		# none; not when the outlines had nothing to compare and stayed grey.
+		bounds_heat    => $bounds_coloured,
+		bounds_weight  => ($bounds_coloured ? ($options->{weight} // '') : ''),
 	};
 }
 
@@ -14093,6 +14335,9 @@ sub map_view ($self) {
 		messages        => \@messages,
 		marker_count    => $result->{marker_count},
 		bounds_drawn    => $result->{bounds_drawn},
+		bounds_heat     => $result->{bounds_heat},
+		bounds_noun     => $result->{bounds_noun},
+		bounds_weight   => $result->{bounds_weight},
 		row_count       => $result->{row_count},
 		source_rows     => $result->{source_rows},
 		loc_col         => $result->{loc_col},

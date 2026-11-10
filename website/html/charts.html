@@ -244,7 +244,13 @@
 		India and Bangladesh, a prefecture in China, a province in Spain, a county
 		in Kenya. Australia, Brazil and Japan have nothing at that level, so they
 		have no outlines. <code>map_bounds_ranks</code> in the configuration sets
-		it for other countries.
+		it for other countries. With <code>heat=1</code> the outlines are
+		coloured by what is in each, green for the least and red for the most:
+		the <code>weight</code> column added up over the rows inside, or the rows
+		counted. Each step up the colours is the same multiple, so totals of about
+		the same size share a colour; a lone outline stays grey. Each outline's popup gives its total, and a key in the corner of
+		the map (with HTML::OSM 0.16) lists each colour with the totals it
+		covers; it hides with the outlines.
 	</dd>
 	<dt><code>size=&lt;col&gt;</code></dt>
 	<dd>Markers become circles with a radius from a numeric column.</dd>

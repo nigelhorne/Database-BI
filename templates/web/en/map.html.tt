@@ -259,7 +259,7 @@
 [% END %]
 
 [% UNLESS geocode_pending && !marker_count %]
-<p class="map-summary">Plotting [% marker_count %] marker[% marker_count == 1 ? '' : 's' %] for [% row_count %] of [% source_rows %] row[% source_rows == 1 ? '' : 's' %][% IF loc_col %] from column[% loc_many ? 's' : '' %] [% loc_col | html %][% IF loc_text.length %] with &ldquo;[% loc_text | html %]&rdquo; added[% END %][% END %][% IF lat_col %] from columns [% lat_col | html %] and [% lon_col | html %][% END %][% IF backend %]; resolved by [% backend | html %][% END %][% IF bounds_drawn %], with [% bounds_drawn %] county outline[% bounds_drawn == 1 ? '' : 's' %][% END %].</p>
+<p class="map-summary">Plotting [% marker_count %] marker[% marker_count == 1 ? '' : 's' %] for [% row_count %] of [% source_rows %] row[% source_rows == 1 ? '' : 's' %][% IF loc_col %] from column[% loc_many ? 's' : '' %] [% loc_col | html %][% IF loc_text.length %] with &ldquo;[% loc_text | html %]&rdquo; added[% END %][% END %][% IF lat_col %] from columns [% lat_col | html %] and [% lon_col | html %][% END %][% IF backend %]; resolved by [% backend | html %][% END %][% IF bounds_drawn %], with [% bounds_drawn %] [% bounds_noun | html %] outline[% bounds_drawn == 1 ? '' : 's' %][% IF bounds_heat %] coloured by [% IF bounds_weight.length %][% bounds_weight | html %], from green (least) to red (most)[% ELSE %]rows, from green (fewest) to red (most)[% END %][% END %][% END %].</p>
 [% END %]
 
 [% IF map_body %]

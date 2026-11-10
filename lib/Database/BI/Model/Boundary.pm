@@ -65,6 +65,13 @@ Readonly my %LEVELS => (
 			in => 10,	# district; 12 is a sub-district (tehsil, taluk)
 			ke => 8,	# county; 12 is a sub-county
 		},
+		# What the division is called where it is not a county, as a word a
+		# caller can name it by to its readers (name_for).
+		name  => 'county',
+		names => {
+			bd => 'district', cn => 'prefecture', de => 'district', es => 'province',
+			fr => 'department', in => 'district', it => 'province',
+		},
 	},
 );
 
@@ -254,6 +261,36 @@ sub rank_for {
 	return $rank // $LEVELS{ $self->{level} }{rank};
 }
 
+=head2 name_for
+
+    my $word = $boundary->name_for('in');    # 'district'
+
+What this object's level is called in a country, so a caller can say
+"district" on a map of India rather than "county".
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  country : string, an ISO 3166-1 alpha-2 code in any case; undef or ''
+            for a point in no country
+
+=head4 OUTPUT
+
+One lower-case English word: C<county>, C<district>, C<province>,
+C<prefecture> or C<department>.  A country not listed gets the level's own
+name, C<county>.  It is a word to look a translation up by, not text to show.
+
+=cut
+
+sub name_for {
+	my ($self, $country) = @_;
+	my $level = $LEVELS{ ref($self) ? $self->{level} : 'county' };
+	my $name  = (defined($country) && !ref($country) && length($country))
+		? $level->{names}{ lc $country } : undef;
+	return $name // $level->{name};
+}
+
 =head2 levels
 
     my @levels = Database::BI::Model::Boundary->levels;    # ('county')
@@ -324,8 +361,11 @@ sub point_key {
 
   {
     features => [ GeoJSON Feature, ... ]   one per outline, in the order
-                 their first point came; properties { name, osm }
+                 their first point came; properties { name, osm, called }
+                 (called: what the division is called there, as name_for)
     pending  => [ point_key, ... ]         points not known, not asked
+    inside   => { point_key => osm, ... }  the outline each point drawn is in,
+                 by the osm of its Feature (to total what is in each)
     counts   => { points, drawn, attempted, nowhere }
     offline  => 0|1   points were left because Nominatim may not be asked
     failed   => 0|1   Nominatim did not answer; the rest were left
@@ -352,7 +392,7 @@ sub outlines {
 	}
 
 	my %counts = (points => scalar(@keys), drawn => 0, attempted => 0, nowhere => 0);
-	my (@order, %used, @pending, $failed, $offline);
+	my (@order, %used, %inside, @pending, $failed, $offline);
 	my $index = $self->_index;
 
 	for my $key (@keys) {
@@ -375,6 +415,7 @@ sub outlines {
 			next;
 		}
 		push @order, $osm unless $used{$osm}++;
+		$inside{$key} = $osm;
 	}
 
 	my @features;
@@ -382,15 +423,19 @@ sub outlines {
 		my $outline = $self->_get("outline:$osm") or next;
 		push @features, {
 			type       => 'Feature',
-			properties => { name => $outline->{name}, osm => $osm },
+			properties => { name => $outline->{name}, osm => $osm,
+				called => $self->name_for($outline->{country}) },
 			geometry   => $outline->{geometry},
 		};
 	}
 	$counts{drawn} = scalar @features;
+	my %drawn = map { $_->{properties}{osm} => 1 } @features;
+	delete @inside{ grep { !$drawn{ $inside{$_} } } keys %inside };
 
 	return {
 		features => \@features,
 		pending  => \@pending,
+		inside   => \%inside,
 		counts   => \%counts,
 		offline  => $offline ? 1 : 0,
 		failed   => $failed  ? 1 : 0,
