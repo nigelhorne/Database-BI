@@ -76,7 +76,7 @@ subtest 'points in one county cost one request' => sub {
 	like(($ua->asked)[0], qr{^https://nominatim\.openstreetmap\.org/reverse\?}, 'over https');
 	like(($ua->asked)[0], qr/[?&]lat=10\.100&lon=20\.100&/, 'the point, rounded');
 	like(($ua->asked)[0], qr/[?&]zoom=8&/, 'at county zoom');
-	like(($ua->asked)[0], qr/[?&]polygon_geojson=1&polygon_threshold=0\.005/, 'a simplified outline');
+	like(($ua->asked)[0], qr/[?&]polygon_geojson=1&polygon_threshold=0\.001/, 'a simplified outline');
 
 	$ua->clear;
 	my $again = $b->outlines([ [ 10.1, 20.1 ], [ 10.5, 20.5 ], [ 10.2, 21.2 ] ]);
@@ -294,6 +294,23 @@ subtest 'a cache from before ranks were kept is asked again' => sub {
 		'the old sub-district is not drawn, nor matched for a point inside it');
 	is($r->{counts}{nowhere}, 1, 'the sea is still nowhere');
 	is(scalar($ua->asked), 3, 'the district asked twice, and the sea once');
+};
+
+subtest 'an outline kept at a coarser detail is asked again' => sub {
+	my $cache = CHI->new(driver => 'Memory', global => 0);
+	my $ua    = BI::Test::Boundary->new(areas => \@AREAS);
+	boundary(ua => $ua, cache => $cache)->outlines([ [ 10.1, 20.1 ] ]);
+	is($cache->get('outline:R101')->{detail}, '0.001', 'an outline is kept with how far it was simplified');
+	$ua->clear;
+	boundary(ua => $ua, cache => $cache)->outlines([ [ 10.1, 20.1 ], [ 10.2, 20.2 ] ]);
+	is(scalar($ua->asked), 0, 'and is used as it is');
+
+	# As 0.005 was: neighbours' borders half a kilometre apart.
+	$cache->set('outline:R101', { %{ $cache->get('outline:R101') }, detail => '0.005' });
+	my $r = boundary(ua => $ua, cache => $cache)->outlines([ [ 10.1, 20.1 ], [ 10.2, 20.2 ] ]);
+	is(scalar($ua->asked), 1, 'a coarser one is fetched again, once for the county');
+	is($r->{counts}{drawn}, 1, 'and drawn');
+	is($cache->get('outline:R101')->{detail}, '0.001', 'at today\'s detail');
 };
 
 # ===========================================================================
@@ -558,6 +575,43 @@ subtest 'with the heat layer, outlines are coloured by what is in them' => sub {
 	$t->content_unlike(qr/coloured by/, 'with no colours claimed');
 };
 
+subtest 'when the markers are coloured, each outline takes their colours' => sub {
+	my $csv = File::Spec->catfile($data, 'ruled.csv');
+	open my $fh, '>', $csv or die $!;
+	# West County: two small and one large; East: one large; The City: one small.
+	print {$fh} "name,lat,lon,pop\nA,10.1,20.1,10\nB,10.2,20.2,20\nC,10.5,20.5,700\nD,10.1,21.1,1000\nE,10.5,21.5,5\n";
+	close $fh;
+	my $ruled = '/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait'
+		. '&color=pop&color_rule=gt:500:red&color_default=%2300f';
+	my $t  = fresh_app();
+	my $ua = BI::Test::Boundary->new(areas => \@AREAS);
+	my $drawn = sub {
+		return [ map {
+			my ($collection, %opts) = @{$_};
+			[ $opts{style}{color}, $opts{bands},
+				[ map { [ html_unescape($_->{properties}{name}), @{ $_->{properties}{colours} } ] } @{ $collection->{features} } ] ];
+		} @Fake::OSM::geojson ];
+	};
+
+	for my $heat ('', '&heat=1&weight=pop') {
+		with_fakes($ua, sub { $t->get_ok("$ruled$heat")->status_is(200) });
+		is_deeply($drawn->(), [
+			[ '#ff0000', 'colours', [ [ 'East <b>County</b> & Co', '#ff0000' ] ] ],
+			[ '#0000ff', 'colours', [ [ 'The City', '#0000ff' ] ] ],
+			[ '#0000ff', 'colours', [ [ 'West County', '#0000ff', '#ff0000' ] ] ],
+		], 'one colour, or every colour with the commonest first, each drawn inside its own edge'
+			. ($heat ? '; the heat layer does not change that' : ''));
+		ok(!(grep { my (undef, %o) = @{$_}; $o{key} } @Fake::OSM::geojson), 'no key: the markers have one');
+		is({ @{ $Fake::OSM::geojson[0] }[1 .. $#{ $Fake::OSM::geojson[0] }] }->{name}, 'County boundaries',
+			'still under the one checkbox');
+		$t->content_like(qr/with 3 county outlines coloured as the markers in them\./, 'the summary says so');
+	}
+
+	with_fakes($ua, sub { $t->get_ok("$ruled&f=" . url_escape('name:in:["A","C"]'))->status_is(200) });
+	is_deeply($drawn->(), [ [ '#0000ff', 'colours', [ [ 'West County', '#0000ff', '#ff0000' ] ] ] ],
+		'one marker of each colour: the first met is outermost');
+};
+
 subtest 'colours follow size, so close totals share one' => sub {
 	my $shares = \&Database::BI::Controller::Dashboard::_outline_shares;
 	my $by_size = $shares->([ 1000, 1001, 1_000_000 ]);
@@ -682,6 +736,23 @@ SKIP: {
 		like($body, qr/layerKey\(group, [^\n]*"label":"1,000"[^\n]*"label":"30"/, 'highest first');
 		like($body, qr/layerKey\(group, [^\n]*"colour":"#d73027"[^\n]*"colour":"#1a9850"/, 'red down to green');
 		is(scalar(() = $body =~ /layerKey\(group,/g), 1, 'one key for the two colours');
+	};
+
+	# Side-by-side colours are HTML::OSM 0.17's; an older copy draws the first.
+	subtest 'HTML::OSM draws an outline in each of its markers\' colours' => sub {
+		plan skip_all => 'HTML::OSM 0.17 or later is needed to draw an outline in two colours'
+			unless eval { HTML::OSM->VERSION(0.17); 1 };
+		my $csv = File::Spec->catfile($data, 'banded.csv');
+		open my $fh, '>', $csv or die $!;
+		print {$fh} "name,lat,lon,pop\nA,10.1,20.1,10\nC,10.5,20.5,700\n";
+		close $fh;
+		my $t = fresh_app();
+		BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => \@AREAS), sub {
+			$t->get_ok('/map?l=' . url_escape("path:$csv")
+				. '&lat=lat&lon=lon&bounds=county&geocode=wait&color=pop&color_rule=gt:500:red')->status_is(200);
+		});
+		like($t->tx->res->body, qr/bandLayer\(\{[^\n]*"colours":\["#[0-9a-f]{6}","#ff0000"\][^\n]*, 'colours'\)/,
+			'the outline is given both colours to draw side by side');
 	};
 }
 

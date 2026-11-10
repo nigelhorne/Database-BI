@@ -940,6 +940,18 @@ area when the map mixes them).  With L<HTML::OSM>
 with the totals it covers ("29,652 to 37,109"); it hides with the outlines'
 checkbox.
 
+When the markers are coloured (C<color=>), the outlines take their colours
+instead, with or without C<heat=1>, so a border never disagrees with the
+markers inside it.  With L<HTML::OSM> 0.17 each coloured outline, here and on the heat scale, is
+drawn just inside its own edge, so where two counties of different colours
+meet the border is a line twice as wide, one colour on each side.  An outline
+whose markers differ gets a line of each of their colours, side by side, the
+colour most of its markers have outermost.  An older HTML::OSM draws each
+outline along its edge in that first colour alone, one over another where they
+meet.  Outlines are simplified to about 100 metres one at a time, so zoomed
+well in, neighbours' lines can part or overlap a little.  The markers' key explains the colours, so the outlines have none of
+their own.
+
 A marker stands for every row at its place, and its popup lists them all: a
 value every row shares is shown once ("Person: Valentin Puntar"), and the
 columns that differ are a small table, one line a row.  The table shows at most

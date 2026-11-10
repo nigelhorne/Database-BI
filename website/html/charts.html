@@ -250,7 +250,12 @@
 		counted. Each step up the colours is the same multiple, so totals of about
 		the same size share a colour; a lone outline stays grey. Each outline's popup gives its total, and a key in the corner of
 		the map (with HTML::OSM 0.16) lists each colour with the totals it
-		covers; it hides with the outlines.
+		covers; it hides with the outlines. When the markers are coloured
+		(<code>color=</code>) the outlines take their colours instead; with HTML::OSM
+		0.17 each coloured outline is drawn just inside its own edge, so two
+		neighbours of different colours show side by side along their border, and a
+		county whose markers differ gets a line of each colour, the commonest
+		outermost.
 	</dd>
 	<dt><code>size=&lt;col&gt;</code></dt>
 	<dd>Markers become circles with a radius from a numeric column.</dd>

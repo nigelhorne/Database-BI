@@ -13284,6 +13284,10 @@ sub _map_outline_layers :Protected ($self, $outlines, $markers, $records, $weigh
 		my $feature = $features[$i];
 		push @{ $layer->{features} }, $named->($feature,
 			$self->_map_outline_popup($feature->{properties}{name} // '', $totals[$i], $weight_col));
+		# Drawn inside its own edge (HTML::OSM 0.17's bands), so a neighbour of
+		# another colour is beside it, not over it.
+		$layer->{features}[-1]{properties}{colours} = [ $layer->{colour} ];
+		$layer->{bands} = 1;
 	}
 
 	# HTML::OSM 0.16 shows one key a layer name and hides it with the layer;
@@ -13291,6 +13295,65 @@ sub _map_outline_layers :Protected ($self, $outlines, $markers, $records, $weigh
 	$layers[0]{key} = $self->_map_outline_key(\@layers, $weight_col, $noun);
 	delete $_->{totals} for @layers;
 	return @layers;
+}
+
+# _map_outline_marker_layers($self, $outlines, \@markers)
+#     -> list of { features, colour, weight, opacity, bands }
+#
+# Purpose: The outlines coloured as the markers in them, for a map whose
+#          markers are coloured by a column.
+# Entry:   $outlines as Boundary's outlines() returns it, or undef; each
+#          coloured marker has lat, lon and colour (#rgb or #rrggbb).
+# Exit:    One layer for each distinct list of colours, the outlines of one
+#          colour first.  An outline whose markers differ lists every colour,
+#          the one most of its markers have first (the earliest on a tie), in
+#          its feature's "colours" property.  A coloured layer has bands set:
+#          HTML::OSM 0.17 then draws each outline just inside its own edge, a
+#          line of each colour side by side, the first outermost, so
+#          neighbours of different colours are beside each other; "colour"
+#          (the first) is what an older HTML::OSM draws, along the edge.  () when there is nothing to draw or no marker has a
+#          colour, so the caller can fall back.
+# Side effects: none.
+sub _map_outline_marker_layers :Protected ($self, $outlines, $markers) {
+	return () unless $outlines && @{ $outlines->{features} };
+
+	require Database::BI::Model::Boundary;
+	my $inside = $outlines->{inside} // {};
+	# How many markers of each colour are in each outline, in the order the
+	# colours were first met there.
+	my (%count, %order);
+	for my $marker (@{$markers}) {
+		my $colour = $marker->{colour} // next;
+		# The script takes #rrggbb only, so #rgb is written out in full
+		$colour =~ s/\A#(.)(.)(.)\z/#$1$1$2$2$3$3/;
+		my $key = Database::BI::Model::Boundary->point_key($marker->{lat}, $marker->{lon});
+		my $osm = defined($key) ? $inside->{$key} : undef;
+		next unless defined $osm;
+		push @{ $order{$osm} }, $colour unless $count{$osm}{$colour}++;
+	}
+	return () unless %count;
+
+	my (%layer_of, @layers);
+	for my $feature (@{ $outlines->{features} }) {
+		my $osm  = $feature->{properties}{osm} // '';
+		my $seen = $order{$osm} // [];
+		my %place = map { $seen->[$_] => $_ } 0 .. $#{$seen};
+		my @colours = sort { $count{$osm}{$b} <=> $count{$osm}{$a} || $place{$a} <=> $place{$b} } @{$seen};
+		# An outline none of whose markers is coloured stays grey
+		my $style = @colours ? { colour => $colours[0], %OUTLINE_HEAT } : { %OUTLINE_PLAIN };
+		my $layer = $layer_of{"@colours"} //= do {
+			push @layers, { features => [], %{$style}, bands => (@colours ? 1 : 0), mixed => (@colours > 1 ? 1 : 0) };
+			$layers[-1];
+		};
+		# Leaflet reads a popup as HTML, and a name from OpenStreetMap is text
+		push @{ $layer->{features} }, {
+			%{$feature},
+			properties => { name => xml_escape($feature->{properties}{name} // ''), colours => \@colours },
+		};
+	}
+	# Those of several colours last: only an older HTML::OSM, which draws every
+	# outline along its edge, can draw one over another, and then they show.
+	return sort { $a->{mixed} <=> $b->{mixed} } @layers;
 }
 
 # _map_outline_totals($self, \%inside, \@markers, $records, $weight_col) -> \%total
@@ -13678,6 +13741,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my $bounds_level = _map_bounds_level($options->{bounds});
 	my ($outlines, @bounds_pending);
 	my $bounds_coloured = 0;	# set when the outlines are coloured by their totals
+	my $bounds_as_markers = 0;	# set when they take their markers' colours
 	if (defined($bounds_level) && @markers) {
 		my $lookup = (defined($options->{lookup}) && !$options->{lookup}) ? 0 : 1;
 		$outlines = $self->_map_boundary($bounds_level, 1)->outlines(
@@ -13807,6 +13871,8 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 						# only what is in view
 						my $index = _color_rule_index($cval, $color_rules);
 						$group = defined($index) ? "rule$index" : 'other';
+						# Kept for the outline round it, which is drawn to match
+						$marker->{colour} = _color_hex($color);
 					}
 					if (length $size_col) {
 						my $sv = defined($row)
@@ -13861,9 +13927,17 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 				# name and draws them always).  Grey, or with heat=1 coloured
 				# by what the heat layer weighs in each, one layer a colour
 				# under one name, so one checkbox still hides them all.
+				# When the markers are coloured, each outline takes the colours
+				# of the markers in it, so the two never disagree; the heat
+				# layer's own scale is for a map whose markers are all alike.
 				my $noun = $self->_map_outline_noun($outlines);
-				for my $layer ($self->_map_outline_layers($outlines, \@markers, $records,
-						($options->{heat} ? ($options->{weight} // '') : undef), $noun)) {
+				my @outline_layers = length($color_col)
+					? $self->_map_outline_marker_layers($outlines, \@markers) : ();
+				$bounds_as_markers = 1 if @outline_layers;
+				@outline_layers = $self->_map_outline_layers($outlines, \@markers, $records,
+					($options->{heat} ? ($options->{weight} // '') : undef), $noun)
+					unless @outline_layers;
+				for my $layer (@outline_layers) {
 					# Only a layer with a key was coloured to mean something.
 					$bounds_coloured = 1 if $layer->{key};
 					$map->add_geojson(
@@ -13873,6 +13947,10 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 						popup => 'name',
 						name  => $self->_i18n('map_bounds_layer', ucfirst $noun),
 						($layer->{key} ? (key => $layer->{key}) : ()),
+						# HTML::OSM 0.17 draws each colour as a line of its own,
+						# inside the outline's edge; an older copy ignores this
+						# and draws the first alone, along the edge.
+						($layer->{bands} ? (bands => 'colours') : ()),
 					);
 				}
 
@@ -13957,6 +14035,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		# none; not when the outlines had nothing to compare and stayed grey.
 		bounds_heat    => $bounds_coloured,
 		bounds_weight  => ($bounds_coloured ? ($options->{weight} // '') : ''),
+		bounds_as_markers => $bounds_as_markers,
 	};
 }
 
@@ -14337,6 +14416,7 @@ sub map_view ($self) {
 		bounds_drawn    => $result->{bounds_drawn},
 		bounds_heat     => $result->{bounds_heat},
 		bounds_noun     => $result->{bounds_noun},
+		bounds_as_markers => $result->{bounds_as_markers},
 		bounds_weight   => $result->{bounds_weight},
 		row_count       => $result->{row_count},
 		source_rows     => $result->{source_rows},

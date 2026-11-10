@@ -13,6 +13,11 @@ Revision history for Database-BI
 	  weight column's total in each county (or its rows), each step the same
 	  multiple, with a key to the colours on the map (HTML::OSM 0.16).  The
 	  map calls an outline a district, province and so on where it is one.
+	  When the markers are coloured the outlines take their colours instead.
+	  Each coloured outline is drawn inside its own edge, so neighbours of
+	  different colours show side by side, and a county holding markers of
+	  two colours gets a line of each (HTML::OSM 0.17).  Outlines are kept
+	  in finer detail, so those remembered are fetched once more.
 	- Add to each place, in the map panel (loc_text=): text added to the end
 	  of every place before it is looked up, such as "Virginia, USA" for a
 	  column of county names.  Remember columns keeps it too, and

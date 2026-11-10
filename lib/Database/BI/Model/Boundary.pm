@@ -21,7 +21,7 @@ package Database::BI::Model::Boundary;
 #   3. Only then is Nominatim asked, at most online_max times a call, and a
 #      point it does not answer is left pending, not remembered as nowhere.
 #
-# The outlines are simplified by Nominatim (polygon_threshold), a few KB each,
+# The outlines are simplified by Nominatim (polygon_threshold), about 7 KB each,
 # because they are written into the page.
 #
 # The level is a "county": the division of a country below its states.  Which
@@ -82,7 +82,13 @@ Readonly my %LEVELS => (
 Readonly my %ZOOM_FOR_RANK => (8 => 5, 10 => 6, 12 => 8);
 
 Readonly my $REVERSE_URL    => 'https://nominatim.openstreetmap.org/reverse';
-Readonly my $THRESHOLD      => 0.005;	# degrees, about 500 m: enough detail at the zoom a county is seen at
+# How far Nominatim may move an outline's edge to simplify it, in degrees:
+# about 100 m.  Each outline is simplified alone, so neighbours' shared borders
+# differ by up to this, which shows as gaps and overlaps now that each is drawn
+# on its own side of the border; 0.005 (500 m, 2 KB a county) was 7 pixels out
+# at the zoom a county fills the map, this (7 KB) under 2.  Kept as text: it is
+# stored with each outline and compared, to ask again for one kept coarser.
+Readonly my $THRESHOLD      => '0.001';
 Readonly my $DECIMALS       => 3;	# of a point, in its key and in what is sent
 Readonly my $DEFAULT_MAX    => 20;	# Nominatim requests in one call, as map_geocode_online_max
 Readonly my $CACHE_DIR      => 'boundary-cache';	# under model_dir, for file_cache()
@@ -607,10 +613,12 @@ sub _known {
 }
 
 # _current($outline) -> 1 when an outline was accepted at the rank its country
-# wants now.  One kept before ranks were (no rank) is not.
+# wants now, and simplified as outlines are now.  One kept before ranks were
+# (no rank), or at another level of detail, is not.
 sub _current {
 	my ($self, $outline) = @_;
 	return 0 unless ref($outline) eq 'HASH' && defined($outline->{rank});
+	return 0 unless ($outline->{detail} // '') eq $THRESHOLD;
 	return $outline->{rank} == $self->rank_for($outline->{country}) ? 1 : 0;
 }
 
@@ -687,6 +695,7 @@ sub _ask {
 		geometry => $geometry,
 		country  => $country,
 		rank     => $rank,
+		detail   => $THRESHOLD,
 	});
 
 	unless (grep { $_->[0] eq $osm } @{$index}) {
