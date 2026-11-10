@@ -796,6 +796,46 @@ subtest 'a key gives round figures, and one figure where a range rounds to one' 
 		qr/200,700 pop.*4,393 pop|4,393 pop.*200,700 pop/, 'the popups keep the exact totals');
 };
 
+subtest 'the page lists outlines with several markers, and markers with no outline' => sub {
+	my $csv = File::Spec->catfile($data, 'grouped.csv');
+	open my $fh, '>', $csv or die $!;
+	# Two markers in West County, one in East, one in the sea.
+	print {$fh} "name,lat,lon\nA,10.1,20.1\nC,10.5,20.5\nD,10.1,21.1\nS,50,50\n";
+	close $fh;
+	my $grouped = '/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait';
+	my $t = fresh_app();
+	with_fakes(BI::Test::Boundary->new(areas => \@AREAS), sub { $t->get_ok($grouped)->status_is(200) });
+	my $list = $t->tx->res->dom->at('#map-bounds-groups');
+	ok($list, 'a list under the summary') or return;
+	ok(!$list->at('.map-groups-why'), 'with coordinates given, nothing was looked up, so no word on ambiguous names');
+	is($list->at('summary')->text,
+		'2 markers share 1 county outline, and 1 marker is in no county outline: list them', 'saying what it holds');
+	my @rows = map { [ map { $_->all_text =~ s/\s+/ /gr =~ s/\A | \z//gr } $_->find('td')->each ] } $list->find('tbody tr')->each;
+	is_deeply(\@rows, [
+		[ 'West County', 2, '2 rows', '10.1, 20.1, 10.5, 20.5' ],
+		[ '(in no county outline)', 1, '1 row', '50, 50' ],
+	], 'the shared outline with its markers, then the marker with none; East, with one, is not listed');
+	my @links = map { $_->attr('href') } $list->find('a')->each;
+	is(scalar(@links), 2, 'each with a link to its rows');
+	$t->get_ok($links[0])->status_is(200)->content_like(qr/<td[^>]*>A<\/td>/)->content_like(qr/<td[^>]*>C<\/td>/)
+		->content_unlike(qr/<td[^>]*>D<\/td>/, 'which shows those rows and no others');
+	$t->get_ok($links[1])->status_is(200)->content_like(qr/<td[^>]*>S<\/td>/)->content_unlike(qr/<td[^>]*>A<\/td>/);
+
+	# Every marker with an outline to itself: nothing to list.
+	with_fakes(BI::Test::Boundary->new(areas => \@AREAS), sub {
+		$t->get_ok("$grouped&f=" . url_escape('name:in:["A","D"]'))->status_is(200)
+			->element_exists_not('#map-bounds-groups');
+	});
+	# A marker still waiting for its outline is in neither list.
+	$t = fresh_app();
+	$t->app->config->{map_geocode_online_max} = 1;
+	with_fakes(BI::Test::Boundary->new(areas => \@AREAS), sub {
+		$t->get_ok($grouped)->status_is(200);
+	});
+	is($t->tx->res->dom->at('#map-bounds-groups summary')->text, '2 markers share 1 county outline: list them',
+		'the two not yet looked up are not counted as having none');
+};
+
 subtest 'colours follow size, so close totals share one' => sub {
 	my $shares = \&Database::BI::Controller::Dashboard::_outline_shares;
 	my $by_size = $shares->([ 1000, 1001, 1_000_000 ]);

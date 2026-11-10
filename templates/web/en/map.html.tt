@@ -38,6 +38,7 @@
   .map-unplotted-table a,
   .map-unplotted-all { color: var(--accent-text, #2c3e7a); text-decoration: underline; font-weight: 600; }
   .map-unplotted-all { display: inline-block; margin: 0.3rem 0 0; }
+  .map-groups-why { margin: 0.35rem 0; font-size: 0.85rem; max-width: 60rem; }
   .map-summary {
     font-size: 0.85rem;
     color: var(--text-secondary, #555);
@@ -271,6 +272,9 @@
 [%- FOREACH g IN bounds_groups; IF g.none; none_markers = g.markers; ELSE; shared = shared + 1; shared_markers = shared_markers + g.markers; END; END %]
 <details class="map-unplotted" id="map-bounds-groups">
   <summary>[% IF shared %][% shared_markers %] markers share [% shared %] [% bounds_noun | html %] outline[% shared == 1 ? '' : 's' %][% END %][% IF shared && none_markers %], and [% END %][% IF none_markers %][% none_markers %] marker[% none_markers == 1 ? ' is' : 's are' %] in no [% bounds_noun | html %] outline[% END %]: list them</summary>
+  [%- IF loc_col %]
+  <p class="map-groups-why">These places were looked up by name, and a name can be ambiguous: a lookup may answer with another place of the same name, or a street or town named after it. Two places in one outline, or a place in none, can be such a wrong answer; they can also be right, when the places really are in the same [% bounds_noun | html %]. Adding more to each place, or giving latitude and longitude columns, makes a lookup surer.</p>
+  [%- END %]
   <table class="map-unplotted-table">
     <thead><tr><th scope="col">Outline</th><th scope="col">Markers</th><th scope="col">Rows</th><th scope="col">Places</th></tr></thead>
     <tbody>
