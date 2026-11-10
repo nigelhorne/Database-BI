@@ -266,6 +266,26 @@
 
 [% UNLESS geocode_pending && !marker_count %]
 <p class="map-summary">Plotting [% marker_count %] marker[% marker_count == 1 ? '' : 's' %] for [% row_count %] of [% source_rows %] row[% source_rows == 1 ? '' : 's' %][% IF loc_col %] from column[% loc_many ? 's' : '' %] [% loc_col | html %][% IF loc_text.length %] with &ldquo;[% loc_text | html %]&rdquo; added[% END %][% END %][% IF lat_col %] from columns [% lat_col | html %] and [% lon_col | html %][% END %][% IF backend %]; resolved by [% backend | html %][% END %][% IF bounds_drawn %], with [% bounds_drawn %] [% bounds_noun | html %] outline[% bounds_drawn == 1 ? '' : 's' %][% IF bounds_shade.length && bounds_shade_as == 'markers' %] shaded by [% bounds_shade | html %] in the colors of the markers in them, stronger the further into each color's range[% ELSIF bounds_shade.length %] shaded by [% bounds_shade | html %], darker for more[% IF bounds_as_markers %], and outlined in the colors of the markers in them[% END %][% ELSIF bounds_as_markers %] colored as the markers in them[% ELSIF bounds_heat %] colored by [% IF bounds_weight.length %][% bounds_weight | html %], from green (least) to red (most)[% ELSE %]rows, from green (fewest) to red (most)[% END %][% END %][% END %].</p>
+[%- IF bounds_groups.size %]
+[%- SET shared = 0; SET shared_markers = 0; SET none_markers = 0 %]
+[%- FOREACH g IN bounds_groups; IF g.none; none_markers = g.markers; ELSE; shared = shared + 1; shared_markers = shared_markers + g.markers; END; END %]
+<details class="map-unplotted" id="map-bounds-groups">
+  <summary>[% IF shared %][% shared_markers %] markers share [% shared %] [% bounds_noun | html %] outline[% shared == 1 ? '' : 's' %][% END %][% IF shared && none_markers %], and [% END %][% IF none_markers %][% none_markers %] marker[% none_markers == 1 ? ' is' : 's are' %] in no [% bounds_noun | html %] outline[% END %]: list them</summary>
+  <table class="map-unplotted-table">
+    <thead><tr><th scope="col">Outline</th><th scope="col">Markers</th><th scope="col">Rows</th><th scope="col">Places</th></tr></thead>
+    <tbody>
+    [%- FOREACH g IN bounds_groups %]
+    <tr[% IF g.none %] data-none="1"[% END %]>
+      <td>[% IF g.none %]<em>(in no [% bounds_noun | html %] outline)</em>[% ELSE %][% g.name | html %][% END %]</td>
+      <td class="num">[% g.markers %]</td>
+      <td class="num">[% IF g.url.length %]<a href="[% g.url | html %]" title="Show these rows in the table">[% g.rows %] row[% g.rows == 1 ? '' : 's' %]</a>[% ELSE %][% g.rows %][% END %]</td>
+      <td>[% FOREACH place IN g.places %][% IF loop.index < 12 %][% place | html %][% UNLESS loop.last %], [% END %][% ELSIF loop.index == 12 %]&hellip;[% END %][% END %]</td>
+    </tr>
+    [%- END %]
+    </tbody>
+  </table>
+</details>
+[%- END %]
 [% END %]
 
 [% IF map_body %]

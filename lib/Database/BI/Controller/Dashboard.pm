@@ -13058,6 +13058,69 @@ sub _map_loc_text {
 	return Database::BI::Model::Geocode->place_text($value);
 }
 
+# How many outlines holding several markers the map page lists, the fullest
+# first; a map of shops has thousands, and the list is for looking into a few.
+Readonly my $MAP_OUTLINE_GROUPS_MAX => 50;
+
+# _map_outline_groups($outlines, \@markers, \@records, \@columns) -> @groups
+#
+# Purpose: Why a map has fewer outlines than markers, for the reader to look
+#          into: which outlines hold more than one marker, and which markers
+#          are in no outline.  Geocoded places that land in the wrong county
+#          show up here, as two places in one outline.
+# Entry:   $outlines as Boundary's outlines() returns it; each marker has
+#          lat, lon, row_indexes (or first_row) and, when it was geocoded,
+#          value (the place); the columns that tell rows apart, for the links.
+# Exit:    One entry for each outline holding two markers or more, the
+#          fullest first, at most $MAP_OUTLINE_GROUPS_MAX of them, then one
+#          with none => 1 for the markers in no outline, when there are any:
+#          { name, markers, places => [text, ...], rows, filters }.  A marker
+#          still waiting for its outline is in neither.  () when every marker
+#          has an outline to itself.
+# Side effects: none.
+sub _map_outline_groups {
+	my ($outlines, $markers, $records, $columns) = @_;
+
+	require Database::BI::Model::Boundary;
+	my $inside  = $outlines->{inside} // {};
+	my %waiting = map { $_ => 1 } @{ $outlines->{pending} // [] };
+	my (%held, @none);
+	for my $marker (@{$markers}) {
+		my $key = Database::BI::Model::Boundary->point_key($marker->{lat}, $marker->{lon});
+		next if !defined($key) || $waiting{$key};
+		if (defined(my $osm = $inside->{$key})) { push @{ $held{$osm} }, $marker }
+		else                                    { push @none, $marker }
+	}
+
+	my $group = sub {
+		my ($name, $in, %more) = @_;
+		my @rows = map { @{ $_->{row_indexes} // [ $_->{first_row} ] } } @{$in};
+		return {
+			name    => $name,
+			markers => scalar(@{$in}),
+			# A geocoded marker is known by its place, another by where it is
+			places  => [ map {
+				(defined($_->{value}) && !ref($_->{value}) && length($_->{value}))
+					? $_->{value} : "$_->{lat}, $_->{lon}"
+			} @{$in} ],
+			rows    => scalar(@rows),
+			filters => [ _map_rows_filters($records, \@rows, $columns) ],
+			%more,
+		};
+	};
+
+	my @shared = grep { @{ $held{ $_->{properties}{osm} // '' } // [] } > 1 } @{ $outlines->{features} };
+	@shared = sort {
+		@{ $held{ $b->{properties}{osm} } } <=> @{ $held{ $a->{properties}{osm} } }
+	} @shared;
+	splice(@shared, $MAP_OUTLINE_GROUPS_MAX) if @shared > $MAP_OUTLINE_GROUPS_MAX;
+
+	return (
+		(map { $group->($_->{properties}{name} // '', $held{ $_->{properties}{osm} }) } @shared),
+		(@none ? $group->('', \@none, none => 1) : ()),
+	);
+}
+
 # _map_rows_filters(\@records, \@row_indexes, \@columns) -> @filters
 #
 # Purpose: Filters that select exactly the given rows, for a link from the
@@ -13919,6 +13982,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my $bounds_shade = '';	# the column they are filled by (shade=), when they are
 	my $bounds_shade_as = '';	# 'one' colour, or the 'markers' colours
 	my (@bounds_left_filters, $bounds_left_rows);	# the rows whose marker has no outline
+	my @bounds_groups;	# why there are fewer outlines than markers (_map_outline_groups)
 	if (defined($bounds_level) && @markers) {
 		my $lookup = (defined($options->{lookup}) && !$options->{lookup}) ? 0 : 1;
 		$outlines = $self->_map_boundary($bounds_level, 1)->outlines(
@@ -13948,6 +14012,8 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 					scalar(@bounds_pending), $outlines->{counts}{points}),
 			};
 		}
+		@bounds_groups = _map_outline_groups($outlines, \@markers, $records,
+			[ $by_location ? @loc_cols : ($lat_col, $lon_col) ]);
 	}
 
 	# Leaflet's CSS and JS belong in the head, which the layout owns; the rest of
@@ -14281,6 +14347,7 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		bounds_shade   => $bounds_shade,
 		bounds_shade_as => $bounds_shade_as,
 		bounds_left_filters => \@bounds_left_filters,
+		bounds_groups  => \@bounds_groups,
 		bounds_left_rows    => $bounds_left_rows // 0,
 	};
 }
@@ -14658,6 +14725,9 @@ sub map_view ($self) {
 		unplotted       => \@unplotted,
 		unplotted_rows  => $unplotted_rows,
 		unplotted_url   => $rows_url->($result->{unplotted_filters} // []),
+		# Where the outlines and the markers do not pair off, each with a link
+		# to its rows
+		bounds_groups   => [ map { +{ %{$_}, url => $rows_url->($_->{filters}) } } @{ $result->{bounds_groups} // [] } ],
 		# The rows whose place has no county outline, and this page again to
 		# look those outlines up (as it was opened: waiting, or with progress)
 		bounds_left_url  => $rows_url->($result->{bounds_left_filters} // []),
