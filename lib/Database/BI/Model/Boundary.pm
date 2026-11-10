@@ -46,7 +46,7 @@ use Readonly;
 use Scalar::Util		qw(blessed);
 use URI				();
 
-our $VERSION = '0.022.0';
+our $VERSION = '0.023.0';
 
 # The place rank an answer must have at each level: rank for a country not
 # listed, countries for those that differ, by ISO 3166-1 alpha-2 code.  Checked
@@ -103,7 +103,7 @@ Database::BI::Model::Boundary - The county outline around each map marker
 
 =head1 VERSION
 
-0.022.0
+0.023.0
 
 =head1 SYNOPSIS
 

@@ -18,8 +18,8 @@ use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
 # version->declare here alone: this is VERSION_FROM, and with it MakeMaker
-# writes 0.022.0 into META; a plain dotted string becomes v0.022.0 there.
-use version; our $VERSION = version->declare('0.022.0');
+# writes 0.023.0 into META; a plain dotted string becomes v0.023.0 there.
+use version; our $VERSION = version->declare('0.023.0');
 
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
@@ -150,7 +150,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.022.0
+0.023.0
 
 =head1 DESCRIPTION
 
@@ -951,6 +951,21 @@ outline along its edge in that first colour alone, one over another where they
 meet.  Outlines are simplified to about 100 metres one at a time, so zoomed
 well in, neighbours' lines can part or overlap a little.  The markers' key explains the colours, so the outlines have none of
 their own.
+
+A map can have fewer outlines than markers, and a list under it says why: each
+outline that holds more than one marker, with the places in it, and the markers
+in no outline at all, each with a link to its rows in the table.  Often that is
+as it should be (several shops in one county).  Where the places were looked up
+by name it can also be a wrong answer, since a name may be ambiguous, and the
+list says so; C<loc_text=>, or latitude and longitude columns, make a lookup
+surer.  The list names at most 50 outlines, the fullest first.  While some
+places have no outline yet (not looked up, or OpenStreetMap did not answer),
+the note above the map links to their rows and, for those not looked up, to
+the map again to look them up.
+
+Outlines are written into the page, about 7 KB each before compression, so a
+map of a state's counties is well under a megabyte, and one of every county in
+a large country would be very large: filter the rows first.
 
 C<shade=E<lt>columnE<gt>> (Colour shade, in the map panel) fills each outline in a
 shade of one colour, the darker the larger that column's total over the rows

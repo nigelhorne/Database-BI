@@ -20,7 +20,7 @@ use lib 't/lib';
 
 use File::Spec ();
 use File::Temp qw(tempdir);
-use Mojo::JSON qw(decode_json);
+use Mojo::JSON qw(decode_json encode_json);
 use Mojo::Util qw(url_escape html_unescape);
 use Test::Most;
 use Test::Mojo;
@@ -906,6 +906,38 @@ subtest 'a colour in the key covers the totals drawn in it' => sub {
 	is($labels[0], '17 to 20', 'the highest covers those close to it in size, from smallest to largest');
 	is($labels[-1], '1', 'the lowest stands alone: 2 is twice as much');
 	is(scalar(@{ $Fake::OSM::geojson[-1][0]{features} }), 4, 'the four drawn in the highest');
+};
+
+subtest 'colour shade with a series, and on a canvas card' => sub {
+	my $csv = File::Spec->catfile($data, 'carded.csv');
+	open my $fh, '>', $csv or die $!;
+	print {$fh} "name,lat,lon,pop,kind\nA,10.1,20.1,10,x\nC,10.5,20.5,27,x\nD,10.1,21.1,1000,y\nE,10.5,21.5,5,x\n";
+	close $fh;
+	my $spec = "path:$csv";
+	my $fills = sub { return [ map { my (undef, %o) = @{$_}; $o{style}{fillColor} } @Fake::OSM::geojson ] };
+	my $t  = fresh_app();
+	my $ua = BI::Test::Boundary->new(areas => \@AREAS);
+
+	# A series colours the markers by value; the shade is of another column,
+	# so each colour's larger total is the stronger and the marker key stays.
+	with_fakes($ua, sub {
+		$t->get_ok('/map?l=' . url_escape($spec) . '&lat=lat&lon=lon&bounds=county&geocode=wait&series=kind&shade=pop')
+			->status_is(200)->content_like(qr/shaded by pop in the colours of the markers in them/);
+	});
+	is(scalar(grep { defined } @{ $fills->() }), 3, 'every outline is filled');
+	is(scalar(@{ $Fake::OSM::made{legend} // [] }), 2, 'the series keeps its key: the shade is of another column');
+
+	# A card saved with the shade draws it too.
+	my $cid = $t->post_ok('/api/analyses', { 'Content-Type' => 'application/json' }, encode_json({
+		name     => 'Shaded',
+		datasets => [ { spec => $spec, alias => 'left' } ],
+		visuals  => [ { kind => 'map', title => 'Shaded map', encode => { lat => 'lat', lon => 'lon' },
+			options => { bounds => 'county', shade => 'pop', shade_color => 'green' } } ],
+	}))->status_is(201)->tx->res->json->{id};
+	with_fakes($ua, sub { $t->get_ok("/a/$cid")->status_is(200) });
+	is_deeply($fills->(), [ '#d9ecd9', '#6cb66c', '#008000' ], 'a canvas card shades its outlines, in the colour saved');
+	my (undef, %opts) = @{ $Fake::OSM::geojson[0] };
+	is($opts{key}{shape}, 'box', 'with the key');
 };
 
 subtest 'the map card keeps bounds' => sub {

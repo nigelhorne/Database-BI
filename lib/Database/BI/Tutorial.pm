@@ -3,7 +3,7 @@ package Database::BI::Tutorial;
 use strict;
 use warnings;
 
-our $VERSION = '0.022.0';
+our $VERSION = '0.023.0';
 
 # ---------------------------------------------------------------------------
 # The tutorial that the application shows at GET /tutorial.
@@ -620,6 +620,9 @@ my @CHAPTERS = (
 			'Type an Initial zoom from 0 to 19 to start closer in. Leave it empty to fit every marker.',
 			'Tick Show county boundaries to outline the county each marker is in. A checkbox on the map hides the outlines again.',
 			'With the boundaries on, choose a column for Colour shade. Each county is filled in a shade of one colour, darker for a larger total.',
+			'With coloured markers too, each county is shaded in its own markers\' colour. Type a Shade colour to use one colour for them all.',
+			'Under the map, a list names each outline that holds more than one marker. Click its number of rows to see them in the table.',
+			'Two places in one outline can mean a name was looked up wrongly. Add to each place, or coordinate columns, make a lookup surer.',
 			'To colour the markers, choose Colour by column, then click Add rule. The first rule that matches gives the colour.',
 			'Type a Default colour for the markers that match no rule.',
 			'Click Open map.',
