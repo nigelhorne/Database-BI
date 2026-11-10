@@ -3706,7 +3706,14 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
 				$capped->get_ok($bounds)->status_is(200);
 			});
-			message_ok(Dashboard => 'warn_map_bounds_pending', $capped->tx->res->body, [1, 2], 1);
+			message_ok(Dashboard => 'warn_map_bounds_pending_one', $capped->tx->res->body, [1, 2], 1);
+			# More than one left: "places have ... look them up".
+			my $many = unit_app();
+			$many->app->config->{map_geocode_online_max} = 1;
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$many->get_ok('/map?l=' . $e->("path:$row") . '&lat=lat&lon=lon&bounds=county')->status_is(200);
+			});
+			message_ok(Dashboard => 'warn_map_bounds_pending', $many->tx->res->body, [19, 20], 1);
 
 			my $offline = unit_app();
 			$offline->app->config->{map_geocode_online} = 0;
@@ -3714,12 +3721,21 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 				$offline->get_ok($bounds)->status_is(200);
 			});
 			message_ok(Dashboard => 'warn_map_bounds_offline', $offline->tx->res->body, [2, 2], 1);
+			# One place alone "has" no outline.
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas), sub {
+				$offline->get_ok("$bounds&f=id:eq:1")->status_is(200);
+			});
+			message_ok(Dashboard => 'warn_map_bounds_offline_one', $offline->tx->res->body, [1, 1], 1);
 
 			my $down = unit_app();
 			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas, fail => 1), sub {
 				$down->get_ok($bounds)->status_is(200);
 			});
 			message_ok(Dashboard => 'warn_map_bounds_failed', $down->tx->res->body, [2, 2], 1);
+			BI::Test::Boundary::with_ua(BI::Test::Boundary->new(areas => $areas, fail => 1), sub {
+				$down->get_ok("$bounds&f=id:eq:1")->status_is(200);
+			});
+			message_ok(Dashboard => 'warn_map_bounds_failed_one', $down->tx->res->body, [1, 1], 1);
 		}
 		$tm->post_ok('/geo/boundary')->status_is(400);
 		message_ok(Dashboard => 'error_geo_boundary_point', $tm->tx->res->json->{error});

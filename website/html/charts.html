@@ -257,6 +257,19 @@
 		county whose markers differ gets a line of each colour, the commonest
 		outermost.
 	</dd>
+	<dt><code>shade=&lt;col&gt;</code>, with <code>bounds=county</code></dt>
+	<dd>Colour shade: fills each outline in a shade of one colour, darker for a
+		larger total of that column over the rows inside it, as a census map is
+		drawn. <code>shade_color=</code> (a colour name or <code>#rrggbb</code>)
+		chooses the colour, orange by default. A key on the map lists the shades
+		with the totals each covers (as filled boxes with HTML::OSM 0.18), and a
+		click anywhere in an outline gives its total. When the markers are coloured
+		and no <code>shade_color=</code> is given, each outline is shaded in its
+		markers' colour, stronger the further its total is into that colour's
+		rule: under <code>color_rule=lt:20000:green</code> the smallest county is
+		the greenest. In the map panel it is
+		Colour shade, under Show county boundaries.
+	</dd>
 	<dt><code>size=&lt;col&gt;</code></dt>
 	<dd>Markers become circles with a radius from a numeric column.</dd>
 	<dt><code>color=&lt;col&gt;</code> with <code>color_rule=op:value:colour</code></dt>

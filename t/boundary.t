@@ -426,7 +426,20 @@ subtest 'a browser gets a progress bar for the outlines not known' => sub {
 	with_fakes($ua, sub {
 		$t->get_ok("$map&bounds=county&geocode=cached", { Accept => 'text/html' })->status_is(200)
 			->element_exists_not('#map-progress')
-			->content_like(qr/1 of 4 places have no county outline yet/);
+			->content_like(qr/1 of 4 places has no county outline yet/);
+		my $left = $t->tx->res->dom->at('#map-bounds-left');
+		ok($left, 'a link to the rows with no outline') or return;
+		like($left->text, qr/\AShow the 1 row with no county outline in the table\z/, 'which counts them');
+		my $rows = $left->attr('href');
+		like($rows, qr/[?&]f=\w+%3Ain%3A/, 'filtered to those rows');
+		like($rows, qr/[?&]back2=/, 'with the way back to the map');
+		$t->get_ok($rows)->status_is(200);
+		my $retry = $t->tx->res->dom->at('#map-bounds-retry');
+		$t->get_ok("$map&bounds=county&geocode=cached", { Accept => 'text/html' });
+		$retry = $t->tx->res->dom->at('#map-bounds-retry');
+		ok($retry, 'and one to look the outline up') or return;
+		unlike($retry->attr('href'), qr/geocode=/, 'which opens the map without geocode=cached');
+		is($retry->text, 'Look up the outline not looked up yet', 'worded for one');
 	});
 	is(scalar(@{ $Fake::OSM::geojson[0][0]{features} }), 1, 'the outline found is drawn');
 
@@ -610,6 +623,120 @@ subtest 'when the markers are coloured, each outline takes their colours' => sub
 	with_fakes($ua, sub { $t->get_ok("$ruled&f=" . url_escape('name:in:["A","C"]'))->status_is(200) });
 	is_deeply($drawn->(), [ [ '#0000ff', 'colours', [ [ 'West County', '#0000ff', '#ff0000' ] ] ] ],
 		'one marker of each colour: the first met is outermost');
+};
+
+subtest 'colour shade fills each outline, darker for more' => sub {
+	my $csv = File::Spec->catfile($data, 'shaded.csv');
+	open my $fh, '>', $csv or die $!;
+	# West County: 10 + 20 + 7 = 37; East: 1000; The City: 5.
+	print {$fh} "name,lat,lon,pop,kind\nA,10.1,20.1,10,x\nB,10.1,20.1,20,x\nC,10.5,20.5,7,x\nD,10.1,21.1,1000,y\nE,10.5,21.5,5,x\n";
+	close $fh;
+	my $shaded = '/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait';
+	my $t  = fresh_app();
+	my $ua = BI::Test::Boundary->new(areas => \@AREAS);
+	my $drawn = sub {
+		return [ map {
+			my ($collection, %opts) = @{$_};
+			[ $opts{style}{color}, ${ $opts{style}{fill} }, $opts{style}{fillColor},
+				[ map { html_unescape($_->{properties}{name}) } @{ $collection->{features} } ] ];
+		} @Fake::OSM::geojson ];
+	};
+	my $key = sub { return { @{ $Fake::OSM::geojson[0] }[1 .. $#{ $Fake::OSM::geojson[0] }] }->{key} };
+
+	with_fakes($ua, sub { $t->get_ok("$shaded&shade=pop")->status_is(200) });
+	is_deeply($drawn->(), [
+		[ '#555555', 1, '#f9e4d9', [ 'The City: 5 pop' ] ],
+		[ '#555555', 1, '#e9966d', [ 'West County: 37 pop' ] ],
+		[ '#555555', 1, '#d94801', [ 'East <b>County</b> & Co: 1,000 pop' ] ],
+	], 'grey lines, each outline filled in a shade of one colour, lightest first, the largest total the colour itself');
+	is($Fake::OSM::geojson[0][1] eq 'style' ? $Fake::OSM::geojson[0][2]{fillOpacity} : undef, 0.65,
+		'the fill lets the map through');
+	like($Fake::OSM::geojson[2][0]{features}[0]{properties}{name}, qr/&lt;b&gt;/, 'the name still escaped');
+	is_deeply($key->(), {
+		title   => 'pop in each county',
+		shape   => 'box',
+		entries => [
+			{ colour => '#d94801', label => '1,000' },
+			{ colour => '#e9966d', label => '37' },
+			{ colour => '#f9e4d9', label => '5' },
+		],
+	}, 'a key of boxes, darkest first');
+	ok(!(grep { my (undef, %o) = @{$_}; $o{key} } @Fake::OSM::geojson[1, 2]), 'given once');
+	$t->content_like(qr/with 3 county outlines shaded by pop, darker for more\./, 'the summary says so');
+	my $chart = decode_json($t->tx->res->dom->at('#new-canvas-panel')->attr('data-chart'));
+	is($chart->{options}{shade}, 'pop', 'kept for a canvas card');
+
+	with_fakes($ua, sub { $t->get_ok("$shaded&shade=pop&shade_color=green&heat=1&weight=pop")->status_is(200) });
+	is_deeply([ map { [ @{$_}[0, 2] ] } @{ $drawn->() } ],
+		[ [ '#555555', '#d9ecd9' ], [ '#555555', '#6cb66c' ], [ '#555555', '#008000' ] ],
+		'another colour; the heat layer no longer colours the lines, which would say the same');
+	is($key->()->{shape}, 'box', 'so the one key is the fills\'');
+	$t->content_unlike(qr/from green \(least\)/, 'and the summary does not claim line colours');
+	$chart = decode_json($t->tx->res->dom->at('#new-canvas-panel')->attr('data-chart'));
+	is($chart->{options}{shade_color}, 'green', 'the colour is kept too');
+
+	# Coloured markers, and a colour asked for: lines as the markers, fills
+	# in the one colour.
+	my $ruled = "$shaded&shade=pop&color=kind&color_rule=eq:y:red&color_default=blue";
+	with_fakes($ua, sub { $t->get_ok("$ruled&shade_color=%23d94801")->status_is(200) });
+	is_deeply([ map { [ @{$_}[0, 2] ] } @{ $drawn->() } ],
+		[ [ '#0000ff', '#f9e4d9' ], [ '#0000ff', '#e9966d' ], [ '#ff0000', '#d94801' ] ],
+		'with coloured markers and a shade colour, the lines take the markers\' and the fills the one');
+	$t->content_like(qr/shaded by pop, darker for more, and outlined in the colours of the markers in them\./,
+		'the summary says both');
+
+	# No colour asked for: each outline is shaded in its markers' colour, a
+	# scale to each colour.
+	with_fakes($ua, sub { $t->get_ok($ruled)->status_is(200) });
+	is_deeply($drawn->(), [
+		[ '#0000ff', 1, '#d9d9ff', [ 'The City: 5 pop' ] ],
+		[ '#0000ff', 1, '#0000ff', [ 'West County: 37 pop' ] ],
+		[ '#ff0000', 1, '#ff6c6c', [ 'East <b>County</b> & Co: 1,000 pop' ] ],
+	], 'each in its markers\' colour: the larger blue the stronger, the one red its middle shade');
+	is_deeply($key->(), {
+		title   => 'pop in each county',
+		shape   => 'box',
+		entries => [
+			{ colour => '#0000ff', label => '37' },
+			{ colour => '#d9d9ff', label => '5' },
+			{ colour => '#ff6c6c', label => '1,000' },
+		],
+	}, 'the key lists each colour\'s shades, strongest first');
+	$t->content_like(qr/shaded by pop in the colours of the markers in them, stronger the further into each colour's range\./,
+		'and the summary says how to read them');
+
+	# A "less than" rule on the shaded column: the further below, the stronger.
+	with_fakes($ua, sub {
+		$t->get_ok("$shaded&shade=pop&color=pop&color_rule=lt:50:green&color_default=blue")->status_is(200);
+	});
+	is_deeply($drawn->(), [
+		[ '#008000', 1, '#d9ecd9', [ 'West County: 37 pop' ] ],
+		[ '#008000', 1, '#008000', [ 'The City: 5 pop' ] ],
+		[ '#0000ff', 1, '#6c6cff', [ 'East <b>County</b> & Co: 1,000 pop' ] ],
+	], 'under a "below 50" rule the county furthest below is the greenest');
+
+	# The same rule read from another column is no guide to this one's sizes.
+	with_fakes($ua, sub {
+		$t->get_ok("$shaded&shade=pop&color=lat&color_rule=lt:10.45:green&color_default=blue")->status_is(200);
+	});
+	is_deeply([ map { [ @{$_}[2, 3] ] } grep { $_->[0] eq '#008000' } @{ $drawn->() } ],
+		[ [ '#008000', [ 'East <b>County</b> & Co: 1,000 pop' ] ], [ '#d9ecd9', [ 'West County: 37 pop' ] ] ],
+		'a rule on another column leaves the larger total the stronger');
+
+	with_fakes($ua, sub { $t->get_ok("$shaded&shade=pop&f=" . url_escape('name:eq:D'))->status_is(200) });
+	is_deeply($drawn->(), [ [ '#555555', 0, undef, [ 'East <b>County</b> & Co' ] ] ],
+		'one outline has nothing to be darker than: not filled');
+	ok(!$key->(), 'no key');
+	$t->content_unlike(qr/shaded by/, 'and no claim');
+
+	with_fakes($ua, sub { $t->get_ok("$shaded&shade=nosuch")->status_is(200) });
+	is(${ $Fake::OSM::geojson[0][2]{fill} }, 0, 'a column the data lacks shades nothing');
+	with_fakes($ua, sub { $t->get_ok("$shaded&shade=pop&shade_color=" . url_escape('red;x'))->status_is(200) });
+	is($Fake::OSM::geojson[2][2]{fillColor}, '#d94801', 'a colour that is not one falls back to the default');
+
+	my $shade = \&Database::BI::Controller::Dashboard::_shade_colour;
+	is($shade->('#000000', 1), '#000000', 'the full colour at the top');
+	is($shade->('#000000', 0), '#d9d9d9', 'a light tint, not white, at the bottom');
 };
 
 subtest 'colours follow size, so close totals share one' => sub {

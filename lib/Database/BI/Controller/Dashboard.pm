@@ -255,9 +255,12 @@ Readonly my %MESSAGES => (
 	error_geo_lookup_unsigned   => 'This place was not listed by a map page, or the server has restarted since; open the map again',
 	error_map_loc_text          => 'loc_text= is the text added to the end of each place, at most %d characters on one line, not "%s"',
 	error_map_bounds_unknown    => 'bounds= must be "county", the only kind of boundary so far, not "%s"',
-	warn_map_bounds_pending     => '%d of %d places have no county outline yet; open the map again to look them up',
+	warn_map_bounds_pending     => '%d of %d places have no county outline yet',
+	warn_map_bounds_pending_one => '%d of %d places has no county outline yet',
 	warn_map_bounds_offline     => '%d of %d places have no county outline: outlines come from OpenStreetMap, which this server does not ask (map_geocode_online is off, or LWP::UserAgent::Throttled is not installed)',
+	warn_map_bounds_offline_one => '%d of %d places has no county outline: outlines come from OpenStreetMap, which this server does not ask (map_geocode_online is off, or LWP::UserAgent::Throttled is not installed)',
 	warn_map_bounds_failed      => 'OpenStreetMap did not answer, so %d of %d places have no county outline; they are tried again next time',
+	warn_map_bounds_failed_one  => 'OpenStreetMap did not answer, so %d of %d places has no county outline; it is tried again next time',
 	error_geo_boundary_point    => 'A lookup needs point= and the sig= the map page gave it',
 	error_geo_boundary_unsigned => 'This point was not listed by a map page, or the server has restarted since; open the map again',
 	error_insights_no_data      => 'No data available to analyse',
@@ -13055,6 +13058,35 @@ sub _map_loc_text {
 	return Database::BI::Model::Geocode->place_text($value);
 }
 
+# _map_rows_filters(\@records, \@row_indexes, \@columns) -> @filters
+#
+# Purpose: Filters that select exactly the given rows, for a link from the
+#          map to them in the table.
+# Entry:   Indexes into @records; the columns that tell the rows apart (the
+#          place columns, or latitude and longitude).
+# Exit:    One "col:in:[...]" filter a column, listing the cells those rows
+#          hold.  () when together they would select another row too (two
+#          columns' lists can pair up into a row that was not asked for), or
+#          when no row or column is given: a link must not show the wrong rows.
+# Side effects: none.
+sub _map_rows_filters {
+	my ($records, $indexes, $columns) = @_;
+
+	my @rows = grep { ref($_) eq 'HASH' } map { $records->[$_] } @{$indexes};
+	return () unless @rows && @{$columns};
+
+	my @filters = map {
+		my $col = $_;
+		my %cells = map { my $cell = $_->{$col}; ((defined($cell) && !ref($cell)) ? $cell : '') => 1 } @rows;
+		"$col:in:" . to_json([ sort keys %cells ]);
+	} @{$columns};
+
+	# Tried on every row: the filters are kept only if they find just these
+	my $hit = [ grep { ref($_) eq 'HASH' } @{$records} ];
+	$hit = _apply_filter_spec($hit, $_) for @filters;
+	return scalar(@{$hit}) == scalar(@rows) ? @filters : ();
+}
+
 # _map_unplotted(\@records, \@places, $loc_col, \@loc_cols, \%resolved)
 #     -> (\@entries, \@all_filters)
 #
@@ -13215,6 +13247,18 @@ Readonly my $OUTLINE_STEPS => 9;
 # colour carries a meaning, so the colour can be told apart on a busy map.
 Readonly my %OUTLINE_PLAIN => (colour => '#555555', weight => 1.5, opacity => 0.8);
 Readonly my %OUTLINE_HEAT  => (weight => 2.5, opacity => 0.9);
+# Colour shade (shade=): each outline filled in a shade of one colour, darker
+# for a larger total, as a census map is.  $SHADE_STEPS shades, the lightest
+# $SHADE_LIGHTEST of the way from white to the colour so that it still shows;
+# the fill lets the map underneath through.
+Readonly my $SHADE_STEPS         => 5;
+Readonly my $SHADE_LIGHTEST      => 0.15;
+Readonly my $SHADE_OPACITY       => 0.65;
+Readonly my $DEFAULT_SHADE_COLOR => '#d94801';
+# A key's totals are rounded to $KEY_FIGURES significant figures, from
+# $KEY_ROUND_FROM up; smaller ones are short enough as they are.
+Readonly my $KEY_FIGURES    => 2;
+Readonly my $KEY_ROUND_FROM => 100;
 
 # _map_outline_layers($self, $outlines, \@markers, $records, $weight_col)
 #     -> list of { features, colour, weight, opacity }
@@ -13237,7 +13281,8 @@ sub _map_outline_layers :Protected ($self, $outlines, $markers, $records, $weigh
 	my @features = @{ $outlines->{features} };
 	my $named = sub {
 		my ($feature, $text) = @_;
-		return { %{$feature}, properties => { name => xml_escape($text) } };
+		# osm stays, so the fill (shade=) can find the outline's total
+		return { %{$feature}, properties => { name => xml_escape($text), osm => $feature->{properties}{osm} } };
 	};
 
 	# No heat layer: nothing to total, so one grey layer and no key.
@@ -13348,12 +13393,126 @@ sub _map_outline_marker_layers :Protected ($self, $outlines, $markers) {
 		# Leaflet reads a popup as HTML, and a name from OpenStreetMap is text
 		push @{ $layer->{features} }, {
 			%{$feature},
-			properties => { name => xml_escape($feature->{properties}{name} // ''), colours => \@colours },
+			properties => { name => xml_escape($feature->{properties}{name} // ''), colours => \@colours, osm => $osm },
 		};
 	}
 	# Those of several colours last: only an older HTML::OSM, which draws every
 	# outline along its edge, can draw one over another, and then they show.
 	return sort { $a->{mixed} <=> $b->{mixed} } @layers;
+}
+
+# _map_outline_shade($self, \@layers, $outlines, \@markers, $records, $col, $colour, $noun, $lower)
+#     -> list of layers, each with fill
+#
+# Purpose: Colour shade: fill each outline in a shade of a colour, by the
+#          total of $col in it.
+# Entry:   @layers as _map_outline_layers or _map_outline_marker_layers made
+#          them (each feature keeps its osm and an escaped name); $col is a
+#          column of $records.  $colour is the one colour to shade, as
+#          _parse_color takes one, or undef for the default.  $lower, when a
+#          hashref, says the markers are coloured and no colour was asked for:
+#          each outline is then shaded in its own line colour (its markers'),
+#          and $lower->{<#rrggbb>} is true for a colour whose rule is "less
+#          than", where the smaller total is the stronger.
+# Exit:    Each layer split by shade, so every part has one line style and
+#          one "fill" (#rrggbb), in the order given.  One colour: darker for a
+#          larger total, across every outline.  The markers' colours: each
+#          colour is a scale of its own over the outlines of that colour,
+#          stronger the further the total is into what the colour stands for
+#          (larger, or smaller for a "less than" colour), so a county well
+#          under a "below 20,000" rule is greener than one just under it; a
+#          colour with one total is its middle shade.  The shade follows
+#          _outline_shares, as the heat colours do.  Each popup names the
+#          outline and its total; the first layer carries the key, every
+#          shade in use by size, the largest totals first, drawn as boxes (HTML::OSM 0.18; an older copy
+#          draws lines).  () with one colour when fewer than two totals
+#          differ: nothing to compare, so the caller leaves the outlines
+#          unfilled.
+# Side effects: none.
+sub _map_outline_shade :Protected ($self, $layers, $outlines, $markers, $records, $col, $colour, $noun, $lower) {
+	return () unless $outlines && @{$layers};
+
+	my $total  = $self->_map_outline_totals($outlines->{inside} // {}, $markers, $records, $col);
+	my $amount = sub { return $total->{ $_[0]{properties}{osm} // '' } // 0 };
+	my $one    = _color_hex(_parse_color($colour // '') // $DEFAULT_SHADE_COLOR);
+
+	# The colour each layer is shaded in: the one colour, or its own line's.
+	# Written out as #rrggbb, which _shade_colour reads.
+	my $hue_of = sub {
+		my $hue = $lower ? $_[0]{colour} : $one;
+		$hue =~ s/\A#(.)(.)(.)\z/#$1$1$2$2$3$3/;
+		return lc $hue;
+	};
+
+	# Each colour's totals, then where each sits on that colour's scale.
+	my (%totals_of, @hues);
+	for my $layer (@{$layers}) {
+		my $hue = $hue_of->($layer);
+		push @hues, $hue unless $totals_of{$hue};
+		$totals_of{$hue}{ $amount->($_) } = 1 for @{ $layer->{features} };
+	}
+	return () if !$lower && keys(%{ $totals_of{ $hues[0] } }) < 2;
+	my %share_of;
+	for my $hue (@hues) {
+		my @distinct = sort { $a <=> $b } keys %{ $totals_of{$hue} };
+		my $shares   = @distinct > 1 ? _outline_shares(\@distinct) : { $distinct[0] => 0.5 };
+		# A "less than" colour is the stronger the smaller the total
+		$shares = { map { $_ => 1 - $shares->{$_} } keys %{$shares} } if $lower && $lower->{$hue};
+		$share_of{$hue} = $shares;
+	}
+
+	my (@shaded, %amounts);
+	for my $layer (@{$layers}) {
+		my $hue = $hue_of->($layer);
+		my (%part, @steps);
+		for my $feature (@{ $layer->{features} }) {
+			my $sum  = $amount->($feature);
+			my $step = int($share_of{$hue}{$sum} * ($SHADE_STEPS - 1) + 0.5);
+			push @steps, $step unless $part{$step};
+			push @{ $amounts{$hue}{$step} }, $sum;
+			# The name is escaped already; the column is text of the reader's
+			push @{ $part{$step} }, {
+				%{$feature},
+				properties => {
+					%{ $feature->{properties} },
+					name => $self->_i18n('map_bounds_total',
+						$feature->{properties}{name} // '', _map_total_text($sum), xml_escape($col)),
+				},
+			};
+		}
+		push @shaded, map {
+			+{ %{$layer}, features => $part{$_}, fill => _shade_colour($hue, $_ / ($SHADE_STEPS - 1)) }
+		} sort { $a <=> $b } @steps;
+	}
+
+	# One key for the fills, in place of any the lines had: for each colour
+	# the shades in use, strongest first as _map_outline_key lists them,
+	# drawn as boxes.
+	delete $_->{key} for @shaded;
+	# They are listed by size whatever their colour, the largest totals at the
+	# top, so a key of red above 100,000 and green below 20,000 runs from the
+	# strongest red down to the strongest green.
+	my @in_use = sort { $a->{totals}[-1] <=> $b->{totals}[-1] || $a->{totals}[0] <=> $b->{totals}[0] } map {
+		my $hue = $_;
+		map {
+			+{ colour => _shade_colour($hue, $_ / ($SHADE_STEPS - 1)),
+				totals => [ sort { $a <=> $b } @{ $amounts{$hue}{$_} } ] }
+		} keys %{ $amounts{$hue} };
+	} @hues;
+	$shaded[0]{key} = { %{ $self->_map_outline_key(\@in_use, $col, $noun) }, shape => 'box' };
+	return @shaded;
+}
+
+# _shade_colour($hex, $share) -> '#rrggbb': $hex (#rrggbb) at its full
+# strength for a share of 1, down to $SHADE_LIGHTEST of the way from white for
+# a share of 0.
+sub _shade_colour {
+	my ($hex, $share) = @_;
+	$share = 0 if $share < 0;
+	$share = 1 if $share > 1;
+	my $strength = $SHADE_LIGHTEST + (1 - $SHADE_LIGHTEST) * $share;
+	return sprintf('#%02x%02x%02x',
+		map { int(255 + (hex($_) - 255) * $strength + 0.5) } $hex =~ /\A#(..)(..)(..)\z/);
 }
 
 # _map_outline_totals($self, \%inside, \@markers, $records, $weight_col) -> \%total
@@ -13408,8 +13567,10 @@ sub _map_outline_key :Protected ($self, $layers, $weight_col, $noun) {
 		my ($low, $high) = @{ $_->{totals} }[0, -1];
 		+{
 			colour => $_->{colour},
-			label  => ($low == $high ? _map_total_text($low)
-				: $self->_i18n('map_bounds_key_range', _map_total_text($low), _map_total_text($high))),
+			# Round figures: a key is read at a glance, and the popups
+			# give each outline's exact total.
+			label  => (_map_key_number($low) eq _map_key_number($high) ? _map_key_number($low)
+				: $self->_i18n('map_bounds_key_range', _map_key_number($low), _map_key_number($high))),
 		};
 	} reverse @{$layers};
 	return {
@@ -13473,6 +13634,16 @@ sub _outline_colour {
 	my $part = $at - $from;
 	my ($lo, $hi) = @OUTLINE_STOPS[ $from, $from + 1 ];
 	return sprintf('#%02x%02x%02x', map { int($lo->[$_] + ($hi->[$_] - $lo->[$_]) * $part + 0.5) } 0 .. 2);
+}
+
+# _map_key_number($n) -> a total as a key shows it: rounded to two figures
+# ("330,000" for 330,818, "1,200,000" for 1,150,309), since a key gives ranges
+# to be read at a glance.  A total under 100 is given as it is.
+sub _map_key_number {
+	my ($n) = @_;
+	return _map_total_text($n) if abs($n) < $KEY_ROUND_FROM;
+	my $unit = 10 ** (POSIX::floor(log(abs($n)) / log(10)) - ($KEY_FIGURES - 1));
+	return _map_total_text(POSIX::floor($n / $unit + 0.5) * $unit);
 }
 
 # _map_total_text($n) -> the total as a popup shows it: thousands separated,
@@ -13742,6 +13913,9 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	my ($outlines, @bounds_pending);
 	my $bounds_coloured = 0;	# set when the outlines are coloured by their totals
 	my $bounds_as_markers = 0;	# set when they take their markers' colours
+	my $bounds_shade = '';	# the column they are filled by (shade=), when they are
+	my $bounds_shade_as = '';	# 'one' colour, or the 'markers' colours
+	my (@bounds_left_filters, $bounds_left_rows);	# the rows whose marker has no outline
 	if (defined($bounds_level) && @markers) {
 		my $lookup = (defined($options->{lookup}) && !$options->{lookup}) ? 0 : 1;
 		$outlines = $self->_map_boundary($bounds_level, 1)->outlines(
@@ -13750,12 +13924,25 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		);
 		@bounds_pending = @{ $outlines->{pending} };
 		if (@bounds_pending) {
+			# The rows behind the markers left without an outline, for a link
+			# to them in the table, as the rows not plotted have.
+			require Database::BI::Model::Boundary;
+			my %left = map { $_ => 1 } @bounds_pending;
+			my @rows = map { @{ $_->{row_indexes} // [ $_->{first_row} ] } } grep {
+				my $key = Database::BI::Model::Boundary->point_key($_->{lat}, $_->{lon});
+				defined($key) && $left{$key};
+			} @markers;
+			$bounds_left_rows    = scalar @rows;
+			@bounds_left_filters = _map_rows_filters($records, \@rows,
+				[ $by_location ? @loc_cols : ($lat_col, $lon_col) ]);
 			my $key = $outlines->{offline} ? 'warn_map_bounds_offline'
 				: $outlines->{failed}      ? 'warn_map_bounds_failed'
 				:                            'warn_map_bounds_pending';
 			push @messages, {
 				key  => $key,
-				text => $self->_i18n($key, scalar(@bounds_pending), $outlines->{counts}{points}),
+				# One place "has" no outline; the key stays the plural's
+				text => $self->_i18n($key . (@bounds_pending == 1 ? '_one' : ''),
+					scalar(@bounds_pending), $outlines->{counts}{points}),
 			};
 		}
 	}
@@ -13934,16 +14121,46 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 				my @outline_layers = length($color_col)
 					? $self->_map_outline_marker_layers($outlines, \@markers) : ();
 				$bounds_as_markers = 1 if @outline_layers;
+				# Colour shade fills each outline by a column's total.  It says
+				# what the heat layer's line colours would, so those stay grey.
+				my $shade_col = $options->{shade} // '';
+				$shade_col = '' if ref($shade_col) || !$col_set{$shade_col};
 				@outline_layers = $self->_map_outline_layers($outlines, \@markers, $records,
-					($options->{heat} ? ($options->{weight} // '') : undef), $noun)
+					(($options->{heat} && !length($shade_col)) ? ($options->{weight} // '') : undef), $noun)
 					unless @outline_layers;
+				if (length $shade_col) {
+					# Coloured markers and no colour asked for: each outline is
+					# shaded in its markers' colour.  When the shade is of the
+					# column the rules read, a "less than" rule's colour is the
+					# stronger the smaller the total.
+					my $lower;
+					if ($bounds_as_markers && !defined($options->{shade_color})) {
+						$lower = {};
+						for my $rule ($shade_col eq $color_col ? @{$color_rules} : ()) {
+							my $hue = _color_hex($rule->{color});
+							$hue =~ s/\A#(.)(.)(.)\z/#$1$1$2$2$3$3/;
+							$lower->{ lc $hue } //= (($rule->{op} // '') =~ /\Al[te]\z/) ? 1 : 0;
+						}
+					}
+					my @shaded = $self->_map_outline_shade(\@outline_layers, $outlines, \@markers,
+						$records, $shade_col, $options->{shade_color}, $noun, $lower);
+					if (@shaded) {
+						@outline_layers  = @shaded;
+						$bounds_shade    = $shade_col;
+						$bounds_shade_as = $lower ? 'markers' : 'one';
+					}
+				}
 				for my $layer (@outline_layers) {
-					# Only a layer with a key was coloured to mean something.
-					$bounds_coloured = 1 if $layer->{key};
+					# Only a layer with a key was coloured to mean something;
+					# a shaded map's key is for its fills.
+					$bounds_coloured = 1 if $layer->{key} && !length($bounds_shade);
 					$map->add_geojson(
 						{ type => 'FeatureCollection', features => $layer->{features} },
 						style => { color => $layer->{colour}, weight => $layer->{weight},
-							opacity => $layer->{opacity}, fill => \0 },
+							opacity => $layer->{opacity},
+							($layer->{fill}
+								? (fill => \1, fillColor => $layer->{fill}, fillOpacity => $SHADE_OPACITY)
+								: (fill => \0)) },
 						popup => 'name',
 						name  => $self->_i18n('map_bounds_layer', ucfirst $noun),
 						($layer->{key} ? (key => $layer->{key}) : ()),
@@ -13994,6 +14211,10 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 	$chart_spec{options}{zoom}  = $options->{zoom}  if defined $options->{zoom};
 	$chart_spec{options}{heat}  = 1                 if $options->{heat};
 	$chart_spec{options}{bounds} = $bounds_level    if defined $bounds_level;
+	$chart_spec{options}{shade}  = $options->{shade}
+		if defined($options->{shade}) && !ref($options->{shade}) && length($options->{shade});
+	$chart_spec{options}{shade_color} = $options->{shade_color}
+		if defined($chart_spec{options}{shade}) && defined($options->{shade_color}) && !ref($options->{shade_color});
 	$chart_spec{options}{weight} = $options->{weight}
 		if defined($options->{weight}) && length($options->{weight});
 	if (defined($options->{size}) && length($options->{size})) {
@@ -14036,6 +14257,10 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 		bounds_heat    => $bounds_coloured,
 		bounds_weight  => ($bounds_coloured ? ($options->{weight} // '') : ''),
 		bounds_as_markers => $bounds_as_markers,
+		bounds_shade   => $bounds_shade,
+		bounds_shade_as => $bounds_shade_as,
+		bounds_left_filters => \@bounds_left_filters,
+		bounds_left_rows    => $bounds_left_rows // 0,
 	};
 }
 
@@ -14165,6 +14390,8 @@ sub map_view ($self) {
 	my $bounds_raw   = $self->param('bounds')   // '';
 	my $loc_text_raw = $self->param('loc_text') // '';
 	my $weight_col   = $self->param('weight')   // '';
+	my $shade_col    = $self->param('shade')    // '';
+	my $shade_color  = _parse_color($self->param('shade_color') // '');
 	my $size_col     = $self->param('size')     // '';
 	my $series_col   = $self->param('series')   // '';
 	my $scheme       = $self->param('scheme')   // 'tableau10';
@@ -14313,6 +14540,9 @@ sub map_view ($self) {
 	$options{heat}     = 1               if $heat;
 	$options{bounds}   = $bounds_level   if defined $bounds_level;
 	$options{weight}   = $weight_col     if length($weight_col) && $col_set{$weight_col};
+	# Colour shade: a column to fill the outlines by, and the colour to shade
+	$options{shade}    = $shade_col      if length($shade_col) && $col_set{$shade_col};
+	$options{shade_color} = $shade_color if defined($shade_color) && defined($options{shade});
 	$options{lookup}   = 0               if $progress || $geocode_mode eq 'cached';
 
 	# Each place that could not be plotted, and each marker with more rows
@@ -14407,6 +14637,12 @@ sub map_view ($self) {
 		unplotted       => \@unplotted,
 		unplotted_rows  => $unplotted_rows,
 		unplotted_url   => $rows_url->($result->{unplotted_filters} // []),
+		# The rows whose place has no county outline, and this page again to
+		# look those outlines up (as it was opened: waiting, or with progress)
+		bounds_left_url  => $rows_url->($result->{bounds_left_filters} // []),
+		bounds_left_rows => $result->{bounds_left_rows},
+		bounds_left      => scalar(@{ $result->{bounds_pending} // [] }),
+		bounds_retry_url => $here_with->($geocode_mode eq 'wait' ? 'wait' : undef),
 		format          => 'html',
 		title           => $result->{title},
 		extra_head      => $result->{map_head},
@@ -14417,6 +14653,8 @@ sub map_view ($self) {
 		bounds_heat     => $result->{bounds_heat},
 		bounds_noun     => $result->{bounds_noun},
 		bounds_as_markers => $result->{bounds_as_markers},
+		bounds_shade    => $result->{bounds_shade},
+		bounds_shade_as => $result->{bounds_shade_as},
 		bounds_weight   => $result->{bounds_weight},
 		row_count       => $result->{row_count},
 		source_rows     => $result->{source_rows},

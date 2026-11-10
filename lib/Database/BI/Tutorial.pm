@@ -619,6 +619,7 @@ my @CHAPTERS = (
 			'Tick Heatmap layer to colour the busy areas. Choose a Heat weight column to make some rows count for more.',
 			'Type an Initial zoom from 0 to 19 to start closer in. Leave it empty to fit every marker.',
 			'Tick Show county boundaries to outline the county each marker is in. A checkbox on the map hides the outlines again.',
+			'With the boundaries on, choose a column for Colour shade. Each county is filled in a shade of one colour, darker for a larger total.',
 			'To colour the markers, choose Colour by column, then click Add rule. The first rule that matches gives the colour.',
 			'Type a Default colour for the markers that match no rule.',
 			'Click Open map.',

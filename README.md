@@ -795,6 +795,27 @@ perl Makefile.PL
     well in, neighbours' lines can part or overlap a little.  The markers' key explains the colours, so the outlines have none of
     their own.
 
+    `shade=<column>` (Colour shade, in the map panel) fills each outline in a
+    shade of one colour, the darker the larger that column's total over the rows
+    inside it, as a census map is drawn.  There are five shades, placed on the same
+    logarithmic scale, from a light tint up to the colour itself: `shade_color=`
+    (a colour name or `#rrggbb`) chooses it, orange by default.  A key lists each
+    shade in use, darkest first, with the totals it covers, as filled boxes with
+    [HTML::OSM](https://metacpan.org/pod/HTML%3A%3AOSM) 0.18 (lines before), and each outline's popup, which now opens from
+    anywhere inside it, gives its total.  The lines stay grey, or take the markers'
+    colours: with a shade the heat layer no longer colours them, since the fill
+    says the same.  With one outline, or totals all alike, nothing is filled.
+
+    When the markers are coloured (`color=`) and no `shade_color=` is given, each
+    outline is shaded in its own markers' colour instead, each colour a scale of its
+    own: the further a total is into what the colour stands for, the stronger the
+    shade.  For a rule on the shaded column that reads "less than" (`lt`, `le`)
+    that means the smaller total: with `color_rule=lt:20000:green` a county of
+    2,000 is a stronger green than one of 19,000, while under
+    `color_rule=gt:100000:red` the largest county is the strongest red.  The key
+    lists each colour's shades, strongest first.  Give `shade_color=` to shade
+    every outline in one colour as before.
+
     A marker stands for every row at its place, and its popup lists them all: a
     value every row shares is shown once ("Person: Valentin Puntar"), and the
     columns that differ are a small table, one line a row.  The table shows at most

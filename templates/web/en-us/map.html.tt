@@ -225,6 +225,12 @@
       [%- IF message.key == 'warn_map_rows_skipped' && unplotted_url.length %]
       <br><a class="map-unplotted-all" href="[% unplotted_url | html %]">Show the [% unplotted_rows %] row[% unplotted_rows == 1 ? '' : 's' %] that [% unplotted_rows == 1 ? 'was' : 'were' %] not plotted in the table</a>
       [%- END %]
+      [%- IF message.key.match('^warn_map_bounds_') && bounds_left_url.length %]
+      <br><a class="map-unplotted-all" id="map-bounds-left" href="[% bounds_left_url | html %]">Show the [% bounds_left_rows %] row[% bounds_left_rows == 1 ? '' : 's' %] with no county outline in the table</a>
+      [%- END %]
+      [%- IF message.key == 'warn_map_bounds_pending' && bounds_retry_url.length %]
+      <br><a class="map-retry" id="map-bounds-retry" href="[% bounds_retry_url | html %]">Look up the outline[% bounds_left == 1 ? '' : 's' %] not looked up yet</a>
+      [%- END %]
       [%- IF message.key == 'warn_map_rows_skipped' && geocode_retry_url.length %]
       <br><a class="map-retry" id="map-retry" href="[% geocode_retry_url | html %]">Look up the places not looked up yet</a>
       [%- END %]
@@ -259,7 +265,7 @@
 [% END %]
 
 [% UNLESS geocode_pending && !marker_count %]
-<p class="map-summary">Plotting [% marker_count %] marker[% marker_count == 1 ? '' : 's' %] for [% row_count %] of [% source_rows %] row[% source_rows == 1 ? '' : 's' %][% IF loc_col %] from column[% loc_many ? 's' : '' %] [% loc_col | html %][% IF loc_text.length %] with &ldquo;[% loc_text | html %]&rdquo; added[% END %][% END %][% IF lat_col %] from columns [% lat_col | html %] and [% lon_col | html %][% END %][% IF backend %]; resolved by [% backend | html %][% END %][% IF bounds_drawn %], with [% bounds_drawn %] [% bounds_noun | html %] outline[% bounds_drawn == 1 ? '' : 's' %][% IF bounds_as_markers %] colored as the markers in them[% ELSIF bounds_heat %] colored by [% IF bounds_weight.length %][% bounds_weight | html %], from green (least) to red (most)[% ELSE %]rows, from green (fewest) to red (most)[% END %][% END %][% END %].</p>
+<p class="map-summary">Plotting [% marker_count %] marker[% marker_count == 1 ? '' : 's' %] for [% row_count %] of [% source_rows %] row[% source_rows == 1 ? '' : 's' %][% IF loc_col %] from column[% loc_many ? 's' : '' %] [% loc_col | html %][% IF loc_text.length %] with &ldquo;[% loc_text | html %]&rdquo; added[% END %][% END %][% IF lat_col %] from columns [% lat_col | html %] and [% lon_col | html %][% END %][% IF backend %]; resolved by [% backend | html %][% END %][% IF bounds_drawn %], with [% bounds_drawn %] [% bounds_noun | html %] outline[% bounds_drawn == 1 ? '' : 's' %][% IF bounds_shade.length && bounds_shade_as == 'markers' %] shaded by [% bounds_shade | html %] in the colors of the markers in them, stronger the further into each color's range[% ELSIF bounds_shade.length %] shaded by [% bounds_shade | html %], darker for more[% IF bounds_as_markers %], and outlined in the colors of the markers in them[% END %][% ELSIF bounds_as_markers %] colored as the markers in them[% ELSIF bounds_heat %] colored by [% IF bounds_weight.length %][% bounds_weight | html %], from green (least) to red (most)[% ELSE %]rows, from green (fewest) to red (most)[% END %][% END %][% END %].</p>
 [% END %]
 
 [% IF map_body %]
