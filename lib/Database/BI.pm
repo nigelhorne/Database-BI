@@ -937,7 +937,7 @@ says what the colours mean.  The checkbox, the key and that line call an
 outline what its country does (a district in India, a province in Spain, an
 area when the map mixes them).  With L<HTML::OSM>
 0.16 a key in the map's bottom right corner lists each colour, highest first,
-with the totals it covers ("29,652 to 37,109"); it hides with the outlines'
+with the totals it covers, rounded to two figures ("30,000 to 37,000"); it hides with the outlines'
 checkbox.
 
 When the markers are coloured (C<color=>), the outlines take their colours
@@ -970,7 +970,14 @@ shade.  For a rule on the shaded column that reads "less than" (C<lt>, C<le>)
 that means the smaller total: with C<color_rule=lt:20000:green> a county of
 2,000 is a stronger green than one of 19,000, while under
 C<color_rule=gt:100000:red> the largest county is the strongest red.  The key
-lists each colour's shades, strongest first.  Give C<shade_color=> to shade
+lists every shade by size, the largest totals at the top, so it runs from the
+strongest red down to the strongest green.  It then stands for the markers'
+colours as well, so the markers' own key of those colours is left out while the outlines are
+shown.  With L<HTML::OSM> 0.19 it comes back when the reader hides the outlines
+with their checkbox, and goes again when they are shown; an older HTML::OSM
+leaves it out throughout.  The markers' key always stays when the shade is of
+another column or of one colour, where nothing else says what the marker
+colours mean.  Give C<shade_color=> to shade
 every outline in one colour as before.
 
 A marker stands for every row at its place, and its popup lists them all: a

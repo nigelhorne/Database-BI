@@ -321,6 +321,7 @@ subtest 'an outline kept at a coarser detail is asked again' => sub {
 {
 	package Fake::OSM;
 	our @geojson;
+	our $version = '0.15';    # the HTML::OSM the application is told it has
 	sub new               { return bless {}, shift }
 	sub add_marker        { return 1 }
 	sub add_circle_marker { return 1 }
@@ -348,9 +349,11 @@ sub fresh_app {
 sub with_fakes {
 	my ($ua, $code) = @_;
 	no warnings qw(redefine once);
-	local *Database::BI::Controller::Dashboard::_map_renderer_version = sub { (1, '0.15') };
-	local *HTML::OSM::new = sub { Fake::OSM->new };
+	local *Database::BI::Controller::Dashboard::_map_renderer_version = sub { (1, $Fake::OSM::version) };
+	# What the map was made with is kept too, for its marker key (legend).
+	local *HTML::OSM::new = sub { my (undef, %args) = @_; %Fake::OSM::made = %args; Fake::OSM->new };
 	@Fake::OSM::geojson = ();
+	%Fake::OSM::made = ();
 	return BI::Test::Boundary::with_ua($ua, $code);
 }
 
@@ -697,11 +700,11 @@ subtest 'colour shade fills each outline, darker for more' => sub {
 		title   => 'pop in each county',
 		shape   => 'box',
 		entries => [
+			{ colour => '#ff6c6c', label => '1,000' },
 			{ colour => '#0000ff', label => '37' },
 			{ colour => '#d9d9ff', label => '5' },
-			{ colour => '#ff6c6c', label => '1,000' },
 		],
-	}, 'the key lists each colour\'s shades, strongest first');
+	}, 'the key lists every shade by size, the largest totals first, whatever its colour');
 	$t->content_like(qr/shaded by pop in the colours of the markers in them, stronger the further into each colour's range\./,
 		'and the summary says how to read them');
 
@@ -715,6 +718,27 @@ subtest 'colour shade fills each outline, darker for more' => sub {
 		[ '#0000ff', 1, '#6c6cff', [ 'East <b>County</b> & Co: 1,000 pop' ] ],
 	], 'under a "below 50" rule the county furthest below is the greenest');
 
+	# The shade key lists green and blue with their totals, so the markers'
+	# own key of the same colours is left out.
+	ok(!$Fake::OSM::made{legend}, 'no marker key beside a shade key of the same column and colours');
+	{
+		# HTML::OSM 0.19 can bring the marker key back while the outlines are
+		# hidden, so it is given, each colour to wait on the outlines' layer.
+		local $Fake::OSM::version = '0.19';
+		with_fakes($ua, sub {
+			$t->get_ok("$shaded&shade=pop&color=pop&color_rule=lt:50:green&color_default=blue&size=pop")->status_is(200);
+		});
+		my @legend = @{ $Fake::OSM::made{legend} // [] };
+		is_deeply([ map { $_->{unless_layer} } grep { defined $_->{group} } @legend ],
+			[ 'County boundaries', 'County boundaries' ], 'with 0.19 the colours are listed while the outlines are hidden');
+		ok(scalar(grep { !defined $_->{group} } @legend), 'and there are sizes in the key too');
+		ok(!(grep { !defined($_->{group}) && exists $_->{unless_layer} } @legend), 'which never wait');
+		with_fakes($ua, sub {
+			$t->get_ok("$shaded&color=pop&color_rule=lt:50:green&color_default=blue")->status_is(200);
+		});
+		ok(!(grep { exists $_->{unless_layer} } @{ $Fake::OSM::made{legend} }), 'with no shade nothing waits');
+	}
+
 	# The same rule read from another column is no guide to this one's sizes.
 	with_fakes($ua, sub {
 		$t->get_ok("$shaded&shade=pop&color=lat&color_rule=lt:10.45:green&color_default=blue")->status_is(200);
@@ -722,6 +746,16 @@ subtest 'colour shade fills each outline, darker for more' => sub {
 	is_deeply([ map { [ @{$_}[2, 3] ] } grep { $_->[0] eq '#008000' } @{ $drawn->() } ],
 		[ [ '#008000', [ 'East <b>County</b> & Co: 1,000 pop' ] ], [ '#d9ecd9', [ 'West County: 37 pop' ] ] ],
 		'a rule on another column leaves the larger total the stronger');
+	is(scalar(@{ $Fake::OSM::made{legend} // [] }), 2,
+		'and the marker key stays: nothing else says what green and blue mean');
+	with_fakes($ua, sub {
+		$t->get_ok("$shaded&shade=pop&shade_color=orange&color=pop&color_rule=lt:50:green&color_default=blue")->status_is(200);
+	});
+	is(scalar(@{ $Fake::OSM::made{legend} // [] }), 2, 'it stays with a shade of one colour too');
+	with_fakes($ua, sub {
+		$t->get_ok("$shaded&color=pop&color_rule=lt:50:green&color_default=blue")->status_is(200);
+	});
+	is(scalar(@{ $Fake::OSM::made{legend} // [] }), 2, 'and with no shade at all');
 
 	with_fakes($ua, sub { $t->get_ok("$shaded&shade=pop&f=" . url_escape('name:eq:D'))->status_is(200) });
 	is_deeply($drawn->(), [ [ '#555555', 0, undef, [ 'East <b>County</b> & Co' ] ] ],
@@ -734,9 +768,32 @@ subtest 'colour shade fills each outline, darker for more' => sub {
 	with_fakes($ua, sub { $t->get_ok("$shaded&shade=pop&shade_color=" . url_escape('red;x'))->status_is(200) });
 	is($Fake::OSM::geojson[2][2]{fillColor}, '#d94801', 'a colour that is not one falls back to the default');
 
+	# A key gives round figures; the popups keep the exact totals.
+	my $round = \&Database::BI::Controller::Dashboard::_map_key_number;
+	is_deeply([ map { $round->($_) } 5, 99.6, 149, 4393, 107766, 142789, 1150309, 1000, -330818 ],
+		[ '5', '99.6', '150', '4,400', '110,000', '140,000', '1,200,000', '1,000', '-330,000' ],
+		'two figures from 100 up, as written below it');
 	my $shade = \&Database::BI::Controller::Dashboard::_shade_colour;
 	is($shade->('#000000', 1), '#000000', 'the full colour at the top');
 	is($shade->('#000000', 0), '#d9d9d9', 'a light tint, not white, at the bottom');
+};
+
+subtest 'a key gives round figures, and one figure where a range rounds to one' => sub {
+	my $csv = File::Spec->catfile($data, 'rounded.csv');
+	open my $fh, '>', $csv or die $!;
+	# West County: 100,400 + 100,300 at two points; East: 4,393; The City: 4,380.
+	print {$fh} "name,lat,lon,pop\nA,10.1,20.1,100400\nC,10.5,20.5,100300\nD,10.1,21.1,4393\nE,10.5,21.5,4380\n";
+	close $fh;
+	my $t = fresh_app();
+	with_fakes(BI::Test::Boundary->new(areas => \@AREAS), sub {
+		$t->get_ok('/map?l=' . url_escape("path:$csv") . '&lat=lat&lon=lon&bounds=county&geocode=wait&shade=pop')
+			->status_is(200);
+	});
+	my $key = { @{ $Fake::OSM::geojson[0] }[1 .. $#{ $Fake::OSM::geojson[0] }] }->{key};
+	is_deeply([ map { $_->{label} } @{ $key->{entries} } ], [ '200,000', '4,400' ],
+		'200,700 is 200,000; 4,380 to 4,393 is 4,400, not "4,400 to 4,400"');
+	like(join(' ', map { $_->{properties}{name} } map { @{ $_->[0]{features} } } @Fake::OSM::geojson),
+		qr/200,700 pop.*4,393 pop|4,393 pop.*200,700 pop/, 'the popups keep the exact totals');
 };
 
 subtest 'colours follow size, so close totals share one' => sub {

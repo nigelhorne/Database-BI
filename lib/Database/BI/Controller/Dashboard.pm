@@ -13259,6 +13259,9 @@ Readonly my $DEFAULT_SHADE_COLOR => '#d94801';
 # $KEY_ROUND_FROM up; smaller ones are short enough as they are.
 Readonly my $KEY_FIGURES    => 2;
 Readonly my $KEY_ROUND_FROM => 100;
+# The HTML::OSM whose marker key can leave an entry out while a layer is shown
+# (a legend entry's unless_layer).
+Readonly my $OSM_KEY_WAITS_VERSION => '0.19';
 
 # _map_outline_layers($self, $outlines, \@markers, $records, $weight_col)
 #     -> list of { features, colour, weight, opacity }
@@ -14031,8 +14034,26 @@ sub _map_data :Protected ($self, $records, $columns, $encode, $options, $spec_ke
 
 			# The scale bar, and the key on the map: colours and bubble sizes.
 			my $size_range = [ _map_size_range($records, \@markers, $size_col) ];
-			my %key = $self->_map_key($color_col, $color_rules, $color_default,
-				defined($options->{scheme}), $size_col, $size_range);
+			# When the outlines are shaded in the markers' colours by the column
+			# the colours read, the shade key lists every colour with its totals,
+			# so a second key of the same colours would only repeat it.  Shaded by
+			# another column, or in one colour, the marker key is still the only
+			# place the colours are explained.  Bubble sizes are listed either way.
+			my $shade_covers = length($color_col) && $outlines && @{ $outlines->{features} }
+				&& !ref($options->{shade} // '') && ($options->{shade} // '') eq $color_col
+				&& !defined($options->{shade_color});
+			# HTML::OSM 0.19 can leave a key entry out while a layer is shown and
+			# bring it back when the reader hides the layer, so the markers are
+			# never left without a key; an older copy cannot, and gets no colour
+			# entries at all.
+			my $key_waits = $shade_covers
+				&& eval { version->parse($osm_version) >= version->parse($OSM_KEY_WAITS_VERSION) };
+			my %key = $self->_map_key((($shade_covers && !$key_waits) ? '' : $color_col), $color_rules,
+				$color_default, defined($options->{scheme}), $size_col, $size_range);
+			if ($key_waits) {
+				my $layer = $self->_i18n('map_bounds_layer', ucfirst $self->_map_outline_noun($outlines));
+				$_->{unless_layer} = $layer for grep { defined $_->{group} } @{ $key{legend} // [] };
+			}
 			$osm_args{scale} = 1;
 			# Every <script> the map writes carries the page's nonce.
 			$osm_args{nonce} = $self->csp_nonce;
