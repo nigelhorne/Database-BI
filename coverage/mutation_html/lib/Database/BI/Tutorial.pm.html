@@ -955,887 +955,891 @@ Approximate LCSAJ segments: 9<br>
 </span><span class="">  614: 			&#39;Keep Coordinate columns, then choose the latitude and longitude columns.&#39;,
 </span><span class="">  615: 			&#39;If your table has places instead, choose Place-name column and pick that column.&#39;,
 </span><span class="">  616: 			&#39;If the place is split over two columns, such as an address and its country, choose the second one under Followed by. The map then looks up &quot;Brezje 8, Cerknica, Slovenia&quot;.&#39;,
-</span><span class="">  617: 			&#39;Tick Remember columns. Next time, the panel chooses the same columns for this table. Click Forget remembered columns to stop this.&#39;,
-</span><span class="">  618: 			&#39;Tick Heatmap layer to colour the busy areas. Choose a Heat weight column to make some rows count for more.&#39;,
-</span><span class="">  619: 			&#39;Type an Initial zoom from 0 to 19 to start closer in. Leave it empty to fit every marker.&#39;,
-</span><span class="">  620: 			&#39;To colour the markers, choose Colour by column, then click Add rule. The first rule that matches gives the colour.&#39;,
-</span><span class="">  621: 			&#39;Type a Default colour for the markers that match no rule.&#39;,
-</span><span class="">  622: 			&#39;Click Open map.&#39;,
-</span><span class="">  623: 			&#39;If some rows could not be plotted, the map says how many, and why.&#39;,
-</span><span class="">  624: 			&#39;Click Show the rows that were not plotted in the table to see them all.&#39;,
-</span><span class="">  625: 			&#39;Or click List the places that were not plotted to see each place.&#39;,
-</span><span class="">  626: 			&#39;Click the number of rows beside a place to see those rows in the table.&#39;,
-</span><span class="">  627: 		],
-</span><span class="">  628: 		tip   =&gt; &#39;Rows at one place become one marker. Click a marker to see every row it stands for. What the rows share is shown once, and the rest is a short table. A place with many rows shows the first ten, with a link to them all. The scale bar and the key change as you zoom. The key lists only the colours you can see. To size each marker by a number, add &amp;size= and a column name to the map address. To give each category its own colour and a legend, add &amp;series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. The map opens at once with the places already known. A bar shows each new place as it is looked up. Click Cancel to stop and see the map with the places found so far. Every place found is kept, so the next map of it opens at once.&#39;,
-</span><span class="">  629: 		walkthrough =&gt; {
-</span><span class="">  630: 			title =&gt; &#39;Walk through: Virginia counties on a map&#39;,
-</span><span class="">  631: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  632: 			steps =&gt; [
-</span><span class="">  633: 				{ do =&gt; &#39;Open the virginia_counties table and click Map...&#39;, see =&gt; &#39;The map panel opens.&#39; },
-</span><span class="">  634: 				{ do =&gt; &#39;Keep Coordinate columns. Choose lat for Latitude and lon for Longitude.&#39;, see =&gt; &#39;The form shows lat and lon selected.&#39; },
-</span><span class="">  635: 				{ do =&gt; &#39;Click Open map.&#39;, see =&gt; &#39;A map appears with 95 markers, one for each Virginia county.&#39; },
-</span><span class="">  636: 				{ do =&gt; &#39;Click any marker.&#39;, see =&gt; &#39;A popup shows the county name, population and region.&#39; },
-</span><span class="">  637: 			],
-</span><span class="">  638: 			result =&gt; &#39;All 95 Virginia counties appear as markers. Markers near one another cluster at low zoom.&#39;,
-</span><span class="">  639: 		},
-</span><span class="">  640: 		try    =&gt; { href =&gt; &#39;/map?l=table:virginia_counties&amp;lat=lat&amp;lon=lon&#39;, label =&gt; &#39;Try the Virginia counties map&#39; },
-</span><span class="">  641: 		routes =&gt; [ &#39;/map&#39; ],
-</span><span class="">  642: 	},
-</span><span class="">  643: 	{
-</span><span class="">  644: 		id    =&gt; &#39;wordcloud-chart&#39;,
-</span><span class="">  645: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  646: 		title =&gt; &#39;Word cloud&#39;,
-</span><span class="">  647: 		chart =&gt; 1,
-</span><span class="">  648: 		lead  =&gt; &#39;A word cloud shows which words a text column repeats most.&#39;,
-</span><span class="">  649: 		steps =&gt; [
-</span><span class="">  650: 			&#39;Open the table and click Word cloud...&#39;,
-</span><span class="">  651: 			&#39;Choose Text column. This column holds words, such as a product name or a note.&#39;,
-</span><span class="">  652: 			&#39;Set Words to show to the number of different words you want.&#39;,
-</span><span class="">  653: 			&#39;Set Shortest word to hide very short words such as &quot;at&quot;.&#39;,
-</span><span class="">  654: 			&#39;Click Draw cloud.&#39;,
-</span><span class="">  655: 			&#39;To keep the cloud on a saved canvas, open the canvas and click Add current view, then choose Word cloud.&#39;,
-</span><span class="">  656: 			&#39;On a canvas, click a word to filter every other card to the rows that contain it.&#39;,
-</span><span class="">  657: 		],
-</span><span class="">  658: 		tip   =&gt; &#39;The biggest word appears in the most rows. Click a word to open the rows that contain it, or to cross-filter the canvas around it.&#39;,
-</span><span class="">  659: 		try    =&gt; { href =&gt; &#39;/wordcloud?l=table:sales&amp;col=product&#39;, label =&gt; &#39;Try a word cloud of the sales table&#39; },
-</span><span class="">  660: 		routes =&gt; [ &#39;/wordcloud&#39; ],
-</span><span class="">  661: 	},
-</span><span class="">  662: 	{
-</span><span class="">  663: 		id    =&gt; &#39;pivot&#39;,
-</span><span class="">  664: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  665: 		title =&gt; &#39;Summarise with a pivot table&#39;,
-</span><span class="">  666: 		lead  =&gt; &#39;A pivot table puts one group down the side and another group across the top. Each cell is a summary.&#39;,
-</span><span class="">  667: 		steps =&gt; [
-</span><span class="">  668: 			&#39;Click Pivot table...&#39;,
-</span><span class="">  669: 			&#39;Add a row group. For example, choose region.&#39;,
-</span><span class="">  670: 			&#39;Add a measure. For example, choose Sum of amount.&#39;,
-</span><span class="">  671: 			&#39;The measure can also be Median, Std dev, First, Last, Range or a percentile.&#39;,
-</span><span class="">  672: 			&#39;Set Time bucket to group a row group by hour, day, month or year.&#39;,
-</span><span class="">  673: 			&#39;Click Build pivot.&#39;,
-</span><span class="">  674: 			&#39;Click Show subtotals and grand total if you want totals.&#39;,
-</span><span class="">  675: 			&#39;A pivot with many rows is shown a page at a time. Rows per page below it changes how many, as on a table.&#39;,
-</span><span class="">  676: 		],
-</span><span class="">  677: 		tip   =&gt; &#39;Start with one row group and one measure. Add more only when you need them.&#39;,
-</span><span class="">  678: 		walkthrough =&gt; {
-</span><span class="">  679: 			title =&gt; &#39;Walk through: sales by region and product&#39;,
-</span><span class="">  680: 			intro =&gt; &#39;This example uses the sales table in the data folder.&#39;,
-</span><span class="">  681: 			steps =&gt; [
-</span><span class="">  682: 				{ do =&gt; &#39;Open the sales table and click Pivot table...&#39;, see =&gt; &#39;The panel opens with one empty row group and one measure.&#39; },
-</span><span class="">  683: 				{ do =&gt; &#39;In the first row group, choose region.&#39;, see =&gt; &#39;region becomes the group down the side.&#39; },
-</span><span class="">  684: 				{ do =&gt; &#39;Click Add column and choose product.&#39;, see =&gt; &#39;Each product will become a column across the top.&#39; },
-</span><span class="">  685: 				{ do =&gt; &#39;In the measure row, choose amount and keep Sum.&#39;, see =&gt; &#39;The measure is called amount_sum unless you type another alias.&#39; },
-</span><span class="">  686: 				{ do =&gt; &#39;Tick Show subtotals and grand total, then click Build pivot.&#39;, see =&gt; &#39;The pivot shows a total for each region and one grand total.&#39; },
-</span><span class="">  687: 			],
-</span><span class="">  688: 			result =&gt; &#39;Regions run down the side, products run across the top, and each cell holds the sum of amount.&#39;,
-</span><span class="">  689: 		},
-</span><span class="">  690: 		routes =&gt; [ &#39;/pivot&#39; ],
-</span><span class="">  691: 	},
-</span><span class="">  692: 	{
-</span><span class="">  693: 		id    =&gt; &#39;stats&#39;,
-</span><span class="">  694: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  695: 		title =&gt; &#39;See statistics for each column&#39;,
-</span><span class="">  696: 		lead  =&gt; &#39;Statistics give you a quick summary of every column.&#39;,
-</span><span class="">  697: 		steps =&gt; [
-</span><span class="">  698: 			&#39;Open a table and click Column stats.&#39;,
-</span><span class="">  699: 			&#39;Read one row for each column.&#39;,
-</span><span class="">  700: 			&#39;Rows is the number of rows. Non-null is the number of cells with a value. Null is the number of blank cells.&#39;,
-</span><span class="">  701: 			&#39;Distinct is the number of different values.&#39;,
-</span><span class="">  702: 			&#39;For a number column you also see Min, Max, Range, Mean, Median, Std dev and a percentile.&#39;,
-</span><span class="">  703: 			&#39;Mean is the average. Median is the middle value. Range is the largest value minus the smallest.&#39;,
-</span><span class="">  704: 			&#39;Std dev shows how widely the values spread.&#39;,
-</span><span class="">  705: 			&#39;First and Last are the values the column holds in the first and the last row that has one.&#39;,
-</span><span class="">  706: 			&#39;Change Percentile column to choose which percentile the extra column shows.&#39;,
-</span><span class="">  707: 		],
-</span><span class="">  708: 		tip   =&gt; &#39;Statistics use the rows that are visible after joins and filters.&#39;,
-</span><span class="">  709: 		walkthrough =&gt; {
-</span><span class="">  710: 			title =&gt; &#39;Walk through: column statistics for Virginia counties&#39;,
-</span><span class="">  711: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
-</span><span class="">  712: 			steps =&gt; [
-</span><span class="">  713: 				{ do =&gt; &#39;Open the virginia_counties table and click Column stats.&#39;, see =&gt; &#39;The stats page shows one row per column.&#39; },
-</span><span class="">  714: 				{ do =&gt; &#39;Find the population row.&#39;, see =&gt; &#39;Min is 2214 and Max is 1150309.&#39; },
-</span><span class="">  715: 				{ do =&gt; &#39;Look at the Distinct count for region.&#39;, see =&gt; &#39;There are 7 distinct regions.&#39; },
-</span><span class="">  716: 				{ do =&gt; &#39;Look at Mean and Median for population.&#39;, see =&gt; &#39;Mean is much higher than Median. A few large counties pull the average up.&#39; },
-</span><span class="">  717: 				{ do =&gt; &#39;Look at Range for population.&#39;, see =&gt; &#39;Min is 2214, so Range is 1148095.&#39; },
-</span><span class="">  718: 			],
-</span><span class="">  719: 			result =&gt; &#39;Population is highly uneven. The maximum county is over 500 times larger than the minimum.&#39;,
-</span><span class="">  720: 		},
-</span><span class="">  721: 		try    =&gt; { href =&gt; &#39;/stats?l=table:virginia_counties&#39;, label =&gt; &#39;Try statistics on Virginia counties&#39; },
-</span><span class="">  722: 		routes =&gt; [ &#39;/stats&#39; ],
-</span><span class="">  723: 	},
-</span><span class="">  724: 	{
-</span><span class="">  725: 		id    =&gt; &#39;insights&#39;,
-</span><span class="">  726: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  727: 		title =&gt; &#39;Find outliers and trends automatically&#39;,
-</span><span class="">  728: 		lead  =&gt; &#39;Insights scans your data and flags unusual values, changes over time, and repeating patterns.&#39;,
-</span><span class="">  729: 		steps =&gt; [
-</span><span class="">  730: 			&#39;Open a table and click Insights.&#39;,
-</span><span class="">  731: 			&#39;Each card shows one finding: an outlier, a period change, a top mover, or a seasonal pattern.&#39;,
-</span><span class="">  732: 			&#39;An outlier is a value far outside the normal range for its group.&#39;,
-</span><span class="">  733: 			&#39;A period change compares the most recent month to the one before it.&#39;,
-</span><span class="">  734: 			&#39;A top mover is the category that changed the most between two periods.&#39;,
-</span><span class="">  735: 			&#39;Seasonality means the same pattern repeats from one period to the next.&#39;,
-</span><span class="">  736: 			&#39;Click View in chart on any card to open the chart that shows it.&#39;,
-</span><span class="">  737: 			&#39;Click Summarize to read the findings as a few plain sentences.&#39;,
-</span><span class="">  738: 			&#39;If the program has an AI key, tick Use AI for better prose first. Only the findings are sent, never your rows.&#39;,
-</span><span class="">  739: 		],
-</span><span class="">  740: 		tip   =&gt; &#39;Insights need a date column and a number column to detect period changes and top movers.&#39;,
-</span><span class="">  741: 		routes =&gt; [ &#39;/insights&#39; ],
-</span><span class="">  742: 	},
-</span><span class="">  743: 	{
-</span><span class="">  744: 		id    =&gt; &#39;ask&#39;,
-</span><span class="">  745: 		part  =&gt; &#39;Charts and summaries&#39;,
-</span><span class="">  746: 		title =&gt; &#39;Ask for a chart in plain English&#39;,
-</span><span class="">  747: 		lead  =&gt; &#39;Ask turns a question such as &quot;sales by region as a pie chart&quot; into a chart.&#39;,
-</span><span class="">  748: 		steps =&gt; [
-</span><span class="">  749: 			&#39;Open a table and click Ask...&#39;,
-</span><span class="">  750: 			&#39;Type what you want to see, for example: show me sales by region as a pie chart.&#39;,
-</span><span class="">  751: 			&#39;Click Ask. The panel names the chart that it suggests.&#39;,
-</span><span class="">  752: 			&#39;Click Run it to open that chart.&#39;,
-</span><span class="">  753: 			&#39;Click Save to canvas to keep it as a card on a new canvas.&#39;,
-</span><span class="">  754: 		],
-</span><span class="">  755: 		tip   =&gt; &#39;Ask appears only when the person who runs the program has set an AI key. Only the column names and their types are sent, never your rows. A question can be up to 500 characters.&#39;,
-</span><span class="">  756: 	},
-</span><span class="">  757: 
-</span><span class="">  758: 	# ---------------------------------------------------------------
-</span><span class="">  759: 	# Save and share
+</span><span class="">  617: 			&#39;If the places need more to be found, type it in Add to each place. With Virginia, USA, the county Accomack is looked up as &quot;Accomack, Virginia, USA&quot;.&#39;,
+</span><span class="">  618: 			&#39;Tick Remember columns. Next time, the panel chooses the same columns for this table, and fills in Add to each place. Click Forget remembered columns to stop this.&#39;,
+</span><span class="">  619: 			&#39;Tick Heatmap layer to colour the busy areas. Choose a Heat weight column to make some rows count for more.&#39;,
+</span><span class="">  620: 			&#39;Type an Initial zoom from 0 to 19 to start closer in. Leave it empty to fit every marker.&#39;,
+</span><span class="">  621: 			&#39;Tick Show county boundaries to outline the county each marker is in. A checkbox on the map hides the outlines again.&#39;,
+</span><span class="">  622: 			&#39;To colour the markers, choose Colour by column, then click Add rule. The first rule that matches gives the colour.&#39;,
+</span><span class="">  623: 			&#39;Type a Default colour for the markers that match no rule.&#39;,
+</span><span class="">  624: 			&#39;Click Open map.&#39;,
+</span><span class="">  625: 			&#39;If some rows could not be plotted, the map says how many, and why.&#39;,
+</span><span class="">  626: 			&#39;Click Show the rows that were not plotted in the table to see them all.&#39;,
+</span><span class="">  627: 			&#39;Or click List the places that were not plotted to see each place.&#39;,
+</span><span class="">  628: 			&#39;Click the number of rows beside a place to see those rows in the table.&#39;,
+</span><span class="">  629: 		],
+</span><span class="">  630: 		tip   =&gt; &#39;Rows at one place become one marker. Click a marker to see every row it stands for. What the rows share is shown once, and the rest is a short table. A place with many rows shows the first ten, with a link to them all. The scale bar and the key change as you zoom. The key lists only the colours you can see. To size each marker by a number, add &amp;size= and a column name to the map address. To give each category its own colour and a legend, add &amp;series= and a column name instead. A place the local data does not know is looked up on OpenStreetMap. The map opens at once with the places already known. A bar shows each new place as it is looked up. Click Cancel to stop and see the map with the places found so far. Every place found is kept, so the next map of it opens at once. County outlines come from OpenStreetMap too. It is sent each marker\&#39;s position, rounded to about 100 metres. In India the outlines are districts, and in Spain provinces.&#39;,
+</span><span class="">  631: 		walkthrough =&gt; {
+</span><span class="">  632: 			title =&gt; &#39;Walk through: Virginia counties on a map&#39;,
+</span><span class="">  633: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  634: 			steps =&gt; [
+</span><span class="">  635: 				{ do =&gt; &#39;Open the virginia_counties table and click Map...&#39;, see =&gt; &#39;The map panel opens.&#39; },
+</span><span class="">  636: 				{ do =&gt; &#39;Keep Coordinate columns. Choose lat for Latitude and lon for Longitude.&#39;, see =&gt; &#39;The form shows lat and lon selected.&#39; },
+</span><span class="">  637: 				{ do =&gt; &#39;Click Open map.&#39;, see =&gt; &#39;A map appears with 95 markers, one for each Virginia county.&#39; },
+</span><span class="">  638: 				{ do =&gt; &#39;Click any marker.&#39;, see =&gt; &#39;A popup shows the county name, population and region.&#39; },
+</span><span class="">  639: 			],
+</span><span class="">  640: 			result =&gt; &#39;All 95 Virginia counties appear as markers. Markers near one another cluster at low zoom.&#39;,
+</span><span class="">  641: 		},
+</span><span class="">  642: 		try    =&gt; { href =&gt; &#39;/map?l=table:virginia_counties&amp;lat=lat&amp;lon=lon&#39;, label =&gt; &#39;Try the Virginia counties map&#39; },
+</span><span class="">  643: 		routes =&gt; [ &#39;/map&#39; ],
+</span><span class="">  644: 	},
+</span><span class="">  645: 	{
+</span><span class="">  646: 		id    =&gt; &#39;wordcloud-chart&#39;,
+</span><span class="">  647: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  648: 		title =&gt; &#39;Word cloud&#39;,
+</span><span class="">  649: 		chart =&gt; 1,
+</span><span class="">  650: 		lead  =&gt; &#39;A word cloud shows which words a text column repeats most.&#39;,
+</span><span class="">  651: 		steps =&gt; [
+</span><span class="">  652: 			&#39;Open the table and click Word cloud...&#39;,
+</span><span class="">  653: 			&#39;Choose Text column. This column holds words, such as a product name or a note.&#39;,
+</span><span class="">  654: 			&#39;Set Words to show to the number of different words you want.&#39;,
+</span><span class="">  655: 			&#39;Set Shortest word to hide very short words such as &quot;at&quot;.&#39;,
+</span><span class="">  656: 			&#39;Click Draw cloud.&#39;,
+</span><span class="">  657: 			&#39;To keep the cloud on a saved canvas, open the canvas and click Add current view, then choose Word cloud.&#39;,
+</span><span class="">  658: 			&#39;On a canvas, click a word to filter every other card to the rows that contain it.&#39;,
+</span><span class="">  659: 		],
+</span><span class="">  660: 		tip   =&gt; &#39;The biggest word appears in the most rows. Click a word to open the rows that contain it, or to cross-filter the canvas around it.&#39;,
+</span><span class="">  661: 		try    =&gt; { href =&gt; &#39;/wordcloud?l=table:sales&amp;col=product&#39;, label =&gt; &#39;Try a word cloud of the sales table&#39; },
+</span><span class="">  662: 		routes =&gt; [ &#39;/wordcloud&#39; ],
+</span><span class="">  663: 	},
+</span><span class="">  664: 	{
+</span><span class="">  665: 		id    =&gt; &#39;pivot&#39;,
+</span><span class="">  666: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  667: 		title =&gt; &#39;Summarise with a pivot table&#39;,
+</span><span class="">  668: 		lead  =&gt; &#39;A pivot table puts one group down the side and another group across the top. Each cell is a summary.&#39;,
+</span><span class="">  669: 		steps =&gt; [
+</span><span class="">  670: 			&#39;Click Pivot table...&#39;,
+</span><span class="">  671: 			&#39;Add a row group. For example, choose region.&#39;,
+</span><span class="">  672: 			&#39;Add a measure. For example, choose Sum of amount.&#39;,
+</span><span class="">  673: 			&#39;The measure can also be Median, Std dev, First, Last, Range or a percentile.&#39;,
+</span><span class="">  674: 			&#39;Set Time bucket to group a row group by hour, day, month or year.&#39;,
+</span><span class="">  675: 			&#39;Click Build pivot.&#39;,
+</span><span class="">  676: 			&#39;Click Show subtotals and grand total if you want totals.&#39;,
+</span><span class="">  677: 			&#39;A pivot with many rows is shown a page at a time. Rows per page below it changes how many, as on a table.&#39;,
+</span><span class="">  678: 		],
+</span><span class="">  679: 		tip   =&gt; &#39;Start with one row group and one measure. Add more only when you need them.&#39;,
+</span><span class="">  680: 		walkthrough =&gt; {
+</span><span class="">  681: 			title =&gt; &#39;Walk through: sales by region and product&#39;,
+</span><span class="">  682: 			intro =&gt; &#39;This example uses the sales table in the data folder.&#39;,
+</span><span class="">  683: 			steps =&gt; [
+</span><span class="">  684: 				{ do =&gt; &#39;Open the sales table and click Pivot table...&#39;, see =&gt; &#39;The panel opens with one empty row group and one measure.&#39; },
+</span><span class="">  685: 				{ do =&gt; &#39;In the first row group, choose region.&#39;, see =&gt; &#39;region becomes the group down the side.&#39; },
+</span><span class="">  686: 				{ do =&gt; &#39;Click Add column and choose product.&#39;, see =&gt; &#39;Each product will become a column across the top.&#39; },
+</span><span class="">  687: 				{ do =&gt; &#39;In the measure row, choose amount and keep Sum.&#39;, see =&gt; &#39;The measure is called amount_sum unless you type another alias.&#39; },
+</span><span class="">  688: 				{ do =&gt; &#39;Tick Show subtotals and grand total, then click Build pivot.&#39;, see =&gt; &#39;The pivot shows a total for each region and one grand total.&#39; },
+</span><span class="">  689: 			],
+</span><span class="">  690: 			result =&gt; &#39;Regions run down the side, products run across the top, and each cell holds the sum of amount.&#39;,
+</span><span class="">  691: 		},
+</span><span class="">  692: 		routes =&gt; [ &#39;/pivot&#39; ],
+</span><span class="">  693: 	},
+</span><span class="">  694: 	{
+</span><span class="">  695: 		id    =&gt; &#39;stats&#39;,
+</span><span class="">  696: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  697: 		title =&gt; &#39;See statistics for each column&#39;,
+</span><span class="">  698: 		lead  =&gt; &#39;Statistics give you a quick summary of every column.&#39;,
+</span><span class="">  699: 		steps =&gt; [
+</span><span class="">  700: 			&#39;Open a table and click Column stats.&#39;,
+</span><span class="">  701: 			&#39;Read one row for each column.&#39;,
+</span><span class="">  702: 			&#39;Rows is the number of rows. Non-null is the number of cells with a value. Null is the number of blank cells.&#39;,
+</span><span class="">  703: 			&#39;Distinct is the number of different values.&#39;,
+</span><span class="">  704: 			&#39;For a number column you also see Min, Max, Range, Mean, Median, Std dev and a percentile.&#39;,
+</span><span class="">  705: 			&#39;Mean is the average. Median is the middle value. Range is the largest value minus the smallest.&#39;,
+</span><span class="">  706: 			&#39;Std dev shows how widely the values spread.&#39;,
+</span><span class="">  707: 			&#39;First and Last are the values the column holds in the first and the last row that has one.&#39;,
+</span><span class="">  708: 			&#39;Change Percentile column to choose which percentile the extra column shows.&#39;,
+</span><span class="">  709: 		],
+</span><span class="">  710: 		tip   =&gt; &#39;Statistics use the rows that are visible after joins and filters.&#39;,
+</span><span class="">  711: 		walkthrough =&gt; {
+</span><span class="">  712: 			title =&gt; &#39;Walk through: column statistics for Virginia counties&#39;,
+</span><span class="">  713: 			intro =&gt; &#39;This example uses the virginia_counties table in the data folder.&#39;,
+</span><span class="">  714: 			steps =&gt; [
+</span><span class="">  715: 				{ do =&gt; &#39;Open the virginia_counties table and click Column stats.&#39;, see =&gt; &#39;The stats page shows one row per column.&#39; },
+</span><span class="">  716: 				{ do =&gt; &#39;Find the population row.&#39;, see =&gt; &#39;Min is 2214 and Max is 1150309.&#39; },
+</span><span class="">  717: 				{ do =&gt; &#39;Look at the Distinct count for region.&#39;, see =&gt; &#39;There are 7 distinct regions.&#39; },
+</span><span class="">  718: 				{ do =&gt; &#39;Look at Mean and Median for population.&#39;, see =&gt; &#39;Mean is much higher than Median. A few large counties pull the average up.&#39; },
+</span><span class="">  719: 				{ do =&gt; &#39;Look at Range for population.&#39;, see =&gt; &#39;Min is 2214, so Range is 1148095.&#39; },
+</span><span class="">  720: 			],
+</span><span class="">  721: 			result =&gt; &#39;Population is highly uneven. The maximum county is over 500 times larger than the minimum.&#39;,
+</span><span class="">  722: 		},
+</span><span class="">  723: 		try    =&gt; { href =&gt; &#39;/stats?l=table:virginia_counties&#39;, label =&gt; &#39;Try statistics on Virginia counties&#39; },
+</span><span class="">  724: 		routes =&gt; [ &#39;/stats&#39; ],
+</span><span class="">  725: 	},
+</span><span class="">  726: 	{
+</span><span class="">  727: 		id    =&gt; &#39;insights&#39;,
+</span><span class="">  728: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  729: 		title =&gt; &#39;Find outliers and trends automatically&#39;,
+</span><span class="">  730: 		lead  =&gt; &#39;Insights scans your data and flags unusual values, changes over time, and repeating patterns.&#39;,
+</span><span class="">  731: 		steps =&gt; [
+</span><span class="">  732: 			&#39;Open a table and click Insights.&#39;,
+</span><span class="">  733: 			&#39;Each card shows one finding: an outlier, a period change, a top mover, or a seasonal pattern.&#39;,
+</span><span class="">  734: 			&#39;An outlier is a value far outside the normal range for its group.&#39;,
+</span><span class="">  735: 			&#39;A period change compares the most recent month to the one before it.&#39;,
+</span><span class="">  736: 			&#39;A top mover is the category that changed the most between two periods.&#39;,
+</span><span class="">  737: 			&#39;Seasonality means the same pattern repeats from one period to the next.&#39;,
+</span><span class="">  738: 			&#39;Click View in chart on any card to open the chart that shows it.&#39;,
+</span><span class="">  739: 			&#39;Click Summarize to read the findings as a few plain sentences.&#39;,
+</span><span class="">  740: 			&#39;If the program has an AI key, tick Use AI for better prose first. Only the findings are sent, never your rows.&#39;,
+</span><span class="">  741: 		],
+</span><span class="">  742: 		tip   =&gt; &#39;Insights need a date column and a number column to detect period changes and top movers.&#39;,
+</span><span class="">  743: 		routes =&gt; [ &#39;/insights&#39; ],
+</span><span class="">  744: 	},
+</span><span class="">  745: 	{
+</span><span class="">  746: 		id    =&gt; &#39;ask&#39;,
+</span><span class="">  747: 		part  =&gt; &#39;Charts and summaries&#39;,
+</span><span class="">  748: 		title =&gt; &#39;Ask for a chart in plain English&#39;,
+</span><span class="">  749: 		lead  =&gt; &#39;Ask turns a question such as &quot;sales by region as a pie chart&quot; into a chart.&#39;,
+</span><span class="">  750: 		steps =&gt; [
+</span><span class="">  751: 			&#39;Open a table and click Ask...&#39;,
+</span><span class="">  752: 			&#39;Type what you want to see, for example: show me sales by region as a pie chart.&#39;,
+</span><span class="">  753: 			&#39;Click Ask. The panel names the chart that it suggests.&#39;,
+</span><span class="">  754: 			&#39;Click Run it to open that chart.&#39;,
+</span><span class="">  755: 			&#39;Click Save to canvas to keep it as a card on a new canvas.&#39;,
+</span><span class="">  756: 		],
+</span><span class="">  757: 		tip   =&gt; &#39;Ask appears only when the person who runs the program has set an AI key. Only the column names and their types are sent, never your rows. A question can be up to 500 characters.&#39;,
+</span><span class="">  758: 	},
+</span><span class="">  759: 
 </span><span class="">  760: 	# ---------------------------------------------------------------
-</span><span class="">  761: 	{
-</span><span class="">  762: 		id    =&gt; &#39;export&#39;,
-</span><span class="">  763: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  764: 		title =&gt; &#39;Save the data as a new file&#39;,
-</span><span class="">  765: 		lead  =&gt; &#39;Export writes the rows that you see to a new file.&#39;,
-</span><span class="">  766: 		steps =&gt; [
-</span><span class="">  767: 			&#39;Click Export...&#39;,
-</span><span class="">  768: 			&#39;Choose the folder and type a file name.&#39;,
-</span><span class="">  769: 			&#39;The ending of the name chooses the format: .csv, .sql or .json.&#39;,
-</span><span class="">  770: 			&#39;Click Save. The program writes a new file. Your source file is not changed.&#39;,
-</span><span class="">  771: 		],
-</span><span class="">  772: 		tip   =&gt; &#39;Export includes your joins, filters and duplicate setting.&#39;,
-</span><span class="">  773: 		routes =&gt; [ &#39;/export&#39; ],
-</span><span class="">  774: 	},
-</span><span class="">  775: 	{
-</span><span class="">  776: 		id    =&gt; &#39;print&#39;,
-</span><span class="">  777: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  778: 		title =&gt; &#39;Print the table&#39;,
-</span><span class="">  779: 		lead  =&gt; &#39;Print puts the header row and every row of the table on paper, not only the page on the screen.&#39;,
-</span><span class="">  780: 		steps =&gt; [
-</span><span class="">  781: 			&#39;Arrange the table the way you want it. Move or delete columns, and click a header to sort.&#39;,
-</span><span class="">  782: 			&#39;Click Print, to the right of Refresh.&#39;,
-</span><span class="">  783: 			&#39;Your browser opens its print window. Choose a printer, or save the page as a PDF.&#39;,
-</span><span class="">  784: 			&#39;A table of more than 10,000 rows asks first, because it can be hundreds of pages.&#39;,
-</span><span class="">  785: 		],
-</span><span class="">  786: 		tip   =&gt; &#39;Print uses the same rows as Export, so your joins and filters are included. A row that you deleted from the screen is still printed.&#39;,
-</span><span class="">  787: 		routes =&gt; [ &#39;/export&#39; ],
-</span><span class="">  788: 	},
-</span><span class="">  789: 	{
-</span><span class="">  790: 		id    =&gt; &#39;catalog&#39;,
-</span><span class="">  791: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  792: 		title =&gt; &#39;See all your data files at a glance&#39;,
-</span><span class="">  793: 		lead  =&gt; &#39;The dataset catalog lists every file in the data folder and shows which canvases use it.&#39;,
-</span><span class="">  794: 		steps =&gt; [
-</span><span class="">  795: 			&#39;Open the home page and click Dataset catalog.&#39;,
-</span><span class="">  796: 			&#39;Each row shows the file name, type, size, and when it was last changed.&#39;,
-</span><span class="">  797: 			&#39;The Used by column lists the canvases that include this file.&#39;,
-</span><span class="">  798: 			&#39;Click a file name to open it as a table.&#39;,
-</span><span class="">  799: 			&#39;Use the catalog to check which canvases will be affected if a file changes.&#39;,
-</span><span class="">  800: 		],
-</span><span class="">  801: 		tip   =&gt; &#39;A file that appears in Used by is linked to a canvas. Moving or renaming it will break that canvas.&#39;,
-</span><span class="">  802: 		try   =&gt; { href =&gt; &#39;/catalog&#39;, label =&gt; &#39;Open the dataset catalog&#39; },
-</span><span class="">  803: 		routes =&gt; [ &#39;/catalog&#39; ],
-</span><span class="">  804: 	},
-</span><span class="">  805: 	{
-</span><span class="">  806: 		id    =&gt; &#39;canvas&#39;,
-</span><span class="">  807: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  808: 		title =&gt; &#39;Save a canvas with several charts&#39;,
-</span><span class="">  809: 		lead  =&gt; &#39;A canvas is a saved page that can hold tables and charts side by side.&#39;,
-</span><span class="">  810: 		steps =&gt; [
-</span><span class="">  811: 			&#39;Open a table and set up the view that you want.&#39;,
-</span><span class="">  812: 			&#39;Click New canvas...&#39;,
-</span><span class="">  813: 			&#39;Type a name and click Save.&#39;,
-</span><span class="">  814: 			&#39;Click Open canvas. The current table or chart is the first card.&#39;,
-</span><span class="">  815: 			&#39;Click Add visual... to add another view from a data file.&#39;,
-</span><span class="">  816: 			&#39;In that panel, choose the Aggregate a chart works out: Sum, Average, Median, Std dev, or a percentile.&#39;,
-</span><span class="">  817: 			&#39;Drag a card by its header to move it. Use the Size menu to change its width and height.&#39;,
-</span><span class="">  818: 			&#39;Click Add text to put a title or an explanation on the canvas. The next chapter shows how.&#39;,
-</span><span class="">  819: 			&#39;To show only a recent window on every card, choose a Time range and its column above the cards. Then click Apply range.&#39;,
-</span><span class="">  820: 			&#39;Click Edit cross-row in a card header to see that card\&#39;s cross-row columns, and to change or remove one.&#39;,
-</span><span class="">  821: 		],
-</span><span class="">  822: 		tip   =&gt; &#39;Click Canvases at the top of any page to see all your saved canvases. The home page lists them too. A banner appears if a data file has changed since the canvas was saved.&#39;,
-</span><span class="">  823: 		walkthrough =&gt; {
-</span><span class="">  824: 			title =&gt; &#39;Walk through: arrange and filter a canvas&#39;,
-</span><span class="">  825: 			intro =&gt; &#39;This example starts from a canvas with at least two visuals. Open one from the home page.&#39;,
-</span><span class="">  826: 			steps =&gt; [
-</span><span class="">  827: 				{ do =&gt; &#39;Click a bar or a slice in one chart.&#39;, see =&gt; &#39;The other cards show only rows for that value, and a chip names the filter.&#39; },
-</span><span class="">  828: 				{ do =&gt; &#39;Click Clear on the filter chip.&#39;, see =&gt; &#39;Every card returns to the full data set.&#39; },
-</span><span class="">  829: 				{ do =&gt; &#39;Open the Size menu in a card header and choose Half width.&#39;, see =&gt; &#39;The card takes half a row, and the cards beside it move to fit.&#39; },
-</span><span class="">  830: 				{ do =&gt; &#39;Click Edit cross-row in a card header and click one of its columns.&#39;, see =&gt; &#39;The chip puts its column, function and name back in the fields, ready to change.&#39; },
-</span><span class="">  831: 				{ do =&gt; &#39;Click Bookmarks, type a name and click Save.&#39;, see =&gt; &#39;A link to this exact view appears under the button.&#39; },
-</span><span class="">  832: 				{ do =&gt; &#39;Click Print.&#39;, see =&gt; &#39;The browser print window opens with the canvas ready for paper or PDF.&#39; },
-</span><span class="">  833: 				{ do =&gt; &#39;To save just one chart, use the SVG, PNG or PDF button in its card header.&#39;, see =&gt; &#39;The chart downloads as a file named after the card.&#39; },
-</span><span class="">  834: 			],
-</span><span class="">  835: 			result =&gt; &#39;You filtered and arranged one dashboard, and saved a named view without changing any data file.&#39;,
-</span><span class="">  836: 		},
-</span><span class="">  837: 		routes =&gt; [ &#39;/a/:id&#39;, &#39;/canvases&#39; ],
-</span><span class="">  838: 	},
-</span><span class="">  839: 	{
-</span><span class="">  840: 		id    =&gt; &#39;canvas-text&#39;,
-</span><span class="">  841: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  842: 		title =&gt; &#39;Add a title or an explanation to a canvas&#39;,
-</span><span class="">  843: 		lead  =&gt; &#39;A text card puts your own words on a canvas, in the font, size and colours that you choose.&#39;,
-</span><span class="">  844: 		steps =&gt; [
-</span><span class="">  845: 			&#39;Open a saved canvas.&#39;,
-</span><span class="">  846: 			&#39;Click Add text in the toolbar.&#39;,
-</span><span class="">  847: 			&#39;Type your words in the Text box. Press Enter to start a new line.&#39;,
-</span><span class="">  848: 			&#39;Choose how the text looks. The preview under the box changes as you choose.&#39;,
-</span><span class="">  849: 			&#39;Click Add to canvas. The card appears at the end of the canvas, across its full width.&#39;,
-</span><span class="">  850: 			&#39;Drag the card by its header to where you want it. The cards in the way move down.&#39;,
-</span><span class="">  851: 			&#39;Use the Size menu in the header to make the card narrower, or to make it taller.&#39;,
-</span><span class="">  852: 			&#39;To change the words or the look, double-click the text. You can also click Edit text in the header.&#39;,
-</span><span class="">  853: 			&#39;Change what you want and click Save text. The card shows each change as you make it, and Cancel puts it back.&#39;,
-</span><span class="">  854: 			&#39;To remove the card, double-click the text, click Remove card and confirm.&#39;,
-</span><span class="">  855: 		],
-</span><span class="">  856: 		tip   =&gt; &#39;Text is shown exactly as you type it, so HTML tags and Markdown appear as ordinary characters. A filter never changes a text card, because a text card reads no data.&#39;,
-</span><span class="">  857: 		table =&gt; {
-</span><span class="">  858: 			caption =&gt; &#39;What you can choose for a text card&#39;,
-</span><span class="">  859: 			head    =&gt; [ &#39;Setting&#39;, &#39;What it does&#39; ],
-</span><span class="">  860: 			rows    =&gt; [
-</span><span class="">  861: 				[ &#39;Font&#39;, &#39;Same as the page, Arial, Georgia, Times New Roman, Verdana, Trebuchet MS or Courier New.&#39; ],
-</span><span class="">  862: 				[ &#39;Size (points)&#39;, &#39;Any whole number from 8 to 96. A new card starts at 14.&#39; ],
-</span><span class="">  863: 				[ &#39;Alignment&#39;, &#39;Left, Centre or Right.&#39; ],
-</span><span class="">  864: 				[ &#39;Text colour&#39;, &#39;Pick a colour, or tick Follow the theme to match the light or dark page.&#39; ],
-</span><span class="">  865: 				[ &#39;Background&#39;, &#39;Pick a colour to fill the card, or tick None to leave it clear.&#39; ],
-</span><span class="">  866: 				[ &#39;Bold and Italic&#39;, &#39;Tick either one, or both.&#39; ],
-</span><span class="">  867: 				[ &#39;Hide the frame until pointed at&#39;, &#39;The card shows only its words until you point at it. This is ticked for a new card.&#39; ],
-</span><span class="">  868: 			],
-</span><span class="">  869: 		},
-</span><span class="">  870: 		walkthrough =&gt; {
-</span><span class="">  871: 			title =&gt; &#39;Walk through: put a heading on a canvas&#39;,
-</span><span class="">  872: 			intro =&gt; &#39;This example starts from a canvas with at least one chart. Open one from the home page.&#39;,
-</span><span class="">  873: 			steps =&gt; [
-</span><span class="">  874: 				{ do =&gt; &#39;Click Add text and type Quarterly sales in the Text box.&#39;, see =&gt; &#39;The words appear in the preview under the box.&#39; },
-</span><span class="">  875: 				{ do =&gt; &#39;Choose Georgia, type 24 for the size, choose Centre and tick Bold.&#39;, see =&gt; &#39;The preview shows large, bold, centred text.&#39; },
-</span><span class="">  876: 				{ do =&gt; &#39;Click Add to canvas.&#39;, see =&gt; &#39;The heading appears below the other cards, with no frame around it.&#39; },
-</span><span class="">  877: 				{ do =&gt; &#39;Point at the heading.&#39;, see =&gt; &#39;A frame appears, with a header above the words.&#39; },
-</span><span class="">  878: 				{ do =&gt; &#39;Drag the header to the top of the canvas.&#39;, see =&gt; &#39;The heading moves to the top row, and the charts move down below it.&#39; },
-</span><span class="">  879: 				{ do =&gt; &#39;Reload the page.&#39;, see =&gt; &#39;The heading is still at the top, in a row only as tall as its text.&#39; },
-</span><span class="">  880: 			],
-</span><span class="">  881: 			result =&gt; &#39;You gave the canvas a heading that is saved with it and does not depend on any data file.&#39;,
-</span><span class="">  882: 		},
-</span><span class="">  883: 		routes =&gt; [],
-</span><span class="">  884: 	},
-</span><span class="">  885: 	{
-</span><span class="">  886: 		id    =&gt; &#39;share&#39;,
-</span><span class="">  887: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  888: 		title =&gt; &#39;Share a link to a view&#39;,
-</span><span class="">  889: 		lead  =&gt; &#39;A link can open the same table, filters and chart for another person.&#39;,
-</span><span class="">  890: 		steps =&gt; [
-</span><span class="">  891: 			&#39;Open a chart, or a table that has at least one filter.&#39;,
-</span><span class="">  892: 			&#39;Click Copy link. The program puts the address on your clipboard.&#39;,
-</span><span class="">  893: 			&#39;Paste the address into an email or a chat message.&#39;,
-</span><span class="">  894: 		],
-</span><span class="">  895: 		tip   =&gt; &#39;On a table, Copy link appears when a filter is active. On a chart, it is always there. The other person needs access to the file.&#39;,
-</span><span class="">  896: 		routes =&gt; [],
-</span><span class="">  897: 	},
-</span><span class="">  898: 	{
-</span><span class="">  899: 		id    =&gt; &#39;share-canvas&#39;,
-</span><span class="">  900: 		part  =&gt; &#39;Save and share&#39;,
-</span><span class="">  901: 		title =&gt; &#39;Share a canvas with a signed link&#39;,
-</span><span class="">  902: 		lead  =&gt; &#39;A canvas share link lets anyone with the link view the canvas for 30 days.&#39;,
-</span><span class="">  903: 		steps =&gt; [
-</span><span class="">  904: 			&#39;Open a saved canvas.&#39;,
-</span><span class="">  905: 			&#39;Click Share... in the canvas toolbar.&#39;,
-</span><span class="">  906: 			&#39;Click Make a link, then Copy link. The link is now on your clipboard.&#39;,
-</span><span class="">  907: 			&#39;Send the link by email or in a message.&#39;,
-</span><span class="">  908: 			&#39;To show the canvas inside another page of this site, click Copy embed code instead. The panel names any other sites where it works.&#39;,
-</span><span class="">  909: 			&#39;The link stops working after 30 days. Click Make a new link to create another.&#39;,
-</span><span class="">  910: 			&#39;If the panel says a restart ends the link, the server forgets its links when it stops.&#39;,
-</span><span class="">  911: 		],
-</span><span class="">  912: 		tip   =&gt; &#39;The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the Canvases page reads it back.&#39;,
-</span><span class="">  913: 		routes =&gt; [],
-</span><span class="">  914: 	},
-</span><span class="">  915: 
-</span><span class="">  916: 	# ---------------------------------------------------------------
-</span><span class="">  917: 	# Help
+</span><span class="">  761: 	# Save and share
+</span><span class="">  762: 	# ---------------------------------------------------------------
+</span><span class="">  763: 	{
+</span><span class="">  764: 		id    =&gt; &#39;export&#39;,
+</span><span class="">  765: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  766: 		title =&gt; &#39;Save the data as a new file&#39;,
+</span><span class="">  767: 		lead  =&gt; &#39;Export writes the rows that you see to a new file.&#39;,
+</span><span class="">  768: 		steps =&gt; [
+</span><span class="">  769: 			&#39;Click Export...&#39;,
+</span><span class="">  770: 			&#39;Choose the folder and type a file name.&#39;,
+</span><span class="">  771: 			&#39;The ending of the name chooses the format: .csv, .sql or .json.&#39;,
+</span><span class="">  772: 			&#39;Click Save. The program writes a new file. Your source file is not changed.&#39;,
+</span><span class="">  773: 		],
+</span><span class="">  774: 		tip   =&gt; &#39;Export includes your joins, filters and duplicate setting.&#39;,
+</span><span class="">  775: 		routes =&gt; [ &#39;/export&#39; ],
+</span><span class="">  776: 	},
+</span><span class="">  777: 	{
+</span><span class="">  778: 		id    =&gt; &#39;print&#39;,
+</span><span class="">  779: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  780: 		title =&gt; &#39;Print the table&#39;,
+</span><span class="">  781: 		lead  =&gt; &#39;Print puts the header row and every row of the table on paper, not only the page on the screen.&#39;,
+</span><span class="">  782: 		steps =&gt; [
+</span><span class="">  783: 			&#39;Arrange the table the way you want it. Move or delete columns, and click a header to sort.&#39;,
+</span><span class="">  784: 			&#39;Click Print, to the right of Refresh.&#39;,
+</span><span class="">  785: 			&#39;Your browser opens its print window. Choose a printer, or save the page as a PDF.&#39;,
+</span><span class="">  786: 			&#39;A table of more than 10,000 rows asks first, because it can be hundreds of pages.&#39;,
+</span><span class="">  787: 		],
+</span><span class="">  788: 		tip   =&gt; &#39;Print uses the same rows as Export, so your joins and filters are included. A row that you deleted from the screen is still printed.&#39;,
+</span><span class="">  789: 		routes =&gt; [ &#39;/export&#39; ],
+</span><span class="">  790: 	},
+</span><span class="">  791: 	{
+</span><span class="">  792: 		id    =&gt; &#39;catalog&#39;,
+</span><span class="">  793: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  794: 		title =&gt; &#39;See all your data files at a glance&#39;,
+</span><span class="">  795: 		lead  =&gt; &#39;The dataset catalog lists every file in the data folder and shows which canvases use it.&#39;,
+</span><span class="">  796: 		steps =&gt; [
+</span><span class="">  797: 			&#39;Open the home page and click Dataset catalog.&#39;,
+</span><span class="">  798: 			&#39;Each row shows the file name, type, size, and when it was last changed.&#39;,
+</span><span class="">  799: 			&#39;The Used by column lists the canvases that include this file.&#39;,
+</span><span class="">  800: 			&#39;Click a file name to open it as a table.&#39;,
+</span><span class="">  801: 			&#39;Use the catalog to check which canvases will be affected if a file changes.&#39;,
+</span><span class="">  802: 		],
+</span><span class="">  803: 		tip   =&gt; &#39;A file that appears in Used by is linked to a canvas. Moving or renaming it will break that canvas.&#39;,
+</span><span class="">  804: 		try   =&gt; { href =&gt; &#39;/catalog&#39;, label =&gt; &#39;Open the dataset catalog&#39; },
+</span><span class="">  805: 		routes =&gt; [ &#39;/catalog&#39; ],
+</span><span class="">  806: 	},
+</span><span class="">  807: 	{
+</span><span class="">  808: 		id    =&gt; &#39;canvas&#39;,
+</span><span class="">  809: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  810: 		title =&gt; &#39;Save a canvas with several charts&#39;,
+</span><span class="">  811: 		lead  =&gt; &#39;A canvas is a saved page that can hold tables and charts side by side.&#39;,
+</span><span class="">  812: 		steps =&gt; [
+</span><span class="">  813: 			&#39;Open a table and set up the view that you want.&#39;,
+</span><span class="">  814: 			&#39;Click New canvas...&#39;,
+</span><span class="">  815: 			&#39;Type a name and click Save.&#39;,
+</span><span class="">  816: 			&#39;Click Open canvas. The current table or chart is the first card.&#39;,
+</span><span class="">  817: 			&#39;Click Add visual... to add another view from a data file.&#39;,
+</span><span class="">  818: 			&#39;In that panel, choose the Aggregate a chart works out: Sum, Average, Median, Std dev, or a percentile.&#39;,
+</span><span class="">  819: 			&#39;Drag a card by its header to move it. Use the Size menu to change its width and height.&#39;,
+</span><span class="">  820: 			&#39;Click Add text to put a title or an explanation on the canvas. The next chapter shows how.&#39;,
+</span><span class="">  821: 			&#39;To show only a recent window on every card, choose a Time range and its column above the cards. Then click Apply range.&#39;,
+</span><span class="">  822: 			&#39;Click Edit cross-row in a card header to see that card\&#39;s cross-row columns, and to change or remove one.&#39;,
+</span><span class="">  823: 		],
+</span><span class="">  824: 		tip   =&gt; &#39;Click Canvases at the top of any page to see all your saved canvases. The home page lists them too. A banner appears if a data file has changed since the canvas was saved.&#39;,
+</span><span class="">  825: 		walkthrough =&gt; {
+</span><span class="">  826: 			title =&gt; &#39;Walk through: arrange and filter a canvas&#39;,
+</span><span class="">  827: 			intro =&gt; &#39;This example starts from a canvas with at least two visuals. Open one from the home page.&#39;,
+</span><span class="">  828: 			steps =&gt; [
+</span><span class="">  829: 				{ do =&gt; &#39;Click a bar or a slice in one chart.&#39;, see =&gt; &#39;The other cards show only rows for that value, and a chip names the filter.&#39; },
+</span><span class="">  830: 				{ do =&gt; &#39;Click Clear on the filter chip.&#39;, see =&gt; &#39;Every card returns to the full data set.&#39; },
+</span><span class="">  831: 				{ do =&gt; &#39;Open the Size menu in a card header and choose Half width.&#39;, see =&gt; &#39;The card takes half a row, and the cards beside it move to fit.&#39; },
+</span><span class="">  832: 				{ do =&gt; &#39;Click Edit cross-row in a card header and click one of its columns.&#39;, see =&gt; &#39;The chip puts its column, function and name back in the fields, ready to change.&#39; },
+</span><span class="">  833: 				{ do =&gt; &#39;Click Bookmarks, type a name and click Save.&#39;, see =&gt; &#39;A link to this exact view appears under the button.&#39; },
+</span><span class="">  834: 				{ do =&gt; &#39;Click Print.&#39;, see =&gt; &#39;The browser print window opens with the canvas ready for paper or PDF.&#39; },
+</span><span class="">  835: 				{ do =&gt; &#39;To save just one chart, use the SVG, PNG or PDF button in its card header.&#39;, see =&gt; &#39;The chart downloads as a file named after the card.&#39; },
+</span><span class="">  836: 			],
+</span><span class="">  837: 			result =&gt; &#39;You filtered and arranged one dashboard, and saved a named view without changing any data file.&#39;,
+</span><span class="">  838: 		},
+</span><span class="">  839: 		routes =&gt; [ &#39;/a/:id&#39;, &#39;/canvases&#39; ],
+</span><span class="">  840: 	},
+</span><span class="">  841: 	{
+</span><span class="">  842: 		id    =&gt; &#39;canvas-text&#39;,
+</span><span class="">  843: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  844: 		title =&gt; &#39;Add a title or an explanation to a canvas&#39;,
+</span><span class="">  845: 		lead  =&gt; &#39;A text card puts your own words on a canvas, in the font, size and colours that you choose.&#39;,
+</span><span class="">  846: 		steps =&gt; [
+</span><span class="">  847: 			&#39;Open a saved canvas.&#39;,
+</span><span class="">  848: 			&#39;Click Add text in the toolbar.&#39;,
+</span><span class="">  849: 			&#39;Type your words in the Text box. Press Enter to start a new line.&#39;,
+</span><span class="">  850: 			&#39;Choose how the text looks. The preview under the box changes as you choose.&#39;,
+</span><span class="">  851: 			&#39;Click Add to canvas. The card appears at the end of the canvas, across its full width.&#39;,
+</span><span class="">  852: 			&#39;Drag the card by its header to where you want it. The cards in the way move down.&#39;,
+</span><span class="">  853: 			&#39;Use the Size menu in the header to make the card narrower, or to make it taller.&#39;,
+</span><span class="">  854: 			&#39;To change the words or the look, double-click the text. You can also click Edit text in the header.&#39;,
+</span><span class="">  855: 			&#39;Change what you want and click Save text. The card shows each change as you make it, and Cancel puts it back.&#39;,
+</span><span class="">  856: 			&#39;To remove the card, double-click the text, click Remove card and confirm.&#39;,
+</span><span class="">  857: 		],
+</span><span class="">  858: 		tip   =&gt; &#39;Text is shown exactly as you type it, so HTML tags and Markdown appear as ordinary characters. A filter never changes a text card, because a text card reads no data.&#39;,
+</span><span class="">  859: 		table =&gt; {
+</span><span class="">  860: 			caption =&gt; &#39;What you can choose for a text card&#39;,
+</span><span class="">  861: 			head    =&gt; [ &#39;Setting&#39;, &#39;What it does&#39; ],
+</span><span class="">  862: 			rows    =&gt; [
+</span><span class="">  863: 				[ &#39;Font&#39;, &#39;Same as the page, Arial, Georgia, Times New Roman, Verdana, Trebuchet MS or Courier New.&#39; ],
+</span><span class="">  864: 				[ &#39;Size (points)&#39;, &#39;Any whole number from 8 to 96. A new card starts at 14.&#39; ],
+</span><span class="">  865: 				[ &#39;Alignment&#39;, &#39;Left, Centre or Right.&#39; ],
+</span><span class="">  866: 				[ &#39;Text colour&#39;, &#39;Pick a colour, or tick Follow the theme to match the light or dark page.&#39; ],
+</span><span class="">  867: 				[ &#39;Background&#39;, &#39;Pick a colour to fill the card, or tick None to leave it clear.&#39; ],
+</span><span class="">  868: 				[ &#39;Bold and Italic&#39;, &#39;Tick either one, or both.&#39; ],
+</span><span class="">  869: 				[ &#39;Hide the frame until pointed at&#39;, &#39;The card shows only its words until you point at it. This is ticked for a new card.&#39; ],
+</span><span class="">  870: 			],
+</span><span class="">  871: 		},
+</span><span class="">  872: 		walkthrough =&gt; {
+</span><span class="">  873: 			title =&gt; &#39;Walk through: put a heading on a canvas&#39;,
+</span><span class="">  874: 			intro =&gt; &#39;This example starts from a canvas with at least one chart. Open one from the home page.&#39;,
+</span><span class="">  875: 			steps =&gt; [
+</span><span class="">  876: 				{ do =&gt; &#39;Click Add text and type Quarterly sales in the Text box.&#39;, see =&gt; &#39;The words appear in the preview under the box.&#39; },
+</span><span class="">  877: 				{ do =&gt; &#39;Choose Georgia, type 24 for the size, choose Centre and tick Bold.&#39;, see =&gt; &#39;The preview shows large, bold, centred text.&#39; },
+</span><span class="">  878: 				{ do =&gt; &#39;Click Add to canvas.&#39;, see =&gt; &#39;The heading appears below the other cards, with no frame around it.&#39; },
+</span><span class="">  879: 				{ do =&gt; &#39;Point at the heading.&#39;, see =&gt; &#39;A frame appears, with a header above the words.&#39; },
+</span><span class="">  880: 				{ do =&gt; &#39;Drag the header to the top of the canvas.&#39;, see =&gt; &#39;The heading moves to the top row, and the charts move down below it.&#39; },
+</span><span class="">  881: 				{ do =&gt; &#39;Reload the page.&#39;, see =&gt; &#39;The heading is still at the top, in a row only as tall as its text.&#39; },
+</span><span class="">  882: 			],
+</span><span class="">  883: 			result =&gt; &#39;You gave the canvas a heading that is saved with it and does not depend on any data file.&#39;,
+</span><span class="">  884: 		},
+</span><span class="">  885: 		routes =&gt; [],
+</span><span class="">  886: 	},
+</span><span class="">  887: 	{
+</span><span class="">  888: 		id    =&gt; &#39;share&#39;,
+</span><span class="">  889: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  890: 		title =&gt; &#39;Share a link to a view&#39;,
+</span><span class="">  891: 		lead  =&gt; &#39;A link can open the same table, filters and chart for another person.&#39;,
+</span><span class="">  892: 		steps =&gt; [
+</span><span class="">  893: 			&#39;Open a chart, or a table that has at least one filter.&#39;,
+</span><span class="">  894: 			&#39;Click Copy link. The program puts the address on your clipboard.&#39;,
+</span><span class="">  895: 			&#39;Paste the address into an email or a chat message.&#39;,
+</span><span class="">  896: 		],
+</span><span class="">  897: 		tip   =&gt; &#39;On a table, Copy link appears when a filter is active. On a chart, it is always there. The other person needs access to the file.&#39;,
+</span><span class="">  898: 		routes =&gt; [],
+</span><span class="">  899: 	},
+</span><span class="">  900: 	{
+</span><span class="">  901: 		id    =&gt; &#39;share-canvas&#39;,
+</span><span class="">  902: 		part  =&gt; &#39;Save and share&#39;,
+</span><span class="">  903: 		title =&gt; &#39;Share a canvas with a signed link&#39;,
+</span><span class="">  904: 		lead  =&gt; &#39;A canvas share link lets anyone with the link view the canvas for 30 days.&#39;,
+</span><span class="">  905: 		steps =&gt; [
+</span><span class="">  906: 			&#39;Open a saved canvas.&#39;,
+</span><span class="">  907: 			&#39;Click Share... in the canvas toolbar.&#39;,
+</span><span class="">  908: 			&#39;Click Make a link, then Copy link. The link is now on your clipboard.&#39;,
+</span><span class="">  909: 			&#39;Send the link by email or in a message.&#39;,
+</span><span class="">  910: 			&#39;To show the canvas inside another page of this site, click Copy embed code instead. The panel names any other sites where it works.&#39;,
+</span><span class="">  911: 			&#39;The link stops working after 30 days. Click Make a new link to create another.&#39;,
+</span><span class="">  912: 			&#39;If the panel says a restart ends the link, the server forgets its links when it stops.&#39;,
+</span><span class="">  913: 		],
+</span><span class="">  914: 		tip   =&gt; &#39;The link gives read-only access. To keep a copy of the canvas, click Download as JSON. Import canvas on the Canvases page reads it back.&#39;,
+</span><span class="">  915: 		routes =&gt; [],
+</span><span class="">  916: 	},
+</span><span class="">  917: 
 </span><span class="">  918: 	# ---------------------------------------------------------------
-</span><span class="">  919: 	{
-</span><span class="">  920: 		id    =&gt; &#39;keyboard&#39;,
-</span><span class="">  921: 		part  =&gt; &#39;Help&#39;,
-</span><span class="">  922: 		title =&gt; &#39;Use the program with the keyboard&#39;,
-</span><span class="">  923: 		lead  =&gt; &#39;Every control can be used without a mouse.&#39;,
-</span><span class="">  924: 		steps =&gt; [
-</span><span class="">  925: 			&#39;Press Tab to move to the next control. Press Shift+Tab to move back.&#39;,
-</span><span class="">  926: 			&#39;Press Enter or Space to press a button or open a link.&#39;,
-</span><span class="">  927: 			&#39;On a column heading, press Enter to sort. Press Shift+Left or Shift+Right to move the column.&#39;,
-</span><span class="">  928: 			&#39;On a chart, press Tab until the resize grip has focus. Use the arrow keys to resize. Hold Shift for bigger steps.&#39;,
-</span><span class="">  929: 			&#39;On a canvas, focus a card header and use the arrow keys to move the card. Hold Shift to move it to the edge.&#39;,
-</span><span class="">  930: 		],
-</span><span class="">  931: 		tip   =&gt; &#39;The page says each change out loud for screen readers.&#39;,
-</span><span class="">  932: 		routes =&gt; [],
-</span><span class="">  933: 	},
-</span><span class="">  934: 	{
-</span><span class="">  935: 		id    =&gt; &#39;preferences&#39;,
-</span><span class="">  936: 		part  =&gt; &#39;Help&#39;,
-</span><span class="">  937: 		title =&gt; &#39;Set your preferences&#39;,
-</span><span class="">  938: 		lead  =&gt; &#39;The Preferences page chooses how the program looks to you: the theme, and how many rows a table shows on a page.&#39;,
-</span><span class="">  939: 		steps =&gt; [
-</span><span class="">  940: 			&#39;Click Preferences at the top of any page.&#39;,
-</span><span class="">  941: 			&#39;Under Theme, choose Same as this device, Light or Dark.&#39;,
-</span><span class="">  942: 			&#39;Same as this device is the choice until you change it. The program follows the light or dark setting on your computer or phone, even while a page is open.&#39;,
-</span><span class="">  943: 			&#39;The page changes as soon as you choose. There is no Save button.&#39;,
-</span><span class="">  944: 			&#39;Every other page follows, including pages that are open in other tabs.&#39;,
-</span><span class="">  945: 			&#39;Tables and charts change with the page. A map keeps its usual colours.&#39;,
-</span><span class="">  946: 			&#39;Under Tables, choose how many rows a table or pivot shows on each page: 25, 50, 100, 200 or All.&#39;,
-</span><span class="">  947: 			&#39;The number takes effect from the next table you open. All can be slow for a big file.&#39;,
-</span><span class="">  948: 			&#39;The Rows per page list under a long table changes that table only.&#39;,
-</span><span class="">  949: 		],
-</span><span class="">  950: 		tip   =&gt; &#39;The choice is saved in this browser, so another browser or computer keeps its own. Saved charts and printed pages always use the light colours.&#39;,
-</span><span class="">  951: 		try   =&gt; { href =&gt; &#39;/preferences&#39;, label =&gt; &#39;Open your preferences&#39; },
-</span><span class="">  952: 		routes =&gt; [ &#39;/preferences&#39; ],
-</span><span class="">  953: 	},
-</span><span class="">  954: 	{
-</span><span class="">  955: 		id    =&gt; &#39;log-in&#39;,
-</span><span class="">  956: 		part  =&gt; &#39;Help&#39;,
-</span><span class="">  957: 		title =&gt; &#39;Log in&#39;,
-</span><span class="">  958: 		lead  =&gt; &#39;A program shared by several people can ask for a password before it shows anything.&#39;,
-</span><span class="">  959: 		steps =&gt; [
-</span><span class="">  960: 			&#39;If a Log in page appears, type the password and click Log in.&#39;,
-</span><span class="">  961: 			&#39;Whoever runs the program chose the password. Ask them for it.&#39;,
-</span><span class="">  962: 			&#39;After you log in, the page you asked for opens.&#39;,
-</span><span class="">  963: 			&#39;Click Log out at the top of any page when you have finished.&#39;,
-</span><span class="">  964: 			&#39;If you do nothing for a working day, you are logged out by yourself.&#39;,
-</span><span class="">  965: 			&#39;After ten wrong passwords, the page asks you to wait a few minutes.&#39;,
-</span><span class="">  966: 		],
-</span><span class="">  967: 		tip   =&gt; &#39;Share and embed links still work without the password, until they expire. Anyone holding one sees that canvas.&#39;,
-</span><span class="">  968: 		try   =&gt; { href =&gt; &#39;/login&#39;, label =&gt; &#39;Open the Log in page&#39; },
-</span><span class="">  969: 		routes =&gt; [ &#39;/login&#39; ],
-</span><span class="">  970: 	},
-</span><span class="">  971: 
-</span><span class="">  972: 	# ---------------------------------------------------------------
-</span><span class="">  973: 	# For maintainers
+</span><span class="">  919: 	# Help
+</span><span class="">  920: 	# ---------------------------------------------------------------
+</span><span class="">  921: 	{
+</span><span class="">  922: 		id    =&gt; &#39;keyboard&#39;,
+</span><span class="">  923: 		part  =&gt; &#39;Help&#39;,
+</span><span class="">  924: 		title =&gt; &#39;Use the program with the keyboard&#39;,
+</span><span class="">  925: 		lead  =&gt; &#39;Every control can be used without a mouse.&#39;,
+</span><span class="">  926: 		steps =&gt; [
+</span><span class="">  927: 			&#39;Press Tab to move to the next control. Press Shift+Tab to move back.&#39;,
+</span><span class="">  928: 			&#39;Press Enter or Space to press a button or open a link.&#39;,
+</span><span class="">  929: 			&#39;On a column heading, press Enter to sort. Press Shift+Left or Shift+Right to move the column.&#39;,
+</span><span class="">  930: 			&#39;On a chart, press Tab until the resize grip has focus. Use the arrow keys to resize. Hold Shift for bigger steps.&#39;,
+</span><span class="">  931: 			&#39;On a canvas, focus a card header and use the arrow keys to move the card. Hold Shift to move it to the edge.&#39;,
+</span><span class="">  932: 		],
+</span><span class="">  933: 		tip   =&gt; &#39;The page says each change out loud for screen readers.&#39;,
+</span><span class="">  934: 		routes =&gt; [],
+</span><span class="">  935: 	},
+</span><span class="">  936: 	{
+</span><span class="">  937: 		id    =&gt; &#39;preferences&#39;,
+</span><span class="">  938: 		part  =&gt; &#39;Help&#39;,
+</span><span class="">  939: 		title =&gt; &#39;Set your preferences&#39;,
+</span><span class="">  940: 		lead  =&gt; &#39;The Preferences page chooses how the program looks to you: the theme, and how many rows a table shows on a page.&#39;,
+</span><span class="">  941: 		steps =&gt; [
+</span><span class="">  942: 			&#39;Click Preferences at the top of any page.&#39;,
+</span><span class="">  943: 			&#39;Under Theme, choose Same as this device, Light or Dark.&#39;,
+</span><span class="">  944: 			&#39;Same as this device is the choice until you change it. The program follows the light or dark setting on your computer or phone, even while a page is open.&#39;,
+</span><span class="">  945: 			&#39;The page changes as soon as you choose. There is no Save button.&#39;,
+</span><span class="">  946: 			&#39;Every other page follows, including pages that are open in other tabs.&#39;,
+</span><span class="">  947: 			&#39;Tables and charts change with the page. A map keeps its usual colours.&#39;,
+</span><span class="">  948: 			&#39;Under Tables, choose how many rows a table or pivot shows on each page: 25, 50, 100, 200 or All.&#39;,
+</span><span class="">  949: 			&#39;The number takes effect from the next table you open. All can be slow for a big file.&#39;,
+</span><span class="">  950: 			&#39;The Rows per page list under a long table changes that table only.&#39;,
+</span><span class="">  951: 		],
+</span><span class="">  952: 		tip   =&gt; &#39;The choice is saved in this browser, so another browser or computer keeps its own. Saved charts and printed pages always use the light colours.&#39;,
+</span><span class="">  953: 		try   =&gt; { href =&gt; &#39;/preferences&#39;, label =&gt; &#39;Open your preferences&#39; },
+</span><span class="">  954: 		routes =&gt; [ &#39;/preferences&#39; ],
+</span><span class="">  955: 	},
+</span><span class="">  956: 	{
+</span><span class="">  957: 		id    =&gt; &#39;log-in&#39;,
+</span><span class="">  958: 		part  =&gt; &#39;Help&#39;,
+</span><span class="">  959: 		title =&gt; &#39;Log in&#39;,
+</span><span class="">  960: 		lead  =&gt; &#39;A program shared by several people can ask for a password before it shows anything.&#39;,
+</span><span class="">  961: 		steps =&gt; [
+</span><span class="">  962: 			&#39;If a Log in page appears, type the password and click Log in.&#39;,
+</span><span class="">  963: 			&#39;Whoever runs the program chose the password. Ask them for it.&#39;,
+</span><span class="">  964: 			&#39;After you log in, the page you asked for opens.&#39;,
+</span><span class="">  965: 			&#39;Click Log out at the top of any page when you have finished.&#39;,
+</span><span class="">  966: 			&#39;If you do nothing for a working day, you are logged out by yourself.&#39;,
+</span><span class="">  967: 			&#39;After ten wrong passwords, the page asks you to wait a few minutes.&#39;,
+</span><span class="">  968: 		],
+</span><span class="">  969: 		tip   =&gt; &#39;Share and embed links still work without the password, until they expire. Anyone holding one sees that canvas.&#39;,
+</span><span class="">  970: 		try   =&gt; { href =&gt; &#39;/login&#39;, label =&gt; &#39;Open the Log in page&#39; },
+</span><span class="">  971: 		routes =&gt; [ &#39;/login&#39; ],
+</span><span class="">  972: 	},
+</span><span class="">  973: 
 </span><span class="">  974: 	# ---------------------------------------------------------------
-</span><span class="">  975: 	{
-</span><span class="">  976: 		id    =&gt; &#39;alerts&#39;,
-</span><span class="">  977: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class="">  978: 		title =&gt; &#39;Alert when a number crosses a limit&#39;,
-</span><span class="">  979: 		lead  =&gt; &#39;The bi-alert script checks a canvas measure and signals when it crosses a threshold.&#39;,
-</span><span class="">  980: 		steps =&gt; [
-</span><span class="">  981: 			&#39;The script is installed as bi-alert. In a copy of the source it is script/bi-alert.&#39;,
-</span><span class="">  982: 			&#39;Run bi-alert --help to see all options.&#39;,
-</span><span class="">  983: 			&#39;Pass --analysis with the canvas id and --threshold with the measure, comparison and value.&#39;,
-</span><span class="">  984: 			&#39;For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.&#39;,
-</span><span class="">  985: 			&#39;Pass --analysis or --threshold more than once to check several in the same run.&#39;,
-</span><span class="">  986: 			&#39;Prefix a threshold with an analysis id, such as abc123:count:gt:10, to check a second canvas.&#39;,
-</span><span class="">  987: 			&#39;Pass --dry-run to run the check and print the result without sending anything. A dry run does not count towards --suppress.&#39;,
-</span><span class="">  988: 			&#39;A threshold that stays crossed is only worth hearing about once, so pass --suppress 1h to be told at most hourly.&#39;,
-</span><span class="">  989: 			&#39;The script remembers the last alert in a small state file, and forgets it when the crossing ends.&#39;,
-</span><span class="">  990: 			&#39;Pass --recovery to be told when the crossing ends as well as when it starts.&#39;,
-</span><span class="">  991: 			&#39;The script can only see a crossing end when it remembers one starting, so --recovery keeps its state file.&#39;,
-</span><span class="">  992: 			&#39;Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.&#39;,
-</span><span class="">  993: 			&#39;Wire the script into a cron job or a monitoring system to get automatic alerts.&#39;,
-</span><span class="">  994: 		],
-</span><span class="">  995: 		tip   =&gt; &#39;Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error. When one run reports a crossing and a recovery together, exit code 1 wins.&#39;,
-</span><span class="">  996: 		routes =&gt; [],
-</span><span class="">  997: 	},
-</span><span class="">  998: 	{
-</span><span class="">  999: 		id    =&gt; &#39;geocode&#39;,
-</span><span class=""> 1000: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class=""> 1001: 		title =&gt; &#39;Look up place names before anyone opens the map&#39;,
-</span><span class=""> 1002: 		lead  =&gt; &#39;The bi-geocode script finds the coordinates of every place in a column and keeps them for the map.&#39;,
-</span><span class=""> 1003: 		steps =&gt; [
-</span><span class=""> 1004: 			&#39;The script is installed as bi-geocode. In a copy of the source it is script/bi-geocode.&#39;,
-</span><span class=""> 1005: 			&#39;Pass --spec with the table, and --col with the column that holds the place names.&#39;,
-</span><span class=""> 1006: 			&#39;Give --col twice for a place split over two columns, such as --col Address --col Country.&#39;,
-</span><span class=""> 1007: 			&#39;For example: bi-geocode --spec table:virginia_counties --col county --region US.&#39;,
-</span><span class=""> 1008: 			&#39;Pass --region with a country code, such as GB or US, when the names could be in several countries.&#39;,
-</span><span class=""> 1009: 			&#39;Pass --dry-run to look the places up without keeping the result.&#39;,
-</span><span class=""> 1010: 			&#39;Places the local data does not know are looked up on OpenStreetMap, one each second. Pass --offline to stop that.&#39;,
-</span><span class=""> 1011: 			&#39;Run it again at any time. Places that it already knows are not looked up twice.&#39;,
-</span><span class=""> 1012: 		],
-</span><span class=""> 1013: 		tip   =&gt; &#39;The map with a Place-name column then opens at once, because no place has to be looked up. The script needs Geo::Coder::List 0.39 and Geo::Coder::Free 0.48 or later. OpenStreetMap also needs Geo::Coder::OSM 0.03 or later. Exit code 0 means success.&#39;,
-</span><span class=""> 1014: 		routes =&gt; [],
-</span><span class=""> 1015: 	},
-</span><span class=""> 1016: 	{
-</span><span class=""> 1017: 		id    =&gt; &#39;settings&#39;,
-</span><span class=""> 1018: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class=""> 1019: 		title =&gt; &#39;Change the program settings&#39;,
-</span><span class=""> 1020: 		lead  =&gt; &#39;A file called database_bi.conf in the application folder changes how the program runs.&#39;,
-</span><span class=""> 1021: 		steps =&gt; [
-</span><span class=""> 1022: 			&#39;Create database_bi.conf next to the script folder. It holds one Perl hash, such as { data_dir =&gt; \&#39;/srv/data\&#39; }.&#39;,
-</span><span class=""> 1023: 			&#39;data_dir is the folder that the home page lists. It can be a full path or a path inside the application folder.&#39;,
-</span><span class=""> 1024: 			&#39;uploads_dir is where dropped files are kept. Set it when the application folder cannot be written.&#39;,
-</span><span class=""> 1025: 			&#39;model_dir holds the saved canvases and settings. It must not be inside data_dir.&#39;,
-</span><span class=""> 1026: 			&#39;Set page_cache_dir to keep a copy of the Catalog and Tutorial pages on disc. page_cache_duration says for how long.&#39;,
-</span><span class=""> 1027: 			&#39;cache_dir is where the places found for maps, the extracts and the page cache are kept. CACHEDIR or CACHE_DIR in the environment wins over it.&#39;,
-</span><span class=""> 1028: 			&#39;Set ai_api_key to show the Ask button and the AI choice on the insights page.&#39;,
-</span><span class=""> 1029: 			&#39;Restart the program after you change the file.&#39;,
-</span><span class=""> 1030: 		],
-</span><span class=""> 1031: 		tip   =&gt; &#39;Every setting is optional. Without the file, the program lists the data folder and keeps its own files in .bi and .uploads.&#39;,
-</span><span class=""> 1032: 		routes =&gt; [],
-</span><span class=""> 1033: 	},
-</span><span class=""> 1034: 	{
-</span><span class=""> 1035: 		id    =&gt; &#39;developers&#39;,
-</span><span class=""> 1036: 		part  =&gt; &#39;For maintainers&#39;,
-</span><span class=""> 1037: 		title =&gt; &#39;Where this page lives&#39;,
-</span><span class=""> 1038: 		lead  =&gt; &#39;This tutorial is part of the application. It is not in the Perl documentation.&#39;,
-</span><span class=""> 1039: 		steps =&gt; [
-</span><span class=""> 1040: 			&#39;The text of this page is a list of chapters in lib/Database/BI/Tutorial.pm.&#39;,
-</span><span class=""> 1041: 			&#39;The page itself is templates/web/en/tutorial.html.tt. The route is GET /tutorial.&#39;,
-</span><span class=""> 1042: 			&#39;To add a chapter, add one entry to the list. Give it a title, a short lead, the steps, and the routes that it covers.&#39;,
-</span><span class=""> 1043: 			&#39;Each page finds its Help link through the action map in the same module. Add a new page action there.&#39;,
-</span><span class=""> 1044: 			&#39;Run prove -l t/tutorial.t. The test fails if a GET page has no chapter and no reason to be exempt.&#39;,
-</span><span class=""> 1045: 			&#39;Read README.md for how to start the program and run the full test suite.&#39;,
-</span><span class=""> 1046: 		],
-</span><span class=""> 1047: 		tip   =&gt; &#39;Keep the words simple. The test also checks that no step is a very long sentence.&#39;,
-</span><span class=""> 1048: 		routes =&gt; [],
-</span><span class=""> 1049: 	},
-</span><span class=""> 1050: );
-</span><span class=""> 1051: 
-</span><span class=""> 1052: my @FAQ = (
-</span><span class=""> 1053: 	{
-</span><span class=""> 1054: 		question =&gt; &#39;The file is not in the list. What can I do?&#39;,
-</span><span class=""> 1055: 		answer   =&gt; &#39;Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.&#39;,
-</span><span class=""> 1056: 	},
+</span><span class="">  975: 	# For maintainers
+</span><span class="">  976: 	# ---------------------------------------------------------------
+</span><span class="">  977: 	{
+</span><span class="">  978: 		id    =&gt; &#39;alerts&#39;,
+</span><span class="">  979: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class="">  980: 		title =&gt; &#39;Alert when a number crosses a limit&#39;,
+</span><span class="">  981: 		lead  =&gt; &#39;The bi-alert script checks a canvas measure and signals when it crosses a threshold.&#39;,
+</span><span class="">  982: 		steps =&gt; [
+</span><span class="">  983: 			&#39;The script is installed as bi-alert. In a copy of the source it is script/bi-alert.&#39;,
+</span><span class="">  984: 			&#39;Run bi-alert --help to see all options.&#39;,
+</span><span class="">  985: 			&#39;Pass --analysis with the canvas id and --threshold with the measure, comparison and value.&#39;,
+</span><span class="">  986: 			&#39;For example: bi-alert --analysis abc123 --threshold count:gt:0 exits with code 1 when count is above 0.&#39;,
+</span><span class="">  987: 			&#39;Pass --analysis or --threshold more than once to check several in the same run.&#39;,
+</span><span class="">  988: 			&#39;Prefix a threshold with an analysis id, such as abc123:count:gt:10, to check a second canvas.&#39;,
+</span><span class="">  989: 			&#39;Pass --dry-run to run the check and print the result without sending anything. A dry run does not count towards --suppress.&#39;,
+</span><span class="">  990: 			&#39;A threshold that stays crossed is only worth hearing about once, so pass --suppress 1h to be told at most hourly.&#39;,
+</span><span class="">  991: 			&#39;The script remembers the last alert in a small state file, and forgets it when the crossing ends.&#39;,
+</span><span class="">  992: 			&#39;Pass --recovery to be told when the crossing ends as well as when it starts.&#39;,
+</span><span class="">  993: 			&#39;The script can only see a crossing end when it remembers one starting, so --recovery keeps its state file.&#39;,
+</span><span class="">  994: 			&#39;Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.&#39;,
+</span><span class="">  995: 			&#39;Wire the script into a cron job or a monitoring system to get automatic alerts.&#39;,
+</span><span class="">  996: 		],
+</span><span class="">  997: 		tip   =&gt; &#39;Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error. When one run reports a crossing and a recovery together, exit code 1 wins.&#39;,
+</span><span class="">  998: 		routes =&gt; [],
+</span><span class="">  999: 	},
+</span><span class=""> 1000: 	{
+</span><span class=""> 1001: 		id    =&gt; &#39;geocode&#39;,
+</span><span class=""> 1002: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class=""> 1003: 		title =&gt; &#39;Look up place names before anyone opens the map&#39;,
+</span><span class=""> 1004: 		lead  =&gt; &#39;The bi-geocode script finds the coordinates of every place in a column and keeps them for the map.&#39;,
+</span><span class=""> 1005: 		steps =&gt; [
+</span><span class=""> 1006: 			&#39;The script is installed as bi-geocode. In a copy of the source it is script/bi-geocode.&#39;,
+</span><span class=""> 1007: 			&#39;Pass --spec with the table, and --col with the column that holds the place names.&#39;,
+</span><span class=""> 1008: 			&#39;Give --col twice for a place split over two columns, such as --col Address --col Country.&#39;,
+</span><span class=""> 1009: 			&#39;For example: bi-geocode --spec table:virginia_counties --col county --region US.&#39;,
+</span><span class=""> 1010: 			&#39;Pass --text to add the same words to the end of each place, as Add to each place does on the map.&#39;,
+</span><span class=""> 1011: 			&#39;For example, --text \&#39;Virginia, USA\&#39; looks up Accomack as Accomack, Virginia, USA.&#39;,
+</span><span class=""> 1012: 			&#39;Pass --region with a country code, such as GB or US, when the names could be in several countries.&#39;,
+</span><span class=""> 1013: 			&#39;Pass --dry-run to look the places up without keeping the result.&#39;,
+</span><span class=""> 1014: 			&#39;Places the local data does not know are looked up on OpenStreetMap, one each second. Pass --offline to stop that.&#39;,
+</span><span class=""> 1015: 			&#39;Run it again at any time. Places that it already knows are not looked up twice.&#39;,
+</span><span class=""> 1016: 		],
+</span><span class=""> 1017: 		tip   =&gt; &#39;The map with a Place-name column then opens at once, because no place has to be looked up. The script needs Geo::Coder::List 0.39 and Geo::Coder::Free 0.48 or later. OpenStreetMap also needs Geo::Coder::OSM 0.03 or later. Exit code 0 means success.&#39;,
+</span><span class=""> 1018: 		routes =&gt; [],
+</span><span class=""> 1019: 	},
+</span><span class=""> 1020: 	{
+</span><span class=""> 1021: 		id    =&gt; &#39;settings&#39;,
+</span><span class=""> 1022: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class=""> 1023: 		title =&gt; &#39;Change the program settings&#39;,
+</span><span class=""> 1024: 		lead  =&gt; &#39;A file called database_bi.conf in the application folder changes how the program runs.&#39;,
+</span><span class=""> 1025: 		steps =&gt; [
+</span><span class=""> 1026: 			&#39;Create database_bi.conf next to the script folder. It holds one Perl hash, such as { data_dir =&gt; \&#39;/srv/data\&#39; }.&#39;,
+</span><span class=""> 1027: 			&#39;data_dir is the folder that the home page lists. It can be a full path or a path inside the application folder.&#39;,
+</span><span class=""> 1028: 			&#39;uploads_dir is where dropped files are kept. Set it when the application folder cannot be written.&#39;,
+</span><span class=""> 1029: 			&#39;model_dir holds the saved canvases and settings. It must not be inside data_dir.&#39;,
+</span><span class=""> 1030: 			&#39;Set page_cache_dir to keep a copy of the Catalog and Tutorial pages on disc. page_cache_duration says for how long.&#39;,
+</span><span class=""> 1031: 			&#39;cache_dir is where the places found for maps, the extracts and the page cache are kept. CACHEDIR or CACHE_DIR in the environment wins over it.&#39;,
+</span><span class=""> 1032: 			&#39;Set ai_api_key to show the Ask button and the AI choice on the insights page.&#39;,
+</span><span class=""> 1033: 			&#39;Restart the program after you change the file.&#39;,
+</span><span class=""> 1034: 		],
+</span><span class=""> 1035: 		tip   =&gt; &#39;Every setting is optional. Without the file, the program lists the data folder and keeps its own files in .bi and .uploads.&#39;,
+</span><span class=""> 1036: 		routes =&gt; [],
+</span><span class=""> 1037: 	},
+</span><span class=""> 1038: 	{
+</span><span class=""> 1039: 		id    =&gt; &#39;developers&#39;,
+</span><span class=""> 1040: 		part  =&gt; &#39;For maintainers&#39;,
+</span><span class=""> 1041: 		title =&gt; &#39;Where this page lives&#39;,
+</span><span class=""> 1042: 		lead  =&gt; &#39;This tutorial is part of the application. It is not in the Perl documentation.&#39;,
+</span><span class=""> 1043: 		steps =&gt; [
+</span><span class=""> 1044: 			&#39;The text of this page is a list of chapters in lib/Database/BI/Tutorial.pm.&#39;,
+</span><span class=""> 1045: 			&#39;The page itself is templates/web/en/tutorial.html.tt. The route is GET /tutorial.&#39;,
+</span><span class=""> 1046: 			&#39;To add a chapter, add one entry to the list. Give it a title, a short lead, the steps, and the routes that it covers.&#39;,
+</span><span class=""> 1047: 			&#39;Each page finds its Help link through the action map in the same module. Add a new page action there.&#39;,
+</span><span class=""> 1048: 			&#39;Run prove -l t/tutorial.t. The test fails if a GET page has no chapter and no reason to be exempt.&#39;,
+</span><span class=""> 1049: 			&#39;Read README.md for how to start the program and run the full test suite.&#39;,
+</span><span class=""> 1050: 		],
+</span><span class=""> 1051: 		tip   =&gt; &#39;Keep the words simple. The test also checks that no step is a very long sentence.&#39;,
+</span><span class=""> 1052: 		routes =&gt; [],
+</span><span class=""> 1053: 	},
+</span><span class=""> 1054: );
+</span><span class=""> 1055: 
+</span><span class=""> 1056: my @FAQ = (
 </span><span class=""> 1057: 	{
-</span><span class=""> 1058: 		question =&gt; &#39;The home address shows one file, not the list.&#39;,
-</span><span class=""> 1059: 		answer   =&gt; &#39;The program was started with the name of that file. Click Home in the breadcrumb to see the list. To stop this, start the program without a file name.&#39;,
+</span><span class=""> 1058: 		question =&gt; &#39;The file is not in the list. What can I do?&#39;,
+</span><span class=""> 1059: 		answer   =&gt; &#39;Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.&#39;,
 </span><span class=""> 1060: 	},
 </span><span class=""> 1061: 	{
-</span><span class=""> 1062: 		question =&gt; &#39;The program says that only one database can be opened.&#39;,
-</span><span class=""> 1063: 		answer   =&gt; &#39;You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others.&#39;,
+</span><span class=""> 1062: 		question =&gt; &#39;The home address shows one file, not the list.&#39;,
+</span><span class=""> 1063: 		answer   =&gt; &#39;The program was started with the name of that file. Click Home in the breadcrumb to see the list. To stop this, start the program without a file name.&#39;,
 </span><span class=""> 1064: 	},
 </span><span class=""> 1065: 	{
-</span><span class=""> 1066: 		question =&gt; &#39;The table says its extract is stale.&#39;,
-</span><span class=""> 1067: 		answer   =&gt; &#39;The file has changed since its fast copy was made, so the file itself was read. Run bi-extract --all to make the copy again.&#39;,
+</span><span class=""> 1066: 		question =&gt; &#39;The program says that only one database can be opened.&#39;,
+</span><span class=""> 1067: 		answer   =&gt; &#39;You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others.&#39;,
 </span><span class=""> 1068: 	},
 </span><span class=""> 1069: 	{
-</span><span class=""> 1070: 		question =&gt; &#39;An extracted column says (unparseable).&#39;,
-</span><span class=""> 1071: 		answer   =&gt; &#39;The pattern did not match the value in that row. Those rows are kept and grouped together, so you can see how many there are.&#39;,
+</span><span class=""> 1070: 		question =&gt; &#39;The table says its extract is stale.&#39;,
+</span><span class=""> 1071: 		answer   =&gt; &#39;The file has changed since its fast copy was made, so the file itself was read. Run bi-extract --all to make the copy again.&#39;,
 </span><span class=""> 1072: 	},
 </span><span class=""> 1073: 	{
-</span><span class=""> 1074: 		question =&gt; &#39;New columns appeared that are not in my file.&#39;,
-</span><span class=""> 1075: 		answer   =&gt; &#39;A lookup or an extraction adds them. Open the Lookups or Extract fields panel to see them. Delete one there, or skip a lookup in this view.&#39;,
+</span><span class=""> 1074: 		question =&gt; &#39;An extracted column says (unparseable).&#39;,
+</span><span class=""> 1075: 		answer   =&gt; &#39;The pattern did not match the value in that row. Those rows are kept and grouped together, so you can see how many there are.&#39;,
 </span><span class=""> 1076: 	},
 </span><span class=""> 1077: 	{
-</span><span class=""> 1078: 		question =&gt; &#39;The table says its saved columns could not be added.&#39;,
-</span><span class=""> 1079: 		answer   =&gt; &#39;The file has changed, and a saved column can no longer be worked out. The note names it. Click the panel the note names, then correct or delete it.&#39;,
+</span><span class=""> 1078: 		question =&gt; &#39;New columns appeared that are not in my file.&#39;,
+</span><span class=""> 1079: 		answer   =&gt; &#39;A lookup or an extraction adds them. Open the Lookups or Extract fields panel to see them. Delete one there, or skip a lookup in this view.&#39;,
 </span><span class=""> 1080: 	},
 </span><span class=""> 1081: 	{
-</span><span class=""> 1082: 		question =&gt; &#39;A chart or map is blank after D3 or Leaflet was moved to another server.&#39;,
-</span><span class=""> 1083: 		answer   =&gt; &#39;The pages only load scripts from the servers in the configuration. Set d3_url or the leaflet keys to the new address, and the page allows it.&#39;,
+</span><span class=""> 1082: 		question =&gt; &#39;The table says its saved columns could not be added.&#39;,
+</span><span class=""> 1083: 		answer   =&gt; &#39;The file has changed, and a saved column can no longer be worked out. The note names it. Click the panel the note names, then correct or delete it.&#39;,
 </span><span class=""> 1084: 	},
 </span><span class=""> 1085: 	{
-</span><span class=""> 1086: 		question =&gt; &#39;Can I show a canvas on another web site?&#39;,
-</span><span class=""> 1087: 		answer   =&gt; &#39;Only on the sites that whoever runs the program has listed. The Share panel names them. On any other site the canvas is refused, so send the share link instead.&#39;,
+</span><span class=""> 1086: 		question =&gt; &#39;A chart or map is blank after D3 or Leaflet was moved to another server.&#39;,
+</span><span class=""> 1087: 		answer   =&gt; &#39;The pages only load scripts from the servers in the configuration. Set d3_url or the leaflet keys to the new address, and the page allows it.&#39;,
 </span><span class=""> 1088: 	},
 </span><span class=""> 1089: 	{
-</span><span class=""> 1090: 		question =&gt; &#39;Can someone on another computer open it?&#39;,
-</span><span class=""> 1091: 		answer   =&gt; &#39;Only with a password. At first the program answers only the computer it runs on. Whoever runs it can set a password, then open it to others.&#39;,
+</span><span class=""> 1090: 		question =&gt; &#39;Can I show a canvas on another web site?&#39;,
+</span><span class=""> 1091: 		answer   =&gt; &#39;Only on the sites that whoever runs the program has listed. The Share panel names them. On any other site the canvas is refused, so send the share link instead.&#39;,
 </span><span class=""> 1092: 	},
 </span><span class=""> 1093: 	{
-</span><span class=""> 1094: 		question =&gt; &#39;The page says the server does not answer to that name.&#39;,
-</span><span class=""> 1095: 		answer   =&gt; &#39;Open it as localhost or by its number address instead. To use a name, whoever runs the program adds it to allowed_hosts in the configuration file.&#39;,
+</span><span class=""> 1094: 		question =&gt; &#39;Can someone on another computer open it?&#39;,
+</span><span class=""> 1095: 		answer   =&gt; &#39;Only with a password. At first the program answers only the computer it runs on. Whoever runs it can set a password, then open it to others.&#39;,
 </span><span class=""> 1096: 	},
 </span><span class=""> 1097: 	{
-</span><span class=""> 1098: 		question =&gt; &#39;A folder or file says it is not available here.&#39;,
-</span><span class=""> 1099: 		answer   =&gt; &#39;Whoever runs the program has chosen which folders it may use, and that one is outside them. Choose a file or folder inside, or ask them to add it.&#39;,
+</span><span class=""> 1098: 		question =&gt; &#39;The page says the server does not answer to that name.&#39;,
+</span><span class=""> 1099: 		answer   =&gt; &#39;Open it as localhost or by its number address instead. To use a name, whoever runs the program adds it to allowed_hosts in the configuration file.&#39;,
 </span><span class=""> 1100: 	},
 </span><span class=""> 1101: 	{
-</span><span class=""> 1102: 		question =&gt; &#39;Import from a web page refuses the address.&#39;,
-</span><span class=""> 1103: 		answer   =&gt; &#39;The page is on this computer or a private network, and the program only reads pages on the public internet. Whoever runs it can name intranet sites it may read.&#39;,
+</span><span class=""> 1102: 		question =&gt; &#39;A folder or file says it is not available here.&#39;,
+</span><span class=""> 1103: 		answer   =&gt; &#39;Whoever runs the program has chosen which folders it may use, and that one is outside them. Choose a file or folder inside, or ask them to add it.&#39;,
 </span><span class=""> 1104: 	},
 </span><span class=""> 1105: 	{
-</span><span class=""> 1106: 		question =&gt; &#39;Export says exports are saved only in the export folders.&#39;,
-</span><span class=""> 1107: 		answer   =&gt; &#39;Whoever runs the program has chosen the folders exports go to. The Export panel opens on one of them, so save there.&#39;,
+</span><span class=""> 1106: 		question =&gt; &#39;Import from a web page refuses the address.&#39;,
+</span><span class=""> 1107: 		answer   =&gt; &#39;The page is on this computer or a private network, and the program only reads pages on the public internet. Whoever runs it can name intranet sites it may read.&#39;,
 </span><span class=""> 1108: 	},
 </span><span class=""> 1109: 	{
-</span><span class=""> 1110: 		question =&gt; &#39;Export will not save into a folder whose name starts with a dot.&#39;,
-</span><span class=""> 1111: 		answer   =&gt; &#39;Those folders hold settings for other programs, so saving there is refused. Choose another folder.&#39;,
+</span><span class=""> 1110: 		question =&gt; &#39;Export says exports are saved only in the export folders.&#39;,
+</span><span class=""> 1111: 		answer   =&gt; &#39;Whoever runs the program has chosen the folders exports go to. The Export panel opens on one of them, so save there.&#39;,
 </span><span class=""> 1112: 	},
 </span><span class=""> 1113: 	{
-</span><span class=""> 1114: 		question =&gt; &#39;Export says the name is already there and is not a plain file.&#39;,
-</span><span class=""> 1115: 		answer   =&gt; &#39;A folder or a link has that name, and Export only replaces an ordinary file. Type another file name.&#39;,
+</span><span class=""> 1114: 		question =&gt; &#39;Export will not save into a folder whose name starts with a dot.&#39;,
+</span><span class=""> 1115: 		answer   =&gt; &#39;Those folders hold settings for other programs, so saving there is refused. Choose another folder.&#39;,
 </span><span class=""> 1116: 	},
 </span><span class=""> 1117: 	{
-</span><span class=""> 1118: 		question =&gt; &#39;Ask says the AI has been asked too often this hour.&#39;,
-</span><span class=""> 1119: 		answer   =&gt; &#39;Whoever runs the program limits how often it asks the AI each hour. Try again later. Insights still work, without the AI wording.&#39;,
+</span><span class=""> 1118: 		question =&gt; &#39;Export says the name is already there and is not a plain file.&#39;,
+</span><span class=""> 1119: 		answer   =&gt; &#39;A folder or a link has that name, and Export only replaces an ordinary file. Type another file name.&#39;,
 </span><span class=""> 1120: 	},
 </span><span class=""> 1121: 	{
-</span><span class=""> 1122: 		question =&gt; &#39;A chart says it cannot be drawn.&#39;,
-</span><span class=""> 1123: 		answer   =&gt; &#39;The page says why, for example a column that the view does not have. Click Back, then choose other columns.&#39;,
+</span><span class=""> 1122: 		question =&gt; &#39;Ask says the AI has been asked too often this hour.&#39;,
+</span><span class=""> 1123: 		answer   =&gt; &#39;Whoever runs the program limits how often it asks the AI each hour. Try again later. Insights still work, without the AI wording.&#39;,
 </span><span class=""> 1124: 	},
 </span><span class=""> 1125: 	{
-</span><span class=""> 1126: 		question =&gt; &#39;The program will not open my file.&#39;,
-</span><span class=""> 1127: 		answer   =&gt; &#39;Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, JSON, SQLite and Berkeley DB files.&#39;,
+</span><span class=""> 1126: 		question =&gt; &#39;A chart says it cannot be drawn.&#39;,
+</span><span class=""> 1127: 		answer   =&gt; &#39;The page says why, for example a column that the view does not have. Click Back, then choose other columns.&#39;,
 </span><span class=""> 1128: 	},
 </span><span class=""> 1129: 	{
-</span><span class=""> 1130: 		question =&gt; &#39;My JSON file shows a list of tables, not rows.&#39;,
-</span><span class=""> 1131: 		answer   =&gt; &#39;The file holds more than one list of rows, such as findings and hosts. Each list is a table. Click the one you want.&#39;,
+</span><span class=""> 1130: 		question =&gt; &#39;The program will not open my file.&#39;,
+</span><span class=""> 1131: 		answer   =&gt; &#39;Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, JSON, SQLite and Berkeley DB files.&#39;,
 </span><span class=""> 1132: 	},
 </span><span class=""> 1133: 	{
-</span><span class=""> 1134: 		question =&gt; &#39;The program says my JSON file holds no table.&#39;,
-</span><span class=""> 1135: 		answer   =&gt; &#39;It needs a list of objects, or an object that holds one. A value inside a row that holds more data is shown as JSON text.&#39;,
+</span><span class=""> 1134: 		question =&gt; &#39;My JSON file shows a list of tables, not rows.&#39;,
+</span><span class=""> 1135: 		answer   =&gt; &#39;The file holds more than one list of rows, such as findings and hosts. Each list is a table. Click the one you want.&#39;,
 </span><span class=""> 1136: 	},
 </span><span class=""> 1137: 	{
-</span><span class=""> 1138: 		question =&gt; &#39;The page is dark, but my saved chart is white.&#39;,
-</span><span class=""> 1139: 		answer   =&gt; &#39;This is on purpose. Saved charts and printed pages always use the light colours, so that they look the same to whoever receives them.&#39;,
+</span><span class=""> 1138: 		question =&gt; &#39;The program says my JSON file holds no table.&#39;,
+</span><span class=""> 1139: 		answer   =&gt; &#39;It needs a list of objects, or an object that holds one. A value inside a row that holds more data is shown as JSON text.&#39;,
 </span><span class=""> 1140: 	},
 </span><span class=""> 1141: 	{
-</span><span class=""> 1142: 		question =&gt; &#39;My text on a canvas is hard to read in the dark theme.&#39;,
-</span><span class=""> 1143: 		answer   =&gt; &#39;A colour that you pick stays the same in both themes. Tick Follow the theme, or give the card a background colour too.&#39;,
+</span><span class=""> 1142: 		question =&gt; &#39;The page is dark, but my saved chart is white.&#39;,
+</span><span class=""> 1143: 		answer   =&gt; &#39;This is on purpose. Saved charts and printed pages always use the light colours, so that they look the same to whoever receives them.&#39;,
 </span><span class=""> 1144: 	},
 </span><span class=""> 1145: 	{
-</span><span class=""> 1146: 		question =&gt; &#39;I cannot find the controls on my text card.&#39;,
-</span><span class=""> 1147: 		answer   =&gt; &#39;The card hides its frame and header until you point at it. Point at the text, or double-click it to open its settings.&#39;,
+</span><span class=""> 1146: 		question =&gt; &#39;My text on a canvas is hard to read in the dark theme.&#39;,
+</span><span class=""> 1147: 		answer   =&gt; &#39;A colour that you pick stays the same in both themes. Tick Follow the theme, or give the card a background colour too.&#39;,
 </span><span class=""> 1148: 	},
 </span><span class=""> 1149: 	{
-</span><span class=""> 1150: 		question =&gt; &#39;My text card is too tall or too short.&#39;,
-</span><span class=""> 1151: 		answer   =&gt; &#39;A card one row high is as tall as its text when its row holds only text. Next to a chart, it is as tall as the chart. Choose 2 rows high in the Size menu for a taller card.&#39;,
+</span><span class=""> 1150: 		question =&gt; &#39;I cannot find the controls on my text card.&#39;,
+</span><span class=""> 1151: 		answer   =&gt; &#39;The card hides its frame and header until you point at it. Point at the text, or double-click it to open its settings.&#39;,
 </span><span class=""> 1152: 	},
 </span><span class=""> 1153: 	{
-</span><span class=""> 1154: 		question =&gt; &#39;Undo did not bring back my text card.&#39;,
-</span><span class=""> 1155: 		answer   =&gt; &#39;Undo and Redo step through filters and other page state. They do not undo a change to a card, so a removed text card has to be added again.&#39;,
+</span><span class=""> 1154: 		question =&gt; &#39;My text card is too tall or too short.&#39;,
+</span><span class=""> 1155: 		answer   =&gt; &#39;A card one row high is as tall as its text when its row holds only text. Next to a chart, it is as tall as the chart. Choose 2 rows high in the Size menu for a taller card.&#39;,
 </span><span class=""> 1156: 	},
 </span><span class=""> 1157: 	{
-</span><span class=""> 1158: 		question =&gt; &#39;Can I open a MariaDB or MySQL database?&#39;,
-</span><span class=""> 1159: 		answer   =&gt; &#39;Yes, once the server has been added to mariadb_servers in the configuration file. The home page then has a card for it, which lists its tables. Choose a table to open it. You can also type mariadb:shop/orders in the path box, or in Merge and Combine. Only a page of the table is read at a time, until you filter it.&#39;,
-</span><span class=""> 1160: 		link     =&gt; { text =&gt; &#39;the configuration file&#39;, href =&gt; &#39;https://github.com/nigelhorne/Database-BI#configuration&#39; },
-</span><span class=""> 1161: 	},
-</span><span class=""> 1162: 	{
-</span><span class=""> 1163: 		question =&gt; &#39;A number filter leaves out my blank cells.&#39;,
-</span><span class=""> 1164: 		answer   =&gt; &#39;This is on purpose. Less than and greater than compare numbers, so a blank or a word in the cell does not match. Use the empty filter to find blank cells.&#39;,
+</span><span class=""> 1158: 		question =&gt; &#39;Undo did not bring back my text card.&#39;,
+</span><span class=""> 1159: 		answer   =&gt; &#39;Undo and Redo step through filters and other page state. They do not undo a change to a card, so a removed text card has to be added again.&#39;,
+</span><span class=""> 1160: 	},
+</span><span class=""> 1161: 	{
+</span><span class=""> 1162: 		question =&gt; &#39;Can I open a MariaDB or MySQL database?&#39;,
+</span><span class=""> 1163: 		answer   =&gt; &#39;Yes, once the server has been added to mariadb_servers in the configuration file. The home page then has a card for it, which lists its tables. Choose a table to open it. You can also type mariadb:shop/orders in the path box, or in Merge and Combine. Only a page of the table is read at a time, until you filter it.&#39;,
+</span><span class=""> 1164: 		link     =&gt; { text =&gt; &#39;the configuration file&#39;, href =&gt; &#39;https://github.com/nigelhorne/Database-BI#configuration&#39; },
 </span><span class=""> 1165: 	},
 </span><span class=""> 1166: 	{
-</span><span class=""> 1167: 		question =&gt; &#39;The program does not remember my theme.&#39;,
-</span><span class=""> 1168: 		answer   =&gt; &#39;The choice is saved in this browser. A private window forgets it when you close the window. If the browser will not save it, the Preferences page says so.&#39;,
+</span><span class=""> 1167: 		question =&gt; &#39;A number filter leaves out my blank cells.&#39;,
+</span><span class=""> 1168: 		answer   =&gt; &#39;This is on purpose. Less than and greater than compare numbers, so a blank or a word in the cell does not match. Use the empty filter to find blank cells.&#39;,
 </span><span class=""> 1169: 	},
 </span><span class=""> 1170: 	{
-</span><span class=""> 1171: 		question =&gt; &#39;My chart is empty.&#39;,
-</span><span class=""> 1172: 		answer   =&gt; &#39;Check that you chose a number column for the value. Check also that your filters still show some rows.&#39;,
+</span><span class=""> 1171: 		question =&gt; &#39;The program does not remember my theme.&#39;,
+</span><span class=""> 1172: 		answer   =&gt; &#39;The choice is saved in this browser. A private window forgets it when you close the window. If the browser will not save it, the Preferences page says so.&#39;,
 </span><span class=""> 1173: 	},
 </span><span class=""> 1174: 	{
-</span><span class=""> 1175: 		question =&gt; &#39;A merge added blank cells.&#39;,
-</span><span class=""> 1176: 		answer   =&gt; &#39;The two tables had no matching value in the key columns. Check the spelling and the type of the values.&#39;,
+</span><span class=""> 1175: 		question =&gt; &#39;My chart is empty.&#39;,
+</span><span class=""> 1176: 		answer   =&gt; &#39;Check that you chose a number column for the value. Check also that your filters still show some rows.&#39;,
 </span><span class=""> 1177: 	},
 </span><span class=""> 1178: 	{
-</span><span class=""> 1179: 		question =&gt; &#39;My changes disappeared.&#39;,
-</span><span class=""> 1180: 		answer   =&gt; &#39;A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.&#39;,
+</span><span class=""> 1179: 		question =&gt; &#39;A merge added blank cells.&#39;,
+</span><span class=""> 1180: 		answer   =&gt; &#39;The two tables had no matching value in the key columns. Check the spelling and the type of the values.&#39;,
 </span><span class=""> 1181: 	},
 </span><span class=""> 1182: 	{
-</span><span class=""> 1183: 		question =&gt; &#39;A table in my SQLite file says Cannot be opened.&#39;,
-</span><span class=""> 1184: 		answer   =&gt; &#39;The name of that table has characters other than letters, digits and underscores, such as a colon or a space. The other tables in the file still open. To open this one, rename it in a copy of the file. The message shows the command to use.&#39;,
+</span><span class=""> 1183: 		question =&gt; &#39;My changes disappeared.&#39;,
+</span><span class=""> 1184: 		answer   =&gt; &#39;A filter or a join lives in the page address. Save the view as a canvas, or copy the link before you close the page.&#39;,
 </span><span class=""> 1185: 	},
 </span><span class=""> 1186: 	{
-</span><span class=""> 1187: 		question =&gt; &#39;The page says Page not found.&#39;,
-</span><span class=""> 1188: 		answer   =&gt; &#39;The address names a table, a canvas or a page that is not there. Use the breadcrumb or Go to Home to find it again.&#39;,
+</span><span class=""> 1187: 		question =&gt; &#39;A table in my SQLite file says Cannot be opened.&#39;,
+</span><span class=""> 1188: 		answer   =&gt; &#39;The name of that table has characters other than letters, digits and underscores, such as a colon or a space. The other tables in the file still open. To open this one, rename it in a copy of the file. The message shows the command to use.&#39;,
 </span><span class=""> 1189: 	},
 </span><span class=""> 1190: 	{
-</span><span class=""> 1191: 		question =&gt; &#39;Some words are not spelled the way I expected.&#39;,
-</span><span class=""> 1192: 		answer   =&gt; &#39;The pages follow the language your browser asks for. English (United States) gets American spelling, such as color. Any other English gets British spelling, such as colour.&#39;,
+</span><span class=""> 1191: 		question =&gt; &#39;The page says Page not found.&#39;,
+</span><span class=""> 1192: 		answer   =&gt; &#39;The address names a table, a canvas or a page that is not there. Use the breadcrumb or Go to Home to find it again.&#39;,
 </span><span class=""> 1193: 	},
-</span><span class=""> 1194: );
-</span><span class=""> 1195: 
-</span><span class=""> 1196: my @GLOSSARY = (
-</span><span class=""> 1197: 	{ term =&gt; &#39;Berkeley DB&#39;, meaning =&gt; &#39;A database file that ends in .db.&#39; },
-</span><span class=""> 1198: 	{ term =&gt; &#39;Breadcrumb&#39;,  meaning =&gt; &#39;The row of links that shows each page between Home and this one.&#39; },
-</span><span class=""> 1199: 	{ term =&gt; &#39;Browser&#39;,     meaning =&gt; &#39;The program that shows web pages, for example Firefox or Chrome.&#39; },
-</span><span class=""> 1200: 	{ term =&gt; &#39;Canvas&#39;,      meaning =&gt; &#39;A saved page with several tables and charts.&#39; },
-</span><span class=""> 1201: 	{ term =&gt; &#39;Cell&#39;,        meaning =&gt; &#39;One value in a table, at one row and one column.&#39; },
-</span><span class=""> 1202: 	{ term =&gt; &#39;Chart&#39;,       meaning =&gt; &#39;A picture of numbers, for example a bar chart.&#39; },
-</span><span class=""> 1203: 	{ term =&gt; &#39;Column&#39;,      meaning =&gt; &#39;One kind of value in a table, for example the price column.&#39; },
-</span><span class=""> 1204: 	{ term =&gt; &#39;Combine&#39;,     meaning =&gt; &#39;Put the rows of one file under the rows of another file.&#39; },
-</span><span class=""> 1205: 	{ term =&gt; &#39;Cross-row column&#39;, meaning =&gt; &#39;A column worked out from several rows, for example a running total.&#39; },
-</span><span class=""> 1206: 	{ term =&gt; &#39;CSV&#39;,         meaning =&gt; &#39;A text file with values separated by commas.&#39; },
-</span><span class=""> 1207: 	{ term =&gt; &#39;Data file&#39;,   meaning =&gt; &#39;A file with rows and columns that the program can read.&#39; },
-</span><span class=""> 1208: 	{ term =&gt; &#39;Duplicate&#39;,   meaning =&gt; &#39;A row that is exactly the same as another row.&#39; },
-</span><span class=""> 1209: 	{ term =&gt; &#39;Export&#39;,      meaning =&gt; &#39;Write the rows that you see to a new file.&#39; },
-</span><span class=""> 1210: 	{ term =&gt; &#39;Expression&#39;,  meaning =&gt; &#39;A small formula, for example revenue - cost.&#39; },
-</span><span class=""> 1211: 	{ term =&gt; &#39;Filter&#39;,      meaning =&gt; &#39;A rule that hides rows which do not match.&#39; },
-</span><span class=""> 1212: 	{ term =&gt; &#39;Geocode&#39;,     meaning =&gt; &#39;Change a place name into a latitude and a longitude.&#39; },
-</span><span class=""> 1213: 	{ term =&gt; &#39;Join&#39;,        meaning =&gt; &#39;Add columns from a second table by matching a shared value.&#39; },
-</span><span class=""> 1214: 	{ term =&gt; &#39;Pivot table&#39;, meaning =&gt; &#39;A grid that summarises rows and columns.&#39; },
-</span><span class=""> 1215: 	{ term =&gt; &#39;PSV&#39;,         meaning =&gt; &#39;A text file with values separated by pipe characters.&#39; },
-</span><span class=""> 1216: 	{ term =&gt; &#39;Row&#39;,         meaning =&gt; &#39;One record in a table.&#39; },
-</span><span class=""> 1217: 	{ term =&gt; &#39;Server&#39;,      meaning =&gt; &#39;The program on a computer that sends pages to your browser.&#39; },
-</span><span class=""> 1218: 	{ term =&gt; &#39;SQLite&#39;,      meaning =&gt; &#39;A database file that can hold more than one table.&#39; },
-</span><span class=""> 1219: 	{ term =&gt; &#39;Time bucket&#39;, meaning =&gt; &#39;One group for each hour, day, month or other period.&#39; },
-</span><span class=""> 1220: 	{ term =&gt; &#39;Time range&#39;,  meaning =&gt; &#39;A recent window, such as the last 30 days, worked out from today.&#39; },
-</span><span class=""> 1221: 	{ term =&gt; &#39;TSV&#39;,         meaning =&gt; &#39;A text file with values separated by tab characters.&#39; },
-</span><span class=""> 1222: 	{ term =&gt; &#39;URL&#39;,         meaning =&gt; &#39;The address of a web page, shown in the address bar.&#39; },
-</span><span class=""> 1223: 	{ term =&gt; &#39;XLSX&#39;,        meaning =&gt; &#39;An Excel spreadsheet file.&#39; },
-</span><span class=""> 1224: 	{ term =&gt; &#39;XML&#39;,         meaning =&gt; &#39;A text file with data inside tags.&#39; },
-</span><span class=""> 1225: );
-</span><span class=""> 1226: 
-</span><span class=""> 1227: # Routes that are GET pages but are not chapters.  Every entry needs a reason:
-</span><span class=""> 1228: # it is a decision to leave a page out of the tutorial, not an accident.
-</span><span class=""> 1229: # Actions that render a page, mapped to the chapter that helps with that page.
-</span><span class=""> 1230: # The layout turns this into a &quot;Help: ...&quot; link beside the main Tutorial link,
-</span><span class=""> 1231: # so a reader on the pie chart screen lands on the pie chart chapter.  A new
-</span><span class=""> 1232: # page action belongs here; t/tutorial.t checks that every covered GET route
-</span><span class=""> 1233: # has an entry.
-</span><span class=""> 1234: my %ACTION_CHAPTERS = (
-</span><span class=""> 1235: 	index          =&gt; &#39;open-file&#39;,
-</span><span class=""> 1236: 	browse         =&gt; &#39;other-files&#39;,
-</span><span class=""> 1237: 	open_file      =&gt; &#39;read-table&#39;,
-</span><span class=""> 1238: 	import_url     =&gt; &#39;web-table&#39;,
-</span><span class=""> 1239: 	view           =&gt; &#39;read-table&#39;,
-</span><span class=""> 1240: 	join_tables    =&gt; &#39;join&#39;,
-</span><span class=""> 1241: 	combine_tables =&gt; &#39;combine&#39;,
-</span><span class=""> 1242: 	export_data    =&gt; &#39;export&#39;,
-</span><span class=""> 1243: 	tables_view    =&gt; &#39;other-files&#39;,
-</span><span class=""> 1244: 	graph_view     =&gt; &#39;line-chart&#39;,
-</span><span class=""> 1245: 	pie_view       =&gt; &#39;pie-chart&#39;,
-</span><span class=""> 1246: 	heatmap_view   =&gt; &#39;heatmap-chart&#39;,
-</span><span class=""> 1247: 	bar_view       =&gt; &#39;bar-chart&#39;,
-</span><span class=""> 1248: 	folder_view    =&gt; &#39;folder&#39;,
-</span><span class=""> 1249: 	pivot_view     =&gt; &#39;pivot&#39;,
-</span><span class=""> 1250: 	stats_view     =&gt; &#39;stats&#39;,
-</span><span class=""> 1251: 	insights_view  =&gt; &#39;insights&#39;,
-</span><span class=""> 1252: 	scatter_view   =&gt; &#39;scatter-chart&#39;,
-</span><span class=""> 1253: 	stacked_view   =&gt; &#39;stacked-chart&#39;,
-</span><span class=""> 1254: 	combo_view     =&gt; &#39;combo-chart&#39;,
-</span><span class=""> 1255: 	treemap_view   =&gt; &#39;treemap-chart&#39;,
-</span><span class=""> 1256: 	histogram_view =&gt; &#39;histogram-chart&#39;,
-</span><span class=""> 1257: 	wordcloud_view =&gt; &#39;wordcloud-chart&#39;,
-</span><span class=""> 1258: 	map_view       =&gt; &#39;map-chart&#39;,
-</span><span class=""> 1259: 	canvas_render  =&gt; &#39;canvas&#39;,
-</span><span class=""> 1260: 	catalog_view   =&gt; &#39;catalog&#39;,
-</span><span class=""> 1261: 	canvases_view  =&gt; &#39;canvas&#39;,
-</span><span class=""> 1262: 	preferences    =&gt; &#39;preferences&#39;,
-</span><span class=""> 1263: 	login_form     =&gt; &#39;log-in&#39;,
-</span><span class=""> 1264: );
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1265: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1266: my %EXEMPT_ROUTES = (
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1267: 	&#39;/a/:id/visual/:n/:fmt&#39;    =&gt; &#39;per-visual CSV/PNG download; not a navigable page&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1268: 	&#39;/api/analyses&#39;            =&gt; &#39;JSON for the saved-canvas list&#39;,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1269: 	&#39;/api/analyses/:id&#39;        =&gt; &#39;JSON for one saved canvas&#39;,
-</span><span class=""> 1270: 	&#39;/api/analyses/:id/export&#39; =&gt; &#39;JSON export of one saved canvas&#39;,
-</span><span class=""> 1271: 	&#39;/api/columns&#39;             =&gt; &#39;JSON list of columns for the join and filter panels&#39;,
-</span><span class=""> 1272: 	&#39;/api/dirs&#39;                =&gt; &#39;JSON folder list for the browse and export panels&#39;,
-</span><span class=""> 1273: 	&#39;/api/range&#39;               =&gt; &#39;JSON min/max ISO dates for the filter date-picker constraints&#39;,
-</span><span class=""> 1274: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
-</span><span class=""> 1275: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1276: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
-</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1277: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
-</span><span class=""> 1278: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
-</span><span class=""> 1279: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
-</span><span class=""> 1280: 	&#39;/extract/list&#39;            =&gt; &#39;JSON list of the stored field extractions of a dataset&#39;,
-</span><span class=""> 1281: 	&#39;/lookups/list&#39;            =&gt; &#39;JSON list of the stored lookups of a dataset&#39;,
-</span><span class=""> 1282: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
-</span><span class=""> 1283: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
-</span><span class=""> 1284: );
-</span><span class=""> 1285: 
-</span><span class=""> 1286: sub intro     { return \@INTRO }
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1287: sub chapters  { return \@CHAPTERS }
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1288: sub faq       { return \@FAQ }
-</span><span class=""> 1289: sub glossary  { return \@GLOSSARY }
-</span><span class=""> 1290: 
-</span><span class=""> 1291: sub parts {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1292 → 1294 → 1308</span></span> 1292: 	my @parts;
-</span><span class=""> 1293: 
-</span><span class=""> 1294: 	for my $chapter (@CHAPTERS) {
-</span><span class=""> 1295: 		my $name = $chapter-&gt;{part};
-</span><span class=""> 1296: 
-</span><span class=""> 1297: 		if (!@parts || $parts[-1]{name} ne $name) {
-</span><span class=""> 1298: 			push @parts, {
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1299: 				name     =&gt; $name,
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1300: 				id       =&gt; _slug($name),
-</span><span class=""> 1301: 				chapters =&gt; [],
-</span><span class=""> 1302: 			};
-</span><span class=""> 1303: 		}
-</span><span class=""> 1304: 
-</span><span class=""> 1305: 		push @{ $parts[-1]{chapters} }, $chapter;
-</span><span class=""> 1306: 	}
-</span><span class=""> 1307: 
-</span><span class=""> 1308: 	return \@parts;
-</span><span class=""> 1309: }
-</span><span class=""> 1310: 
-</span><span class=""> 1311: sub covered_routes {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1312 → 1314 → 1320</span></span> 1312: 	my %routes;
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1313: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1314: 	for my $chapter (@CHAPTERS) {
-</span><span class=""> 1315: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
-</span><span class=""> 1316: 			$routes{$route} = $chapter-&gt;{id};
-</span><span class=""> 1317: 		}
-</span><span class=""> 1318: 	}
-</span><span class=""> 1319: 
-</span><span class=""> 1320: 	return \%routes;
-</span><span class=""> 1321: }
-</span><span class=""> 1322: 
-</span><span class=""> 1323: sub exempt_routes {
-</span><span class=""> 1324: 	return { %EXEMPT_ROUTES };
-</span><span class=""> 1325: }
-</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1326: 
-</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1327: sub chapter_for_action {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1328 → 1333 → 1337</span></span> 1328: 	my $action = $_[1];
-</span><span class=""> 1329: 	return unless defined $action;
+</span><span class=""> 1194: 	{
+</span><span class=""> 1195: 		question =&gt; &#39;Some words are not spelled the way I expected.&#39;,
+</span><span class=""> 1196: 		answer   =&gt; &#39;The pages follow the language your browser asks for. English (United States) gets American spelling, such as color. Any other English gets British spelling, such as colour.&#39;,
+</span><span class=""> 1197: 	},
+</span><span class=""> 1198: );
+</span><span class=""> 1199: 
+</span><span class=""> 1200: my @GLOSSARY = (
+</span><span class=""> 1201: 	{ term =&gt; &#39;Berkeley DB&#39;, meaning =&gt; &#39;A database file that ends in .db.&#39; },
+</span><span class=""> 1202: 	{ term =&gt; &#39;Breadcrumb&#39;,  meaning =&gt; &#39;The row of links that shows each page between Home and this one.&#39; },
+</span><span class=""> 1203: 	{ term =&gt; &#39;Browser&#39;,     meaning =&gt; &#39;The program that shows web pages, for example Firefox or Chrome.&#39; },
+</span><span class=""> 1204: 	{ term =&gt; &#39;Canvas&#39;,      meaning =&gt; &#39;A saved page with several tables and charts.&#39; },
+</span><span class=""> 1205: 	{ term =&gt; &#39;Cell&#39;,        meaning =&gt; &#39;One value in a table, at one row and one column.&#39; },
+</span><span class=""> 1206: 	{ term =&gt; &#39;Chart&#39;,       meaning =&gt; &#39;A picture of numbers, for example a bar chart.&#39; },
+</span><span class=""> 1207: 	{ term =&gt; &#39;Column&#39;,      meaning =&gt; &#39;One kind of value in a table, for example the price column.&#39; },
+</span><span class=""> 1208: 	{ term =&gt; &#39;Combine&#39;,     meaning =&gt; &#39;Put the rows of one file under the rows of another file.&#39; },
+</span><span class=""> 1209: 	{ term =&gt; &#39;Cross-row column&#39;, meaning =&gt; &#39;A column worked out from several rows, for example a running total.&#39; },
+</span><span class=""> 1210: 	{ term =&gt; &#39;CSV&#39;,         meaning =&gt; &#39;A text file with values separated by commas.&#39; },
+</span><span class=""> 1211: 	{ term =&gt; &#39;Data file&#39;,   meaning =&gt; &#39;A file with rows and columns that the program can read.&#39; },
+</span><span class=""> 1212: 	{ term =&gt; &#39;Duplicate&#39;,   meaning =&gt; &#39;A row that is exactly the same as another row.&#39; },
+</span><span class=""> 1213: 	{ term =&gt; &#39;Export&#39;,      meaning =&gt; &#39;Write the rows that you see to a new file.&#39; },
+</span><span class=""> 1214: 	{ term =&gt; &#39;Expression&#39;,  meaning =&gt; &#39;A small formula, for example revenue - cost.&#39; },
+</span><span class=""> 1215: 	{ term =&gt; &#39;Filter&#39;,      meaning =&gt; &#39;A rule that hides rows which do not match.&#39; },
+</span><span class=""> 1216: 	{ term =&gt; &#39;Geocode&#39;,     meaning =&gt; &#39;Change a place name into a latitude and a longitude.&#39; },
+</span><span class=""> 1217: 	{ term =&gt; &#39;Join&#39;,        meaning =&gt; &#39;Add columns from a second table by matching a shared value.&#39; },
+</span><span class=""> 1218: 	{ term =&gt; &#39;Pivot table&#39;, meaning =&gt; &#39;A grid that summarises rows and columns.&#39; },
+</span><span class=""> 1219: 	{ term =&gt; &#39;PSV&#39;,         meaning =&gt; &#39;A text file with values separated by pipe characters.&#39; },
+</span><span class=""> 1220: 	{ term =&gt; &#39;Row&#39;,         meaning =&gt; &#39;One record in a table.&#39; },
+</span><span class=""> 1221: 	{ term =&gt; &#39;Server&#39;,      meaning =&gt; &#39;The program on a computer that sends pages to your browser.&#39; },
+</span><span class=""> 1222: 	{ term =&gt; &#39;SQLite&#39;,      meaning =&gt; &#39;A database file that can hold more than one table.&#39; },
+</span><span class=""> 1223: 	{ term =&gt; &#39;Time bucket&#39;, meaning =&gt; &#39;One group for each hour, day, month or other period.&#39; },
+</span><span class=""> 1224: 	{ term =&gt; &#39;Time range&#39;,  meaning =&gt; &#39;A recent window, such as the last 30 days, worked out from today.&#39; },
+</span><span class=""> 1225: 	{ term =&gt; &#39;TSV&#39;,         meaning =&gt; &#39;A text file with values separated by tab characters.&#39; },
+</span><span class=""> 1226: 	{ term =&gt; &#39;URL&#39;,         meaning =&gt; &#39;The address of a web page, shown in the address bar.&#39; },
+</span><span class=""> 1227: 	{ term =&gt; &#39;XLSX&#39;,        meaning =&gt; &#39;An Excel spreadsheet file.&#39; },
+</span><span class=""> 1228: 	{ term =&gt; &#39;XML&#39;,         meaning =&gt; &#39;A text file with data inside tags.&#39; },
+</span><span class=""> 1229: );
+</span><span class=""> 1230: 
+</span><span class=""> 1231: # Routes that are GET pages but are not chapters.  Every entry needs a reason:
+</span><span class=""> 1232: # it is a decision to leave a page out of the tutorial, not an accident.
+</span><span class=""> 1233: # Actions that render a page, mapped to the chapter that helps with that page.
+</span><span class=""> 1234: # The layout turns this into a &quot;Help: ...&quot; link beside the main Tutorial link,
+</span><span class=""> 1235: # so a reader on the pie chart screen lands on the pie chart chapter.  A new
+</span><span class=""> 1236: # page action belongs here; t/tutorial.t checks that every covered GET route
+</span><span class=""> 1237: # has an entry.
+</span><span class=""> 1238: my %ACTION_CHAPTERS = (
+</span><span class=""> 1239: 	index          =&gt; &#39;open-file&#39;,
+</span><span class=""> 1240: 	browse         =&gt; &#39;other-files&#39;,
+</span><span class=""> 1241: 	open_file      =&gt; &#39;read-table&#39;,
+</span><span class=""> 1242: 	import_url     =&gt; &#39;web-table&#39;,
+</span><span class=""> 1243: 	view           =&gt; &#39;read-table&#39;,
+</span><span class=""> 1244: 	join_tables    =&gt; &#39;join&#39;,
+</span><span class=""> 1245: 	combine_tables =&gt; &#39;combine&#39;,
+</span><span class=""> 1246: 	export_data    =&gt; &#39;export&#39;,
+</span><span class=""> 1247: 	tables_view    =&gt; &#39;other-files&#39;,
+</span><span class=""> 1248: 	graph_view     =&gt; &#39;line-chart&#39;,
+</span><span class=""> 1249: 	pie_view       =&gt; &#39;pie-chart&#39;,
+</span><span class=""> 1250: 	heatmap_view   =&gt; &#39;heatmap-chart&#39;,
+</span><span class=""> 1251: 	bar_view       =&gt; &#39;bar-chart&#39;,
+</span><span class=""> 1252: 	folder_view    =&gt; &#39;folder&#39;,
+</span><span class=""> 1253: 	pivot_view     =&gt; &#39;pivot&#39;,
+</span><span class=""> 1254: 	stats_view     =&gt; &#39;stats&#39;,
+</span><span class=""> 1255: 	insights_view  =&gt; &#39;insights&#39;,
+</span><span class=""> 1256: 	scatter_view   =&gt; &#39;scatter-chart&#39;,
+</span><span class=""> 1257: 	stacked_view   =&gt; &#39;stacked-chart&#39;,
+</span><span class=""> 1258: 	combo_view     =&gt; &#39;combo-chart&#39;,
+</span><span class=""> 1259: 	treemap_view   =&gt; &#39;treemap-chart&#39;,
+</span><span class=""> 1260: 	histogram_view =&gt; &#39;histogram-chart&#39;,
+</span><span class=""> 1261: 	wordcloud_view =&gt; &#39;wordcloud-chart&#39;,
+</span><span class=""> 1262: 	map_view       =&gt; &#39;map-chart&#39;,
+</span><span class=""> 1263: 	canvas_render  =&gt; &#39;canvas&#39;,
+</span><span class=""> 1264: 	catalog_view   =&gt; &#39;catalog&#39;,
+</span><span class=""> 1265: 	canvases_view  =&gt; &#39;canvas&#39;,
+</span><span class=""> 1266: 	preferences    =&gt; &#39;preferences&#39;,
+</span><span class=""> 1267: 	login_form     =&gt; &#39;log-in&#39;,
+</span><span class=""> 1268: );
+</span><span class=""> 1269: 
+</span><span class=""> 1270: my %EXEMPT_ROUTES = (
+</span><span class=""> 1271: 	&#39;/a/:id/visual/:n/:fmt&#39;    =&gt; &#39;per-visual CSV/PNG download; not a navigable page&#39;,
+</span><span class=""> 1272: 	&#39;/api/analyses&#39;            =&gt; &#39;JSON for the saved-canvas list&#39;,
+</span><span class=""> 1273: 	&#39;/api/analyses/:id&#39;        =&gt; &#39;JSON for one saved canvas&#39;,
+</span><span class=""> 1274: 	&#39;/api/analyses/:id/export&#39; =&gt; &#39;JSON export of one saved canvas&#39;,
+</span><span class=""> 1275: 	&#39;/api/columns&#39;             =&gt; &#39;JSON list of columns for the join and filter panels&#39;,
+</span><span class=""> 1276: 	&#39;/api/dirs&#39;                =&gt; &#39;JSON folder list for the browse and export panels&#39;,
+</span><span class=""> 1277: 	&#39;/api/range&#39;               =&gt; &#39;JSON min/max ISO dates for the filter date-picker constraints&#39;,
+</span><span class=""> 1278: 	&#39;/api/stat&#39;                =&gt; &#39;JSON file details for the home-page tooltips&#39;,
+</span><span class=""> 1279: 	&#39;/calc/list&#39;               =&gt; &#39;JSON list of calculated fields for the Calc panel&#39;,
+</span><span class=""> 1280: 	&#39;/dates/list&#39;              =&gt; &#39;JSON list of date formats for the Date panel&#39;,
+</span><span class=""> 1281: 	&#39;/geo/list&#39;                =&gt; &#39;JSON list of saved coordinate column preferences for the Map panel&#39;,
+</span><span class=""> 1282: 	&#39;/embed/:id&#39;               =&gt; &#39;chrome-less embed view; requires a share token and is not a standalone page&#39;,
+</span><span class=""> 1283: 	&#39;/groups/list&#39;             =&gt; &#39;JSON list of value groups for the Group panel&#39;,
+</span><span class=""> 1284: 	&#39;/extract/list&#39;            =&gt; &#39;JSON list of the stored field extractions of a dataset&#39;,
+</span><span class=""> 1285: 	&#39;/lookups/list&#39;            =&gt; &#39;JSON list of the stored lookups of a dataset&#39;,
+</span><span class=""> 1286: 	&#39;/share/:id&#39;               =&gt; &#39;shared read-only canvas view; requires a signed token and cannot be navigated to directly&#39;,
+</span><span class=""> 1287: 	&#39;/tutorial&#39;                =&gt; &#39;this page&#39;,
+</span><span class=""> 1288: );
+</span><span class=""> 1289: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1290: sub intro     { return \@INTRO }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1291: sub chapters  { return \@CHAPTERS }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1292: sub faq       { return \@FAQ }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1293: sub glossary  { return \@GLOSSARY }
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1294: 
+</span><span class=""> 1295: sub parts {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1296 → 1298 → 1312</span></span> 1296: 	my @parts;
+</span><span class=""> 1297: 
+</span><span class=""> 1298: 	for my $chapter (@CHAPTERS) {
+</span><span class=""> 1299: 		my $name = $chapter-&gt;{part};
+</span><span class=""> 1300: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1301: 		if (!@parts || $parts[-1]{name} ne $name) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class=""> 1302: 			push @parts, {
+</span><span class=""> 1303: 				name     =&gt; $name,
+</span><span class=""> 1304: 				id       =&gt; _slug($name),
+</span><span class=""> 1305: 				chapters =&gt; [],
+</span><span class=""> 1306: 			};
+</span><span class=""> 1307: 		}
+</span><span class=""> 1308: 
+</span><span class=""> 1309: 		push @{ $parts[-1]{chapters} }, $chapter;
+</span><span class=""> 1310: 	}
+</span><span class=""> 1311: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1312: 	return \@parts;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1313: }
+</span><span class=""> 1314: 
+</span><span class=""> 1315: sub covered_routes {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1316 → 1318 → 1324</span></span> 1316: 	my %routes;
+</span><span class=""> 1317: 
+</span><span class=""> 1318: 	for my $chapter (@CHAPTERS) {
+</span><span class=""> 1319: 		for my $route (@{ $chapter-&gt;{routes} // [] }) {
+</span><span class=""> 1320: 			$routes{$route} = $chapter-&gt;{id};
+</span><span class=""> 1321: 		}
+</span><span class=""> 1322: 	}
+</span><span class=""> 1323: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1324: 	return \%routes;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1325: }
+</span><span class=""> 1326: 
+</span><span class=""> 1327: sub exempt_routes {
+</span><span class=""> 1328: 	return { %EXEMPT_ROUTES };
+</span><span class=""> 1329: }
 </span><span class=""> 1330: 
-</span><span class=""> 1331: 	my $id = $ACTION_CHAPTERS{$action} or return;
-</span><span class=""> 1332: 
-</span><span class=""> 1333: 	for my $chapter (@CHAPTERS) {
-</span><span class=""> 1334: 		return $chapter if $chapter-&gt;{id} eq $id;
-</span><span class=""> 1335: 	}
+</span><span class=""> 1331: sub chapter_for_action {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1332 → 1337 → 1341</span></span> 1332: 	my $action = $_[1];
+</span><span class=""> 1333: 	return unless defined $action;
+</span><span class=""> 1334: 
+</span><span class=""> 1335: 	my $id = $ACTION_CHAPTERS{$action} or return;
 </span><span class=""> 1336: 
-</span><span class=""> 1337: 	return;
-</span><span class=""> 1338: }
-</span><span class=""> 1339: 
-</span><span class=""> 1340: sub _slug {
-</span><span class=""> 1341: 	my ($text) = @_;
-</span><span class=""> 1342: 
-</span><span class=""> 1343: 	my $slug = lc $text;
-</span><span class=""> 1344: 	$slug =~ s/[^a-z0-9]+/-/g;
-</span><span class=""> 1345: 	$slug =~ s/\A-+|-+\z//g;
+</span><span class=""> 1337: 	for my $chapter (@CHAPTERS) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1338: 		return $chapter if $chapter-&gt;{id} eq $id;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1339: 	}
+</span><span class=""> 1340: 
+</span><span class=""> 1341: 	return;
+</span><span class=""> 1342: }
+</span><span class=""> 1343: 
+</span><span class=""> 1344: sub _slug {
+</span><span class=""> 1345: 	my ($text) = @_;
 </span><span class=""> 1346: 
-</span><span class=""> 1347: 	return $slug;
-</span><span class=""> 1348: }
-</span><span class=""> 1349: 
-</span><span class=""> 1350: 1;
-</span><span class=""> 1351: 
-</span><span class=""> 1352: =head1 NAME
+</span><span class=""> 1347: 	my $slug = lc $text;
+</span><span class=""> 1348: 	$slug =~ s/[^a-z0-9]+/-/g;
+</span><span class=""> 1349: 	$slug =~ s/\A-+|-+\z//g;
+</span><span class=""> 1350: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."> 1351: 	return $slug;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1352: }
 </span><span class=""> 1353: 
-</span><span class=""> 1354: Database::BI::Tutorial - the chapters of the in-application tutorial
+</span><span class=""> 1354: 1;
 </span><span class=""> 1355: 
-</span><span class=""> 1356: =head1 SYNOPSIS
+</span><span class=""> 1356: =head1 NAME
 </span><span class=""> 1357: 
-</span><span class=""> 1358:   use Database::BI::Tutorial;
+</span><span class=""> 1358: Database::BI::Tutorial - the chapters of the in-application tutorial
 </span><span class=""> 1359: 
-</span><span class=""> 1360:   for my $part (@{ Database::BI::Tutorial-&gt;parts }) {
-</span><span class=""> 1361:       print $part-&gt;{name}, &quot;: &quot;, scalar @{ $part-&gt;{chapters} }, &quot; chapters\n&quot;;
-</span><span class=""> 1362:   }
+</span><span class=""> 1360: =head1 SYNOPSIS
+</span><span class=""> 1361: 
+</span><span class=""> 1362:   use Database::BI::Tutorial;
 </span><span class=""> 1363: 
-</span><span class=""> 1364:   my $chapter = Database::BI::Tutorial-&gt;chapter_for_action(&#39;bar_view&#39;);
-</span><span class=""> 1365:   print $chapter-&gt;{title}, &quot;\n&quot; if $chapter;
-</span><span class=""> 1366: 
-</span><span class=""> 1367: =head1 DESCRIPTION
-</span><span class=""> 1368: 
-</span><span class=""> 1369: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
-</span><span class=""> 1370: data in this module.  A chapter is one feature: a title, a short lead, numbered
-</span><span class=""> 1371: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
-</span><span class=""> 1372: order, so adding a feature means adding a hash here, not editing HTML.
-</span><span class=""> 1373: 
-</span><span class=""> 1374: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
-</span><span class=""> 1375: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
-</span><span class=""> 1376: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
-</span><span class=""> 1377: chapter so a reader can find it.
-</span><span class=""> 1378: 
-</span><span class=""> 1379: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
-</span><span class=""> 1380: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
-</span><span class=""> 1381: short: the same test fails a lead, step, tip or walk-through sentence longer
-</span><span class=""> 1382: than 25 words.
-</span><span class=""> 1383: 
-</span><span class=""> 1384: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
-</span><span class=""> 1385: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
-</span><span class=""> 1386: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
-</span><span class=""> 1387: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
-</span><span class=""> 1388: there.
-</span><span class=""> 1389: 
-</span><span class=""> 1390: =head1 FUNCTIONS
-</span><span class=""> 1391: 
-</span><span class=""> 1392: Each is called as a class method or a plain function; none takes arguments
-</span><span class=""> 1393: except C&lt;chapter_for_action&gt;.  The returned structures are the module&#39;s own
-</span><span class=""> 1394: data: read them, do not change them.
+</span><span class=""> 1364:   for my $part (@{ Database::BI::Tutorial-&gt;parts }) {
+</span><span class=""> 1365:       print $part-&gt;{name}, &quot;: &quot;, scalar @{ $part-&gt;{chapters} }, &quot; chapters\n&quot;;
+</span><span class=""> 1366:   }
+</span><span class=""> 1367: 
+</span><span class=""> 1368:   my $chapter = Database::BI::Tutorial-&gt;chapter_for_action(&#39;bar_view&#39;);
+</span><span class=""> 1369:   print $chapter-&gt;{title}, &quot;\n&quot; if $chapter;
+</span><span class=""> 1370: 
+</span><span class=""> 1371: =head1 DESCRIPTION
+</span><span class=""> 1372: 
+</span><span class=""> 1373: The tutorial that the application shows at C&lt;GET /tutorial&gt; is built from the
+</span><span class=""> 1374: data in this module.  A chapter is one feature: a title, a short lead, numbered
+</span><span class=""> 1375: steps, and the C&lt;routes&gt; that it covers.  The template renders the chapters in
+</span><span class=""> 1376: order, so adding a feature means adding a hash here, not editing HTML.
+</span><span class=""> 1377: 
+</span><span class=""> 1378: A chapter may also have a C&lt;walkthrough&gt;: a worked example with a C&lt;title&gt;, an
+</span><span class=""> 1379: C&lt;intro&gt;, a list of C&lt;steps&gt; that each say what to C&lt;do&gt; and what to C&lt;see&gt;,
+</span><span class=""> 1380: and a C&lt;result&gt;.  The template shows it as one box, and the contents marks the
+</span><span class=""> 1381: chapter so a reader can find it.
+</span><span class=""> 1382: 
+</span><span class=""> 1383: C&lt;t/tutorial.t&gt; checks that every GET page in L&lt;Database::BI&gt; is either covered
+</span><span class=""> 1384: by a chapter or listed in C&lt;exempt_routes()&gt; with a reason.  Keep the sentences
+</span><span class=""> 1385: short: the same test fails a lead, step, tip or walk-through sentence longer
+</span><span class=""> 1386: than 25 words.
+</span><span class=""> 1387: 
+</span><span class=""> 1388: C&lt;chapter_for_action()&gt; maps a controller action to the chapter that helps with
+</span><span class=""> 1389: that page.  The application calls it from a C&lt;before_render&gt; hook and the shared
+</span><span class=""> 1390: layout shows the result as a C&lt;Help: ...&gt; link beside the main Tutorial link.
+</span><span class=""> 1391: A new page action belongs in C&lt;%ACTION_CHAPTERS&gt;; the test fails until it is
+</span><span class=""> 1392: there.
+</span><span class=""> 1393: 
+</span><span class=""> 1394: =head1 FUNCTIONS
 </span><span class=""> 1395: 
-</span><span class=""> 1396: =head2 intro
-</span><span class=""> 1397: 
-</span><span class=""> 1398: =head3 API SPECIFICATION
+</span><span class=""> 1396: Each is called as a class method or a plain function; none takes arguments
+</span><span class=""> 1397: except C&lt;chapter_for_action&gt;.  The returned structures are the module&#39;s own
+</span><span class=""> 1398: data: read them, do not change them.
 </span><span class=""> 1399: 
-</span><span class=""> 1400: =head4 OUTPUT
+</span><span class=""> 1400: =head2 intro
 </span><span class=""> 1401: 
-</span><span class=""> 1402: 	[ &#39;string&#39;, ... ]   # the introduction&#39;s sentences
+</span><span class=""> 1402: =head3 API SPECIFICATION
 </span><span class=""> 1403: 
-</span><span class=""> 1404: =head2 chapters
+</span><span class=""> 1404: =head4 OUTPUT
 </span><span class=""> 1405: 
-</span><span class=""> 1406: =head3 API SPECIFICATION
+</span><span class=""> 1406: 	[ &#39;string&#39;, ... ]   # the introduction&#39;s sentences
 </span><span class=""> 1407: 
-</span><span class=""> 1408: =head4 OUTPUT
+</span><span class=""> 1408: =head2 chapters
 </span><span class=""> 1409: 
-</span><span class=""> 1410: 	[ {
-</span><span class=""> 1411: 	    id     =&gt; &#39;string&#39;,     # anchor, unique
-</span><span class=""> 1412: 	    part   =&gt; &#39;string&#39;,     # the part the chapter belongs to
-</span><span class=""> 1413: 	    title  =&gt; &#39;string&#39;,
-</span><span class=""> 1414: 	    lead   =&gt; &#39;string&#39;,
-</span><span class=""> 1415: 	    steps  =&gt; &#39;arrayref&#39;,   # sentences
-</span><span class=""> 1416: 	    tip    =&gt; &#39;string&#39;,     # optional
-</span><span class=""> 1417: 	    try    =&gt; &#39;hashref&#39;,    # optional; { href, label }
-</span><span class=""> 1418: 	    routes =&gt; &#39;arrayref&#39;,   # the GET routes the chapter covers
-</span><span class=""> 1419: 	    walkthrough =&gt; &#39;hashref&#39;, # optional; { title, intro, steps =&gt; [ { do, see } ], result }
-</span><span class=""> 1420: 	}, ... ]
-</span><span class=""> 1421: 
-</span><span class=""> 1422: In the order the page shows them.
-</span><span class=""> 1423: 
-</span><span class=""> 1424: =head2 faq
+</span><span class=""> 1410: =head3 API SPECIFICATION
+</span><span class=""> 1411: 
+</span><span class=""> 1412: =head4 OUTPUT
+</span><span class=""> 1413: 
+</span><span class=""> 1414: 	[ {
+</span><span class=""> 1415: 	    id     =&gt; &#39;string&#39;,     # anchor, unique
+</span><span class=""> 1416: 	    part   =&gt; &#39;string&#39;,     # the part the chapter belongs to
+</span><span class=""> 1417: 	    title  =&gt; &#39;string&#39;,
+</span><span class=""> 1418: 	    lead   =&gt; &#39;string&#39;,
+</span><span class=""> 1419: 	    steps  =&gt; &#39;arrayref&#39;,   # sentences
+</span><span class=""> 1420: 	    tip    =&gt; &#39;string&#39;,     # optional
+</span><span class=""> 1421: 	    try    =&gt; &#39;hashref&#39;,    # optional; { href, label }
+</span><span class=""> 1422: 	    routes =&gt; &#39;arrayref&#39;,   # the GET routes the chapter covers
+</span><span class=""> 1423: 	    walkthrough =&gt; &#39;hashref&#39;, # optional; { title, intro, steps =&gt; [ { do, see } ], result }
+</span><span class=""> 1424: 	}, ... ]
 </span><span class=""> 1425: 
-</span><span class=""> 1426: =head3 API SPECIFICATION
+</span><span class=""> 1426: In the order the page shows them.
 </span><span class=""> 1427: 
-</span><span class=""> 1428: =head4 OUTPUT
+</span><span class=""> 1428: =head2 faq
 </span><span class=""> 1429: 
-</span><span class=""> 1430: 	[ { question =&gt; &#39;string&#39;, answer =&gt; &#39;string&#39;, link =&gt; { text, href }? }, ... ]
+</span><span class=""> 1430: =head3 API SPECIFICATION
 </span><span class=""> 1431: 
-</span><span class=""> 1432: C&lt;link&gt; makes the words C&lt;text&gt;, which occur once in C&lt;answer&gt;, a link to C&lt;href&gt;.
+</span><span class=""> 1432: =head4 OUTPUT
 </span><span class=""> 1433: 
-</span><span class=""> 1434: =head2 glossary
+</span><span class=""> 1434: 	[ { question =&gt; &#39;string&#39;, answer =&gt; &#39;string&#39;, link =&gt; { text, href }? }, ... ]
 </span><span class=""> 1435: 
-</span><span class=""> 1436: =head3 API SPECIFICATION
+</span><span class=""> 1436: C&lt;link&gt; makes the words C&lt;text&gt;, which occur once in C&lt;answer&gt;, a link to C&lt;href&gt;.
 </span><span class=""> 1437: 
-</span><span class=""> 1438: =head4 OUTPUT
+</span><span class=""> 1438: =head2 glossary
 </span><span class=""> 1439: 
-</span><span class=""> 1440: 	[ { term =&gt; &#39;string&#39;, meaning =&gt; &#39;string&#39; }, ... ]
+</span><span class=""> 1440: =head3 API SPECIFICATION
 </span><span class=""> 1441: 
-</span><span class=""> 1442: =head2 parts
+</span><span class=""> 1442: =head4 OUTPUT
 </span><span class=""> 1443: 
-</span><span class=""> 1444: =head3 API SPECIFICATION
+</span><span class=""> 1444: 	[ { term =&gt; &#39;string&#39;, meaning =&gt; &#39;string&#39; }, ... ]
 </span><span class=""> 1445: 
-</span><span class=""> 1446: =head4 OUTPUT
+</span><span class=""> 1446: =head2 parts
 </span><span class=""> 1447: 
-</span><span class=""> 1448: 	[ { name =&gt; &#39;string&#39;, id =&gt; &#39;string&#39;, chapters =&gt; &#39;arrayref&#39; }, ... ]
+</span><span class=""> 1448: =head3 API SPECIFICATION
 </span><span class=""> 1449: 
-</span><span class=""> 1450: The chapters grouped by C&lt;part&gt;, in order.  C&lt;id&gt; is the part name in lower
-</span><span class=""> 1451: case with each run of other characters replaced by C&lt;-&gt;.  A new list is built
-</span><span class=""> 1452: on each call.
+</span><span class=""> 1450: =head4 OUTPUT
+</span><span class=""> 1451: 
+</span><span class=""> 1452: 	[ { name =&gt; &#39;string&#39;, id =&gt; &#39;string&#39;, chapters =&gt; &#39;arrayref&#39; }, ... ]
 </span><span class=""> 1453: 
-</span><span class=""> 1454: =head2 covered_routes
-</span><span class=""> 1455: 
-</span><span class=""> 1456: =head3 API SPECIFICATION
+</span><span class=""> 1454: The chapters grouped by C&lt;part&gt;, in order.  C&lt;id&gt; is the part name in lower
+</span><span class=""> 1455: case with each run of other characters replaced by C&lt;-&gt;.  A new list is built
+</span><span class=""> 1456: on each call.
 </span><span class=""> 1457: 
-</span><span class=""> 1458: =head4 OUTPUT
+</span><span class=""> 1458: =head2 covered_routes
 </span><span class=""> 1459: 
-</span><span class=""> 1460: 	{ &#39;/route&#39; =&gt; &#39;chapter-id&#39;, ... }
+</span><span class=""> 1460: =head3 API SPECIFICATION
 </span><span class=""> 1461: 
-</span><span class=""> 1462: A route named by two chapters maps to the later one.
+</span><span class=""> 1462: =head4 OUTPUT
 </span><span class=""> 1463: 
-</span><span class=""> 1464: =head2 exempt_routes
+</span><span class=""> 1464: 	{ &#39;/route&#39; =&gt; &#39;chapter-id&#39;, ... }
 </span><span class=""> 1465: 
-</span><span class=""> 1466: =head3 API SPECIFICATION
+</span><span class=""> 1466: A route named by two chapters maps to the later one.
 </span><span class=""> 1467: 
-</span><span class=""> 1468: =head4 OUTPUT
+</span><span class=""> 1468: =head2 exempt_routes
 </span><span class=""> 1469: 
-</span><span class=""> 1470: 	{ &#39;/route&#39; =&gt; &#39;reason&#39;, ... }   # a copy: GET pages with no chapter, and why
+</span><span class=""> 1470: =head3 API SPECIFICATION
 </span><span class=""> 1471: 
-</span><span class=""> 1472: =head2 chapter_for_action
+</span><span class=""> 1472: =head4 OUTPUT
 </span><span class=""> 1473: 
-</span><span class=""> 1474: =head3 API SPECIFICATION
+</span><span class=""> 1474: 	{ &#39;/route&#39; =&gt; &#39;reason&#39;, ... }   # a copy: GET pages with no chapter, and why
 </span><span class=""> 1475: 
-</span><span class=""> 1476: =head4 INPUT
+</span><span class=""> 1476: =head2 chapter_for_action
 </span><span class=""> 1477: 
-</span><span class=""> 1478: 	$action   # a controller action name, e.g. &#39;bar_view&#39;
+</span><span class=""> 1478: =head3 API SPECIFICATION
 </span><span class=""> 1479: 
-</span><span class=""> 1480: =head4 OUTPUT
+</span><span class=""> 1480: =head4 INPUT
 </span><span class=""> 1481: 
-</span><span class=""> 1482: 	A chapter hashref (as C&lt;chapters&gt; returns), or an empty list
+</span><span class=""> 1482: 	$action   # a controller action name, e.g. &#39;bar_view&#39;
 </span><span class=""> 1483: 
-</span><span class=""> 1484: An undefined or unknown action returns an empty list.  It must be called as a
-</span><span class=""> 1485: class method: the action is the second argument.
-</span><span class=""> 1486: 
-</span><span class=""> 1487: =head1 AUTHOR
-</span><span class=""> 1488: 
-</span><span class=""> 1489: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class=""> 1484: =head4 OUTPUT
+</span><span class=""> 1485: 
+</span><span class=""> 1486: 	A chapter hashref (as C&lt;chapters&gt; returns), or an empty list
+</span><span class=""> 1487: 
+</span><span class=""> 1488: An undefined or unknown action returns an empty list.  It must be called as a
+</span><span class=""> 1489: class method: the action is the second argument.
 </span><span class=""> 1490: 
-</span><span class=""> 1491: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 1491: =head1 AUTHOR
 </span><span class=""> 1492: 
-</span><span class=""> 1493: Copyright 2026 Nigel Horne.
+</span><span class=""> 1493: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
 </span><span class=""> 1494: 
-</span><span class=""> 1495: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 1495: =head1 LICENCE AND COPYRIGHT
 </span><span class=""> 1496: 
-</span><span class=""> 1497: =cut
+</span><span class=""> 1497: Copyright 2026 Nigel Horne.
+</span><span class=""> 1498: 
+</span><span class=""> 1499: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 1500: 
+</span><span class=""> 1501: =cut
 </span></pre>
 
 <script>

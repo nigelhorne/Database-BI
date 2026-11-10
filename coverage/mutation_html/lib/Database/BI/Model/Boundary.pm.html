@@ -1,0 +1,1313 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>File: lib/Database/BI/Model/Boundary.pm</title>
+<style>
+
+/* --------------------------------------------------
+   CSS Variables (Light Mode Default)
+-------------------------------------------------- */
+
+:root {
+    --bg: #ffffff;
+    --text: #000000;
+    --table-header: #333;
+    --table-header-text: #ffffff;
+
+    --survived-1: #f8d7da;
+    --survived-2: #f5b7b1;
+    --survived-3: #ec7063;
+
+    --killed: #d4edda;
+    --border: #cccccc;
+}
+
+/* --------------------------------------------------
+   Dark Mode Overrides
+-------------------------------------------------- */
+
+html[data-theme='dark'] {
+    --bg: #1e1e1e;
+    --text: #dddddd;
+    --table-header: #222;
+    --table-header-text: #ffffff;
+
+    --survived-1: #5c2b2e;
+    --survived-2: #7b2c2f;
+    --survived-3: #a93226;
+
+    --killed: #1e4620;
+    --border: #555;
+}
+
+/* --------------------------------------------------
+   Global Styles
+-------------------------------------------------- */
+
+body {
+	font-family: sans-serif;
+	background: var(--bg);
+	color: var(--text);
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th {
+    background: var(--table-header);
+    color: var(--table-header-text);
+}
+
+.survived-1 { background-color: var(--survived-1); }
+.survived-2 { background-color: var(--survived-2); }
+.survived-3 { background-color: var(--survived-3); }
+
+.killed { background-color: var(--killed); }
+
+.legend {
+    border: 1px solid #ccc;
+    background: #fafafa;
+    padding: 10px;
+    margin: 15px 0;
+    font-size: 0.9em;
+}
+
+.legend pre {
+    background: #f4f4f4;
+    padding: 5px;
+}
+
+.legend-box {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin: 0 6px 0 20px;
+    vertical-align: middle;
+    border: 1px solid var(--border);
+}
+
+/* White box for non-mutated lines */
+.legend-box.none {
+	background-color: var(--bg);
+}
+
+/* --------------------------------------------------
+   Suggested Test Box Styling
+   Theme-aware and readable in light & dark modes
+-------------------------------------------------- */
+
+.suggested-test {
+    margin-top: 6px;
+    margin-bottom: 12px;
+
+    /* Use theme variables instead of hardcoded colors */
+    background: var(--bg);
+    color: var(--text);
+
+    padding: 8px;
+    border-radius: 4px;
+
+    /* Subtle border for visual separation */
+    border: 1px solid var(--border);
+}
+
+/* Label styling */
+.suggest-label {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+/* Ensure the test code block inherits readable colors */
+.suggested-test pre {
+    background: transparent;   /* Prevent nested dark blocks */
+    color: inherit;            /* Match theme text color */
+    margin: 0;
+    font-family: monospace;
+}
+
+pre { line-height: 1.4; }
+
+pre > details {
+    margin: 0.2em 0;
+}
+
+pre > details:first-child {
+    margin-top: 0;
+}
+
+pre > details:last-child {
+    margin-bottom: 0;
+}
+
+pre details,
+pre summary,
+pre ul,
+pre li {
+    white-space: normal;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+}
+
+.nav { margin-bottom: 1em; }
+
+.toggle {
+    float: right;
+    cursor: pointer;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+/* Tooltip container */
+.tooltip {
+	position: relative;
+	cursor: help;
+}
+
+/* Tooltip bubble */
+.tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: var(--table-header);
+    color: var(--table-header-text);
+    padding: 6px 10px;
+    white-space: normal;
+    max-width: 300px;
+    min-width: 30ch;
+    font-size: 12px;
+    border-radius: 6px;
+    z-index: 1000;
+    margin-left: 10ch;   /* move tooltip ~10 characters to the right */
+}
+
+.mutant-details {
+	margin-left: 2em;
+	font-size: 0.9em;
+}
+
+/* Indent the list of mutations that displays when expanding by 8 characters */
+pre details.mutant-details ul {
+	padding-left: 8ch;
+	margin: 0.2em 0;
+}
+
+.mutant-details summary {
+	cursor: pointer;
+	font-weight: bold;
+}
+
+.lcsaj-dot {
+    color: #5555ff;
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+.lcsaj-dot-uncovered {
+    color: #cc4444;
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+.lcsaj-tip {
+	position: relative;
+	display: inline-block;
+}
+
+.lcsaj-tip .lcsaj-tip-text {
+	visibility: hidden;
+	background-color: #333;
+	color: #fff;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	white-space: nowrap;
+	position: fixed;
+	z-index: 9999;
+	pointer-events: none;
+}
+
+.lcsaj-tip:hover .lcsaj-tip-text {
+	visibility: visible;
+}
+
+.cpd-dot {
+    color: #cc8800;
+    font-size: 10px;
+    margin-right: 3px;
+    cursor: help;
+    text-decoration: none;
+}
+a.cpd-dot { cursor: pointer; }
+a.cpd-dot:hover { color: #ff8800; }
+
+.cpd-tip {
+    position: relative;
+    display: inline-block;
+}
+
+.cpd-tip .cpd-tip-text {
+    visibility: hidden;
+    background-color: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.cpd-tip:hover .cpd-tip-text {
+    visibility: visible;
+}
+
+/* CPD drill-down page styles */
+.dup-line { background-color: #fff3cd; display: block; }
+.dup-line:hover { background-color: #ffe082; }
+.intra-dot { color: #9944cc; margin-right: 4px; cursor: help; text-decoration: none; }
+a.intra-dot { cursor: pointer; }
+a.intra-dot:hover { color: #7700bb; }
+.cpd-legend {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin-bottom: 1em;
+    font-size: 0.9em;
+}
+
+</style>
+</head>
+<body>
+<button class="toggle" onclick="toggleTheme()">🌙 Toggle Theme</button>
+<h1>lib/Database/BI/Model/Boundary.pm</h1>
+<div class="nav"><a href="Geocode.pm.html">⬅ Previous</a> <a href="../../../../../index.html">Index</a>
+ <a href="../CacheDir.pm.html">Next ➡</a></div><div class='summary'>
+<strong>Structural Coverage (Approximate)</strong><p>
+TER1 (Statement): 97.60%<br>
+TER2 (Branch): 85.51%<br>
+TER3 (LCSAJ): 100.0% (14/14)<br>
+Approximate LCSAJ segments: 139<br>
+</div>
+
+    <div class="legend">
+        <h3>LCSAJ Legend</h3>
+
+        <p>
+        <span class="lcsaj-dot">●</span>
+        <b>Covered</b> — this LCSAJ path was executed during testing.
+        </p>
+
+        <p>
+        <span class="lcsaj-dot-uncovered">●</span>
+        <b>Not covered</b> — this LCSAJ path was never executed. These are the paths to focus on.
+        </p>
+
+        <p>
+        Multiple dots on a line indicate that multiple control-flow paths begin at that line.
+        Hovering over any dot shows:
+        </p>
+
+        <pre>
+        start → end → jump
+        </pre>
+
+        <ul>
+        <li><b>start</b> – first line of the linear sequence</li>
+        <li><b>end</b> – last line before control flow changes</li>
+        <li><b>jump</b> – line execution jumps to next</li>
+        </ul>
+
+        <p>
+        Uncovered paths show <b>[NOT COVERED]</b> in the tooltip.
+	</p>
+    </div>
+
+		<div class="legend">
+			<h3>Mutant Testing Legend</h3>
+			<span class="legend-box survived-1"></span> Survived (tests missed this)
+			<span class="legend-box killed"></span> Killed (tests detected this)
+			<span class="legend-box none"></span> No mutation
+		</div>
+	<pre>
+<span class="">    1: package Database::BI::Model::Boundary;
+</span><span class="">    2: 
+</span><span class="">    3: # The outline of the area each map marker is in: its county, for now.
+</span><span class="">    4: #
+</span><span class="">    5: # A map can draw the boundary of the county around each of its markers.  The
+</span><span class="">    6: # outlines come from OpenStreetMap&#39;s Nominatim, through its reverse lookup:
+</span><span class="">    7: # given a point and a zoom, it names the administrative area there and, with
+</span><span class="">    8: # polygon_geojson, sends its shape.  Asking by point rather than by name means
+</span><span class="">    9: # the same code serves coordinate columns and geocoded places, in any country,
+</span><span class="">   10: # and needs no state or country column to tell one Richmond from another.
+</span><span class="">   11: #
+</span><span class="">   12: # Nominatim allows one request a second, so this module asks as little as it
+</span><span class="">   13: # can:
+</span><span class="">   14: #
+</span><span class="">   15: #   1. Each point is rounded to 3 decimal places (about 110 m), which is also
+</span><span class="">   16: #      all of it that leaves this machine, and remembered with the outline it
+</span><span class="">   17: #      fell in (or with none, for a point at sea).
+</span><span class="">   18: #   2. A point not remembered is first tested against the outlines already
+</span><span class="">   19: #      known, through an index of their bounding boxes, so ten thousand shops
+</span><span class="">   20: #      in one county cost one request, not ten thousand.
+</span><span class="">   21: #   3. Only then is Nominatim asked, at most online_max times a call, and a
+</span><span class="">   22: #      point it does not answer is left pending, not remembered as nowhere.
+</span><span class="">   23: #
+</span><span class="">   24: # The outlines are simplified by Nominatim (polygon_threshold), a few KB each,
+</span><span class="">   25: # because they are written into the page.
+</span><span class="">   26: #
+</span><span class="">   27: # The level is a &quot;county&quot;: the division of a country below its states.  Which
+</span><span class="">   28: # of Nominatim&#39;s place ranks that is depends on the country, so %LEVELS gives a
+</span><span class="">   29: # rank for most (12: a US county, an English county, a German Landkreis, a
+</span><span class="">   30: # French departement, a Pakistani district) and the countries that differ (10:
+</span><span class="">   31: # an Indian or Bangladeshi district, a Chinese prefecture, a Spanish province;
+</span><span class="">   32: # 8: a Kenyan county), and config map_bounds_ranks can add more.  Each reply
+</span><span class="">   33: # names its country, so a point is asked at the zoom of the last country seen,
+</span><span class="">   34: # and again at its own country&#39;s zoom when that guess was wrong: one extra
+</span><span class="">   35: # request at each border a map crosses.  The rank an outline was accepted at is
+</span><span class="">   36: # kept with it, so a changed table asks again rather than draw the old level.
+</span><span class="">   37: 
+</span><span class="">   38: use strict;
+</span><span class="">   39: use warnings;
+</span><span class="">   40: 
+</span><span class="">   41: use Carp			qw(croak);
+</span><span class="">   42: use JSON::PP			();
+</span><span class="">   43: use Params::Get			();
+</span><span class="">   44: use Params::Validate::Strict	qw(validate_strict);
+</span><span class="">   45: use Readonly;
+</span><span class="">   46: use Scalar::Util		qw(blessed);
+</span><span class="">   47: use URI				();
+</span><span class="">   48: 
+</span><span class="">   49: our $VERSION = &#39;0.022.0&#39;;
+</span><span class="">   50: 
+</span><span class="">   51: # The place rank an answer must have at each level: rank for a country not
+</span><span class="">   52: # listed, countries for those that differ, by ISO 3166-1 alpha-2 code.  Checked
+</span><span class="">   53: # against Nominatim&#39;s reverse lookup in November 2026: rank 12
+</span><span class="">   54: # at zoom 8 is the county level in the US, UK, Ireland, Germany, France, Italy,
+</span><span class="">   55: # Pakistan, Mexico, Nigeria, South Africa, Russia, Indonesia and Canada.
+</span><span class="">   56: # Australia, Brazil and Japan have nothing between their states and their
+</span><span class="">   57: # towns, so a point there is nowhere.
+</span><span class="">   58: Readonly my %LEVELS =&gt; (
+</span><span class="">   59: 	county =&gt; {
+</span><span class="">   60: 		rank      =&gt; 12,
+</span><span class="">   61: 		countries =&gt; {
+</span><span class="">   62: 			bd =&gt; 10,	# district (zila); 12 is an upazila
+</span><span class="">   63: 			cn =&gt; 10,	# prefecture-level city; 12 is a district
+</span><span class="">   64: 			es =&gt; 10,	# province; Spain has no rank 12
+</span><span class="">   65: 			in =&gt; 10,	# district; 12 is a sub-district (tehsil, taluk)
+</span><span class="">   66: 			ke =&gt; 8,	# county; 12 is a sub-county
+</span><span class="">   67: 		},
+</span><span class="">   68: 	},
+</span><span class="">   69: );
+</span><span class="">   70: 
+</span><span class="">   71: # The reverse zoom that asks for each rank.  A zoom names the most detailed
+</span><span class="">   72: # rank it may return, so a point with no area at that rank comes back as
+</span><span class="">   73: # something larger (a state), which the rank check turns away rather than
+</span><span class="">   74: # drawing.
+</span><span class="">   75: Readonly my %ZOOM_FOR_RANK =&gt; (8 =&gt; 5, 10 =&gt; 6, 12 =&gt; 8);
+</span><span class="">   76: 
+</span><span class="">   77: Readonly my $REVERSE_URL    =&gt; &#39;https://nominatim.openstreetmap.org/reverse&#39;;
+</span><span class="">   78: Readonly my $THRESHOLD      =&gt; 0.005;	# degrees, about 500 m: enough detail at the zoom a county is seen at
+</span><span class="">   79: Readonly my $DECIMALS       =&gt; 3;	# of a point, in its key and in what is sent
+</span><span class="">   80: Readonly my $DEFAULT_MAX    =&gt; 20;	# Nominatim requests in one call, as map_geocode_online_max
+</span><span class="">   81: Readonly my $CACHE_DIR      =&gt; &#39;boundary-cache&#39;;	# under model_dir, for file_cache()
+</span><span class="">   82: Readonly my $CACHE_NAMESPACE =&gt; __PACKAGE__;
+</span><span class="">   83: Readonly my $CACHE_MAX_SIZE =&gt; 8 * 1024 * 1024;	# bytes, for the process-wide default
+</span><span class="">   84: 
+</span><span class="">   85: my $json = JSON::PP-&gt;new-&gt;canonical-&gt;utf8;
+</span><span class="">   86: 
+</span><span class="">   87: =head1 NAME
+</span><span class="">   88: 
+</span><span class="">   89: Database::BI::Model::Boundary - The county outline around each map marker
+</span><span class="">   90: 
+</span><span class="">   91: =head1 VERSION
+</span><span class="">   92: 
+</span><span class="">   93: 0.022.0
+</span><span class="">   94: 
+</span><span class="">   95: =head1 SYNOPSIS
+</span><span class="">   96: 
+</span><span class="">   97:     use Database::BI::Model::Boundary;
+</span><span class="">   98: 
+</span><span class="">   99:     my $boundary = Database::BI::Model::Boundary-&gt;new(
+</span><span class="">  100:         cache  =&gt; Database::BI::Model::Boundary-&gt;file_cache(&#39;.bi&#39;),
+</span><span class="">  101:         online =&gt; 1,
+</span><span class="">  102:     );
+</span><span class="">  103: 
+</span><span class="">  104:     my $result = $boundary-&gt;outlines([ [ 39.09, -77.64 ], [ 38.85, -77.31 ] ]);
+</span><span class="">  105:     $map-&gt;add_geojson(
+</span><span class="">  106:         { type =&gt; &#39;FeatureCollection&#39;, features =&gt; $result-&gt;{features} },
+</span><span class="">  107:         name =&gt; &#39;County boundaries&#39;,
+</span><span class="">  108:     );
+</span><span class="">  109: 
+</span><span class="">  110:     # A point the map page listed as pending, looked up on its own
+</span><span class="">  111:     my $answer = $boundary-&gt;lookup_point($result-&gt;{pending}[0]);
+</span><span class="">  112: 
+</span><span class="">  113: =head1 DESCRIPTION
+</span><span class="">  114: 
+</span><span class="">  115: Finds the county each point is in and returns its outline as a GeoJSON
+</span><span class="">  116: Feature, for L&lt;HTML::OSM&gt;&#39;s C&lt;add_geojson&gt;.  The outlines come from
+</span><span class="">  117: OpenStreetMap&#39;s Nominatim reverse lookup, through the same throttled user agent
+</span><span class="">  118: as the geocoder (L&lt;Database::BI::Model::Geocode/nominatim_ua&gt;), so the two
+</span><span class="">  119: together never ask more than once a second.
+</span><span class="">  120: 
+</span><span class="">  121: Only the point is sent, rounded to three decimal places (about 110 metres).
+</span><span class="">  122: Every answer is cached: a point with the outline it is in, and the outline
+</span><span class="">  123: itself.  A point inside an outline already known is matched here, without a
+</span><span class="">  124: request, so many points in one county cost one lookup.
+</span><span class="">  125: 
+</span><span class="">  126: A county here is the division of a country below its states, whose place rank
+</span><span class="">  127: in Nominatim depends on the country: 12 (a US county or independent city, an
+</span><span class="">  128: English county, a German Landkreis, a French departement) unless the country is
+</span><span class="">  129: listed otherwise: 10 for India, Bangladesh, China and Spain (district,
+</span><span class="">  130: prefecture, province), 8 for Kenya.  C&lt;ranks&gt; adds or changes countries.
+</span><span class="">  131: Anything else Nominatim answers is taken as &quot;no county here&quot; and remembered as
+</span><span class="">  132: such.  A country with nothing at its rank (Australia, Brazil, Japan) gets no
+</span><span class="">  133: outlines.
+</span><span class="">  134: 
+</span><span class="">  135: Each reply names the point&#39;s country, so a point is asked at the zoom of the
+</span><span class="">  136: last country seen, and asked again when its own country wants another rank.
+</span><span class="">  137: An outline is kept with the rank it was accepted at; when C&lt;ranks&gt; changes, the
+</span><span class="">  138: points it covered are asked again.
+</span><span class="">  139: 
+</span><span class="">  140: =head1 METHODS
+</span><span class="">  141: 
+</span><span class="">  142: =head2 new
+</span><span class="">  143: 
+</span><span class="">  144:     my $boundary = Database::BI::Model::Boundary-&gt;new(%args);
+</span><span class="">  145: 
+</span><span class="">  146: =head3 API SPECIFICATION
+</span><span class="">  147: 
+</span><span class="">  148: =head4 INPUT
+</span><span class="">  149: 
+</span><span class="">  150:   cache      : object with get() and set() (CHI)  optional; default one
+</span><span class="">  151:                CHI Memory cache for the process
+</span><span class="">  152:   online     : boolean   optional, default 0: may Nominatim be asked
+</span><span class="">  153:   online_max : integer   optional, default 20: requests in one outlines() call
+</span><span class="">  154:   level      : string    optional, default &#39;county&#39;; the only level so far
+</span><span class="">  155:   ranks      : hashref   optional: { country code =&gt; place rank }, over the
+</span><span class="">  156:                level&#39;s own list; codes are two letters (any case), ranks
+</span><span class="">  157:                8, 10 or 12
+</span><span class="">  158:   ua         : object with get()   optional: the user agent to ask with
+</span><span class="">  159:                (tests); default Geocode::nominatim_ua()
+</span><span class="">  160: 
+</span><span class="">  161: =head4 OUTPUT
+</span><span class="">  162: 
+</span><span class="">  163: A Database::BI::Model::Boundary object.  Croaks on an unknown level, a cache
+</span><span class="">  164: without get and set, or ranks that are not a hash of two-letter codes to 8, 10
+</span><span class="">  165: or 12.
+</span><span class="">  166: 
+</span><span class="">  167: =cut
+</span><span class="">  168: 
+</span><span class="">  169: sub new {
+</span><span class="">  170: 	my $class = shift;
+</span><span class="">  171: 	my $raw   = Params::Get::get_params(undef, \@_) // {};
+</span><span class="">  172: 
+</span><span class="">  173: 	my $args = validate_strict(
+</span><span class="">  174: 		schema =&gt; {
+</span><span class="">  175: 			cache      =&gt; { type =&gt; &#39;object&#39;,  optional =&gt; 1, default =&gt; undef },
+</span><span class="">  176: 			online     =&gt; { type =&gt; &#39;boolean&#39;, optional =&gt; 1, default =&gt; 0 },
+</span><span class="">  177: 			online_max =&gt; { type =&gt; &#39;integer&#39;, optional =&gt; 1, default =&gt; $DEFAULT_MAX, min =&gt; 0 },
+</span><span class="">  178: 			level      =&gt; { type =&gt; &#39;string&#39;,  optional =&gt; 1, default =&gt; &#39;county&#39; },
+</span><span class="">  179: 			ua         =&gt; { type =&gt; &#39;object&#39;,  optional =&gt; 1, default =&gt; undef, can =&gt; &#39;get&#39; },
+</span><span class="">  180: 			ranks      =&gt; { type =&gt; &#39;hashref&#39;, optional =&gt; 1, default =&gt; undef },
+</span><span class="">  181: 		},
+</span><span class="">  182: 		input =&gt; $raw,
+</span><span class="">  183: 	);
+</span><span class="">  184: 
+</span><span class="">  185: 	my $level = $LEVELS{ $args-&gt;{level} }
+</span><span class="">  186: 		or croak &quot;Unknown boundary level &#39;$args-&gt;{level}&#39;&quot;;
+</span><span class="">  187: 	croak &#39;The boundary cache needs get() and set()&#39;
+</span><span class="">  188: 		if defined($args-&gt;{cache}) &amp;&amp; !($args-&gt;{cache}-&gt;can(&#39;get&#39;) &amp;&amp; $args-&gt;{cache}-&gt;can(&#39;set&#39;));
+</span><span class="">  189: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  190: 	return bless {
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  191: 		%{$args},
+</span><span class="">  192: 		ranks =&gt; { %{ $level-&gt;{countries} }, %{ $class-&gt;check_ranks($args-&gt;{ranks} // {}) } },
+</span><span class="">  193: 		cache =&gt; $args-&gt;{cache} // _default_cache(),
+</span><span class="">  194: 	}, $class;
+</span><span class="">  195: }
+</span><span class="">  196: 
+</span><span class="">  197: =head2 check_ranks
+</span><span class="">  198: 
+</span><span class="">  199:     my $ranks = Database::BI::Model::Boundary-&gt;check_ranks({ LK =&gt; 10 });    # { lk =&gt; 10 }
+</span><span class="">  200: 
+</span><span class="">  201: =head3 API SPECIFICATION
+</span><span class="">  202: 
+</span><span class="">  203: =head4 INPUT
+</span><span class="">  204: 
+</span><span class="">  205:   ranks : hashref of { country code =&gt; place rank }
+</span><span class="">  206: 
+</span><span class="">  207: =head4 OUTPUT
+</span><span class="">  208: 
+</span><span class="">  209: A new hashref with the codes in lower case and the ranks as numbers.  Croaks
+</span><span class="">  210: on a value that is not a hashref, a key that is not a two-letter code, or a
+</span><span class="">  211: rank that is not 8, 10 or 12, naming the entry.  Used by C&lt;new&gt; and by the
+</span><span class="">  212: application&#39;s startup check of C&lt;map_bounds_ranks&gt;.
+</span><span class="">  213: 
+</span><span class="">  214: =cut
+</span><span class="">  215: 
+</span><span class="">  216: sub check_ranks {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">217 → 221 → 229</span></span>  217: 	my (undef, $ranks) = @_;
+</span><span class="">  218: 	croak &#39;Boundary ranks must be a hash of country codes to place ranks&#39;
+</span><span class="">  219: 		unless ref($ranks) eq &#39;HASH&#39;;
+</span><span class="">  220: 	my %checked;
+</span><span class="">  221: 	for my $code (sort keys %{$ranks}) {
+</span><span class="">  222: 		my $rank = $ranks-&gt;{$code};
+</span><span class="">  223: 		croak &quot;&#39;$code&#39; is not a two-letter country code&quot; unless $code =~ /\A[A-Za-z]{2}\z/;
+</span><span class="">  224: 		croak &quot;the rank for &#39;$code&#39; must be one of &quot; . join(&#39;, &#39;, sort { $a &lt;=&gt; $b } keys %ZOOM_FOR_RANK)
+</span><span class="">  225: 			unless defined($rank) &amp;&amp; !ref($rank) &amp;&amp; $rank =~ /\A\d+\z/ &amp;&amp; $ZOOM_FOR_RANK{$rank};
+</span><span class="">  226: 		croak &quot;&#39;$code&#39; is given twice&quot; if exists $checked{ lc $code };
+</span><span class="">  227: 		$checked{ lc $code } = $rank + 0;
+</span><span class="">  228: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  229: 	return \%checked;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  230: }
+</span><span class="">  231: 
+</span><span class="">  232: =head2 rank_for
+</span><span class="">  233: 
+</span><span class="">  234:     my $rank = $boundary-&gt;rank_for(&#39;in&#39;);    # 10
+</span><span class="">  235: 
+</span><span class="">  236: =head3 API SPECIFICATION
+</span><span class="">  237: 
+</span><span class="">  238: =head4 INPUT
+</span><span class="">  239: 
+</span><span class="">  240:   country : string, an ISO 3166-1 alpha-2 code in any case; undef or &#39;&#39;
+</span><span class="">  241:             for a point in no country (the sea)
+</span><span class="">  242: 
+</span><span class="">  243: =head4 OUTPUT
+</span><span class="">  244: 
+</span><span class="">  245: The place rank an outline in that country must have at this object&#39;s level:
+</span><span class="">  246: the country&#39;s own, from C&lt;ranks&gt; or the built-in list, else the level&#39;s.
+</span><span class="">  247: 
+</span><span class="">  248: =cut
+</span><span class="">  249: 
+</span><span class="">  250: sub rank_for {
+</span><span class="">  251: 	my ($self, $country) = @_;
+</span><span class="">  252: 	my $rank = (defined($country) &amp;&amp; !ref($country) &amp;&amp; length($country))
+</span><span class="">  253: 		? $self-&gt;{ranks}{ lc $country } : undef;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  254: 	return $rank // $LEVELS{ $self-&gt;{level} }{rank};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  255: }
+</span><span class="">  256: 
+</span><span class="">  257: =head2 levels
+</span><span class="">  258: 
+</span><span class="">  259:     my @levels = Database::BI::Model::Boundary-&gt;levels;    # (&#39;county&#39;)
+</span><span class="">  260: 
+</span><span class="">  261: =head3 API SPECIFICATION
+</span><span class="">  262: 
+</span><span class="">  263: =head4 INPUT
+</span><span class="">  264: 
+</span><span class="">  265: None.
+</span><span class="">  266: 
+</span><span class="">  267: =head4 OUTPUT
+</span><span class="">  268: 
+</span><span class="">  269: The names of the levels new() takes, sorted.
+</span><span class="">  270: 
+</span><span class="">  271: =cut
+</span><span class="">  272: 
+</span><span class="">  273: sub levels {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  274: 	return sort keys %LEVELS;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  275: }
+</span><span class="">  276: 
+</span><span class="">  277: =head2 point_key
+</span><span class="">  278: 
+</span><span class="">  279:     my $key = Database::BI::Model::Boundary-&gt;point_key(39.0901, -77.6402);    # &#39;39.090,-77.640&#39;
+</span><span class="">  280: 
+</span><span class="">  281: =head3 API SPECIFICATION
+</span><span class="">  282: 
+</span><span class="">  283: =head4 INPUT
+</span><span class="">  284: 
+</span><span class="">  285:   lat : number  -90 .. 90
+</span><span class="">  286:   lon : number  -180 .. 180
+</span><span class="">  287: 
+</span><span class="">  288: =head4 OUTPUT
+</span><span class="">  289: 
+</span><span class="">  290: The point rounded to three decimal places, as C&lt;&quot;lat,lon&quot;&gt;: what the cache is
+</span><span class="">  291: keyed by and all of the point that is sent.  Undef for a point out of range.
+</span><span class="">  292: 
+</span><span class="">  293: =cut
+</span><span class="">  294: 
+</span><span class="">  295: sub point_key {
+</span><span class="">  296: 	my (undef, $lat, $lon) = @_;
+</span><span class="">  297: 
+</span><span class="">  298: 	return unless defined($lat) &amp;&amp; defined($lon)
+</span><span class="">  299: 		&amp;&amp; $lat =~ /\A-?\d+(?:\.\d+)?\z/ &amp;&amp; $lon =~ /\A-?\d+(?:\.\d+)?\z/
+</span><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  300: 		&amp;&amp; abs($lat) &lt;= 90 &amp;&amp; abs($lon) &lt;= 180;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_300_16_&lt;: Numeric boundary flip &lt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_300_16_&gt;: Numeric boundary flip &lt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_300_16_&gt;=: Numeric boundary flip &lt;= to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  301: 
+</span><span class="">  302: 	my @parts = map {
+</span><span class="">  303: 		my $text = sprintf(&quot;%.${DECIMALS}f&quot;, $_);
+</span><span class="">  304: 		$text =~ s/\A-(?=0\.0+\z)//;	# no &quot;-0.000&quot;, so a point has one key
+</span><span class="">  305: 		$text;
+</span><span class="">  306: 	} ($lat, $lon);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  307: 	return join(&#39;,&#39;, @parts);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  308: }
+</span><span class="">  309: 
+</span><span class="">  310: =head2 outlines
+</span><span class="">  311: 
+</span><span class="">  312:     my $result = $boundary-&gt;outlines(\@points, lookup =&gt; 1);
+</span><span class="">  313: 
+</span><span class="">  314: =head3 API SPECIFICATION
+</span><span class="">  315: 
+</span><span class="">  316: =head4 INPUT
+</span><span class="">  317: 
+</span><span class="">  318:   points : arrayref of [lat, lon]
+</span><span class="">  319:   lookup : boolean, default 1.  0 asks Nominatim nothing: the points not
+</span><span class="">  320:            known yet come back in pending, for the caller to look up one at
+</span><span class="">  321:            a time (lookup_point)
+</span><span class="">  322: 
+</span><span class="">  323: =head4 OUTPUT
+</span><span class="">  324: 
+</span><span class="">  325:   {
+</span><span class="">  326:     features =&gt; [ GeoJSON Feature, ... ]   one per outline, in the order
+</span><span class="">  327:                  their first point came; properties { name, osm }
+</span><span class="">  328:     pending  =&gt; [ point_key, ... ]         points not known, not asked
+</span><span class="">  329:     counts   =&gt; { points, drawn, attempted, nowhere }
+</span><span class="">  330:     offline  =&gt; 0|1   points were left because Nominatim may not be asked
+</span><span class="">  331:     failed   =&gt; 0|1   Nominatim did not answer; the rest were left
+</span><span class="">  332:   }
+</span><span class="">  333: 
+</span><span class="">  334: A point out of range is ignored.  A Feature&#39;s name is the place&#39;s name as
+</span><span class="">  335: OpenStreetMap has it: text, not HTML.
+</span><span class="">  336: 
+</span><span class="">  337: =cut
+</span><span class="">  338: 
+</span><span class="">  339: sub outlines {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">340 → 348 → 354</span></span>  340: 	my ($self, $points, @rest) = @_;
+</span><span class="">  341: 	croak &#39;outlines() needs an arrayref of [lat, lon]&#39; unless ref($points) eq &#39;ARRAY&#39;;
+</span><span class="">  342: 	my %opt = @rest;
+</span><span class="">  343: 	my $lookup = exists($opt{lookup}) ? $opt{lookup} : 1;
+</span><span class="">  344: 
+</span><span class="">  345: 	local ($@, $!);
+</span><span class="">  346: 
+</span><span class="">  347: 	my (@keys, %seen);
+</span><span class="">  348: 	for my $point (@{$points}) {
+</span><span class="">  349: 		next unless ref($point) eq &#39;ARRAY&#39;;
+</span><span class="">  350: 		my $key = $self-&gt;point_key(@{$point}[0, 1]);
+</span><span class="">  351: 		push @keys, $key if defined($key) &amp;&amp; !$seen{$key}++;
+</span><span class="">  352: 	}
+</span><span class="">  353: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">354 → 358 → 380</span></span>  354: 	my %counts = (points =&gt; scalar(@keys), drawn =&gt; 0, attempted =&gt; 0, nowhere =&gt; 0);
+</span><span class="">  355: 	my (@order, %used, @pending, $failed, $offline);
+</span><span class="">  356: 	my $index = $self-&gt;_index;
+</span><span class="">  357: 
+</span><span class="">  358: 	for my $key (@keys) {
+</span><span class="">  359: 		my ($osm, $status) = $self-&gt;_known($key, $index);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  360: 		if (!defined($status) &amp;&amp; $lookup) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  361: 			if (!$self-&gt;_can_ask) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  362: 				$offline = 1;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  363: 			} elsif (!$failed &amp;&amp; $counts{attempted} &lt; $self-&gt;{online_max}) {
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  364: 				$counts{attempted}++;
+</span><span class="">  365: 				($osm, $status) = $self-&gt;_ask($key, $index);
+</span><span class="">  366: 				$failed = 1 if $status eq &#39;failed&#39;;
+</span><span class="">  367: 			}
+</span><span class="">  368: 		}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  369: 		if (!defined($status) || $status eq &#39;failed&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  370: 			push @pending, $key;
+</span><span class="">  371: 			next;
+</span><span class="">  372: 		}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  373: 		if ($status eq &#39;nowhere&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  374: 			$counts{nowhere}++;
+</span><span class="">  375: 			next;
+</span><span class="">  376: 		}
+</span><span class="">  377: 		push @order, $osm unless $used{$osm}++;
+</span><span class="">  378: 	}
+</span><span class="">  379: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">380 → 381 → 389</span></span>  380: 	my @features;
+</span><span class="">  381: 	for my $osm (@order) {
+</span><span class="">  382: 		my $outline = $self-&gt;_get(&quot;outline:$osm&quot;) or next;
+</span><span class="">  383: 		push @features, {
+</span><span class="">  384: 			type       =&gt; &#39;Feature&#39;,
+</span><span class="">  385: 			properties =&gt; { name =&gt; $outline-&gt;{name}, osm =&gt; $osm },
+</span><span class="">  386: 			geometry   =&gt; $outline-&gt;{geometry},
+</span><span class="">  387: 		};
+</span><span class="">  388: 	}
+</span><span class="">  389: 	$counts{drawn} = scalar @features;
+</span><span class="">  390: 
+</span><span class="">  391: 	return {
+</span><span class="">  392: 		features =&gt; \@features,
+</span><span class="">  393: 		pending  =&gt; \@pending,
+</span><span class="">  394: 		counts   =&gt; \%counts,
+</span><span class="">  395: 		offline  =&gt; $offline ? 1 : 0,
+</span><span class="">  396: 		failed   =&gt; $failed  ? 1 : 0,
+</span><span class="">  397: 	};
+</span><span class="">  398: }
+</span><span class="">  399: 
+</span><span class="">  400: =head2 lookup_point
+</span><span class="">  401: 
+</span><span class="">  402:     my $answer = $boundary-&gt;lookup_point(&#39;39.090,-77.640&#39;);
+</span><span class="">  403: 
+</span><span class="">  404: =head3 API SPECIFICATION
+</span><span class="">  405: 
+</span><span class="">  406: =head4 INPUT
+</span><span class="">  407: 
+</span><span class="">  408:   key : string, a point_key
+</span><span class="">  409: 
+</span><span class="">  410: =head4 OUTPUT
+</span><span class="">  411: 
+</span><span class="">  412:   { status =&gt; &#39;found&#39; | &#39;nowhere&#39; | &#39;held&#39;, name =&gt; string|undef, asked =&gt; 0|1 }
+</span><span class="">  413: 
+</span><span class="">  414: &#39;found&#39; and &#39;nowhere&#39; are remembered.  &#39;held&#39; is a point that could not be
+</span><span class="">  415: settled now - Nominatim did not answer, or may not be asked - and is asked
+</span><span class="">  416: again next time.  asked says whether Nominatim was asked.  Croaks on a key
+</span><span class="">  417: that is not a point_key.
+</span><span class="">  418: 
+</span><span class="">  419: =cut
+</span><span class="">  420: 
+</span><span class="">  421: sub lookup_point {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">422 → 434 → 439</span></span>  422: 	my ($self, $key) = @_;
+</span><span class="">  423: 
+</span><span class="">  424: 	croak &#39;lookup_point() needs a point key such as 39.090,-77.640&#39;
+</span><span class="">  425: 		unless defined($key) &amp;&amp; !ref($key)
+</span><span class="">  426: 		&amp;&amp; $key =~ /\A(-?\d{1,2}\.\d{$DECIMALS}),(-?\d{1,3}\.\d{$DECIMALS})\z/
+</span><span class="">  427: 		&amp;&amp; defined($self-&gt;point_key($1, $2)) &amp;&amp; $self-&gt;point_key($1, $2) eq $key;
+</span><span class="">  428: 
+</span><span class="">  429: 	local ($@, $!);
+</span><span class="">  430: 
+</span><span class="">  431: 	my $index = $self-&gt;_index;
+</span><span class="">  432: 	my ($osm, $status) = $self-&gt;_known($key, $index);
+</span><span class="">  433: 	my $asked = 0;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  434: 	if (!defined($status) &amp;&amp; $self-&gt;_can_ask) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  435: 		$asked = 1;
+</span><span class="">  436: 		($osm, $status) = $self-&gt;_ask($key, $index);
+</span><span class="">  437: 	}
+</span><span class="">  438: 
+</span><span class="">  439: 	return { status =&gt; &#39;held&#39;, name =&gt; undef, asked =&gt; $asked }
+</span><span class="">  440: 		if !defined($status) || $status eq &#39;failed&#39;;
+</span><span class="">  441: 	return { status =&gt; &#39;nowhere&#39;, name =&gt; undef, asked =&gt; $asked } if $status eq &#39;nowhere&#39;;
+</span><span class="">  442: 
+</span><span class="">  443: 	my $outline = $self-&gt;_get(&quot;outline:$osm&quot;);
+</span><span class="">  444: 	return { status =&gt; &#39;found&#39;, name =&gt; ($outline ? $outline-&gt;{name} : undef), asked =&gt; $asked };
+</span><span class="">  445: }
+</span><span class="">  446: 
+</span><span class="">  447: =head2 file_cache
+</span><span class="">  448: 
+</span><span class="">  449:     my $cache = Database::BI::Model::Boundary-&gt;file_cache($model_dir);
+</span><span class="">  450: 
+</span><span class="">  451: =head3 API SPECIFICATION
+</span><span class="">  452: 
+</span><span class="">  453: =head4 INPUT
+</span><span class="">  454: 
+</span><span class="">  455:   dir : string, an existing directory (model_dir)
+</span><span class="">  456: 
+</span><span class="">  457: =head4 OUTPUT
+</span><span class="">  458: 
+</span><span class="">  459: A CHI File cache under C&lt;&lt; &lt;dir&gt;/boundary-cache &gt;&gt;, with a copy of what it
+</span><span class="">  460: reads in memory for as long as the cache object lives.  Croaks when dir is not a directory.
+</span><span class="">  461: 
+</span><span class="">  462: =cut
+</span><span class="">  463: 
+</span><span class="">  464: sub file_cache {
+</span><span class="">  465: 	my (undef, $dir) = @_;
+</span><span class="">  466: 
+</span><span class="">  467: 	croak &#39;The boundary cache needs a directory, not &#39; . (defined($dir) ? $dir : &#39;undef&#39;)
+</span><span class="">  468: 		unless defined($dir) &amp;&amp; !ref($dir) &amp;&amp; -d $dir;
+</span><span class="">  469: 
+</span><span class="">  470: 	require CHI;
+</span><span class="">  471: 	require File::Spec;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  472: 	return CHI-&gt;new(
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  473: 		driver    =&gt; &#39;File&#39;,
+</span><span class="">  474: 		root_dir  =&gt; File::Spec-&gt;catdir($dir, $CACHE_DIR),
+</span><span class="">  475: 		namespace =&gt; $CACHE_NAMESPACE,
+</span><span class="">  476: 		# A copy in memory for this object, which a request makes afresh: it
+</span><span class="">  477: 		# saves reading the index and outlines again within the request.  Not
+</span><span class="">  478: 		# global, which would share it with every cache of this namespace in
+</span><span class="">  479: 		# the process, whatever its folder, and keep a worker from seeing
+</span><span class="">  480: 		# what another has added since.
+</span><span class="">  481: 		l1_cache  =&gt; { driver =&gt; &#39;RawMemory&#39;, global =&gt; 0, max_size =&gt; $CACHE_MAX_SIZE },
+</span><span class="">  482: 	);
+</span><span class="">  483: }
+</span><span class="">  484: 
+</span><span class="">  485: # ---------------------------------------------------------------------------
+</span><span class="">  486: # Private
+</span><span class="">  487: # ---------------------------------------------------------------------------
+</span><span class="">  488: 
+</span><span class="">  489: my $default_cache;
+</span><span class="">  490: 
+</span><span class="">  491: sub _default_cache {
+</span><span class="">  492: 	require CHI;
+</span><span class="">  493: 	$default_cache //= CHI-&gt;new(
+</span><span class="">  494: 		driver    =&gt; &#39;Memory&#39;,
+</span><span class="">  495: 		global    =&gt; 1,
+</span><span class="">  496: 		namespace =&gt; $CACHE_NAMESPACE,
+</span><span class="">  497: 		max_size  =&gt; $CACHE_MAX_SIZE,
+</span><span class="">  498: 	);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  499: 	return $default_cache;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_499_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_499_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  500: }
+</span><span class="">  501: 
+</span><span class="">  502: # _get($key) / _set($key, $value): the cache, under this level&#39;s prefix for a
+</span><span class="">  503: # point and the plain key for an outline (an OSM relation is one outline at any
+</span><span class="">  504: # level).  A cache that fails reads as empty and writes as nothing: the page
+</span><span class="">  505: # still draws, and asks again next time.
+</span><span class="">  506: sub _get {
+</span><span class="">  507: 	my ($self, $key) = @_;
+</span><span class="">  508: 	my $value = eval { $self-&gt;{cache}-&gt;get($key) };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  509: 	return $value;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  510: }
+</span><span class="">  511: 
+</span><span class="">  512: sub _set {
+</span><span class="">  513: 	my ($self, $key, $value) = @_;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  514: 	return eval { $self-&gt;{cache}-&gt;set($key, $value, &#39;never&#39;); 1 };
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_514_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_514_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  515: }
+</span><span class="">  516: 
+</span><span class="">  517: sub _point_cache_key {
+</span><span class="">  518: 	my ($self, $key) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  519: 	return &quot;point:$self-&gt;{level}:$key&quot;;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  520: }
+</span><span class="">  521: 
+</span><span class="">  522: # _index() -&gt; arrayref of [osm, south, west, north, east]
+</span><span class="">  523: #
+</span><span class="">  524: # The bounding box of every outline this level has found, so a point can be
+</span><span class="">  525: # tested against the few that could hold it.  Two processes adding at once can
+</span><span class="">  526: # lose one&#39;s entry; that costs a request later, not a wrong answer.
+</span><span class="">  527: sub _index {
+</span><span class="">  528: 	my $self = shift;
+</span><span class="">  529: 	my $index = $self-&gt;_get(&quot;index:$self-&gt;{level}&quot;);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  530: 	return ref($index) eq &#39;ARRAY&#39; ? [ @{$index} ] : [];
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  531: }
+</span><span class="">  532: 
+</span><span class="">  533: # _known($key, \@index) -&gt; ($osm, $status) or ()
+</span><span class="">  534: #
+</span><span class="">  535: # What is known of a point without asking: remembered with an outline or with
+</span><span class="">  536: # none, or inside an outline the index holds (which is then remembered).
+</span><span class="">  537: sub _known {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">538 → 541 → 551</span></span>  538: 	my ($self, $key, $index) = @_;
+</span><span class="">  539: 
+</span><span class="">  540: 	my $remembered = $self-&gt;_get($self-&gt;_point_cache_key($key));
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  541: 	if (ref($remembered) eq &#39;HASH&#39;) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  542: 		# Nowhere, at the rank its country wanted then.
+</span><span class="">  543: 		return (undef, &#39;nowhere&#39;)
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  544: 			if ($remembered-&gt;{rank} // -1) == $self-&gt;rank_for($remembered-&gt;{country});
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  545: 	} elsif (defined($remembered) &amp;&amp; length($remembered)) {
+</span><span class="">  546: 		return ($remembered, &#39;found&#39;) if $self-&gt;_current($self-&gt;_get(&quot;outline:$remembered&quot;));
+</span><span class="">  547: 		# The outline has gone from the cache, or its country&#39;s rank changed.
+</span><span class="">  548: 	}
+</span><span class="">  549: 	# &#39;&#39; is nowhere from before ranks were kept: ask again.
+</span><span class="">  550: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">551 → 552 → 561</span></span>  551: 	my ($lat, $lon) = split /,/, $key;
+</span><span class="">  552: 	for my $entry (@{$index}) {
+</span><span class="">  553: 		my ($osm, $south, $west, $north, $east) = @{$entry};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  554: 		next if $lat &lt; $south || $lat &gt; $north || $lon &lt; $west || $lon &gt; $east;
+</span><p> <b> Mutants (Total: 6, Killed: 6, Survived: 0)</b><p><span class="">  555: 		my $outline = $self-&gt;_get(&quot;outline:$osm&quot;);
+</span><span class="">  556: 		next unless $self-&gt;_current($outline) &amp;&amp; _contains($outline-&gt;{geometry}, $lat, $lon);
+</span><span class="">  557: 		$self-&gt;_set($self-&gt;_point_cache_key($key), $osm);
+</span><span class="">  558: 		return ($osm, &#39;found&#39;);
+</span><span class="">  559: 	}
+</span><span class="">  560: 
+</span><span class="">  561: 	return;
+</span><span class="">  562: }
+</span><span class="">  563: 
+</span><span class="">  564: # _current($outline) -&gt; 1 when an outline was accepted at the rank its country
+</span><span class="">  565: # wants now.  One kept before ranks were (no rank) is not.
+</span><span class="">  566: sub _current {
+</span><span class="">  567: 	my ($self, $outline) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  568: 	return 0 unless ref($outline) eq &#39;HASH&#39; &amp;&amp; defined($outline-&gt;{rank});
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  569: 	return $outline-&gt;{rank} == $self-&gt;rank_for($outline-&gt;{country}) ? 1 : 0;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  570: }
+</span><span class="">  571: 
+</span><span class="">  572: # _last_country() / _last_country($code): the country of the last reply at
+</span><span class="">  573: # this level, whose rank the next point is asked at first.  Kept in the cache,
+</span><span class="">  574: # so the first point of a later map is not asked twice.
+</span><span class="">  575: sub _last_country {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">576 → 578 → 583</span></span>  576: 	my ($self, @set) = @_;
+</span><span class="">  577: 	my $key = &quot;country:$self-&gt;{level}&quot;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  578: 	if (@set) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  579: 		$self-&gt;{last_country} = $set[0];
+</span><span class="">  580: 		$self-&gt;_set($key, $set[0]) unless ($self-&gt;_get($key) // &#39;&#39;) eq $set[0];
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  581: 		return $set[0];
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_581_3: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_581_3: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  582: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  583: 	return $self-&gt;{last_country} //= $self-&gt;_get($key) // &#39;&#39;;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  584: }
+</span><span class="">  585: 
+</span><span class="">  586: sub _can_ask {
+</span><span class="">  587: 	my $self = shift;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  588: 	return 0 unless $self-&gt;{online};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  589: 	return 1 if $self-&gt;{ua};
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  590: 	require Database::BI::Model::Geocode;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  591: 	return Database::BI::Model::Geocode::nominatim_ua() ? 1 : 0;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  592: }
+</span><span class="">  593: 
+</span><span class="">  594: # _ask($key, \@index) -&gt; ($osm, &#39;found&#39;) | (undef, &#39;nowhere&#39;) | (undef, &#39;failed&#39;)
+</span><span class="">  595: #
+</span><span class="">  596: # A reverse lookup, at the zoom of the rank the last country seen wants; when
+</span><span class="">  597: # the reply&#39;s country wants another, a second at that rank&#39;s zoom.  A found
+</span><span class="">  598: # outline is remembered with its country and rank, added to the index (and to
+</span><span class="">  599: # @$index, so the caller&#39;s later points are tested against it), and the point
+</span><span class="">  600: # remembered with it.  An answer that is not an outline at the country&#39;s rank
+</span><span class="">  601: # is remembered as nowhere, with that country and rank.  A failure is
+</span><span class="">  602: # remembered as nothing.
+</span><span class="">  603: sub _ask {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">604 → 612 → 621</span></span>  604: 	my ($self, $key, $index) = @_;
+</span><span class="">  605: 	my ($lat, $lon) = split /,/, $key;
+</span><span class="">  606: 
+</span><span class="">  607: 	my $rank  = $self-&gt;rank_for($self-&gt;_last_country);
+</span><span class="">  608: 	my $reply = $self-&gt;_reverse($lat, $lon, $rank) or return (undef, &#39;failed&#39;);
+</span><span class="">  609: 
+</span><span class="">  610: 	my $country = ref($reply-&gt;{address}) eq &#39;HASH&#39; ? $reply-&gt;{address}{country_code} : undef;
+</span><span class="">  611: 	$country = (defined($country) &amp;&amp; !ref($country) &amp;&amp; $country =~ /\A[A-Za-z]{2}\z/) ? lc($country) : &#39;&#39;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  612: 	if (length $country) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  613: 		$self-&gt;_last_country($country);
+</span><span class="">  614: 		my $wanted = $self-&gt;rank_for($country);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  615: 		if ($wanted != $rank) {
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  616: 			$rank  = $wanted;
+</span><span class="">  617: 			$reply = $self-&gt;_reverse($lat, $lon, $rank) or return (undef, &#39;failed&#39;);
+</span><span class="">  618: 		}
+</span><span class="">  619: 	}
+</span><span class="">  620: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">621 → 631 → 637</span></span>  621: 	my $geometry = $reply-&gt;{geojson};
+</span><span class="">  622: 	my $is_outline = ($reply-&gt;{category} // &#39;&#39;) eq &#39;boundary&#39;
+</span><span class="">  623: 		&amp;&amp; ($reply-&gt;{type} // &#39;&#39;) eq &#39;administrative&#39;
+</span><span class="">  624: 		&amp;&amp; ($reply-&gt;{osm_type} // &#39;&#39;) eq &#39;relation&#39;
+</span><span class="">  625: 		&amp;&amp; defined($reply-&gt;{osm_id}) &amp;&amp; $reply-&gt;{osm_id} =~ /\A\d+\z/
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  626: 		&amp;&amp; ($reply-&gt;{place_rank} // -1) == $rank
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  627: 		&amp;&amp; ref($geometry) eq &#39;HASH&#39;
+</span><span class="">  628: 		&amp;&amp; ($geometry-&gt;{type} // &#39;&#39;) =~ /\A(?:Multi)?Polygon\z/
+</span><span class="">  629: 		&amp;&amp; ref($geometry-&gt;{coordinates}) eq &#39;ARRAY&#39;;
+</span><span class="">  630: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  631: 	unless ($is_outline) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  632: 		# &quot;Unable to geocode&quot; (the sea) and an answer at another rank alike.
+</span><span class="">  633: 		$self-&gt;_set($self-&gt;_point_cache_key($key), { country =&gt; $country, rank =&gt; $rank });
+</span><span class="">  634: 		return (undef, &#39;nowhere&#39;);
+</span><span class="">  635: 	}
+</span><span class="">  636: 
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">637 → 647 → 656</span></span>  637: 	my $osm  = &quot;R$reply-&gt;{osm_id}&quot;;
+</span><span class="">  638: 	my $name = $reply-&gt;{name};
+</span><span class="">  639: 	$name = $reply-&gt;{display_name} unless defined($name) &amp;&amp; length($name);
+</span><span class="">  640: 	$self-&gt;_set(&quot;outline:$osm&quot;, {
+</span><span class="">  641: 		name     =&gt; $name // $osm,
+</span><span class="">  642: 		geometry =&gt; $geometry,
+</span><span class="">  643: 		country  =&gt; $country,
+</span><span class="">  644: 		rank     =&gt; $rank,
+</span><span class="">  645: 	});
+</span><span class="">  646: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  647: 	unless (grep { $_-&gt;[0] eq $osm } @{$index}) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  648: 		my $box = _bounds($geometry);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  649: 		if ($box) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  650: 			push @{$index}, [ $osm, @{$box} ];
+</span><span class="">  651: 			my $stored = $self-&gt;_index;
+</span><span class="">  652: 			push @{$stored}, [ $osm, @{$box} ] unless grep { $_-&gt;[0] eq $osm } @{$stored};
+</span><span class="">  653: 			$self-&gt;_set(&quot;index:$self-&gt;{level}&quot;, $stored);
+</span><span class="">  654: 		}
+</span><span class="">  655: 	}
+</span><span class="">  656: 	$self-&gt;_set($self-&gt;_point_cache_key($key), $osm);
+</span><span class="">  657: 
+</span><span class="">  658: 	return ($osm, &#39;found&#39;);
+</span><span class="">  659: }
+</span><span class="">  660: 
+</span><span class="">  661: # _reverse($lat, $lon, $rank) -&gt; the decoded reply, or undef when Nominatim
+</span><span class="">  662: # did not answer with JSON.
+</span><span class="">  663: sub _reverse {
+</span><span class="">  664: 	my ($self, $lat, $lon, $rank) = @_;
+</span><span class="">  665: 
+</span><span class="">  666: 	my $uri = URI-&gt;new($REVERSE_URL);
+</span><span class="">  667: 	$uri-&gt;query_form(
+</span><span class="">  668: 		lat               =&gt; $lat,
+</span><span class="">  669: 		lon               =&gt; $lon,
+</span><span class="">  670: 		zoom              =&gt; $ZOOM_FOR_RANK{$rank},
+</span><span class="">  671: 		format            =&gt; &#39;jsonv2&#39;,
+</span><span class="">  672: 		polygon_geojson   =&gt; 1,
+</span><span class="">  673: 		polygon_threshold =&gt; $THRESHOLD,
+</span><span class="">  674: 		&#39;accept-language&#39; =&gt; &#39;en&#39;,
+</span><span class="">  675: 	);
+</span><span class="">  676: 
+</span><span class="">  677: 	require Database::BI::Model::Geocode;
+</span><span class="">  678: 	my $ua  = $self-&gt;{ua} // Database::BI::Model::Geocode::nominatim_ua();
+</span><span class="">  679: 	my $res = eval { $ua-&gt;get($uri) };
+</span><span class="">  680: 	return unless blessed($res) &amp;&amp; $res-&gt;can(&#39;is_success&#39;) &amp;&amp; $res-&gt;is_success;
+</span><span class="">  681: 
+</span><span class="">  682: 	my $reply = eval { $json-&gt;decode($res-&gt;decoded_content // &#39;&#39;) };
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  683: 	return ref($reply) eq &#39;HASH&#39; ? $reply : undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  684: }
+</span><span class="">  685: 
+</span><span class="">  686: # _polygons($geometry) -&gt; list of polygons, each an arrayref of rings, each
+</span><span class="">  687: # ring an arrayref of [lon, lat].
+</span><span class="">  688: sub _polygons {
+</span><span class="">  689: 	my $geometry = shift;
+</span><span class="">  690: 	return () unless ref($geometry) eq &#39;HASH&#39; &amp;&amp; ref($geometry-&gt;{coordinates}) eq &#39;ARRAY&#39;;
+</span><span class="">  691: 	return ($geometry-&gt;{coordinates}) if ($geometry-&gt;{type} // &#39;&#39;) eq &#39;Polygon&#39;;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  692: 	return @{ $geometry-&gt;{coordinates} } if ($geometry-&gt;{type} // &#39;&#39;) eq &#39;MultiPolygon&#39;;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
+					<ul>
+				<li><b>BOOL_NEGATE_692_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_692_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  693: 	return ();
+</span><span class="">  694: }
+</span><span class="">  695: 
+</span><span class="">  696: # _bounds($geometry) -&gt; [south, west, north, east], or undef with no points
+</span><span class="">  697: sub _bounds {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">698 → 700 → 709</span></span>  698: 	my $geometry = shift;
+</span><span class="">  699: 	my ($south, $west, $north, $east);
+</span><span class="">  700: 	for my $polygon (_polygons($geometry)) {
+</span><span class="">  701: 		for my $position (@{ $polygon-&gt;[0] // [] }) {
+</span><span class="">  702: 			my ($lon, $lat) = @{$position};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  703: 			$south = $lat if !defined($south) || $lat &lt; $south;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  704: 			$north = $lat if !defined($north) || $lat &gt; $north;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  705: 			$west  = $lon if !defined($west)  || $lon &lt; $west;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  706: 			$east  = $lon if !defined($east)  || $lon &gt; $east;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">  707: 		}
+</span><span class="">  708: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  709: 	return defined($south) ? [ $south, $west, $north, $east ] : undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  710: }
+</span><span class="">  711: 
+</span><span class="">  712: # _contains($geometry, $lat, $lon) -&gt; 1 when the point is inside a polygon&#39;s
+</span><span class="">  713: # outer ring and none of its holes (Fairfax County&#39;s hole is the City of
+</span><span class="">  714: # Fairfax).  Even-odd ray casting, with longitude as x.
+</span><span class="">  715: sub _contains {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">716 → 717 → 722</span></span>  716: 	my ($geometry, $lat, $lon) = @_;
+</span><span class="">  717: 	for my $polygon (_polygons($geometry)) {
+</span><span class="">  718: 		my ($outer, @holes) = @{$polygon};
+</span><span class="">  719: 		next unless _in_ring($outer, $lon, $lat);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  720: 		return 1 unless grep { _in_ring($_, $lon, $lat) } @holes;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  721: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  722: 	return 0;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  723: }
+</span><span class="">  724: 
+</span><span class="">  725: sub _in_ring {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">726 → 730 → 738</span></span>  726: 	my ($ring, $x, $y) = @_;
+</span><span class="survived-3 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  727: 	return 0 unless ref($ring) eq &#39;ARRAY&#39; &amp;&amp; @{$ring} &gt;= 3;
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 5, Killed: 0, Survived: 5)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_727_52_&gt;: Numeric boundary flip &gt;= to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_727_52_&lt;: Numeric boundary flip &gt;= to &lt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_727_52_&lt;=: Numeric boundary flip &gt;= to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>BOOL_NEGATE_727_2: Negate boolean return expression</b><br>MEDIUM: Add tests asserting both true and false outcomes
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boolean branch test suggestion
+ok( !func(INPUT), &#39;Verify boolean branch behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>RETURN_UNDEF_727_2: Replace return expression with undef</b><br>LOW: Mutation survived, but impact may be minor
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Return value assertion
+is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  728: 	my $inside = 0;
+</span><span class="">  729: 	my ($px, $py) = @{ $ring-&gt;[-1] };
+</span><span class="">  730: 	for my $position (@{$ring}) {
+</span><span class="">  731: 		my ($qx, $qy) = @{$position};
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  732: 		if ((($qy &gt; $y) != ($py &gt; $y))
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="survived-3 tooltip" data-tooltip="Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  733: 				&amp;&amp; ($x &lt; ($px - $qx) * ($y - $qy) / ($py - $qy) + $qx)) {
+</span>
+					<details class="mutant-details">
+					<summary>Mutants (Total: 3, Killed: 0, Survived: 3)</summary>
+					<ul>
+				<li><b>NUM_BOUNDARY_733_12_&gt;: Numeric boundary flip &lt; to &gt;</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_733_12_&lt;=: Numeric boundary flip &lt; to &lt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li><li><b>NUM_BOUNDARY_733_12_&gt;=: Numeric boundary flip &lt; to &gt;=</b><br>HIGH: Likely missing edge-case test (boundary value)
+
+								<div class="suggested-test">
+								<div class="suggest-label">🧪 Suggested Test</div>
+								<pre># Boundary test suggestion
+is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
+</pre>
+								</div>
+							</li></ul></details>
+<span class="">  734: 			$inside = !$inside;
+</span><span class="">  735: 		}
+</span><span class="">  736: 		($px, $py) = ($qx, $qy);
+</span><span class="">  737: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  738: 	return $inside ? 1 : 0;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  739: }
+</span><span class="">  740: 
+</span><span class="">  741: 1;
+</span><span class="">  742: 
+</span><span class="">  743: __END__
+</span><span class="">  744: 
+</span><span class="">  745: =head1 AUTHOR
+</span><span class="">  746: 
+</span><span class="">  747: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  748: 
+</span><span class="">  749: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  750: 
+</span><span class="">  751: Copyright 2026 Nigel Horne.
+</span><span class="">  752: 
+</span><span class="">  753: Usage is subject to the GPL2 licence terms.
+</span><span class="">  754: If you use it,
+</span><span class="">  755: please let me know.
+</span><span class="">  756: 
+</span><span class="">  757: =cut
+</span></pre>
+
+<script>
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+}
+
+(function() {
+    const saved = localStorage.getItem('theme');
+    if(saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    }
+})();
+
+document.addEventListener("mousemove", function(e) {
+	document.querySelectorAll(".lcsaj-tip-text, .cpd-tip-text").forEach(function(tip) {
+		tip.style.left = (e.clientX + 12) + "px";
+		tip.style.top  = (e.clientY + 12) + "px";
+	});
+});
+</script>
+</body>
+</html>
+	
