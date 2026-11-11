@@ -1,6 +1,19 @@
 Revision history for Database-BI
 
-0.023.0	Tue Nov 10 02:37:22 PM EST 2026
+0.023.1
+	[ Enhancements ]
+	- Map boundaries are no longer only counties.  The map panel's Show
+	  boundaries is now a list: countries, states or provinces (Canada,
+	  India), counties, cities or districts (England, New Zealand), towns
+	  or wards, and neighbourhoods or parishes (bounds=country, state,
+	  county, city, town, neighbourhood).  The heat colours, marker colours
+	  and Colour shade work at every level.
+	- OpenStreetMap has many small places only as a point (most suburbs of
+	  Margate, for one).  A marker there has no outline at that level, and
+	  the list under the map names it.
+	- Outlines kept by 0.023.0 are still used.
+
+0.023.0	Tue Nov 10 04:41:52 PM EST 2026
 	[ Enhancements ]
 	- Maps can outline the county each marker is in: tick Show county
 	  boundaries in the map panel (bounds=county).  The outlines come from
