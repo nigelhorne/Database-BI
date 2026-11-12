@@ -902,7 +902,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  511: 	return unless defined($lat) &amp;&amp; defined($lon)
 </span><span class="">  512: 		&amp;&amp; $lat =~ /\A-?\d+(?:\.\d+)?\z/ &amp;&amp; $lon =~ /\A-?\d+(?:\.\d+)?\z/
 </span><span class="">  513: 		&amp;&amp; abs($lat) &lt;= 90 &amp;&amp; abs($lon) &lt;= 180;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  514: 
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  514: 
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1122,7 +1122,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  689: 		unless defined($dir) &amp;&amp; !ref($dir) &amp;&amp; -d $dir;
 </span><span class="">  690: 
 </span><span class="">  691: 	require CHI;
-</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  692: 	require File::Spec;
+</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  692: 	require File::Spec;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1178,7 +1178,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="">  724: # point and under _outline_key for an outline.  A cache that fails reads as empty and writes as nothing: the page
 </span><span class="">  725: # still draws, and asks again next time.
 </span><span class="">  726: sub _get {
-</span><span class="survived-3 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one). Boolean logic mutation survived. Add tests covering both true and false paths.">  727: 	my ($self, $key) = @_;
+</span><span class="survived-3 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths. Boundary mutation survived. Add tests around edge values (e.g. min, max, off-by-one).">  727: 	my ($self, $key) = @_;
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 5, Killed: 0, Survived: 5)</summary>
