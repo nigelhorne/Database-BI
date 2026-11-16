@@ -1193,6 +1193,25 @@ sub _detect_file_info :Protected {
 		}
 	}
 
+	# XML that is a document, not a list of rows (a DMARC report: a few
+	# one-off elements and a repeating <record>): D::A reads one repeating
+	# element of a flat document and croaks on the rest, so write the rows as
+	# a flat JSON copy, as for a .json file.  A file D::A can read is left to it.
+	{
+		my $path = File::Spec->catfile($dir, "$table.xml");
+		if (-r $path && !grep { -f File::Spec->catfile($dir, "$table.$_") } grep { $_ ne 'xml' } @NON_JSON_EXT) {
+			my $xml = _xml_table($path);
+			if ($xml) {
+				my ($safe_id) = grep { $_ =~ $TABLE_NAME_RE } @{ $xml->{columns} };
+				return {
+					columns => $xml->{columns},
+					id      => $safe_id // 'entry',
+					_json   => $xml,
+				};
+			}
+		}
+	}
+
 	# JSON comes last, as it does in D::A's own search: a table.csv beside
 	# table.json is the file D::A opens.
 	{
@@ -1211,6 +1230,130 @@ sub _detect_file_info :Protected {
 		}
 	}
 	return {};
+}
+
+# _xml_table( $path ) -> { rows, columns, list } | undef
+#
+# Purpose: Read an XML document that holds more than one kind of top-level
+#          element (a DMARC report: report_metadata, policy_published, a
+#          repeating record) as a table.
+# Entry:   $path is a readable .xml file.
+# Exit:    undef when the file is not such a document (it does not parse, or
+#          has fewer than two kinds of child element under the root, or none
+#          repeats as hashes): D::A reads it as it always did.  Otherwise
+#          rows: flat hashes, columns: in the order the file first names them.
+# Notes:   The row element is the child element that occurs most often, the
+#          one with the most values on a tie, then the first by name.  Each
+#          row has its own values (a child's name is the column, nested ones
+#          joined by "_": row_source_ip) and every other top-level value
+#          (report_metadata_org_name, version), repeated on every row, so a
+#          report's rows still say whose report they came from.  A repeated
+#          element inside a row becomes a list in one cell, "a, b", or its
+#          JSON text when its members are not plain values.  Attributes
+#          are columns beside the child elements.  KeyAttr is empty so that
+#          XML::Simple does not fold name/id/key elements (see the POD).
+sub _xml_table {
+	my ($path) = @_;
+	local ($@, $!);
+	local $/ = "\n";
+	require XML::Simple;
+	open my $fh, '<:raw', $path or return undef;
+	my $text = do { local $/; <$fh> };
+	close $fh;
+	return undef unless defined $text && length $text;
+
+	my $doc = eval {
+		XML::Simple::XMLin(\$text, ForceArray => 1, KeyAttr => [], SuppressEmpty => '');
+	};
+	return undef unless ref $doc eq 'HASH';
+
+	my @kinds = grep { ref $doc->{$_} eq 'ARRAY' } keys %{$doc};
+	return undef if @kinds < 2;
+
+	# The row element: repeated, and every occurrence an element with parts.
+	my ($row_key, @best);
+	for my $k (sort @kinds) {
+		my $list = $doc->{$k};
+		next if grep { ref $_ ne 'HASH' } @{$list};
+		my $values = 0;
+		for my $one (@{$list}) {
+			my %flat;
+			_xml_flat($one, '', \%flat);
+			$values += keys %flat;
+		}
+		my @score = (scalar @{$list}, $values);
+		if (!defined $row_key || $score[0] > $best[0] || ($score[0] == $best[0] && $score[1] > $best[1])) {
+			($row_key, @best) = ($k, @score);
+		}
+	}
+	return undef unless defined $row_key;
+
+	my %context;
+	for my $k (keys %{$doc}) {
+		next if $k eq $row_key;
+		_xml_flat($doc->{$k}, $k, \%context);
+	}
+	my @rows;
+	for my $one (@{ $doc->{$row_key} }) {
+		my %row;
+		_xml_flat($one, '', \%row);
+		push @rows, { %context, %row };
+	}
+
+	# Column order: where each name first appears in the text.  The parse
+	# keeps none.  A tag's path below the root names its column, without the
+	# row element's own name.
+	(my $scan = $text) =~ s/<!--.*?-->|<!\[CDATA\[.*?\]\]>|<\?.*?\?>|<!DOCTYPE[^>\[]*(?:\[.*?\])?>//gs;
+	my (@stack, @columns, %seen);
+	while ($scan =~ /<(\/?)([^\s\/>!?]+)[^>]*?(\/?)>/g) {
+		my ($close, $name, $self_close) = ($1, $2, $3);
+		if ($close) {
+			pop @stack;
+			next;
+		}
+		push @stack, $name;
+		my @parts = @stack[ 1 .. $#stack ];
+		shift @parts if @parts && $parts[0] eq $row_key;
+		my $col = join '_', @parts;
+		if (length $col && !$seen{$col}++) {
+			push @columns, $col;
+		}
+		pop @stack if $self_close;
+	}
+	my %known = map { $_ => 1 } map { keys %{$_} } @rows;
+	@columns = grep { $known{$_} } @columns;
+	my %placed = map { $_ => 1 } @columns;
+	push @columns, grep { !$placed{$_} } sort keys %known;
+
+	for my $row (@rows) {
+		$row->{$_} //= '' for @columns;
+	}
+	return { rows => \@rows, columns => \@columns, list => undef };
+}
+
+# _xml_flat( $node, $name, \%out )
+#
+# Purpose: Flatten one node of an XML::Simple (ForceArray) tree into cells.
+# Entry:   $name is the column so far ('' at the top of a row).
+sub _xml_flat {
+	my ($node, $name, $out) = @_;
+	if (ref $node eq 'ARRAY') {
+		if (@{$node} == 1) {
+			_xml_flat($node->[0], $name, $out);
+		} elsif (!grep { ref $_ } @{$node}) {
+			$out->{$name} = join ', ', @{$node};
+		} else {
+			require Mojo::JSON;
+			$out->{$name} = Mojo::JSON::to_json($node);
+		}
+	} elsif (ref $node eq 'HASH') {
+		for my $k (sort keys %{$node}) {
+			_xml_flat($node->{$k}, length $name ? "${name}_$k" : $k, $out);
+		}
+	} elsif (length $name) {
+		$out->{$name} = $node;
+	}
+	return;
 }
 
 # _json_read( $path ) -> ($text, $data)
