@@ -77,6 +77,8 @@ Readonly my $EXT_RE        => do { my $p = join '|', @SUPPORTED_EXT; qr/\.(?:$p)
 # exactly: first character must be a letter or underscore (not a digit), so
 # that every table name the controller accepts can also be opened by DataSource
 # without an unhandled croak.
+# srccol=: the name of the column that says which file a stacked row came from.
+Readonly my $SOURCE_COL_RE => qr/\A[A-Za-z_][A-Za-z0-9_]{0,63}\z/;
 Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 
 # URL spec pattern shared by _open_spec and _spec_to_url.
@@ -3822,7 +3824,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 	return (\@page, $has_next);
 }
 
-# _combine_tables(\@sources) -> (\@merged_records, \@merged_columns)
+# _combine_tables(\@sources, $source_col) -> (\@merged_records, \@merged_columns)
 #
 # Purpose: Perform a vertical stack (UNION ALL equivalent) of two or more
 #          record sets.  The merged column list is the union of all source
@@ -3831,7 +3833,10 @@ sub _fetch_page :Protected ($self, $source, $params) {
 #          column names it introduces, in order.  Where a source does not
 #          have a particular column, its rows receive an empty string for
 #          that column.
-# Entry:   $sources is an arrayref of [$records_aref, $columns_aref] pairs.
+# Entry:   $sources is an arrayref of [$records_aref, $columns_aref, $label]
+#          triples.  $source_col, when given, names an added last column that
+#          holds each row's $label (the file or table it came from); a name a
+#          source already uses gets underscores until it is free.
 #          At least one element is required; a single-element call returns
 #          that element's data unchanged (no allocation beyond the column copy).
 # Exit:    Returns (\@merged_records, \@merged_columns).
@@ -8245,7 +8250,11 @@ Renders C<browse.html.tt> with:
   parent_href    string or undef (undef at filesystem root)
   crumbs         ARRAYREF of { name, href }
   dirs           ARRAYREF of { name, href }   -- subdirectories, sorted
-  files          ARRAYREF of { name, href }   -- supported data files, sorted
+  files          ARRAYREF of { name, path, href } -- supported data files, sorted
+
+With two or more files the page draws a checkbox for each, Select all, and a
+Combine selected button.  Its script (no server round trip) opens
+C</combine?l=path:A&c=path:B&...&srccol=source_file&back2=/browse?path=DIR>.
 
 =head3 MESSAGES
 
@@ -9175,6 +9184,10 @@ This is equivalent to a SQL C<UNION ALL> across heterogeneous schemas.
                   current result.  Invalid or non-existent specs are silently
                   skipped.
   ?f=    string   (repeatable) Result filter: "col:op:val".
+  ?srccol= string  Optional.  Adds a last column of this name that holds the
+                  file or table each row came from.  An identifier of up to
+                  64 characters; anything else is ignored.  A name a source
+                  already uses gets underscores added until it is free.
 
 =head4 OUTPUT
 

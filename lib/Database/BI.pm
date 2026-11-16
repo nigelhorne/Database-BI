@@ -184,6 +184,11 @@ every supported file.  Recently opened filesystem files appear in a
 
 B<Filesystem browser> -- C</browse> lets the user navigate the entire
 filesystem and open any supported data file, not just files in C<data_dir>.
+A folder with two or more data files has a checkbox beside each (and Select
+all; shift-click ticks a range), and Combine selected opens the ticked files
+as one table, as the Combine data panel does.  A folder of reports of one
+format, such as a DMARC archive, is one click, and the table has a
+C<source_file> column that names the file each row came from.
 
 =item *
 
@@ -521,7 +526,11 @@ show the data directory.
 =item C<GET /browse>
 
 Filesystem navigator.  Accepts C<?path=> to set the starting directory
-(defaults to C<$HOME>).
+(defaults to C<$HOME>).  When the folder holds two or more data files the
+page can tick several and send them to C</combine> (the first as C<l=>, the
+others as C<c=>, with C<srccol=source_file>).  A very long list makes a long
+URL, so the request line may be up to 256 KiB (C<MOJO_MAX_LINE_SIZE>, which
+is set to that at startup unless it is already set).
 
 =item C<GET /open>
 
@@ -537,6 +546,7 @@ Performs one or more left joins and renders the merged table.  Parameters:
   l=<spec>               left table spec (see below)
   j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
   c=<spec>               table to stack after the joins (repeatable; see /combine)
+  srccol=<name>          with c=, a column naming each row's source file (see /combine)
   f=<col>:<op>:<val>     result filter (repeatable)
   range=<name>           relative time range, with rcol=<column> (see below)
 
@@ -627,6 +637,12 @@ where a source file lacks a column.  Parameters:
   j=<spec>|<lk>|<rk>    join step applied to the left table first (repeatable)
   c=<spec>               additional table to stack (repeatable)
   f=<col>:<op>:<val>     result filter applied after combining (repeatable)
+  srccol=<name>          add a last column, <name>, holding the file or table
+                         each row came from (a letter or underscore, then
+                         letters, digits or underscores, at most 64; a name a
+                         source already uses gets an underscore added).  The
+                         file browser's Combine selected passes source_file.
+                         The panels, Export and Print carry it on.
 
 =item C<GET /graph>
 
@@ -2939,6 +2955,8 @@ sub startup ($self) {
 			view_filters   => [ grep { length } @{ $c->every_param('f') } ],
 			view_combines  => [ grep { /\A(?:path|table|url|redis|mariadb):/i } @{ $c->every_param('c') } ],
 			view_dedup     => ($c->param('d') ? 1 : 0),
+			# srccol= names the column that says which file a stacked row came from.
+			view_srccol    => (($c->param('srccol') // '') =~ /\A[A-Za-z_][A-Za-z0-9_]{0,63}\z/ ? $c->param('srccol') : ''),
 			# lk=/nolk= turn a stored lookup on or off for this view, as name=value
 			# pairs so the macro can write them back in the order they came.
 			view_lookups   => [ map { my $k = $_; map { { name => $k, value => $_ } } grep { length } @{ $c->every_param($k) } } qw(lk nolk) ],

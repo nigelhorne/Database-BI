@@ -89,8 +89,11 @@ my @CHAPTERS = (
 			'To see a file as soon as the program starts, name it when you start the program: script/database-bi data/store.db.',
 			'The home address then shows that file. Click Home in the breadcrumb to see the usual list.',
 			'You can name only one file this way. To bring files together, open one and use Merge or Combine.',
+			'To open several files as one table, tick them in the list. Use Select all for a whole folder, or hold Shift to tick a range.',
+			'Click Combine selected. The rows of each file are stacked in one table.',
+			'The last column, source_file, names the file each row came from.',
 		],
-		tip   => 'A dropped file is a copy. Changes in the view do not change your original file.',
+		tip   => 'A folder of reports in the same format, such as a DMARC archive, needs only Select all and Combine selected.',
 		routes => [ '/browse', '/open', '/tables' ],
 	},
 	{
@@ -221,6 +224,8 @@ my @CHAPTERS = (
 			'Click Combine data...',
 			'Choose the second table or type its path.',
 			'Click Combine.',
+			'To combine many files at once, tick them in Browse your files and click Combine selected.',
+			'A source_file column then names the file each row came from.',
 			'You can merge a table and then combine another, in either order. The table keeps both, and so do its charts.',
 		],
 		tip   => 'The files do not need the same columns. A missing value is left blank.',
@@ -1070,7 +1075,11 @@ my @FAQ = (
 	},
 	{
 		question => 'The program says that only one database can be opened.',
-		answer   => 'You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others.',
+		answer   => 'You named more than one file when you started the program. Name one, then use Merge or Combine on its page to add the others. To open a whole folder as one table, tick its files in Browse your files and click Combine selected.',
+	},
+	{
+		question => 'Can I open all the files in a folder as one table?',
+		answer   => 'Yes, if they are in the same format. Open the folder in Browse your files, click Select all, then click Combine selected. A source_file column names the file each row came from.',
 	},
 	{
 		question => 'The table says its extract is stale.',

@@ -31,6 +31,11 @@ every supported file.  Recently opened filesystem files appear in a
 "Recently opened" section powered by `localStorage`.
 - **Filesystem browser** -- `/browse` lets the user navigate the entire
 filesystem and open any supported data file, not just files in `data_dir`.
+A folder with two or more data files has a checkbox beside each (and Select
+all; shift-click ticks a range), and Combine selected opens the ticked files
+as one table, as the Combine data panel does.  A folder of reports of one
+format, such as a DMARC archive, is one click, and the table has a
+`source_file` column that names the file each row came from.
 - **Column sort and reorder** -- clicking a header sorts the table; headers
 are draggable to reorder.  Both settings are persisted in `localStorage`
 by column name and survive page reloads.  A table too long for one page is
@@ -330,7 +335,11 @@ perl Makefile.PL
 - `GET /browse`
 
     Filesystem navigator.  Accepts `?path=` to set the starting directory
-    (defaults to `$HOME`).
+    (defaults to `$HOME`).  When the folder holds two or more data files the
+    page can tick several and send them to `/combine` (the first as `l=`, the
+    others as `c=`, with `srccol=source_file`).  A very long list makes a long
+    URL, so the request line may be up to 256 KiB (`MOJO_MAX_LINE_SIZE`, which
+    is set to that at startup unless it is already set).
 
 - `GET /open`
 
@@ -347,6 +356,7 @@ perl Makefile.PL
     l=<spec>               left table spec (see below)
     j=<spec>|<lk>|<rk>    join step (repeatable): right-spec, left key, right key
     c=<spec>               table to stack after the joins (repeatable; see /combine)
+    srccol=<name>          with c=, a column naming each row's source file (see /combine)
     f=<col>:<op>:<val>     result filter (repeatable)
     range=<name>           relative time range, with rcol=<column> (see below)
     ```
@@ -443,6 +453,12 @@ perl Makefile.PL
     j=<spec>|<lk>|<rk>    join step applied to the left table first (repeatable)
     c=<spec>               additional table to stack (repeatable)
     f=<col>:<op>:<val>     result filter applied after combining (repeatable)
+    srccol=<name>          add a last column, <name>, holding the file or table
+                           each row came from (a letter or underscore, then
+                           letters, digits or underscores, at most 64; a name a
+                           source already uses gets an underscore added).  The
+                           file browser's Combine selected passes source_file.
+                           The panels, Export and Print carry it on.
     ```
 
 - `GET /graph`

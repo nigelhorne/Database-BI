@@ -60,7 +60,7 @@
 		</tr>
 		<tr>
 			<td>Any file on disc</td>
-			<td><code>/browse</code> to walk the filesystem, <code>/open?path=/abs/path</code> to open one by path, or <a href="install.html#run"><code>script/database-bi FILE</code></a> to show one at the home address.</td>
+			<td><code>/browse</code> to walk the filesystem (tick several files and Combine selected opens them as one table, with a <code>source_file</code> column), <code>/open?path=/abs/path</code> to open one by path, or <a href="install.html#run"><code>script/database-bi FILE</code></a> to show one at the home address.</td>
 		</tr>
 		<tr>
 			<td>A file on another host</td>
@@ -146,6 +146,9 @@
 		<code>j=&lt;spec&gt;|&lt;leftkey&gt;|&lt;rightkey&gt;</code> appends
 		columns from another table, keeping every left row. <code>c=&lt;spec&gt;</code>
 		stacks further files under the result on a unified column set.
+		<code>srccol=&lt;name&gt;</code> adds a last column that names the file each
+		row came from; the file browser's Combine selected sets it to
+		<code>source_file</code>.
 	</li>
 	<li>
 		<strong>Normalise dates, look up and compute fields.</strong> A stored date pattern

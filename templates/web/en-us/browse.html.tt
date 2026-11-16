@@ -92,6 +92,7 @@
     if (sel.length < 2) return;
     var q = ['l=' + encodeURIComponent('path:' + sel[0].value)];
     for (var i = 1; i < sel.length; i++) q.push('c=' + encodeURIComponent('path:' + sel[i].value));
+    q.push('srccol=source_file');
     q.push('back2=' + encodeURIComponent('/browse?path=' + encodeURIComponent(go.getAttribute('data-dir'))));
     location.href = '/combine?' + q.join('&');
   });

@@ -70,4 +70,37 @@ subtest 'every file of the folder stacks into one table' => sub {
 	cmp_ok(length($key), '<=', 120, 'the saved-layout key is short');
 };
 
+subtest 'srccol= names the file each row came from' => sub {
+	my @files = map { $dir->child(sprintf('report-with-a-fairly-long-name-%03d.csv', $_))->to_string } 1 .. 3;
+	my $q = '/combine?l=' . url_escape("path:$files[0]")
+		. join('', map { '&c=' . url_escape("path:$_") } @files[1, 2]);
+
+	$t->get_ok("$q&srccol=source_file", $HTML)->status_is(200);
+	my $body = $t->tx->res->body;
+	like($body, qr{<th[^>]*>\s*source_file}, 'the column is in the table head');
+	for my $n (1 .. 3) {
+		like($body, qr{<td[^>]*>report-with-a-fairly-long-name-00$n\.csv</td>}, "file $n is named in its row");
+	}
+	like($body, qr{<input type="hidden" name="srccol" value="source_file">}, 'a panel passes it on');
+	like($body, qr{&amp;srccol=source_file}, 'and so does the filter bar');
+
+	$t->get_ok($q, $HTML)->status_is(200);
+	unlike($t->tx->res->body, qr/source_file/, 'without srccol there is no column');
+
+	$t->get_ok("$q&srccol=" . url_escape('x"><b>'), $HTML)->status_is(200);
+	unlike($t->tx->res->body, qr/<b>/, 'a name that is not an identifier is ignored');
+
+	$t->get_ok("$q&srccol=ip&format=json&per_page=0", $HTML)->status_is(200);
+	like($t->tx->res->body, qr/>\s*ip_\s*</, 'a name a file already uses gets an underscore');
+
+	$t->get_ok('/export?format=csv&srccol=source_file&l=' . url_escape("path:$files[0]")
+		. '&c=' . url_escape("path:$files[1]"))->status_is(200);
+	like($t->tx->res->body, qr/source_file/, 'Export has it too');
+};
+
+subtest 'the Browse button asks for it' => sub {
+	$t->get_ok('/browse?path=' . url_escape($dir->to_string), $HTML)->status_is(200)
+		->content_like(qr/srccol=source_file/);
+};
+
 done_testing;

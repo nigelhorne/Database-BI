@@ -244,6 +244,7 @@
 [%- range_hidden -%]
 [%- cross_row_params -%]
 [%- IF dedup -%]<input type="hidden" name="d" value="1">[%- END -%]
+[%- IF view_srccol.length -%]<input type="hidden" name="srccol" value="[% view_srccol | html %]">[%- END -%]
 [%- FOREACH lkp IN view_lookups -%]<input type="hidden" name="[% lkp.name | html %]" value="[% lkp.value | html %]">[%- END -%]
 [%- END -%]
 
@@ -341,7 +342,7 @@
 </div>
 
 [%- IF left_spec -%]
-<div class="dash-add-filter" id="dash-add-filter" data-spec="[% left_spec | html %]" data-range-qs="[% FOREACH jspec IN current_joins %]&amp;j=[% jspec | uri | html %][% END %][% IF current_joins.size && view_join_type.length %]&amp;jtype=[% view_join_type | uri | html %][% END %][% FOREACH cspec IN combine_specs %]&amp;c=[% cspec | uri | html %][% END %]">
+<div class="dash-add-filter" id="dash-add-filter" data-spec="[% left_spec | html %]" data-range-qs="[% FOREACH jspec IN current_joins %]&amp;j=[% jspec | uri | html %][% END %][% IF current_joins.size && view_join_type.length %]&amp;jtype=[% view_join_type | uri | html %][% END %][% FOREACH cspec IN combine_specs %]&amp;c=[% cspec | uri | html %][% END %][% IF view_srccol.length %]&amp;srccol=[% view_srccol | uri | html %][% END %]">
   <select id="dash-f-col" aria-label="Column to filter">
     <option value="">&#x2014; filter column &#x2014;</option>
     [%- FOREACH col IN columns -%]
@@ -2030,6 +2031,7 @@ function biViewParams() {
   urlP.getAll('c').forEach(function (v) { params.append('c', v); });
   urlP.getAll('f').forEach(function (v) { params.append('f', v); });
   if (urlP.get('d')) params.set('d', '1');
+  if (urlP.get('srccol')) params.set('srccol', urlP.get('srccol'));
   // A relative range travels as itself, so the rows are the ones this view is
   // showing rather than the ones a frozen date pair would match.
   if (urlP.get('range')) params.set('range', urlP.get('range'));
