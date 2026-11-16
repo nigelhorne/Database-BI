@@ -1060,7 +1060,7 @@ sub _crumb_label :Protected ($self, $url) {
 			($q->param('l') // ''),
 			(map { (split /\|/, $_, 2)[0] // '' } @{ $q->every_param('j') }),
 			@{ $q->every_param('c') };
-		return @names ? join(' + ', @names) . $view : undef;
+		return @names ? _names_summary(\@names) . $view : undef;
 	}
 	if ($path eq '/import') {
 		my $src = Mojo::URL->new($q->param('url') // '');
@@ -1088,6 +1088,17 @@ sub _crumb_label :Protected ($self, $url) {
 		return (ref $a eq 'HASH' && length($a->{name} // '')) ? $a->{name} : 'Canvas';
 	}
 	return undef;
+}
+
+# _names_summary(\@names) -> $text
+#
+# "a + b + c", or for a folder of reports stacked, the first few and a count:
+# "a + b + c + 297 more".  Used for the trail and the page title.
+sub _names_summary {
+	my ($names) = @_;
+	my $keep = 3;
+	return join(' + ', @$names) if @$names <= $keep + 1;
+	return join(' + ', @{$names}[0 .. $keep - 1], (@$names - $keep) . ' more');
 }
 
 # _crumb_spec_name($spec) -> $name
@@ -3826,7 +3837,7 @@ sub _fetch_page :Protected ($self, $source, $params) {
 # Exit:    Returns (\@merged_records, \@merged_columns).
 # Side Effects: None; allocates new record hashrefs (original rows are not mutated).
 sub _combine_tables {
-	my ($sources) = @_;
+	my ($sources, $source_col) = @_;
 
 	# Build the unified column order: first source's columns first, then any
 	# new columns introduced by each subsequent source in their file order.
@@ -3837,14 +3848,22 @@ sub _combine_tables {
 		}
 	}
 
+	# $source_col names a column that says which source each row came from; it
+	# goes last, and takes a name no source column has.
+	if (defined $source_col) {
+		$source_col .= '_' while $seen{$source_col};
+		push @all_cols, $source_col;
+	}
+
 	my @merged;
 	for my $src (@$sources) {
-		my ($recs, $cols) = @$src;
+		my ($recs, $cols, $label) = @$src;
 		my %has_col = map { $_ => 1 } @$cols;
 		for my $row (@$recs) {
 			my %new_row;
 			$new_row{$_} = $has_col{$_} ? ($row->{$_} // '') : ''
 				for @all_cols;
+			$new_row{$source_col} = $label // '' if defined $source_col;
 			push @merged, \%new_row;
 		}
 	}
@@ -4010,18 +4029,20 @@ sub _run_pipeline_source :Protected ($self) {
 	# with no single aggregatable object.
 	my @cspecs = @{ $self->every_param('c') // [] };
 	if (@cspecs) {
-		my @sources = ([$records, \@columns]);
+		my @sources = ([$records, \@columns, $left_label]);
 		for my $cspec (@cspecs) {
 			my ($csrc, $clabel) = $self->_open_spec($cspec);
 			next unless $csrc;
 			my $crecs = eval { $csrc->fetch_all } // [];
 			next if $@;
 			my @ccols = _get_columns($csrc, $crecs);
-			push @sources,  [$crecs, \@ccols];
+			push @sources,  [$crecs, \@ccols, $clabel];
 			push @combined, { label => $clabel };
 		}
 		if (@sources > 1) {
-			($records, my $new_cols) = _combine_tables(\@sources);
+			my $srccol = $self->param('srccol');
+			$srccol = undef unless defined $srccol && $srccol =~ $SOURCE_COL_RE;
+			($records, my $new_cols) = _combine_tables(\@sources, $srccol);
 			@columns = @$new_cols;
 			$src = undef;	# union: no single aggregatable source
 		}
@@ -8263,7 +8284,7 @@ sub browse ($self) {
 	} @{ $listing->{dirs} };
 
 	my @files = map {
-		+{ name => $_->{name}, href => '/open?path=' . url_escape($_->{path}) }
+		+{ name => $_->{name}, path => $_->{path}, href => '/open?path=' . url_escape($_->{path}) }
 	} @{ $listing->{files} };
 
 	# Build breadcrumb trail from filesystem root down to $dir.
@@ -9250,10 +9271,15 @@ sub combine_tables ($self) {
 
 	my (undef, $filter_specs, $filters_json) = $self->_apply_filters($records, { chips_only => 1 });
 
-	my $title     = $left_label;
-	$title       .= ' + ' . join(' + ', map { $_->{label} } @summaries) if @summaries;
+	my $title     = _names_summary([ $left_label, map { $_->{label} } @summaries ]);
 	my $table_key = (@join_specs ? 'join+combine:' : 'combine:') . lc($left_label);
 	$table_key   .= ':' . lc($_->{label}) for @summaries;
+	# The key names the layout kept in localStorage: a folder's worth of names
+	# is not a key, so a long one is shortened to its start and a digest.
+	if (length($table_key) > 120) {
+		require Digest::MD5;
+		$table_key = substr($table_key, 0, 80) . ':' . Digest::MD5::md5_hex($table_key);
+	}
 
 	my $page_url = $self->req->url->clone;
 	$page_url->query->remove('page')->remove('per_page');

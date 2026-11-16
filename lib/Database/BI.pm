@@ -2652,6 +2652,8 @@ sub startup ($self) {
 	# win: the daemon and prefork commands read MOJO_LISTEN only when started,
 	# after this, and -l replaces it.
 	my @listen = _listen_locations($self->config('listen'));
+	# Stacking a folder of files puts every path in the URL; Mojo's 8 KiB line limit is too small.
+	$ENV{MOJO_MAX_LINE_SIZE} ||= 262_144;
 	$ENV{MOJO_LISTEN} = join(',', @listen) unless length($ENV{MOJO_LISTEN} // '');
 	_default_hypnotoad_listen($self->config);
 	_require_password_if_open($self, $ENV{MOJO_LISTEN}, $self->config->{hypnotoad});
