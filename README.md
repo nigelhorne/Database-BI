@@ -79,6 +79,12 @@ by dragging the bottom-right corner grip, or from the keyboard: the grip
 takes focus, the arrow keys resize the chart (Shift takes bigger steps,
 Home and End go to the narrowest and widest it can be) and the size is announced
 as it changes.  All chart pages include Copy-link and Export SVG/PNG/PDF buttons.
+In a browser with the File System Access API (Chrome, Edge and other Chromium
+browsers, on this machine or over https) each export opens the Save As box, so
+the reader chooses the folder and the file name; the chart's own name is
+suggested, and cancelling saves nothing.  Other browsers download the file under
+that name into their usual downloads folder.  (The Export panel on a table is
+different: it saves on the server, in `export_dirs`.)
 - **Maps** -- `GET /map` plots the filtered view on an OpenStreetMap map, either
 from latitude and longitude columns or from a place column geocoded by a
 [Geo::Coder::List](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AList) chain: [Geo::Coder::Free](https://metacpan.org/pod/Geo%3A%3ACoder%3A%3AFree)'s local data first, then
