@@ -17,6 +17,12 @@ Revision history for Database-BI
 	- Requests may now have a start line of up to 256 KiB
 	  (MOJO_MAX_LINE_SIZE), for the long link a stack of many files makes.
 
+	[ Bug fixes ]
+	- Export saves only the columns the table still shows, in its order:
+	  columns deleted in the page (for example from a merged table) were
+	  still written to the file.
+	- JSON exports write each row's keys in the table's column order.
+
 0.023.1	Wed Nov 11 08:33:35 PM EST 2026
 	[ Enhancements ]
 	- Map boundaries are no longer only counties.  The map panel's Show

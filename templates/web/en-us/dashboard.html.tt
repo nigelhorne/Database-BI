@@ -6251,6 +6251,10 @@ function biModelPost(url, body, errEl, done) {
     var params = biViewParams();
     params.set('dir',      dir);
     params.set('filename', filename);
+    // Only the columns the table still shows, in its order: a column the
+    // reader deleted in the page is not exported.
+    var tstate = window.biTableState ? window.biTableState() : null;
+    if (tstate) tstate.columns.forEach(function (c) { params.append('xcol', c); });
 
     fetch('/export', {
       method: 'POST',

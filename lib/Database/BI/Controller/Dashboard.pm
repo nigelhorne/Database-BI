@@ -7649,6 +7649,34 @@ sub _decode_cell {
 # XS note: for very large exports, replacing _csv_row with Text::CSV_XS
 # (available from CPAN) would further reduce serialisation time -- its C-level
 # implementation is roughly 5-10x faster than the pure-Perl version here.
+# The columns an export keeps, in the order given, from repeated xcol=: what
+# the table on the page still shows after the reader deleted or moved columns
+# (that happens in the browser, so the server is told).  Names the view does
+# not have are ignored; if none match, or xcol is absent, everything is kept.
+sub _export_selection {
+	my ($self, $records, $columns) = @_;
+	my @want = grep { defined && length } @{ $self->every_param('xcol') };
+	return ($records, $columns) unless @want;
+	my %have = map { $_ => 1 } @$columns;
+	my %seen;
+	my @keep = grep { $have{$_} && !$seen{$_}++ } @want;
+	return ($records, $columns) unless @keep;
+	my @rows = map { my $r = $_; +{ map { $_ => $r->{$_} } @keep } } @$records;
+	return (\@rows, \@keep);
+}
+
+# A JSON array of the rows with each row's keys in column order (a hash has
+# none, so encode_json would give the keys in any order).  UTF-8 bytes.
+sub _serialize_json {
+	my ($records, $columns) = @_;
+	my @keys = map { encode_json($_) } @$columns;
+	return '[' . join(',', map {
+		my $row = $_;
+		my $i = 0;
+		'{' . join(',', map { $_ . ':' . encode_json($row->{ $columns->[$i++] }) } @keys) . '}';
+	} @$records) . ']';
+}
+
 sub _serialize_csv {
 	my ($records, $columns) = @_;
 	my @lines = _csv_row(@$columns);
@@ -7698,7 +7726,8 @@ sub _render_sqlite :Protected ($self, $records, $columns, $name) {
 sub _render_json :Protected ($self, $records, $columns, $name) {
 	$self->stash(buffer => 0);
 	$self->res->headers->content_disposition(qq{attachment; filename="${name}.json"});
-	$self->render(json => $records);
+	$self->res->headers->content_type('application/json;charset=UTF-8');
+	$self->render(data => _serialize_json($records, $columns));
 }
 
 # ---------------------------------------------------------------------------
@@ -9339,6 +9368,7 @@ C<GET /export> -- Stream the current logical view as a browser file download.
   ?j=        string   (repeatable) Join steps.
   ?f=        string   (repeatable) Filter specs.
   ?format=   string   "csv" (default), "sqlite", or "json".
+  ?xcol=     string   (repeatable) Keep only these columns, in this order.
 
 =head4 DOMAIN CONSTRAINTS: ?format=
 
@@ -9400,6 +9430,8 @@ sub export_data ($self) {
 		my $hdr = join('; ', map { s/\s+/ /gr =~ s/^\s+|\s+$//gr } @$warnings);
 		$self->res->headers->header('X-BI-Warnings' => $hdr);
 	}
+
+	($records, $columns) = _export_selection($self, $records, $columns);
 
 	my $format = $self->param('format') // 'csv';
 	(my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
@@ -9558,6 +9590,8 @@ sub export_write ($self) {
 	return $self->render(json => { error => 'Table not found' }, status => 404)
 		unless $records;
 
+	($records, $columns) = _export_selection($self, $records, $columns);
+
 	my $dest = $dest_dir->child($filename);
 	# A link (or a folder, a pipe) already at the name is not replaced: written
 	# through, a link inside the folders would put the export wherever it
@@ -9568,7 +9602,7 @@ sub export_write ($self) {
 	my $tmp;
 	my $ok = eval {
 		my $bytes = $format eq 'csv' ? _serialize_csv($records, $columns)
-		          : $format eq 'json' ? encode_json($records)
+		          : $format eq 'json' ? _serialize_json($records, $columns)
 		          : $self->_write_sqlite_db($records, $columns);
 		# Written beside it and renamed over it: a rename replaces whatever
 		# is at the name, a link made since the check included, and never
