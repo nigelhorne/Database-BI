@@ -2295,6 +2295,29 @@ sub _between_bounds {
 	return ($lo, $hi);
 }
 
+# _filter_date_key($cell, $precision) -> $key
+#
+# The comparable form of a cell in a date filter: what
+# _date_key(_to_iso_date($cell) // $cell, $precision) // $cell gives, read with
+# one pattern match instead of two.
+#
+# Premise 1: _to_iso_date returns an ISO cell unchanged, and _date_key then
+#            reads that same cell again.
+# Premise 2: reading a cell twice gives the same answer both times.
+# Conclusion: an ISO cell is read once and keyed at once.  Only a M/D/YYYY cell
+#             is rewritten first, and a cell that is neither is its own key.
+sub _filter_date_key {
+	my ($cell, $precision) = @_;
+	my @part = Database::BI::Util::iso_datetime($cell);
+	if (!@part && defined $cell && $cell =~ m{\A(\d{1,2})/(\d{1,2})/(\d{4})\z}) {
+		@part = Database::BI::Util::iso_datetime(sprintf '%04d-%02d-%02d', $3, $1, $2);
+	}
+	return $cell unless @part;
+	my ($day, $hour, $min, $sec) = @part;
+	return $day if $precision < 19;
+	return sprintf '%sT%s:%s:%s', $day, $hour // '00', $min // '00', $sec // '00';
+}
+
 sub _apply_filter_spec {
 	my ($records, $spec) = @_;
 	my ($col, $op, $val) = split /:/, $spec, 3;
@@ -2355,9 +2378,7 @@ sub _apply_filter_spec {
 		my $both  = defined $num && defined $num_val;
 		# Normalise M/D/YYYY cells to ISO for date comparisons so that the
 		# ISO values produced by <input type="date"> match against either format.
-		my $ncell = $is_date
-			? (_date_key(_to_iso_date($cell) // $cell, $prec) // $cell)
-			: $cell;
+		my $ncell = $is_date ? _filter_date_key($cell, $prec) : $cell;
 		$op eq 'eq'       ? ($is_date ? $ncell eq $nval  : lc($cell) eq $lval) :
 		$op eq 'ne'       ? ($is_date ? $ncell ne $nval  : lc($cell) ne $lval) :
 		$op eq 'contains' ? index(lc($cell), $lval) != -1                      :

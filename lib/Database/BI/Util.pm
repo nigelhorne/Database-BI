@@ -30,6 +30,14 @@ Readonly my $ISO_DATETIME_RE => qr{
 	\z
 }x;
 
+# Premise 1: iso_datetime runs once per cell of a date filter, time range or
+#            formula.
+# Premise 2: reading a Readonly scalar costs several times a plain lexical's,
+#            and a compiled regex is the same object either way.
+# Conclusion: the hot path matches against a lexical copy; the Readonly stays
+#             the one definition, so the pattern is still written once.
+my $ISO_DATETIME_FAST = $ISO_DATETIME_RE;
+
 # urlencode($str) -> $encoded
 #
 # Percent-encodes a string for use as a URI query-parameter value.
@@ -65,6 +73,15 @@ sub parse_number {
 
 	return undef unless defined($value) && length($value);
 
+	# Premise 1: the slow path below only removes spaces, brackets, commas, $, %,
+	#            non-ASCII and currency codes before matching a plain decimal.
+	# Premise 2: an ASCII plain decimal contains none of those.
+	# Premise 3: at most 300 integer digits is below 1e300, under DBL_MAX.
+	# Conclusion: such a cell reaches the same number without the substitutions
+	#             or the range check (a Readonly read costs several times a
+	#             lexical's); longer ones take the full path.
+	return $value + 0 if $value =~ /\A-?[0-9]{1,300}(?:\.[0-9]+)?\z/;
+
 	my $is_accounting = ($value =~ /\A\s*\(/);
 	(my $text = $value) =~ s/(?:\A|(?<=[\s(]))(?:$CURRENCY_CODES)(?=[\s\d.])|(?<=[\s\d])(?:$CURRENCY_CODES)(?=[\s)]|\z)//g;
 	$text =~ s/[\s(),\$%]|[^\x00-\x7F]//g;
@@ -88,7 +105,7 @@ sub parse_number {
 sub iso_datetime {
 	my ($value) = @_;
 	return () unless defined $value && !ref $value;
-	my ($day, $hour, $minute, $second) = $value =~ $ISO_DATETIME_RE or return ();
+	my ($day, $hour, $minute, $second) = $value =~ $ISO_DATETIME_FAST or return ();
 	return ($day, $hour, $minute, $second);
 }
 
