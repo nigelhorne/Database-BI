@@ -73,6 +73,11 @@ sub lingua_choice {
 	return undef unless defined $accept && length $accept;	## no critic (ProhibitExplicitReturnUndef)
 
 	local $ENV{HTTP_ACCEPT_LANGUAGE} = $accept;
+	# Premise 1: a request must never take the server's locale.  Premise 2:
+	# CGI::Lingua falls back to the locale when the header names nothing it can
+	# read, and reads LC_ALL first, where "C" means no language.  Conclusion:
+	# masking LC_ALL makes an unreadable header pick nothing, not the server's.
+	local $ENV{LC_ALL} = 'C';
 	return _lingua($supported);
 }
 
