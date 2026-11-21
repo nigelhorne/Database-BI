@@ -2300,7 +2300,19 @@ sub _apply_filter_spec {
 	my ($col, $op, $val) = split /:/, $spec, 3;
 	return $records unless length($col // '') && defined $op && length $op;
 	$val //= '';
-	my $lval    = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
+	# differ: the value is a column name, and a row stays when its two cells do
+	# not hold identical text.  A row that lacks a column counts as empty there,
+	# which also keeps a locked SQL row from croaking on a key it does not have.
+	#
+	# Premise 1: a differ compares two cells as text and nothing else.
+	# Premise 2: the date, number, between and in set-up below is read only by
+	#            the other operators.
+	# Conclusion: a differ returns here, before paying for any of it.
+	if ($op eq 'differ') {
+		my $text = sub { exists $_[0]{ $_[1] } ? ($_[0]{ $_[1] } // '') : '' };
+		return [grep { $text->($_, $col) ne $text->($_, $val) } @{$records}];
+	}
+	my $lval = lc $val;	# precompute once; avoids O(N) redundant lc() inside grep
 	my $between = $op eq 'between';
 	my ($lo, $hi) = $between ? _between_bounds($val) : ();
 	# A between is about times only when both its bounds are.
@@ -2318,7 +2330,7 @@ sub _apply_filter_spec {
 	# An order is a statement about numbers.  A blank or a word has no place in
 	# one, so it matches none of the four, rather than counting as zero.
 	my $by_number = !$is_date && $op =~ /\A(?:lt|le|gt|ge)\z/;
-	my $num_val   = $by_number ? _numeric_cell($val) : undef;
+	my $num_val = $by_number ? _numeric_cell($val) : undef;
 	# A between of two numbers (a range of years, of prices) compares as
 	# numbers, inclusive at both ends and whichever bound is written first;
 	# "9" sorts after "10" as text.  Anything else keeps the text comparison.
@@ -2336,18 +2348,7 @@ sub _apply_filter_spec {
 		($num_lo, $num_hi) = ($num_hi, $num_lo) if defined $num_lo && $num_lo > $num_hi;
 		($lo, $hi) = ($hi, $lo) if $lo gt $hi;
 	}
-	my %in_set    = $op eq 'in' ? (map { lc($_) => 1 } _filter_in_values($val)) : ();
-	# differ: the value is a column name, and a row stays when its two cells do
-	# not hold identical text.  A row that lacks the other column counts as
-	# empty, which also keeps a locked SQL row from croaking on a key it does
-	# not have.
-	if ($op eq 'differ') {
-		return [grep {
-			my $row = $_;
-			(exists $row->{$col} ? $row->{$col} // '' : '')
-				ne (exists $row->{$val} ? $row->{$val} // '' : '')
-		} @$records];
-	}
+	my %in_set  = $op eq 'in' ? (map { lc($_) => 1 } _filter_in_values($val)) : ();
 	return [grep {
 		my $cell  = $_->{$col} // '';
 		my $num   = $by_number ? _numeric_cell($cell) : undef;

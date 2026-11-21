@@ -8532,7 +8532,7 @@ sub croak_rethrow {
 		is scalar(() = $html =~ /<td>/g), 4, 'no more rows than the limit';
 		like $html, qr{and 21 more: <a href="/open\?path=x&amp;f=a">show all 25 in the table</a>}, 'the rest are counted and linked, the link escaped';
 		like $F{_map_popup}->('P', \@many, [ 'n' ], 4, undef), qr{and 21 more</div>\z}, 'without a link, only counted';
-		is scalar(() = $F{_map_popup}->('P', \@many, [ 'n' ], $_, '') =~ /<td>/g), 10, "a limit of '$_' is the default"
+		is scalar(() = $F{_map_popup}->('P', \@many, [ 'n' ], $_, '') =~ /<td>/g), 10, 'a limit of ' . (defined($_) ? "'$_'" : 'undef') . ' is the default'
 			for ('', 0, -3, 'lots', undef);
 
 		$html = $F{_map_popup}->('P', [ { n => '<b>', x => [ 1 ] }, 'not a row', undef, { n => '&' } ], [ 'n', 'x', undef, [ 'y' ] ], 10, '');
