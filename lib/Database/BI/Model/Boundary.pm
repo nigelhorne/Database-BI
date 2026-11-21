@@ -1019,6 +1019,10 @@ sub _bounds {
 sub _contains {
 	my ($geometry, $lat, $lon) = @_;
 	for my $polygon (_polygons($geometry)) {
+		# Premise 1: the geometry came from a web service and a cache file.
+		# Premise 2: a damaged entry must not turn a map into a 500.
+		# Conclusion: what is not a polygon holds no point.
+		next unless ref($polygon) eq 'ARRAY';
 		my ($outer, @holes) = @{$polygon};
 		next unless _in_ring($outer, $lon, $lat);
 		return 1 unless grep { _in_ring($_, $lon, $lat) } @holes;
@@ -1026,12 +1030,25 @@ sub _contains {
 	return 0;
 }
 
+# _is_position($value) -> 1 | 0
+#
+# A GeoJSON position is a list of at least two defined numbers.  Anything else
+# in a ring means the ring is damaged, and a damaged ring holds no point.
+sub _is_position {
+	my ($position) = @_;
+	return 0 unless ref($position) eq 'ARRAY' && @{$position} >= 2;
+	return (defined $position->[0] && defined $position->[1]
+		&& !ref($position->[0]) && !ref($position->[1])) ? 1 : 0;
+}
+
 sub _in_ring {
 	my ($ring, $x, $y) = @_;
 	return 0 unless ref($ring) eq 'ARRAY' && @{$ring} >= 3;
 	my $inside = 0;
+	return 0 unless _is_position($ring->[-1]);
 	my ($px, $py) = @{ $ring->[-1] };
 	for my $position (@{$ring}) {
+		return 0 unless _is_position($position);
 		my ($qx, $qy) = @{$position};
 		if ((($qy > $y) != ($py > $y))
 				&& ($x < ($px - $qx) * ($y - $qy) / ($py - $qy) + $qx)) {

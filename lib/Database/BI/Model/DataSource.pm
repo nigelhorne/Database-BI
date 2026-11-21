@@ -1256,7 +1256,9 @@ sub _refuse_xml_entities {
 	my ($path) = @_;
 	local ($@, $!);
 	local $/;
-	open my $fh, '<:raw', $path or return;
+	# A file that cannot be read is the reader's to report; autodie would throw here.
+	my $fh;
+	{ no autodie 'open'; open $fh, '<:raw', $path or return; }
 	my $text = <$fh>;
 	close $fh;
 	return unless defined $text && $text =~ /<!ENTITY|\0|\A(?:\xFF\xFE|\xFE\xFF)/;

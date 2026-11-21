@@ -5254,7 +5254,9 @@ sub _write_analyses :Protected ($self, $analyses) {
 
 # _gen_analysis_id($self) -> $id_string
 #
-# Returns a 10-character URL-safe alphanumeric random ID.
+# Returns a 10-character URL-safe alphanumeric random ID from the system's
+# random generator.
+Readonly my $ID_LENGTH => 10;
 Readonly my $_ID_CHARS => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 sub _gen_analysis_id :Protected ($self) {
@@ -5264,8 +5266,12 @@ sub _gen_analysis_id :Protected ($self) {
 	# Conclusion: draw the bytes from the system's generator (Crypt::URandom, which
 	#             the password salt already needs).
 	require Crypt::URandom;
+	my $bytes = Crypt::URandom::urandom($ID_LENGTH);
+	# A short answer would make a short id, and an empty one a canvas with no name.
+	croak 'The system random generator gave too few bytes for an id'
+		unless defined $bytes && length($bytes) == $ID_LENGTH;
 	my $count = length $_ID_CHARS;
-	return join '', map { substr($_ID_CHARS, ord($_) % $count, 1) } split //, Crypt::URandom::urandom(10);
+	return join '', map { substr($_ID_CHARS, ord($_) % $count, 1) } split //, $bytes;
 }
 
 # The canvas is a 12-column CSS grid; a layout entry addresses cells in it.
