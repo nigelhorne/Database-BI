@@ -20,8 +20,8 @@ use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json from_json to_json);
 use Mojo::Parameters;
 use Mojo::URL;
-use Mojo::Util		qw(url_escape encode xml_escape hmac_sha1_sum secure_compare);
-use Digest::SHA ();
+use Mojo::Util		qw(url_escape encode xml_escape secure_compare);
+use Digest::SHA		qw(hmac_sha256_hex);
 use Scalar::Util ();
 use Database::BI::Password ();
 use File::Path		qw(remove_tree);
@@ -5258,9 +5258,14 @@ sub _write_analyses :Protected ($self, $analyses) {
 Readonly my $_ID_CHARS => 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
 
 sub _gen_analysis_id :Protected ($self) {
-	my $id = '';
-	$id .= substr($_ID_CHARS, int(rand(62)), 1) for 1..10;
-	return $id;
+	# Premise 1: perl's rand is a seeded linear generator, so its outputs can be
+	#            predicted from a few of them.
+	# Premise 2: an id that names a canvas should not be guessable from another.
+	# Conclusion: draw the bytes from the system's generator (Crypt::URandom, which
+	#             the password salt already needs).
+	require Crypt::URandom;
+	my $count = length $_ID_CHARS;
+	return join '', map { substr($_ID_CHARS, ord($_) % $count, 1) } split //, Crypt::URandom::urandom(10);
 }
 
 # The canvas is a 12-column CSS grid; a layout entry addresses cells in it.
@@ -15040,7 +15045,7 @@ sub map_view ($self) {
 # start unless the config names one, so a list outlives neither a restart nor
 # another installation.
 sub _geo_lookup_sig :Protected ($self, $place) {
-	return hmac_sha1_sum(encode('UTF-8', "geo-lookup\0$place"), $self->app->secrets->[0]);
+	return hmac_sha256_hex(encode('UTF-8', "geo-lookup\0$place"), $self->app->secrets->[0]);
 }
 
 # _geo_boundary_sig($self, $level, $point) -> $hex
@@ -15048,7 +15053,7 @@ sub _geo_lookup_sig :Protected ($self, $place) {
 # The same for a point whose outline the map page lists.  Its own prefix, so a
 # place's signature is never a point's.
 sub _geo_boundary_sig :Protected ($self, $level, $point) {
-	return hmac_sha1_sum(encode('UTF-8', "geo-boundary\0$level\0$point"), $self->app->secrets->[0]);
+	return hmac_sha256_hex(encode('UTF-8', "geo-boundary\0$level\0$point"), $self->app->secrets->[0]);
 }
 
 # ---------------------------------------------------------------------------

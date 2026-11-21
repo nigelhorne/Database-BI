@@ -181,4 +181,37 @@ subtest 'the report opens in the browser' => sub {
 	  ->content_unlike(qr/cannot handle HASH/, 'and no error');
 };
 
+# An entity can make the parser read a file or fetch an address of its own
+# accord, past every path check (file_roots included).  Both reader routes
+# are shut: the document one (_xml_table) and the flat one (D::A's).
+subtest 'an XML entity is refused, whichever reader the file would reach' => sub {
+	my $secret_dir = tempdir(CLEANUP => 1);
+	my $secret     = File::Spec->catfile($secret_dir, 'secret.txt');
+	Mojo::File->new($secret)->spew("TOP-SECRET-VALUE\n");
+	my $doctype = qq{<!DOCTYPE r [<!ENTITY x SYSTEM "file://$secret">]>};
+	my %files = (
+		'flat'     => qq{<?xml version="1.0"?>\n$doctype\n<rows><row><sku>&x;</sku></row><row><sku>b</sku></row></rows>\n},
+		'document' => qq{<?xml version="1.0"?>\n$doctype\n<report><meta>m</meta><row><sku>&x;</sku></row><row><sku>b</sku></row></report>\n},
+		'internal' => qq{<?xml version="1.0"?>\n<!DOCTYPE r [<!ENTITY y "lol">]>\n<rows><row><sku>&y;</sku></row></rows>\n},
+		'parameter' => qq{<?xml version="1.0"?>\n<!DOCTYPE r [<!ENTITY % p SYSTEM "file://$secret">]>\n<rows><row><sku>a</sku></row></rows>\n},
+	);
+	for my $kind (sort keys %files) {
+		my ($dir, $stem, $path) = xml_file("$kind.xml", $files{$kind});
+		throws_ok { $DS->new(directory => $dir, table => $stem)->fetch_all }
+			qr/declares XML entities/, "$kind: refused, and says why";
+		$t->get_ok('/open?path=' . url_escape($path))
+		  ->content_unlike(qr/TOP-SECRET-VALUE/, "$kind: the file's contents are not on the page");
+	}
+
+	# UTF-16 spells <!ENTITY with NUL bytes, which a text match would miss.
+	my $wide = "\xFF\xFE" . join '', map { "$_\0" } split //, qq{<?xml version="1.0"?>$doctype<rows><row><sku>&x;</sku></row></rows>};
+	my ($dir, $stem) = xml_file('wide.xml', $wide);
+	throws_ok { $DS->new(directory => $dir, table => $stem)->fetch_all }
+		qr/declares XML entities/, 'UTF-16 is refused, not read';
+
+	# A comment mentioning the word is only a comment, and a plain file is untouched.
+	my ($d2, $s2) = xml_file('plain.xml', qq{<?xml version="1.0"?>\n<rows><row><sku>a</sku></row><row><sku>b</sku></row></rows>\n});
+	is scalar @{ $DS->new(directory => $d2, table => $s2)->fetch_all }, 2, 'an ordinary file still opens';
+};
+
 done_testing();

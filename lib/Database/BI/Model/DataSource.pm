@@ -285,6 +285,7 @@ Readonly our %MESSAGES => (
 	error_mariadb_no_driver		=> 'DataSource: DBD::MariaDB or DBD::mysql must be installed to open MariaDB server "%s"',
 	error_mariadb_connect		=> 'DataSource: cannot connect to MariaDB server "%s": %s',
 	error_mariadb_table		=> 'DataSource: cannot read table "%s" on MariaDB server "%s": %s',
+	error_xml_entities		=> 'DataSource: "%s" declares XML entities, which are not read: an entity can pull in another file or address',
 	error_json_invalid		=> 'DataSource: "%s" is not valid JSON: %s',
 	error_json_no_rows		=> 'DataSource: "%s" holds no table: it needs a list of objects, an object of objects, or an object holding one list of objects',
 	error_json_list_not_found	=> 'DataSource: JSON file "%s" has no list of objects called "%s"',
@@ -495,6 +496,8 @@ Returns C<$self> (a blessed hashref). Croaks on invalid arguments.
                                  has illegal characters; says what else to open and
                                  how to rename it
   error_no_usable_tables      -- every table in a SQLite file has such a name
+  error_xml_entities          -- an .xml file declares an entity (<!ENTITY), or is
+                                 not in a form that can be checked for one
   error_json_invalid          -- a .json file is not valid JSON
   error_json_no_rows          -- a .json file holds no list of objects, object of
                                  objects or object holding such a list
@@ -1200,6 +1203,9 @@ sub _detect_file_info :Protected {
 	{
 		my $path = File::Spec->catfile($dir, "$table.xml");
 		if (-r $path && !grep { -f File::Spec->catfile($dir, "$table.$_") } grep { $_ ne 'xml' } @NON_JSON_EXT) {
+			# Before either reader: D::A's own XML::Simple would resolve an
+			# external entity just as _xml_table's does.
+			_refuse_xml_entities($path);
 			my $xml = _xml_table($path);
 			if ($xml) {
 				my ($safe_id) = grep { $_ =~ $TABLE_NAME_RE } @{ $xml->{columns} };
@@ -1230,6 +1236,31 @@ sub _detect_file_info :Protected {
 		}
 	}
 	return {};
+}
+
+# _refuse_xml_entities( $path ) -> () | croaks error_xml_entities
+#
+# Purpose: Stop an XML file from making the parser read something it was not
+#          given.  <!ENTITY x SYSTEM "file:///etc/passwd"> in the prolog, then
+#          &x; in a cell, puts that file in the table (and bypasses file_roots,
+#          because the parser, not this code, opens it); a SYSTEM "http://..."
+#          one makes the server fetch an address.
+# Premise 1: an entity can only be declared with the token "<!ENTITY".
+# Premise 2: a flat data file has no use for one.
+# Premise 3: a UTF-16 file spells that token with NUL bytes, which the match
+#            would miss, and a document with a NUL in it is not text XML.
+# Conclusion: a file holding the token, a NUL or a UTF-16 byte-order mark is
+#             refused before any parser sees it.
+# Entry:   $path is a readable .xml file.
+sub _refuse_xml_entities {
+	my ($path) = @_;
+	local ($@, $!);
+	local $/;
+	open my $fh, '<:raw', $path or return;
+	my $text = <$fh>;
+	close $fh;
+	return unless defined $text && $text =~ /<!ENTITY|\0|\A(?:\xFF\xFE|\xFE\xFF)/;
+	croak _fmt('error_xml_entities', $path);
 }
 
 # _xml_table( $path ) -> { rows, columns, list } | undef

@@ -2652,6 +2652,9 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my $two = unit_sqlite('two.sqlite', 'CREATE TABLE alpha (id INTEGER)', 'CREATE TABLE beta (id INTEGER)');
 		message_ok(DataSource => 'error_table_not_found', $err->(directory => $dir_of->($two), table => 'two', internal_table => 'gamma'), [undef, 'gamma']);
 
+		my $entity_xml = unit_csv('ents.xml', qq{<?xml version="1.0"?>\n<!DOCTYPE r [<!ENTITY y "lol">]>\n<rows><row><sku>&y;</sku></row></rows>\n});
+		message_ok(DataSource => 'error_xml_entities', $err->(directory => $dir_of->($entity_xml), table => 'ents'), [$entity_xml]);
+
 		my $bad_json = unit_csv('broken.json', '{"rows": [');
 		message_ok(DataSource => 'error_json_invalid', $err->(directory => $dir_of->($bad_json), table => 'broken'), [$bad_json, undef]);
 		my $no_rows = unit_csv('scalars.json', '[1, 2, 3]');

@@ -10481,14 +10481,14 @@ sub croak_rethrow {
 		my ($tm) = $fixture_app->();
 		my $c = dash_controller($tm->app, '/');
 		my $sig = $c->_geo_lookup_sig('Ramsgate');
-		like $sig, qr/\A[0-9a-f]{40}\z/, 'a hex HMAC';
+		like $sig, qr/\A[0-9a-f]{64}\z/, 'a hex HMAC';
 		is $c->_geo_lookup_sig('Ramsgate'), $sig, 'the same place, the same signature';
 		isnt $c->_geo_lookup_sig('Ramsgate '), $sig, 'a different place, a different one';
 		isnt $c->_geo_lookup_sig("\x{10D}"), $c->_geo_lookup_sig("\xC4\x8D"), 'characters are signed as UTF-8, not confused with their bytes';
 		my $other = isolated_app();
 		isnt dash_controller($other->app, '/')->_geo_lookup_sig('Ramsgate'), $sig, 'another start has another secret';
 		$tm->app->secrets([ 'fixed' ]);
-		is $c->_geo_lookup_sig('x'), Mojo::Util::hmac_sha1_sum("geo-lookup\0x", 'fixed'), 'keyed by the first secret';
+		is $c->_geo_lookup_sig('x'), Digest::SHA::hmac_sha256_hex("geo-lookup\0x", 'fixed'), 'keyed by the first secret';
 	};
 
 	subtest 'Dashboard::_map_geocoder -- built from the configuration' => sub {

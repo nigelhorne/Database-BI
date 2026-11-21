@@ -147,9 +147,15 @@ sub _load {
 	croak "Unsafe language name '$language'" unless $name =~ /\A[a-z]{2,3}(?:_[a-z0-9]{2,8})?\z/;
 	my $module = "Database::BI::I18N::$name";
 
+	# Premise 1: $name matched the pattern above, so it is letters, digits and
+	#            underscores only.
+	# Premise 2: a block eval of require on a file name runs no text as code.
+	# Conclusion: the module loads without a string eval.
 	local ($@, $!);
-	my $table = eval "require $module; \\%${module}::MESSAGES";	## no critic (ProhibitStringyEval): the name is checked above
-	return $table || {};
+	my $loaded = eval { require "Database/BI/I18N/$name.pm"; 1 };
+	return {} unless $loaded;
+	no strict 'refs';
+	return \%{"${module}::MESSAGES"};
 }
 
 1;
