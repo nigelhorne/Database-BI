@@ -783,7 +783,7 @@ my @CHAPTERS = (
 			'The ending of the name chooses the format: .csv, .sql or .json.',
 			'Click Save. The program writes a new file. Your source file is not changed.',
 		],
-		tip   => 'Export includes your joins, filters and duplicate setting.',
+		tip   => 'Export includes your joins, filters and duplicate setting. It saves only the columns you can see, in the order you see them. A column that you deleted is not saved.',
 		routes => [ '/export' ],
 	},
 	{

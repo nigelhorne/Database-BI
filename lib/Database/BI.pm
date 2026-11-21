@@ -346,7 +346,10 @@ data" panel is open the dropped file populates the right-table path field.
 
 B<Export> -- the toolbar export panel writes the current logical view
 (after joins, filters, and dedup) to a chosen filesystem path as CSV
-(C<.csv>), SQLite (C<.sql>), or JSON (C<.json>).
+(C<.csv>), SQLite (C<.sql>), or JSON (C<.json>).  Only the columns the table
+still shows are saved, in the table's order: a column you deleted is left out,
+and a column you dragged to a new place is written there (JSON keys follow the
+same order).
 
 =item *
 
@@ -583,6 +586,10 @@ C</join>) as a file download.  Additional parameter:
 
   format=csv      (default) - RFC 4180 CSV; UTF-8; CRLF line endings
   format=sqlite   - SQLite 3 database with a single table named "data"
+  format=json     - JSON array of row objects; keys follow the column order
+  xcol=<name>     - (repeatable) keep only these columns, in this order;
+                    names the view lacks are ignored, and none left means
+                    every column
 
 The download filename is derived from the left table label with
 non-alphanumeric characters replaced by underscores.
@@ -590,9 +597,10 @@ non-alphanumeric characters replaced by underscores.
 =item C<POST /export>
 
 Writes the current logical view to a chosen filesystem path.
-Body params: C<l=>, C<j=>, C<f=> (same as GET), plus
+Body params: C<l=>, C<j=>, C<f=>, C<xcol=> (same as GET), plus
 C<dir=> (target directory) and C<filename=> (name including extension;
-extension determines format: C<.csv> or C<.sql>).
+extension determines format: C<.csv>, C<.sql> or C<.json>).  The Export panel
+sends one C<xcol=> for each column its table still shows.
 Returns JSON C<{ saved: "/abs/path" }> or C<{ error: "..." }>.
 
 =item C<GET /api/dirs>

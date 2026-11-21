@@ -9393,6 +9393,31 @@ C<GET /export> -- Stream the current logical view as a browser file download.
   ?format=   string   "csv" (default), "sqlite", or "json".
   ?xcol=     string   (repeatable) Keep only these columns, in this order.
 
+=head4 DOMAIN CONSTRAINTS: ?xcol=
+
+Each C<xcol> is the exact name of one column of the view.  The file holds
+those columns, in the order the C<xcol> values are given.
+
+=over 4
+
+=item Valid partitions
+
+No C<xcol> at all: every column is exported, as before.  One or more names the
+view has: only those columns.  The same name twice: the first one counts.
+
+=item Ignored, not an error
+
+A name the view does not have, or an empty value.  If no name is left after
+this, every column is exported.  A column that a filter or a calculated field
+uses can still be left out of the file: the rows are worked out first, and the
+columns are chosen last.
+
+=back
+
+The Export panel sends one C<xcol> for each column its table still shows, in
+the table's order.  Deleting a column, or dragging it to a new place, changes
+only the page in the browser, so this is how the server learns about it.
+
 =head4 DOMAIN CONSTRAINTS: ?format=
 
 Exact lowercase string match.
@@ -9423,20 +9448,58 @@ Any value not in the valid set (e.g. C<SQLITE>, C<Json>).
 
   error_export_sqlite -- the SQLite file could not be built.
 
+=head3 COMMON PITFALLS
+
+=over 4
+
+=item *
+
+A link without C<xcol> exports every column, even if the page it came from had
+columns deleted.  Only the Export panel adds C<xcol>.
+
+=item *
+
+C<xcol> names are matched exactly, including upper and lower case.  C<Name> and
+C<name> are different columns.
+
+=item *
+
+If every C<xcol> is wrong (a typo, or a column that is not in this view), you
+get all the columns, not an empty file.
+
+=item *
+
+In the JSON file each row is an object whose keys follow the column order.  A
+row that has no value for a column gets C<null> for it, so every row has the
+same keys.
+
+=back
+
+=head3 ENCODING
+
+Column names and cell values may hold any UTF-8 text: accents, Chinese,
+Arabic, emoji.  C<xcol> values must be sent as UTF-8 and percent-encoded in a
+URL (C<caf%C3%A9> for a C<cafe> with an accent on the last letter).  CSV and JSON are written as UTF-8.
+
 =head3 FORMAL SPECIFICATION
 
   export_data == lambda self .
     let (recs, cols, label) = _run_export_pipeline() in
     pre  recs /= undef
-    post if format = 'sqlite' then render_sqlite(recs, cols)
-         else if format = 'json' then render_json(recs, cols)
-         else render_csv(recs, cols)
+    let want = [c in params('xcol') | c /= '' /\ c in cols] in
+    let keep = if want = [] then cols else dedupe(want) in
+    post if format = 'sqlite' then render_sqlite(project(recs, keep), keep)
+         else if format = 'json' then render_json(project(recs, keep), keep)
+         else render_csv(project(recs, keep), keep)
 
 =head3 EXAMPLE
 
   GET /export?l=table:sales&format=csv     -> downloads sales.csv
   GET /export?l=table:sales&format=sqlite  -> downloads sales.db
   GET /export?l=table:sales&format=json    -> downloads sales.json
+
+  # Only two columns, name first:
+  GET /export?l=table:sales&format=csv&xcol=name&xcol=id
 
 =cut
 
@@ -9483,6 +9546,15 @@ C<POST /export> -- Write the current logical view to a chosen filesystem path.
   filename=  string   Output filename including extension.  Extension determines
                       format: C<.csv> -> RFC 4180 CSV; C<.sql> -> SQLite;
                       C<.json> -> JSON array of row objects.
+
+=head4 DOMAIN CONSTRAINTS: xcol=
+
+Same rule as for C<GET /export>.  Each C<xcol> names one column of the view.
+The file holds those columns, in the order given.  Names the view lacks are
+ignored, and if none are left every column is written.  The Export panel sends
+the columns its table still shows, so a column you deleted in the page is not
+saved, and a column you dragged to a new place is saved in the new place.  A
+JSON file has its keys in that order too.
 
 =head4 DOMAIN CONSTRAINTS: filename=
 
@@ -9547,21 +9619,59 @@ renamed over the name, so a reader never sees half a file and a link made
 after the check is replaced, not followed.  It gets the replaced file's mode,
 or C<0666 & ~umask> for a new one; on failure the temporary file is removed.
 
+=head3 COMMON PITFALLS
+
+=over 4
+
+=item *
+
+C<xcol> is a list, so send it once for each column (C<xcol=name&xcol=id>), not
+as one comma-separated value.
+
+=item *
+
+A script that calls C<POST /export> without C<xcol> gets every column.
+
+=item *
+
+The file name decides the format.  C<report.json> is JSON even if you meant
+CSV.
+
+=item *
+
+A column that is not in the view is skipped quietly.  Check the file if the
+columns look wrong.
+
+=back
+
+=head3 ENCODING
+
+C<filename> and the column names may hold any UTF-8 text.  The body must be
+sent as UTF-8 (C<application/x-www-form-urlencoded>).  The file itself is
+written as UTF-8, with no byte order mark.
+
 =head3 FORMAL SPECIFICATION
 
   export_write == lambda self .
     let dir  = realpath(param('dir'))      in
     let file = dir / strip_path(param('filename')) in
-    pre  is_dir(dir) /\ ext(file) in {csv, sql}
+    pre  is_dir(dir) /\ ext(file) in {csv, sql, json}
     let (recs, cols, _) = _run_export_pipeline() in
     pre  recs /= undef
-    post spurt(file, serialise(recs, cols))
+    let want = [c in params('xcol') | c /= '' /\ c in cols] in
+    let keep = if want = [] then cols else dedupe(want) in
+    post spurt(file, serialise(project(recs, keep), keep))
          /\ render_json({ saved: file.to_string })
 
 =head3 EXAMPLE
 
   POST /export  l=table:sales dir=/home/user/exports filename=report.csv
     -> { "saved": "/home/user/exports/report.csv" }
+
+  # Only two columns, in this order:
+  POST /export  l=table:sales dir=/home/user/exports filename=short.json
+                xcol=name xcol=id
+    -> { "saved": "/home/user/exports/short.json" }
 
 =cut
 

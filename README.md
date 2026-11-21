@@ -154,7 +154,10 @@ onto the application.  The file is opened immediately; when the "Combine
 data" panel is open the dropped file populates the right-table path field.
 - **Export** -- the toolbar export panel writes the current logical view
 (after joins, filters, and dedup) to a chosen filesystem path as CSV
-(`.csv`), SQLite (`.sql`), or JSON (`.json`).
+(`.csv`), SQLite (`.sql`), or JSON (`.json`).  Only the columns the table
+still shows are saved, in the table's order: a column you deleted is left out,
+and a column you dragged to a new place is written there (JSON keys follow the
+same order).
 - **Print** -- the Print button, to the right of Refresh, prints the header row
 and every row of the current view, not just the page on screen: the rows the
 Export panel would save (after joins, filters, calculated and cross-row
@@ -397,6 +400,10 @@ perl Makefile.PL
     ```
     format=csv      (default) - RFC 4180 CSV; UTF-8; CRLF line endings
     format=sqlite   - SQLite 3 database with a single table named "data"
+    format=json     - JSON array of row objects; keys follow the column order
+    xcol=<name>     - (repeatable) keep only these columns, in this order;
+                      names the view lacks are ignored, and none left means
+                      every column
     ```
 
     The download filename is derived from the left table label with
@@ -405,9 +412,10 @@ perl Makefile.PL
 - `POST /export`
 
     Writes the current logical view to a chosen filesystem path.
-    Body params: `l=`, `j=`, `f=` (same as GET), plus
+    Body params: `l=`, `j=`, `f=`, `xcol=` (same as GET), plus
     `dir=` (target directory) and `filename=` (name including extension;
-    extension determines format: `.csv` or `.sql`).
+    extension determines format: `.csv`, `.sql` or `.json`).  The Export panel
+    sends one `xcol=` for each column its table still shows.
     Returns JSON `{ saved: "/abs/path" }` or `{ error: "..." }`.
 
 - `GET /api/dirs`
