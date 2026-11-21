@@ -211,7 +211,8 @@ sub send_request {
 	unless (!defined $literal && $self->private_host_allowed($name)) {
 		for my $ip (@addrs) {
 			my $why = blocked_address($ip) // next;
-			return _refuse($request, $ip eq $name ? "$name is $why" : "$name is $ip, which is $why");
+			my $shown = $ip // '';
+			return _refuse($request, $shown eq $name ? "$name is $why" : "$name is $shown, which is $why");
 		}
 	}
 

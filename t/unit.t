@@ -2377,6 +2377,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my $err = sub { my ($code) = @_; local $@; eval { $code->(); 1 } and return; return without_location($@) };
 
 		message_ok('Password', 'error_password_required', $err->(sub { $hash->('') }));
+		message_ok('Password', 'error_password_nul', $err->(sub { $hash->("x\0") }));
 		message_ok('Password', 'error_password_rounds', $err->(sub { $hash->('x', rounds => 5) }), [10_000, 100_000_000]);
 		message_ok('Password', 'error_password_salt', $err->(sub { $hash->('x', salt => 'short') }), [16]);
 		require Crypt::URandom;	# before the mock, or loading it puts urandom back

@@ -335,8 +335,9 @@ sub new {
 		input => $raw,
 	);
 
-	my $level = $LEVELS{ $args->{level} }
-		or croak "Unknown boundary level '$args->{level}'";
+	my $level_name = $args->{level} // '';
+	my $level = $LEVELS{$level_name}
+		or croak "Unknown boundary level '$level_name'";
 	croak 'The boundary cache needs get() and set()'
 		if defined($args->{cache}) && !($args->{cache}->can('get') && $args->{cache}->can('set'));
 
@@ -818,6 +819,8 @@ sub _known {
 
 	my ($lat, $lon) = split /,/, $key;
 	for my $entry (@{$index}) {
+		# A damaged index entry (not five defined values) knows no outline.
+		next unless ref($entry) eq 'ARRAY' && 5 == grep { defined && !ref } @{$entry}[0 .. 4];
 		my ($osm, $south, $west, $north, $east) = @{$entry};
 		next if $lat < $south || $lat > $north || $lon < $west || $lon > $east;
 		my $outline = $self->_get($self->_outline_key($osm));
