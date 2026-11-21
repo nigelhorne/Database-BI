@@ -1705,7 +1705,7 @@ sub place_rows {
 	croak(_fmt('error_column_required')) unless @columns;
 
 	my $name = join(', ', @columns);
-	$text = (defined($text) && !ref($text)) ? ($text =~ s/\A\s+|\s+\z//gr) : '';
+	$text = (defined($text) && !ref($text)) ? ($text =~ s/\A\s+//r =~ s/\s+\z//r) : '';
 	return ($rows, $name) if @columns == 1 && !length($text);
 
 	my @places = map {
@@ -1713,7 +1713,7 @@ sub place_rows {
 		my $place = (ref($row) eq 'HASH')
 			? join(', ', grep { length } map {
 				my $cell = $row->{$_};
-				(defined($cell) && !ref($cell)) ? ($cell =~ s/\A\s+|\s+\z//gr) : '';
+				(defined($cell) && !ref($cell)) ? ($cell =~ s/\A\s+//r =~ s/\s+\z//r) : '';
 			} @columns)
 			: undef;
 		$place .= ", $text" if defined($place) && length($place) && length($text);

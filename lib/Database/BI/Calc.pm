@@ -118,7 +118,9 @@ my %FUNCTIONS = (
 	trim     => sub {
 		return undef unless defined $_[0];
 		my $s = $_[0];
-		$s =~ s/\A\s+|\s+\z//g;
+		# s/\A\s+|\s+\z//g is quadratic on a long run of inner spaces; two anchored substitutions are not.
+		$s =~ s/\A\s+//;
+		$s =~ s/\s+\z//;
 		$s;
 	},
 	len      => sub { defined $_[0] ? length($_[0])  : undef },
@@ -409,7 +411,8 @@ sub _epoch_of {
 sub _parse_time {
 	my ($value) = @_;
 	return undef unless defined $value && !ref $value && length $value;
-	(my $s = $value) =~ s/\A\s+|\s+\z//g;
+	(my $s = $value) =~ s/\A\s+//;
+	$s =~ s/\s+\z//;
 	return undef unless length $s;
 
 	my ($ymd, $h, $mi, $sec) = Database::BI::Util::iso_datetime($s);

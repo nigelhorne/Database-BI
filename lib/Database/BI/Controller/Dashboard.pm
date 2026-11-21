@@ -1953,7 +1953,8 @@ sub _time_columns {
 			next unless ref($row) eq 'HASH';
 			my $v = $row->{$col};
 			next unless defined $v;
-			$v =~ s/\A\s+|\s+\z//g;
+			$v =~ s/\A\s+//;
+			$v =~ s/\s+\z//;
 			next unless length $v;
 			my $iso = _to_iso_date($v);
 			next COLUMN unless defined $iso;
@@ -3593,7 +3594,8 @@ Readonly my $NO_NUMBER => -9**9**9;
 sub _sort_records ($rows, $column, $dir) {
 	my @text = map {
 		my $v = $_->{$column} // '';
-		$v =~ s/\A\s+|\s+\z//g;
+		$v =~ s/\A\s+//;
+		$v =~ s/\s+\z//;
 		$v;
 	} @$rows;
 	my @filled = grep { length } @text;
@@ -4346,7 +4348,8 @@ sub _load_lookup :Protected ($self, $lookup) {
 sub _lookup_key {
 	my ($v) = @_;
 	return undef unless defined $v && !ref $v;
-	(my $k = $v) =~ s/\A\s+|\s+\z//g;
+	(my $k = $v) =~ s/\A\s+//;
+	$k =~ s/\s+\z//;
 	return $k;
 }
 
