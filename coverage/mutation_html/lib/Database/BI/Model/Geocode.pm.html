@@ -2172,7 +2172,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class=""> 1705: 	croak(_fmt(&#39;error_column_required&#39;)) unless @columns;
 </span><span class=""> 1706: 
 </span><span class=""> 1707: 	my $name = join(&#39;, &#39;, @columns);
-</span><span class=""> 1708: 	$text = (defined($text) &amp;&amp; !ref($text)) ? ($text =~ s/\A\s+|\s+\z//gr) : &#39;&#39;;
+</span><span class=""> 1708: 	$text = (defined($text) &amp;&amp; !ref($text)) ? ($text =~ s/\A\s+//r =~ s/\s+\z//r) : &#39;&#39;;
 </span><span class=""> 1709: 	return ($rows, $name) if @columns == 1 &amp;&amp; !length($text);
 </span><span class=""> 1710: 
 </span><span class=""> 1711: 	my @places = map {
@@ -2180,7 +2180,7 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class=""> 1713: 		my $place = (ref($row) eq &#39;HASH&#39;)
 </span><span class=""> 1714: 			? join(&#39;, &#39;, grep { length } map {
 </span><span class=""> 1715: 				my $cell = $row-&gt;{$_};
-</span><span class=""> 1716: 				(defined($cell) &amp;&amp; !ref($cell)) ? ($cell =~ s/\A\s+|\s+\z//gr) : &#39;&#39;;
+</span><span class=""> 1716: 				(defined($cell) &amp;&amp; !ref($cell)) ? ($cell =~ s/\A\s+//r =~ s/\s+\z//r) : &#39;&#39;;
 </span><span class=""> 1717: 			} @columns)
 </span><span class=""> 1718: 			: undef;
 </span><span class=""> 1719: 		$place .= &quot;, $text&quot; if defined($place) &amp;&amp; length($place) &amp;&amp; length($text);

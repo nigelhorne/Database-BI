@@ -293,10 +293,10 @@ a.intra-dot:hover { color: #7700bb; }
 <div class="nav"><a href="Geocode.pm.html">⬅ Previous</a> <a href="../../../../../index.html">Index</a>
  <a href="../CacheDir.pm.html">Next ➡</a></div><div class='summary'>
 <strong>Structural Coverage (Approximate)</strong><p>
-TER1 (Statement): 98.04%<br>
-TER2 (Branch): 86.75%<br>
+TER1 (Statement): 100.00%<br>
+TER2 (Branch): 92.61%<br>
 TER3 (LCSAJ): 100.0% (16/16)<br>
-Approximate LCSAJ segments: 167<br>
+Approximate LCSAJ segments: 177<br>
 </div>
 
     <div class="legend">
@@ -990,7 +990,7 @@ is( func(INPUT), EXPECTED, &#39;Verify correct return value&#39; );
 </span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  578: 				$offline = 1;
 </span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  579: 			} elsif (!$failed &amp;&amp; $counts{attempted} &lt; $self-&gt;{online_max}) {
 </span><span class="">  580: 				$counts{attempted}++;
-</span><span class="survived-2 tooltip" data-tooltip="Boolean logic mutation survived. Add tests covering both true and false paths. Return value mutation survived. Add tests asserting exact return values.">  581: 				($osm, $status) = $self-&gt;_ask($key, $index);
+</span><span class="survived-2 tooltip" data-tooltip="Return value mutation survived. Add tests asserting exact return values. Boolean logic mutation survived. Add tests covering both true and false paths.">  581: 				($osm, $status) = $self-&gt;_ask($key, $index);
 </span>
 					<details class="mutant-details">
 					<summary>Mutants (Total: 2, Killed: 0, Survived: 2)</summary>
@@ -1545,48 +1545,65 @@ is( func(VALUE_AT_BOUNDARY), EXPECTED, &#39;Test boundary behaviour&#39; );
 </span><span class=""> 1017: # outer ring and none of its holes (Fairfax County&#39;s hole is the City of
 </span><span class=""> 1018: # Fairfax).  Even-odd ray casting, with longitude as x.
 </span><span class=""> 1019: sub _contains {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1020 → 1021 → 1026</span></span> 1020: 	my ($geometry, $lat, $lon) = @_;
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1020 → 1021 → 1030</span></span> 1020: 	my ($geometry, $lat, $lon) = @_;
 </span><span class=""> 1021: 	for my $polygon (_polygons($geometry)) {
-</span><span class=""> 1022: 		my ($outer, @holes) = @{$polygon};
-</span><span class=""> 1023: 		next unless _in_ring($outer, $lon, $lat);
-</span><span class=""> 1024: 		return 1 unless grep { _in_ring($_, $lon, $lat) } @holes;
-</span><span class=""> 1025: 	}
-</span><span class=""> 1026: 	return 0;
-</span><span class=""> 1027: }
-</span><span class=""> 1028: 
-</span><span class=""> 1029: sub _in_ring {
-</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1030 → 1034 → 1042</span></span> 1030: 	my ($ring, $x, $y) = @_;
-</span><span class=""> 1031: 	return 0 unless ref($ring) eq &#39;ARRAY&#39; &amp;&amp; @{$ring} &gt;= 3;
-</span><span class=""> 1032: 	my $inside = 0;
-</span><span class=""> 1033: 	my ($px, $py) = @{ $ring-&gt;[-1] };
-</span><span class=""> 1034: 	for my $position (@{$ring}) {
-</span><span class=""> 1035: 		my ($qx, $qy) = @{$position};
-</span><span class=""> 1036: 		if ((($qy &gt; $y) != ($py &gt; $y))
-</span><span class=""> 1037: 				&amp;&amp; ($x &lt; ($px - $qx) * ($y - $qy) / ($py - $qy) + $qx)) {
-</span><span class=""> 1038: 			$inside = !$inside;
-</span><span class=""> 1039: 		}
-</span><span class=""> 1040: 		($px, $py) = ($qx, $qy);
-</span><span class=""> 1041: 	}
-</span><span class=""> 1042: 	return $inside ? 1 : 0;
-</span><span class=""> 1043: }
-</span><span class=""> 1044: 
-</span><span class=""> 1045: 1;
-</span><span class=""> 1046: 
-</span><span class=""> 1047: __END__
-</span><span class=""> 1048: 
-</span><span class=""> 1049: =head1 AUTHOR
-</span><span class=""> 1050: 
-</span><span class=""> 1051: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
-</span><span class=""> 1052: 
-</span><span class=""> 1053: =head1 LICENCE AND COPYRIGHT
-</span><span class=""> 1054: 
-</span><span class=""> 1055: Copyright 2026 Nigel Horne.
-</span><span class=""> 1056: 
-</span><span class=""> 1057: Usage is subject to the GPL2 licence terms.
-</span><span class=""> 1058: If you use it,
-</span><span class=""> 1059: please let me know.
-</span><span class=""> 1060: 
-</span><span class=""> 1061: =cut
+</span><span class=""> 1022: 		# Premise 1: the geometry came from a web service and a cache file.
+</span><span class=""> 1023: 		# Premise 2: a damaged entry must not turn a map into a 500.
+</span><span class=""> 1024: 		# Conclusion: what is not a polygon holds no point.
+</span><span class=""> 1025: 		next unless ref($polygon) eq &#39;ARRAY&#39;;
+</span><span class=""> 1026: 		my ($outer, @holes) = @{$polygon};
+</span><span class=""> 1027: 		next unless _in_ring($outer, $lon, $lat);
+</span><span class=""> 1028: 		return 1 unless grep { _in_ring($_, $lon, $lat) } @holes;
+</span><span class=""> 1029: 	}
+</span><span class=""> 1030: 	return 0;
+</span><span class=""> 1031: }
+</span><span class=""> 1032: 
+</span><span class=""> 1033: # _is_position($value) -&gt; 1 | 0
+</span><span class=""> 1034: #
+</span><span class=""> 1035: # A GeoJSON position is a list of at least two defined numbers.  Anything else
+</span><span class=""> 1036: # in a ring means the ring is damaged, and a damaged ring holds no point.
+</span><span class=""> 1037: sub _is_position {
+</span><span class=""> 1038: 	my ($position) = @_;
+</span><span class=""> 1039: 	return 0 unless ref($position) eq &#39;ARRAY&#39; &amp;&amp; @{$position} &gt;= 2;
+</span><span class=""> 1040: 	return (defined $position-&gt;[0] &amp;&amp; defined $position-&gt;[1]
+</span><span class=""> 1041: 		&amp;&amp; !ref($position-&gt;[0]) &amp;&amp; !ref($position-&gt;[1])) ? 1 : 0;
+</span><span class=""> 1042: }
+</span><span class=""> 1043: 
+</span><span class=""> 1044: sub _in_ring {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">1045 → 1050 → 1059</span></span> 1045: 	my ($ring, $x, $y) = @_;
+</span><span class=""> 1046: 	return 0 unless ref($ring) eq &#39;ARRAY&#39; &amp;&amp; @{$ring} &gt;= 3;
+</span><span class=""> 1047: 	my $inside = 0;
+</span><span class=""> 1048: 	return 0 unless _is_position($ring-&gt;[-1]);
+</span><span class=""> 1049: 	my ($px, $py) = @{ $ring-&gt;[-1] };
+</span><span class=""> 1050: 	for my $position (@{$ring}) {
+</span><span class=""> 1051: 		return 0 unless _is_position($position);
+</span><span class=""> 1052: 		my ($qx, $qy) = @{$position};
+</span><span class=""> 1053: 		if ((($qy &gt; $y) != ($py &gt; $y))
+</span><span class=""> 1054: 				&amp;&amp; ($x &lt; ($px - $qx) * ($y - $qy) / ($py - $qy) + $qx)) {
+</span><span class=""> 1055: 			$inside = !$inside;
+</span><span class=""> 1056: 		}
+</span><span class=""> 1057: 		($px, $py) = ($qx, $qy);
+</span><span class=""> 1058: 	}
+</span><span class=""> 1059: 	return $inside ? 1 : 0;
+</span><span class=""> 1060: }
+</span><span class=""> 1061: 
+</span><span class=""> 1062: 1;
+</span><span class=""> 1063: 
+</span><span class=""> 1064: __END__
+</span><span class=""> 1065: 
+</span><span class=""> 1066: =head1 AUTHOR
+</span><span class=""> 1067: 
+</span><span class=""> 1068: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class=""> 1069: 
+</span><span class=""> 1070: =head1 LICENCE AND COPYRIGHT
+</span><span class=""> 1071: 
+</span><span class=""> 1072: Copyright 2026 Nigel Horne.
+</span><span class=""> 1073: 
+</span><span class=""> 1074: Usage is subject to the GPL2 licence terms.
+</span><span class=""> 1075: If you use it,
+</span><span class=""> 1076: please let me know.
+</span><span class=""> 1077: 
+</span><span class=""> 1078: =cut
 </span></pre>
 
 <script>

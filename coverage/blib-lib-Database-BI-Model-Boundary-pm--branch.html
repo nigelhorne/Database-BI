@@ -20,18 +20,18 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Model/Boundary.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c1">86.7%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">92.6%</td></tr>
 </table>
 <div><br/></div>
 <table>
 <tr><th>line</th><th>%</th><th colspan="2">coverage</th><th>branch</th></tr>
 <tr><td class="h"><a id="L339">339</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $level = $LEVELS{$args-&gt;{&#39;level&#39;}}</td></tr>
-<tr><td class="h"><a id="L341">341</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if defined $args-&gt;{&#39;cache&#39;} and not $args-&gt;{&#39;cache&#39;}-&gt;can(&#39;get&#39;) &amp;&amp; $args-&gt;{&#39;cache&#39;}-&gt;can(&#39;set&#39;)</td></tr>
+<tr><td class="h"><a id="L341">341</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $args-&gt;{&#39;cache&#39;} and not $args-&gt;{&#39;cache&#39;}-&gt;can(&#39;get&#39;) &amp;&amp; $args-&gt;{&#39;cache&#39;}-&gt;can(&#39;set&#39;)</td></tr>
 <tr><td class="h"><a id="L371">371</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $ranks eq &quot;HASH&quot;</td></tr>
 <tr><td class="h"><a id="L376">376</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $code =~ /\A[A-Za-z]{2}\z/</td></tr>
 <tr><td class="h"><a id="L378">378</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $rank and not ref $rank and $rank =~ /\A\d+\z/ and $ZOOM_FOR_RANK{$rank}</td></tr>
 <tr><td class="h"><a id="L379">379</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if exists $checked{lc $code}</td></tr>
-<tr><td class="h"><a id="L407">407</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $level-&gt;{&#39;rank&#39;}</td></tr>
+<tr><td class="h"><a id="L407">407</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $level-&gt;{&#39;rank&#39;}</td></tr>
 <tr><td class="h"><a id="L409">409</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $country &amp;&amp; !ref($country) &amp;&amp; length $country ? :</td></tr>
 <tr><td class="h"><a id="L439">439</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $self ? :</td></tr>
 <tr><td class="h"><a id="L441">441</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $country &amp;&amp; !ref($country) &amp;&amp; length $country ? :</td></tr>
@@ -97,20 +97,25 @@ https://pjcj.net
 <tr><td class="h"><a id="L960">960</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $boundary or $place</td></tr>
 <tr><td class="h"><a id="L962">962</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$osm_type eq &#39;way&#39; ? :</td></tr>
 <tr><td class="h"><a id="L984">984</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;blessed($res) and $res-&gt;can(&quot;is_success&quot;) and $res-&gt;is_success</td></tr>
-<tr><td class="h"><a id="L987">987</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">ref $reply eq &#39;HASH&#39; ? :</td></tr>
-<tr><td class="h"><a id="L994">994</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ref $geometry eq &quot;HASH&quot; and ref $geometry-&gt;{&#39;coordinates&#39;} eq &quot;ARRAY&quot;</td></tr>
-<tr><td class="h"><a id="L995">995</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($geometry-&gt;{&#39;type&#39;} // &quot;&quot;) eq &quot;Polygon&quot;</td></tr>
-<tr><td class="h"><a id="L996">996</a></td><td class="c0">0</td><td class="c0">T</td><td class="c0">F</td><td class="s">if ($geometry-&gt;{&#39;type&#39;} // &quot;&quot;) eq &quot;MultiPolygon&quot;</td></tr>
+<tr><td class="h"><a id="L987">987</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $reply eq &#39;HASH&#39; ? :</td></tr>
+<tr><td class="h"><a id="L994">994</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $geometry eq &quot;HASH&quot; and ref $geometry-&gt;{&#39;coordinates&#39;} eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L995">995</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($geometry-&gt;{&#39;type&#39;} // &quot;&quot;) eq &quot;Polygon&quot;</td></tr>
+<tr><td class="h"><a id="L996">996</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($geometry-&gt;{&#39;type&#39;} // &quot;&quot;) eq &quot;MultiPolygon&quot;</td></tr>
 <tr><td class="h"><a id="L1007">1007</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $south or $lat &lt; $south</td></tr>
 <tr><td class="h"><a id="L1008">1008</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $north or $lat &gt; $north</td></tr>
 <tr><td class="h"><a id="L1009">1009</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $west or $lon &lt; $west</td></tr>
 <tr><td class="h"><a id="L1010">1010</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $east or $lon &gt; $east</td></tr>
 <tr><td class="h"><a id="L1013">1013</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $south ? :</td></tr>
-<tr><td class="h"><a id="L1023">1023</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless _in_ring($outer, $lon, $lat)</td></tr>
-<tr><td class="h"><a id="L1024">1024</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {_in_ring($_, $lon, $lat);} @holes</td></tr>
-<tr><td class="h"><a id="L1031">1031</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless ref $ring eq &quot;ARRAY&quot; and @{$ring;} &gt;= 3</td></tr>
-<tr><td class="h"><a id="L1036">1036</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($qy &gt; $y != $py &gt; $y and $x &lt; ($px - $qx) * ($y - $qy) / ($py - $qy) + $qx)</td></tr>
-<tr><td class="h"><a id="L1042">1042</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$inside ? :</td></tr>
+<tr><td class="h"><a id="L1025">1025</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $polygon eq &quot;ARRAY&quot;</td></tr>
+<tr><td class="h"><a id="L1027">1027</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _in_ring($outer, $lon, $lat)</td></tr>
+<tr><td class="h"><a id="L1028">1028</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {_in_ring($_, $lon, $lat);} @holes</td></tr>
+<tr><td class="h"><a id="L1039">1039</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $position eq &quot;ARRAY&quot; and @{$position;} &gt;= 2</td></tr>
+<tr><td class="h"><a id="L1040">1040</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $position-&gt;[0] &amp;&amp; defined $position-&gt;[1] &amp;&amp; !ref($position-&gt;[0]) &amp;&amp; !ref($position-&gt;[1]) ? :</td></tr>
+<tr><td class="h"><a id="L1046">1046</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $ring eq &quot;ARRAY&quot; and @{$ring;} &gt;= 3</td></tr>
+<tr><td class="h"><a id="L1048">1048</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _is_position($ring-&gt;[-1])</td></tr>
+<tr><td class="h"><a id="L1051">1051</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _is_position($position)</td></tr>
+<tr><td class="h"><a id="L1053">1053</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($qy &gt; $y != $py &gt; $y and $x &lt; ($px - $qx) * ($y - $qy) / ($py - $qy) + $qx)</td></tr>
+<tr><td class="h"><a id="L1059">1059</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$inside ? :</td></tr>
 </table>
 </body>
 </html>
