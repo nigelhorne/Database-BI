@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Model/Boundary.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">94.5%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">98.9%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -56,11 +56,11 @@ https://pjcj.net
 <tr><td class="h"><a id="L668">668</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (not defined $status and $self-&gt;_can_ask)</td></tr>
 <tr><td class="h"><a id="L673">673</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $status or $status eq &quot;failed&quot;</td></tr>
 <tr><td class="h"><a id="L675">675</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $status eq &quot;nowhere&quot;</td></tr>
-<tr><td class="h"><a id="L678">678</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$outline ? :</td></tr>
+<tr><td class="h"><a id="L678">678</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$outline ? :</td></tr>
 <tr><td class="h"><a id="L701">701</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $dir ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $dir and not ref $dir and -d $dir</td></tr>
 <tr><td class="h"><a id="L767">767</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$detail eq $PLAIN_DETAIL ? :</td></tr>
-<tr><td class="h"><a id="L778">778</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $country &amp;&amp; !ref($country) ? :</td></tr>
+<tr><td class="h"><a id="L778">778</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $country &amp;&amp; !ref($country) ? :</td></tr>
 <tr><td class="h"><a id="L779">779</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $level-&gt;{&#39;rank&#39;})</td></tr>
 <tr><td class="h"><a id="L790">790</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$_-&gt;{&#39;places&#39;} ? :</td></tr>
 <tr><td class="h"><a id="L796">796</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $rank &gt;= $_-&gt;{&#39;ranks&#39;}[0]</td></tr>
@@ -84,20 +84,20 @@ https://pjcj.net
 <tr><td class="h"><a id="L865">865</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($self-&gt;_get($key) // &quot;&quot;) eq $set[0]</td></tr>
 <tr><td class="h"><a id="L873">873</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $self-&gt;{&#39;online&#39;}</td></tr>
 <tr><td class="h"><a id="L874">874</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $self-&gt;{&#39;ua&#39;}</td></tr>
-<tr><td class="h"><a id="L876">876</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">Database::BI::Model::Geocode::nominatim_ua() ? :</td></tr>
+<tr><td class="h"><a id="L876">876</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">Database::BI::Model::Geocode::nominatim_ua() ? :</td></tr>
 <tr><td class="h"><a id="L900">900</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $first = &amp;$reverse($plan-&gt;[0]{&#39;zoom&#39;})</td></tr>
 <tr><td class="h"><a id="L902">902</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $first-&gt;{&#39;address&#39;} eq &#39;HASH&#39; ? :</td></tr>
 <tr><td class="h"><a id="L903">903</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $country &amp;&amp; !ref($country) &amp;&amp; $country =~ /\A[A-Za-z]{2}\z/ ? :</td></tr>
 <tr><td class="h"><a id="L904">904</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (length $country)</td></tr>
 <tr><td class="h"><a id="L911">911</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $first-&gt;{&#39;error&#39;} ? :</td></tr>
-<tr><td class="h"><a id="L912">912</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless my $answer = &amp;$reverse($try-&gt;{&#39;zoom&#39;})</td></tr>
+<tr><td class="h"><a id="L912">912</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless my $answer = &amp;$reverse($try-&gt;{&#39;zoom&#39;})</td></tr>
 <tr><td class="h"><a id="L918">918</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ($reply)</td></tr>
-<tr><td class="h"><a id="L928">928</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless defined $name and length $name</td></tr>
+<tr><td class="h"><a id="L928">928</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $name and length $name</td></tr>
 <tr><td class="h"><a id="L937">937</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (grep {$_-&gt;[0] eq $osm;} @{$index;})</td></tr>
-<tr><td class="h"><a id="L939">939</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($box)</td></tr>
+<tr><td class="h"><a id="L939">939</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($box)</td></tr>
 <tr><td class="h"><a id="L942">942</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">unless grep {$_-&gt;[0] eq $osm;} @{$stored;}</td></tr>
 <tr><td class="h"><a id="L970">970</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $reply-&gt;{&#39;osm_id&#39;} and $reply-&gt;{&#39;osm_id&#39;} =~ /\A[0-9]+\z/ and defined $rank and not ref $rank and $rank =~ /\A[0-9]+\z/ and $rank &gt;= $try-&gt;{&#39;ranks&#39;}[0] and $rank &lt;= $try-&gt;{&#39;ranks&#39;}[1] and ref $geometry eq &quot;HASH&quot; and ($geometry-&gt;{&#39;type&#39;} // &quot;&quot;) =~ /\A(?:Multi)?Polygon\z/ and ref $geometry-&gt;{&#39;coordinates&#39;} eq &quot;ARRAY&quot;</td></tr>
-<tr><td class="h"><a id="L975">975</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $boundary or $place</td></tr>
+<tr><td class="h"><a id="L975">975</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $boundary or $place</td></tr>
 <tr><td class="h"><a id="L977">977</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$osm_type eq &#39;way&#39; ? :</td></tr>
 <tr><td class="h"><a id="L999">999</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless &amp;blessed($res) and $res-&gt;can(&quot;is_success&quot;) and $res-&gt;is_success</td></tr>
 <tr><td class="h"><a id="L1002">1002</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $reply eq &#39;HASH&#39; ? :</td></tr>
@@ -108,7 +108,7 @@ https://pjcj.net
 <tr><td class="h"><a id="L1023">1023</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $north or $lat &gt; $north</td></tr>
 <tr><td class="h"><a id="L1024">1024</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $west or $lon &lt; $west</td></tr>
 <tr><td class="h"><a id="L1025">1025</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if not defined $east or $lon &gt; $east</td></tr>
-<tr><td class="h"><a id="L1028">1028</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">defined $south ? :</td></tr>
+<tr><td class="h"><a id="L1028">1028</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $south ? :</td></tr>
 <tr><td class="h"><a id="L1040">1040</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless ref $polygon eq &quot;ARRAY&quot;</td></tr>
 <tr><td class="h"><a id="L1042">1042</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless _in_ring($outer, $lon, $lat)</td></tr>
 <tr><td class="h"><a id="L1043">1043</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless grep {_in_ring($_, $lon, $lat);} @holes</td></tr>
