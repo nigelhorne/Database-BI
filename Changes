@@ -2,6 +2,10 @@ Revision history for Database-BI
 
 0.024.0
 	[ Enhancements ]
+	- Delta, a new button right of Combine data: choose two columns and
+	  every row where they are identical is removed, leaving the rows
+	  that differ.  It is the filter f=a:differ:b, so charts, export and
+	  print follow it.
 	- Browse your files: tick two or more files (or Select all, or
 	  shift-click a range) and Combine selected opens them as one table,
 	  as Combine data does.  A folder of reports, such as a DMARC
@@ -21,6 +25,8 @@ Revision history for Database-BI
 	- Export saves only the columns the table still shows, in its order:
 	  columns deleted in the page (for example from a merged table) were
 	  still written to the file.
+	- The rows per page you chose now stay when you Merge or Combine more
+	  data, instead of going back to 200.
 	- JSON exports write each row's keys in the table's column order.
 
 0.023.1	Wed Nov 11 08:33:35 PM EST 2026

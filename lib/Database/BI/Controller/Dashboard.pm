@@ -465,7 +465,9 @@ Readonly my %TIME_RANGE => map { $_->{name} => $_ } @TIME_RANGES;
 
 # The operators an f= filter may name (_apply_filter_spec), as written: an
 # operator in capitals is refused with the rest, not read as another one.
-Readonly my @FILTER_OPS => qw(eq ne contains starts lt le gt ge empty notempty between in);
+# differ (the Delta button) is the one whose value is another column's name:
+# f=a:differ:b keeps the rows where a and b do not hold identical text.
+Readonly my @FILTER_OPS => qw(eq ne contains starts lt le gt ge empty notempty between in differ);
 Readonly my %FILTER_OP  => map { $_ => 1 } @FILTER_OPS;
 
 # How many column names a refusal lists before it says how many more there are.
@@ -914,6 +916,7 @@ Readonly my %CRUMB_OP => (
 	eq => '=', ne => '!=', contains => 'contains', starts => 'starts with',
 	lt => '<', le => '<=', gt => '>', ge => '>=', between => 'between',
 	empty => 'is empty', notempty => 'is not empty', in => 'is one of',
+	differ => 'differs from',
 );
 
 # A trail is never longer than this, whatever the URLs say.
@@ -2238,10 +2241,13 @@ sub _unknown_filter_column {
 			. sprintf(' and %d more', @names - $FILTER_COLUMNS_LISTED);
 	};
 	for my $spec (@{ $self->every_param('f') // [] }) {
-		my ($col, $op) = split /:/, $spec, 3;
+		my ($col, $op, $val) = split /:/, $spec, 3;
 		next unless length($col // '') && defined $op && length $op;
-		next if $known{$col};
-		return sprintf(_message_text('error_filter_column'), $col, $spec, $listed->());
+		# A differ filter names a second column, in its value.
+		my @named = ($op eq 'differ') ? ($col, $val // '') : ($col);
+		my ($missing) = grep { !$known{$_} } @named;
+		next unless defined $missing;
+		return sprintf(_message_text('error_filter_column'), $missing, $spec, $listed->());
 	}
 	my $range = $self->stash('time_range');
 	if (ref $range eq 'HASH' && !$known{ $range->{col} // '' }) {
@@ -2331,6 +2337,17 @@ sub _apply_filter_spec {
 		($lo, $hi) = ($hi, $lo) if $lo gt $hi;
 	}
 	my %in_set    = $op eq 'in' ? (map { lc($_) => 1 } _filter_in_values($val)) : ();
+	# differ: the value is a column name, and a row stays when its two cells do
+	# not hold identical text.  A row that lacks the other column counts as
+	# empty, which also keeps a locked SQL row from croaking on a key it does
+	# not have.
+	if ($op eq 'differ') {
+		return [grep {
+			my $row = $_;
+			(exists $row->{$col} ? $row->{$col} // '' : '')
+				ne (exists $row->{$val} ? $row->{$val} // '' : '')
+		} @$records];
+	}
 	return [grep {
 		my $cell  = $_->{$col} // '';
 		my $num   = $by_number ? _numeric_cell($cell) : undef;
@@ -3070,6 +3087,7 @@ sub _dedup_records {
 #                      not a plain number (avoids column-affinity surprises
 #                      with currency or comma-formatted values).
 #   in              -- Always residual (a list of values, matched as eq is).
+#   differ          -- Always residual (compares two columns of one row).
 #   empty / notempty -- Always residual.  Must match both SQL NULL and the
 #                      literal empty string; cannot be expressed as a single
 #                      D::A criterion without an -or grouping.

@@ -192,7 +192,7 @@ subtest 'Upload -> open -> filter end-to-end pipeline' => sub {
 	  ->content_like(qr/Alpha/,   'Alpha is premium -- present in filtered view')
 	  ->content_like(qr/Gamma/,   'Gamma is premium -- present in filtered view')
 	  ->content_unlike(qr/Beta/,  'Beta is standard -- absent from filtered view')
-	  ->content_unlike(qr/Delta/, 'Delta is standard -- absent from filtered view');
+	  ->content_unlike(qr/<td[^>]*>Delta</, 'Delta is standard -- absent from filtered view');
 
 	# Step 4: Open with a gt filter -- only score > 70.
 	$t->get_ok("/open?path=$enc&f=" . url_escape('score:gt:70'))
@@ -200,7 +200,7 @@ subtest 'Upload -> open -> filter end-to-end pipeline' => sub {
 	  ->content_like(qr/Alpha/,   'Alpha score 90 > 70 -- present')
 	  ->content_like(qr/Gamma/,   'Gamma score 80 > 70 -- present')
 	  ->content_unlike(qr/Beta/,  'Beta score 60 not > 70 -- absent')
-	  ->content_unlike(qr/Delta/, 'Delta score 40 not > 70 -- absent');
+	  ->content_unlike(qr/<td[^>]*>Delta</, 'Delta score 40 not > 70 -- absent');
 };
 
 # ===========================================================================

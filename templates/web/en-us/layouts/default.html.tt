@@ -427,6 +427,15 @@
       margin-bottom: 1rem;
     }
 
+    /* Delta has two fields and no "or", so it is a plain row; the page's
+       script gives both menus the width of the longest column name. */
+    .join-fields.delta-fields {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: flex-end;
+    }
+    .delta-fields .join-field select { width: auto; max-width: 100%; }
+
     @media (max-width: 680px) {
       .join-fields { grid-template-columns: 1fr; }
       .join-or { display: none; }

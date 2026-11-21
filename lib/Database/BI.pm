@@ -217,7 +217,8 @@ applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: C<eq>,
 C<ne>, C<contains>, C<starts>, C<lt>, C<le>, C<gt>, C<ge>, C<between>, C<empty>,
 C<notempty>; and C<in>, which a link can carry but the bar does not offer: any
-value of a JSON list, as in C<f=place:in:["Paris","Rome"]>.  Filters are
+value of a JSON list, as in C<f=place:in:["Paris","Rome"]>, and C<differ>,
+which the Delta button adds (see below).  Filters are
 applied server-side after all joins.  C<lt>, C<le>,
 C<gt> and C<ge> compare numbers, reading C<$1,234.56> and C<(1,234.56)> as
 numbers too; a blank or a word in the cell matches none of them.
@@ -232,6 +233,17 @@ the exception: one on a column its dataset no longer has is ignored.
 B<Combine (UNION ALL)> -- the "Combine data" panel stacks rows from a
 second (or further) file beneath the current rows, using a unified column
 set and leaving blanks where a source file lacks a column.
+
+=item *
+
+B<Delta> -- the "Delta" button, to the right of Combine data, asks for two
+columns and removes every row where they are identical, so only the rows
+where they differ are left.  It adds the filter C<f=first:differ:second> to the
+view, so the table, charts, pivot, export and print all show the same rows,
+and the chip can be removed like any other filter.  "Identical" means the same
+text: C<Ann> and C<ann>, or C<10> and C<10.0>, differ.  An empty cell
+is identical to another empty cell, so a row where both are empty is removed.  Both columns must be in the view, or the request
+is a C<400>.  The names of the two columns must not contain a colon.
 
 =item *
 

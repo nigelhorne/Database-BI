@@ -130,7 +130,7 @@ subtest 'every chart, analysis and model button in the toolbar looks the same' =
 	# model panel and shares one look.
 	my %own_style = map { $_ => 1 } qw(
 		btn-copy-link btn-export-open btn-refresh btn-print btn-delete-sel btn-dedup
-		btn-add-db btn-combine dash-f-apply dash-range-apply chip-remove-range
+		btn-add-db btn-combine btn-delta dash-f-apply dash-range-apply chip-remove-range
 	);
 	my @buttons = grep { ($_->{id} // '') =~ /\Abtn-/ && !$own_style{$_->{id}} }
 		$dom->find('div.toolbar button[id]')->each;

@@ -2350,7 +2350,7 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my $f = sub { 'f=' . url_escape($_[0]) };
 		$t->get_ok('/view/sales?' . $f->('region:gtx:North'))->status_is(400);
 		message_ok('Dashboard', 'error_filter_op', $t->tx->res->body,
-			['gtx', 'region:gtx:North', 'eq, ne, contains, starts, lt, le, gt, ge, empty, notempty, between, in']);
+			['gtx', 'region:gtx:North', 'eq, ne, contains, starts, lt, le, gt, ge, empty, notempty, between, in, differ']);
 		$t->get_ok('/view/sales?' . $f->('regoin:eq:North'))->status_is(400);
 		message_ok('Dashboard', 'error_filter_column', $t->tx->res->body, ['regoin', 'regoin:eq:North', undef]);
 		like $t->tx->res->body, qr/the columns are: .*\bregion\b/, '... naming the columns there are';

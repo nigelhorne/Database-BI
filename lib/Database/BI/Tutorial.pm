@@ -232,6 +232,21 @@ my @CHAPTERS = (
 		routes => [ '/combine' ],
 	},
 	{
+		id    => 'delta',
+		part  => 'Work with a table',
+		title => 'Keep only the rows where two columns differ',
+		lead  => 'Delta removes every row where two columns are identical.',
+		steps => [
+			'Open the table.',
+			'Click Delta..., to the right of Combine data.',
+			'Choose the first column and the second column.',
+			'Click Apply. Only the rows where the two columns hold different values are left.',
+			'To see all the rows again, remove the filter chip above the table.',
+		],
+		tip   => 'Identical means the same text. Ann and ann differ, and so do 10 and 10.0.',
+		routes => [ '/open' ],
+	},
+	{
 		id    => 'calc',
 		part  => 'Work with a table',
 		title => 'Make a new column with a calculation',

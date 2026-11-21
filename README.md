@@ -55,7 +55,8 @@ applies the filter.  Each active filter chip has an individual remove (x)
 button so conditions can be dropped one at a time.  Operators: `eq`,
 `ne`, `contains`, `starts`, `lt`, `le`, `gt`, `ge`, `between`, `empty`,
 `notempty`; and `in`, which a link can carry but the bar does not offer: any
-value of a JSON list, as in `f=place:in:["Paris","Rome"]`.  Filters are
+value of a JSON list, as in `f=place:in:["Paris","Rome"]`, and `differ`,
+which the Delta button adds (see below).  Filters are
 applied server-side after all joins.  `lt`, `le`,
 `gt` and `ge` compare numbers, reading `$1,234.56` and `(1,234.56)` as
 numbers too; a blank or a word in the cell matches none of them.
@@ -67,6 +68,14 @@ the exception: one on a column its dataset no longer has is ignored.
 - **Combine (UNION ALL)** -- the "Combine data" panel stacks rows from a
 second (or further) file beneath the current rows, using a unified column
 set and leaving blanks where a source file lacks a column.
+- **Delta** -- the "Delta" button, to the right of Combine data, asks for two
+columns and removes every row where they are identical, so only the rows
+where they differ are left.  It adds the filter `f=first:differ:second` to the
+view, so the table, charts, pivot, export and print all show the same rows,
+and the chip can be removed like any other filter.  "Identical" means the same
+text: `Ann` and `ann`, or `10` and `10.0`, differ.  An empty cell
+is identical to another empty cell, so a row where both are empty is removed.  Both columns must be in the view, or the request
+is a `400`.  The names of the two columns must not contain a colon.
 - **Charts** -- nine [HTML::D3](https://metacpan.org/pod/HTML%3A%3AD3) D3.js v7 chart types are accessible from
 the toolbar: line chart (brush-to-zoom, reference lines for min/avg/max and a trend line,
 multi-series interactive legend), pie chart (click-a-slice to filter,
