@@ -142,6 +142,7 @@ my @CHAPTERS = (
 			'Beside them, the page says where you are, for example Page 2 of 7.',
 			'Choose 25, 50, 100, 200 or All in Rows per page to change how many rows each page shows.',
 			'The first row you were looking at stays on screen. All puts every row on one page, which can be slow for a big file.',
+			'The number you choose stays when you merge or combine more data.',
 			'To change the number for every table, use the Preferences page.',
 			'Click Totals to add a row of sums at the bottom.',
 			'Click the box at the start of a row to select it. Click Delete selected to remove it from the view.',
@@ -167,6 +168,7 @@ my @CHAPTERS = (
 			'Press Enter or click Apply filter.',
 			'Each active filter is shown as a small label in the toolbar. Click the x on a label to remove it.',
 			'For more rules, click Merge / Filter... and use the Filter results section.',
+			'To compare two columns, use Delta... instead. It is explained in its own chapter.',
 			'A link whose filter names a column the table does not have shows an error that lists the columns.',
 		],
 		tip   => 'A filter does not change your file. It only changes what you see and what you export. A time range is worked out from today every time.',
@@ -243,7 +245,7 @@ my @CHAPTERS = (
 			'Click Apply. Only the rows where the two columns hold different values are left.',
 			'To see all the rows again, remove the filter chip above the table.',
 		],
-		tip   => 'Identical means the same text. Ann and ann differ, and so do 10 and 10.0.',
+		tip   => 'Identical means the same text. Ann and ann differ, and so do 10 and 10.0. Two empty cells are identical, so that row is removed.',
 		routes => [ '/open' ],
 	},
 	{
@@ -1106,6 +1108,14 @@ my @FAQ = (
 		answer   => 'The pattern did not match the value in that row. Those rows are kept and grouped together, so you can see how many there are.',
 	},
 	{
+		question => 'Delta shows no rows.',
+		answer   => 'The two columns hold the same value in every row, so Delta removed them all. Remove the filter label above the table to see the rows again.',
+	},
+	{
+		question => 'Export left out a column, or put the columns in a new order.',
+		answer   => 'Export saves the columns that the table shows now, in the order that it shows them. A column that you deleted is not saved. Reload the page to get it back.',
+	},
+	{
 		question => 'New columns appeared that are not in my file.',
 		answer   => 'A lookup or an extraction adds them. Open the Lookups or Extract fields panel to see them. Delete one there, or skip a lookup in this view.',
 	},
@@ -1240,6 +1250,7 @@ my @GLOSSARY = (
 	{ term => 'Cross-row column', meaning => 'A column worked out from several rows, for example a running total.' },
 	{ term => 'CSV',         meaning => 'A text file with values separated by commas.' },
 	{ term => 'Data file',   meaning => 'A file with rows and columns that the program can read.' },
+	{ term => 'Delta',       meaning => 'Keep only the rows where two columns hold different values.' },
 	{ term => 'Duplicate',   meaning => 'A row that is exactly the same as another row.' },
 	{ term => 'Export',      meaning => 'Write the rows that you see to a new file.' },
 	{ term => 'Expression',  meaning => 'A small formula, for example revenue - cost.' },
