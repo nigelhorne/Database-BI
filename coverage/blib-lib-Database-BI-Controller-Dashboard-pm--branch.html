@@ -31,7 +31,7 @@ https://pjcj.net
 <tr><td class="h"><a id="L429">429</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $fn and length $fn</td></tr>
 <tr><td class="h"><a id="L430">430</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $MEASURE_FN_OK{$fn}</td></tr>
 <tr><td class="h"><a id="L431">431</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined _measure_percentile($fn) ? :</td></tr>
-<tr><td class="h"><a id="L505">505</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and $value =~ /\A-?\d{1,$MAX_WHOLE_NUMBER_DIGITS}\z/u</td></tr>
+<tr><td class="h"><a id="L505">505</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and $value =~ /\A-?[0-9]{1,$MAX_WHOLE_NUMBER_DIGITS}\z/u</td></tr>
 <tr><td class="h"><a id="L518">518</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $name &amp;&amp; !ref($name) &amp;&amp; $SCATTER_SCHEMES{$name} ? :</td></tr>
 <tr><td class="h"><a id="L523">523</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $name &amp;&amp; !ref($name) &amp;&amp; $SEQUENTIAL_SCHEMES{$name} ? :</td></tr>
 <tr><td class="h"><a id="L536">536</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $name &amp;&amp; !ref($name) &amp;&amp; $SCATTER_SCHEMES{$name} ? :</td></tr>
@@ -48,7 +48,7 @@ https://pjcj.net
 <tr><td class="h"><a id="L582">582</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $page &lt; 1</td></tr>
 <tr><td class="h"><a id="L586">586</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$per_page == $ALL_ROWS ? :</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$asked_in_url ? :</td></tr>
-<tr><td class="h"><a id="L602">602</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and $value =~ /\A\d{1,4}\z/u</td></tr>
+<tr><td class="h"><a id="L602">602</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $value and $value =~ /\A[0-9]{1,4}\z/u</td></tr>
 <tr><td class="h"><a id="L604">604</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$PAGE_SIZE_OK{$value} ? :</td></tr>
 <tr><td class="h"><a id="L664">664</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">&#39;File::Spec&#39;-&gt;file_name_is_absolute($_) ? :</td></tr>
 <tr><td class="h"><a id="L665">665</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if defined $_ and not ref $_</td></tr>

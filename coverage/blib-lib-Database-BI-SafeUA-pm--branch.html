@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/SafeUA.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">96.1%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">97.4%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -33,36 +33,37 @@ https://pjcj.net
 <tr><td class="h"><a id="L79">79</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if substr($packed, 0, 12) eq $prefix and $packed ne &quot;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\1&quot; and $packed ne &quot;\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0\0&quot;</td></tr>
 <tr><td class="h"><a id="L82">82</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if substr($packed, 0, 2) eq &quot; \2&quot;</td></tr>
 <tr><td class="h"><a id="L84">84</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if _in_net($packed, inet_pton(10, $$net[0]), $$net[1])</td></tr>
-<tr><td class="h"><a id="L91">91</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if _in_net($packed, inet_pton(2, $$net[0]), $$net[1])</td></tr>
-<tr><td class="h"><a id="L98">98</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $host</td></tr>
-<tr><td class="h"><a id="L100">100</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($h =~ /\A\[([0-9a-f:.%a-z]+)\]\z/)</td></tr>
-<tr><td class="h"><a id="L102">102</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$inner =~ /:/ ? :</td></tr>
-<tr><td class="h"><a id="L104">104</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $h =~ /:/ and defined inet_pton(10, $h)</td></tr>
-<tr><td class="h"><a id="L117">117</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $h =~ /\A(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+)){0,3}\z/</td></tr>
-<tr><td class="h"><a id="L121">121</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($part =~ /\A0x([0-9a-f]*)\z/) { }</td></tr>
+<tr><td class="h"><a id="L92">92</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $bare =~ /\A[0-9]{1,3}(?:\.[0-9]{1,3}){3}\z/</td></tr>
+<tr><td class="h"><a id="L95">95</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if _in_net($packed, inet_pton(2, $$net[0]), $$net[1])</td></tr>
+<tr><td class="h"><a id="L102">102</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $host</td></tr>
+<tr><td class="h"><a id="L104">104</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($h =~ /\A\[([0-9a-f:.%a-z]+)\]\z/)</td></tr>
+<tr><td class="h"><a id="L106">106</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$inner =~ /:/ ? :</td></tr>
+<tr><td class="h"><a id="L108">108</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $h =~ /:/ and defined inet_pton(10, $h)</td></tr>
+<tr><td class="h"><a id="L121">121</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $h =~ /\A(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+)){0,3}\z/</td></tr>
+<tr><td class="h"><a id="L125">125</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if ($part =~ /\A0x([0-9a-f]*)\z/) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($part =~ /\A0([0-7]*)\z/) { }</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">elsif ($part =~ /\A[1-9][0-9]{0,9}\z/) { }</td></tr>
-<tr><td class="h"><a id="L123">123</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if length $hex &gt; 8</td></tr>
-<tr><td class="h"><a id="L124">124</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $hex ? :</td></tr>
-<tr><td class="h"><a id="L127">127</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if length $oct &gt; 11</td></tr>
-<tr><td class="h"><a id="L128">128</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $oct ? :</td></tr>
-<tr><td class="h"><a id="L138">138</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $n &gt; 255</td></tr>
-<tr><td class="h"><a id="L140">140</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $last &gt;= 2 ** (8 * (4 - @parts))</td></tr>
-<tr><td class="h"><a id="L150">150</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $err</td></tr>
-<tr><td class="h"><a id="L154">154</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if not $e and defined $ip and not $seen{$ip}++</td></tr>
-<tr><td class="h"><a id="L170">170</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $resolve eq &#39;CODE&#39; ? :</td></tr>
-<tr><td class="h"><a id="L171">171</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $_</td></tr>
+<tr><td class="h"><a id="L127">127</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if length $hex &gt; 8</td></tr>
+<tr><td class="h"><a id="L128">128</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $hex ? :</td></tr>
+<tr><td class="h"><a id="L131">131</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">if length $oct &gt; 11</td></tr>
+<tr><td class="h"><a id="L132">132</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">length $oct ? :</td></tr>
+<tr><td class="h"><a id="L142">142</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $n &gt; 255</td></tr>
+<tr><td class="h"><a id="L144">144</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $last &gt;= 2 ** (8 * (4 - @parts))</td></tr>
+<tr><td class="h"><a id="L156">156</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $@ or not defined $err or $err</td></tr>
+<tr><td class="h"><a id="L160">160</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if not $e and defined $ip and not $seen{$ip}++</td></tr>
+<tr><td class="h"><a id="L176">176</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $resolve eq &#39;CODE&#39; ? :</td></tr>
+<tr><td class="h"><a id="L177">177</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $_</td></tr>
 <tr><td class="h"></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">ref $private eq &#39;ARRAY&#39; ? :</td></tr>
-<tr><td class="h"><a id="L179">179</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $name eq $host</td></tr>
-<tr><td class="h"><a id="L180">180</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $name =~ /\A\*(\..+)\z/ and length $host &gt; length $1 and substr($host, -length($1)) eq $1</td></tr>
-<tr><td class="h"><a id="L197">197</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $scheme eq &quot;http&quot; or $scheme eq &quot;https&quot;</td></tr>
-<tr><td class="h"><a id="L200">200</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless length $name</td></tr>
-<tr><td class="h"><a id="L203">203</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $literal ? :</td></tr>
-<tr><td class="h"><a id="L204">204</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @addrs</td></tr>
-<tr><td class="h"><a id="L205">205</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (not defined $literal and $self-&gt;private_host_allowed($name))</td></tr>
-<tr><td class="h"><a id="L208">208</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$ip eq $name ? :</td></tr>
-<tr><td class="h"><a id="L215">215</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$addrs[0] =~ /:/ ? :</td></tr>
-<tr><td class="h"><a id="L222">222</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$scheme eq &#39;https&#39; ? :</td></tr>
+<tr><td class="h"><a id="L185">185</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $name eq $host</td></tr>
+<tr><td class="h"><a id="L186">186</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $name =~ /\A\*(\..+)\z/ and length $host &gt; length $1 and substr($host, -length($1)) eq $1</td></tr>
+<tr><td class="h"><a id="L203">203</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $scheme eq &quot;http&quot; or $scheme eq &quot;https&quot;</td></tr>
+<tr><td class="h"><a id="L206">206</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless length $name</td></tr>
+<tr><td class="h"><a id="L209">209</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $literal ? :</td></tr>
+<tr><td class="h"><a id="L210">210</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @addrs</td></tr>
+<tr><td class="h"><a id="L211">211</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless (not defined $literal and $self-&gt;private_host_allowed($name))</td></tr>
+<tr><td class="h"><a id="L215">215</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$shown eq $name ? :</td></tr>
+<tr><td class="h"><a id="L222">222</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$addrs[0] =~ /:/ ? :</td></tr>
+<tr><td class="h"><a id="L229">229</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$scheme eq &#39;https&#39; ? :</td></tr>
 </table>
 </body>
 </html>
