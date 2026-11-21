@@ -146,8 +146,10 @@ sub _numeric_v4 {
 sub resolve_host {
 	my ($host) = @_;
 	local ($@, $!);
-	my ($err, @res) = getaddrinfo($host, undef, { socktype => SOCK_STREAM });
-	return () if $err;
+	# A host the resolver will not even take as text (a wide character)
+	# does not resolve, which the POD states as an empty list.
+	my ($err, @res) = eval { getaddrinfo($host, undef, { socktype => SOCK_STREAM }) };
+	return () if $@ || !defined($err) || $err;
 	my (%seen, @ips);
 	for my $r (@res) {
 		my ($e, $ip) = getnameinfo($r->{addr}, NI_NUMERICHOST, NIx_NOSERV);

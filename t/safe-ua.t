@@ -241,6 +241,8 @@ subtest 'the default resolver' => sub {
 	ok @ips, 'localhost resolves' or diag 'no localhost here';
 	ok !(grep { !Database::BI::SafeUA::blocked_address($_) } @ips), 'and every address it gives is refused';
 	is_deeply [ Database::BI::SafeUA::resolve_host('no-such-host.invalid') ], [], '.invalid never resolves';
+	is_deeply [ Database::BI::SafeUA::resolve_host("\x{FEFF}") ], [],
+		'a host that is not text for the resolver does not resolve either';
 };
 
 subtest 'the application' => sub {

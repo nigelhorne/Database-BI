@@ -22,6 +22,9 @@ Revision history for Database-BI
 	  (MOJO_MAX_LINE_SIZE), for the long link a stack of many files makes.
 
 	[ Bug fixes ]
+	- SafeUA::resolve_host returns an empty list for a host the resolver will
+	  not take as text (a wide character), as the POD says it does when a
+	  host does not resolve, instead of dying inside getaddrinfo
 	- Export saves only the columns the table still shows, in its order:
 	  columns deleted in the page (for example from a merged table) were
 	  still written to the file.
