@@ -502,7 +502,7 @@ Readonly my $AI_WINDOW_S           => 3600;
 # digits or '1e400' as infinity, which no LIMIT or OFFSET can use.
 sub _whole_number {
 	my $value = $_[0];
-	return undef unless defined($value) && $value =~ /\A-?\d{1,$MAX_WHOLE_NUMBER_DIGITS}\z/;
+	return undef unless defined($value) && $value =~ /\A-?[0-9]{1,$MAX_WHOLE_NUMBER_DIGITS}\z/;
 	return $value + 0;
 }
 
@@ -599,7 +599,7 @@ sub _pagination {
 sub _page_size_preference {
 	my $self = $_[0];
 	my $value = $self->cookie($PAGE_SIZE_COOKIE);
-	return undef unless defined $value && $value =~ /\A\d{1,4}\z/;
+	return undef unless defined $value && $value =~ /\A[0-9]{1,4}\z/;
 	$value += 0;
 	return $PAGE_SIZE_OK{$value} ? $value : undef;
 }

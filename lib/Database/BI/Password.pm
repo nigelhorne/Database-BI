@@ -104,7 +104,7 @@ sub hash_password {
 	croak _text('error_password_nul') if $password =~ /\0\z/;
 	my $rounds = $opts{rounds} // $DEFAULT_ROUNDS;
 	croak sprintf(_text('error_password_rounds'), $MIN_ROUNDS, $MAX_ROUNDS)
-		unless $rounds =~ /\A\d+\z/ && $rounds >= $MIN_ROUNDS && $rounds <= $MAX_ROUNDS;
+		unless $rounds =~ /\A[0-9]+\z/ && $rounds >= $MIN_ROUNDS && $rounds <= $MAX_ROUNDS;
 	my $salt = $opts{salt} // _random_bytes($SALT_BYTES);
 	# A salt is bytes: a reference or a character past U+00FF is not one.
 	croak sprintf(_text('error_password_salt'), $SALT_BYTES)
@@ -176,7 +176,14 @@ without padding.  C<script/database-bi password> makes one.
     $password: string, required, not empty, not a reference, and not ending in a
                NUL byte (HMAC pads a short key with NULs, so "x" and "x\0" would
                be one password); a character string is hashed as UTF-8
-    rounds:    integer, optional, 10_000 to 100_000_000 (default 200_000)
+    rounds:    integer, optional, 10_000 to 100_000_000 (default 200_000).
+               Domains: 9_999 and below, above 100_000_000, a fractional or
+               signed number, an exponent, spaces, a newline and non-ASCII
+               digits are refused; 10_000, 10_001, 99_999_999 and
+               100_000_000 are accepted.  The password's length is not
+               limited (one over 64 bytes is hashed once first, which HMAC
+               does anyway); a string whose UTF-8 flag is on is hashed as
+               its UTF-8 bytes, so it matches the same text typed as bytes
     salt:      16 bytes (characters no higher than U+00FF), optional (default
                random); for tests
 

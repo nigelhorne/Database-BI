@@ -187,6 +187,17 @@ Read a table cell as a number, or say it is not one.
 
     $value: string, optional
 
+  Domains:
+    ASCII plain decimal, up to 300 integer digits   a number (the fast path)
+    the same with commas, spaces, brackets, $, %,
+      a known currency code, or any non-ASCII symbol
+      (a euro sign, a right-to-left mark)            the number, symbols removed
+    brackets round the number                        negative
+    more than 300 digits, or an exponent             a number while its size is at
+                                                     most POSIX::DBL_MAX, else undef
+    any other letter, a second point, or no digit    undef (SKU123, 1.2.3, "Gr\x{F6}\x{DF}e")
+    non-ASCII digits (Arabic-Indic, fullwidth)       undef: only 0-9 are digits
+
 =head4 OUTPUT
 
 A number, or C<undef> if the value is missing, empty, holds anything other

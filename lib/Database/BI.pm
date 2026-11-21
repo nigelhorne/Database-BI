@@ -527,7 +527,9 @@ only a relative window of rows (see L</Relative time ranges>).
 
 A long table is shown a page at a time: C<?page=> is the page, and
 C<?per_page=> its size (else the reader's preference, else 200; up to 2000;
-C<0> is every row on one page, and then C<page=> is ignored).  The page says
+C<0> is every row on one page, and then C<page=> is ignored; a number below 1
+is 1, and anything that is not a whole number written with the digits 0-9 is
+taken as if it were not given).  The page says
 "Page 2 of 7", and its Rows per page list (25, 50, 100, 200, All) changes the
 size, keeping the first row on screen.  A pivot pages its row groups the same
 way.
@@ -2684,7 +2686,7 @@ sub startup ($self) {
 	_check_share_secret($self->config('share_secret'));
 	_check_export_dirs($self, $self->config('export_dirs'));
 	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
-		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A\d+\z/;
+		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A[0-9]+\z/;
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
 	_require_export_dirs_with_password($self->config('password_hash'), $self->config('export_dirs'));
 
@@ -3458,7 +3460,7 @@ sub _check_login {
 			unless Database::BI::Password::is_password_hash($hash);
 	}
 	croak sprintf("login_expiration: '%s' is not a number of seconds from 60", ref($expiration) || $expiration)
-		if defined $expiration && (ref $expiration || $expiration !~ /\A\d+\z/ || $expiration < 60);
+		if defined $expiration && (ref $expiration || $expiration !~ /\A[0-9]+\z/ || $expiration < 60);
 	return;
 }
 

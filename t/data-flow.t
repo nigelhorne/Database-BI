@@ -557,12 +557,12 @@ SKIP: {
 	};
 
 	subtest 'Database::Join -- column name collision prefixed with right table label' => sub {
-		# Right table also has an "emp" column — collides with left "emp".
+		# Right table also has an "emp" column - collides with left "emp".
 		Mojo::File->new("$DIR/dflow_right2.csv")->spew("dept_id,dept_name,emp\n10,Engineering,Mgr-E\n");
 		my $right_ds2 = Database::BI::Model::DataSource->new(directory => $DIR, table => 'dflow_right2');
 		my $join = Database::Join->new(
-			databases        => [$left_ds, $right_ds2],
-			join_column      => 'dept_id',
+			databases      => [$left_ds, $right_ds2],
+			join_column    => 'dept_id',
 			collision_prefix => { 1 => 'dept' },
 		);
 		my $merged = $join->selectall_arrayref;
@@ -574,7 +574,7 @@ SKIP: {
 	subtest 'Database::Join -- duplicate right keys: last match wins' => sub {
 		Mojo::File->new("$DIR/dflow_dup.csv")->spew("dept_id,dept_name\n10,First\n10,Second\n");
 		my $dup_ds = Database::BI::Model::DataSource->new(directory => $DIR, table => 'dflow_dup');
-		my $join   = Database::Join->new(databases => [$left_ds, $dup_ds], join_column => 'dept_id');
+		my $join = Database::Join->new(databases => [$left_ds, $dup_ds], join_column => 'dept_id');
 		my $merged = $join->selectall_arrayref;
 		# Database::Join uses last-wins semantics for duplicate right keys (unlike the
 		# former _left_join helper which used first-wins via //=).
@@ -731,8 +731,8 @@ subtest '_apply_filter_spec -- malformed spec (no colon) returns input unchanged
 
 subtest '_apply_filter_spec -- original arrayref not mutated' => sub {
 	my @orig = ({ name => 'Alice' }, { name => 'Bob' });
-	my $in   = \@orig;
-	my $out  = $FILTER->($in, 'name:eq:alice');
+	my $in = \@orig;
+	my $out = $FILTER->($in, 'name:eq:alice');
 	is scalar(@orig), 2, 'original @orig still has 2 elements';
 	isnt $out, $in,       'returned a new arrayref (not the same reference)';
 };
@@ -845,7 +845,7 @@ subtest '_dedup_records -- input arrayref not mutated' => sub {
 # ======================================================================
 
 subtest '_combine_tables -- left columns appear first in union order' => sub {
-	my @left_recs  = ({ a => '1', b => '2' });
+	my @left_recs = ({ a => '1', b => '2' });
 	my @right_recs = ({ b => '3', c => '4' });
 	my ($merged, $cols) = $COMBINE->([
 		[\@left_recs,  [qw(a b)]],
@@ -911,7 +911,7 @@ subtest '_get_columns -- ordered source: columns() takes priority (D->U on first
 	# When source->columns returns an arrayref, the fallback is bypassed entirely.
 	my $source = bless {
 		_columns => [qw(z a m)],   # non-alphabetical: verifies no sorting applied
-		_id_col  => 'z',
+		_id_col => 'z',
 	}, 'Database::BI::Model::DataSource';
 	my @records = ({ z => '1', a => '2', m => '3' });
 	my @cols = $GET_COLS->($source, \@records);

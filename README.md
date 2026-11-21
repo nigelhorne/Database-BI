@@ -333,7 +333,9 @@ perl Makefile.PL
 
     A long table is shown a page at a time: `?page=` is the page, and
     `?per_page=` its size (else the reader's preference, else 200; up to 2000;
-    `0` is every row on one page, and then `page=` is ignored).  The page says
+    `0` is every row on one page, and then `page=` is ignored; a number below 1
+    is 1, and anything that is not a whole number written with the digits 0-9 is
+    taken as if it were not given).  The page says
     "Page 2 of 7", and its Rows per page list (25, 50, 100, 200, All) changes the
     size, keeping the first row on screen.  A pivot pages its row groups the same
     way.

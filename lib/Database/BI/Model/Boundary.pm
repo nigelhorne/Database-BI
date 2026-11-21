@@ -358,6 +358,8 @@ sub new {
 =head4 INPUT
 
   ranks : hashref of { country code => place rank }
+          Domains: a code is exactly two ASCII letters (any case); a rank is
+          8, 10 or 12 as a whole number (7, 9, 11, 13, '08' and '8 ' are not)
 
 =head4 OUTPUT
 
@@ -377,7 +379,7 @@ sub check_ranks {
 		my $rank = $ranks->{$code};
 		croak "'$code' is not a two-letter country code" unless $code =~ /\A[A-Za-z]{2}\z/;
 		croak "the rank for '$code' must be one of " . join(', ', sort { $a <=> $b } keys %ZOOM_FOR_RANK)
-			unless defined($rank) && !ref($rank) && $rank =~ /\A\d+\z/ && $ZOOM_FOR_RANK{$rank};
+			unless defined($rank) && !ref($rank) && $rank =~ /\A[0-9]+\z/ && $ZOOM_FOR_RANK{$rank};
 		croak "'$code' is given twice" if exists $checked{ lc $code };
 		$checked{ lc $code } = $rank + 0;
 	}
@@ -500,6 +502,12 @@ sub levels {
   lat : number  -90 .. 90
   lon : number  -180 .. 180
 
+  Domains: each is a plain decimal, an optional minus and ASCII digits with an
+  optional fraction (1, -1.5, 12.345678).  A plus sign, a bare point (.5, 5.),
+  an exponent, spaces, a newline, a comma, NaN, Inf and non-ASCII digits are
+  not numbers here.  The edges -90, 90, -180 and 180 are in; anything past
+  them, however slightly (90.0001), is out, even if it would round to an edge.
+
 =head4 OUTPUT
 
 The point rounded to three decimal places, as C<"lat,lon">: what the cache is
@@ -511,7 +519,7 @@ sub point_key {
 	my (undef, $lat, $lon) = @_;
 
 	return unless defined($lat) && defined($lon)
-		&& $lat =~ /\A-?\d+(?:\.\d+)?\z/ && $lon =~ /\A-?\d+(?:\.\d+)?\z/
+		&& $lat =~ /\A-?[0-9]+(?:\.[0-9]+)?\z/ && $lon =~ /\A-?[0-9]+(?:\.[0-9]+)?\z/
 		&& abs($lat) <= 90 && abs($lon) <= 180;
 
 	my @parts = map {
@@ -649,7 +657,7 @@ sub lookup_point {
 
 	croak 'lookup_point() needs a point key such as 39.090,-77.640'
 		unless defined($key) && !ref($key)
-		&& $key =~ /\A(-?\d{1,2}\.\d{$DECIMALS}),(-?\d{1,3}\.\d{$DECIMALS})\z/
+		&& $key =~ /\A(-?[0-9]{1,2}\.[0-9]{$DECIMALS}),(-?[0-9]{1,3}\.[0-9]{$DECIMALS})\z/
 		&& defined($self->point_key($1, $2)) && $self->point_key($1, $2) eq $key;
 
 	local ($@, $!);
@@ -954,8 +962,8 @@ sub _outline_id {
 	my $rank     = $reply->{place_rank};
 	my $category = $reply->{category} // '';
 	my $osm_type = $reply->{osm_type} // '';
-	return unless defined($reply->{osm_id}) && $reply->{osm_id} =~ /\A\d+\z/
-		&& defined($rank) && !ref($rank) && $rank =~ /\A\d+\z/
+	return unless defined($reply->{osm_id}) && $reply->{osm_id} =~ /\A[0-9]+\z/
+		&& defined($rank) && !ref($rank) && $rank =~ /\A[0-9]+\z/
 		&& $rank >= $try->{ranks}[0] && $rank <= $try->{ranks}[1]
 		&& ref($geometry) eq 'HASH'
 		&& ($geometry->{type} // '') =~ /\A(?:Multi)?Polygon\z/
