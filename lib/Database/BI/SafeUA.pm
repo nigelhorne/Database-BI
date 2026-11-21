@@ -129,7 +129,8 @@ sub _numeric_v4 {
 		} elsif ($part =~ /\A0([0-7]*)\z/) {
 			my $oct = $1 =~ s/\A0+//r;
 			return undef if length($oct) > 11;
-			$n = length $oct ? oct $oct : 0;
+			# Eleven octal digits can pass 32 bits: perl warns, and the range check below refuses it.
+			{ no warnings 'portable'; $n = length $oct ? oct $oct : 0; }
 		} elsif ($part =~ /\A[1-9][0-9]{0,9}\z/) {
 			$n = $part + 0;
 		} else {

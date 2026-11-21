@@ -55,6 +55,10 @@ sub _pbkdf2 {
 	# password was 10,000 megabytes of hashing).
 	$password = sha256($password) if length($password) > $HMAC_BLOCK_BYTES;
 	my $key = '';
+	# TODO: the loop should be removed and just the contents of its body kept
+	# (Path analysis: every caller passes $KEY_BYTES = 32, one SHA-256 block, so the
+	# body runs exactly once.  It is kept on purpose for the RFC 7914 multi-block
+	# vectors t/function.t and t/path.t run through this private function.)
 	for (my $block = 1; length($key) < $bytes; $block++) {
 		my $u = hmac_sha256($salt . pack('N', $block), $password);
 		my $t = $u;
