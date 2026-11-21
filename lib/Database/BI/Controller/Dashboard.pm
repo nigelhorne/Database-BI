@@ -7633,6 +7633,57 @@ sub _decode_cell {
 	$s;
 }
 
+# _export_selection($self, $records, \@columns) -> ($records, \@columns)
+#
+# Purpose: Narrow an export to the columns the reader's table still shows, in
+#          the table's order.  Deleting or dragging a column happens only in
+#          the browser, so the Export panel sends what is left as repeated
+#          xcol= and the server applies it here.
+# Entry:   $self is the controller (called as a function: it only reads
+#          params); $records are hashrefs, possibly locked (SQL backends), so
+#          new hashes are built and the originals never written.
+# Exit:    The same two refs when xcol is absent or names no column of the
+#          view; otherwise new refs holding only the known, de-duplicated
+#          names.  Unknown names are ignored, not an error.
+# Side Effects: None.
+sub _export_selection {
+	my ($self, $records, $columns) = @_;
+	my %known = map { $_ => 1 } @$columns;
+	my %seen;
+	my @keep = grep { $known{$_} && !$seen{$_}++ }
+		grep { defined && length } @{ $self->every_param('xcol') };
+	return ($records, $columns) unless @keep;
+	return ([ map { _row_subset($_, \@keep) } @$records ], \@keep);
+}
+
+# _row_subset(\%row, \@columns) -> \%new_row
+#
+# Purpose: Copy the named columns of one row into a plain hash.  A column the
+#          row lacks becomes undef: reading it directly would croak on a
+#          locked (restricted) hash from a SQL backend.
+sub _row_subset {
+	my ($row, $columns) = @_;
+	return +{ map { $_ => (exists $row->{$_} ? $row->{$_} : undef) } @$columns };
+}
+
+# _serialize_json($records, \@columns) -> $utf8_bytes
+#
+# Purpose: A JSON array of row objects whose keys follow @$columns.  A hash
+#          has no order, so encode_json on the rows would list keys in any
+#          order and a column the reader dragged would not stay put.
+# Entry:   $records are hashrefs; $columns the names, in the order wanted.
+# Exit:    UTF-8 bytes.  A column a row lacks is written as null.
+# Side Effects: None.
+sub _serialize_json {
+	my ($records, $columns) = @_;
+	my @names = map { encode_json($_) } @$columns;
+	my @objects = map {
+		my $row = _row_subset($_, $columns);
+		'{' . join(',', map { $names[$_] . ':' . encode_json($row->{ $columns->[$_] }) } 0 .. $#names) . '}';
+	} @$records;
+	return '[' . join(',', @objects) . ']';
+}
+
 # _serialize_csv($records, \@columns) -> $utf8_string
 #
 # Purpose: Build a complete RFC 4180 CSV document (header + data rows) from
@@ -7649,34 +7700,6 @@ sub _decode_cell {
 # XS note: for very large exports, replacing _csv_row with Text::CSV_XS
 # (available from CPAN) would further reduce serialisation time -- its C-level
 # implementation is roughly 5-10x faster than the pure-Perl version here.
-# The columns an export keeps, in the order given, from repeated xcol=: what
-# the table on the page still shows after the reader deleted or moved columns
-# (that happens in the browser, so the server is told).  Names the view does
-# not have are ignored; if none match, or xcol is absent, everything is kept.
-sub _export_selection {
-	my ($self, $records, $columns) = @_;
-	my @want = grep { defined && length } @{ $self->every_param('xcol') };
-	return ($records, $columns) unless @want;
-	my %have = map { $_ => 1 } @$columns;
-	my %seen;
-	my @keep = grep { $have{$_} && !$seen{$_}++ } @want;
-	return ($records, $columns) unless @keep;
-	my @rows = map { my $r = $_; +{ map { $_ => $r->{$_} } @keep } } @$records;
-	return (\@rows, \@keep);
-}
-
-# A JSON array of the rows with each row's keys in column order (a hash has
-# none, so encode_json would give the keys in any order).  UTF-8 bytes.
-sub _serialize_json {
-	my ($records, $columns) = @_;
-	my @keys = map { encode_json($_) } @$columns;
-	return '[' . join(',', map {
-		my $row = $_;
-		my $i = 0;
-		'{' . join(',', map { $_ . ':' . encode_json($row->{ $columns->[$i++] }) } @keys) . '}';
-	} @$records) . ']';
-}
-
 sub _serialize_csv {
 	my ($records, $columns) = @_;
 	my @lines = _csv_row(@$columns);
@@ -9452,6 +9475,9 @@ C<POST /export> -- Write the current logical view to a chosen filesystem path.
   l=         string   (required) Left table spec.
   j=         string   (repeatable) Join steps.
   f=         string   (repeatable) Filter specs.
+  xcol=      string   (repeatable) Keep only these columns, in this order (the
+                      columns the table still shows).  Unknown names are ignored;
+                      none left means every column.
   dir=       string   Target directory (must exist; resolved via realpath).  Inside
                       config file_roots and export_dirs when they are set.
   filename=  string   Output filename including extension.  Extension determines
