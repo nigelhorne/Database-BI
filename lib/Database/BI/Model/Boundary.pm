@@ -77,6 +77,7 @@ use Params::Get			();
 use Params::Validate::Strict	qw(validate_strict);
 use Readonly;
 use Scalar::Util		qw(blessed);
+use Storable			qw(dclone);
 use URI				();
 
 our $VERSION = '0.023.1';
@@ -602,7 +603,10 @@ sub outlines {
 			type       => 'Feature',
 			properties => { name => $outline->{name}, osm => $osm,
 				called => $self->name_for($outline->{country}) },
-			geometry   => $outline->{geometry},
+			# A copy: the cache may hand out the one it holds (an in-memory
+			# layer does), and a caller that changes its result must not change
+			# what the next one is given.
+			geometry   => (ref($outline->{geometry}) ? dclone($outline->{geometry}) : $outline->{geometry}),
 		};
 	}
 	$counts{drawn} = scalar @features;

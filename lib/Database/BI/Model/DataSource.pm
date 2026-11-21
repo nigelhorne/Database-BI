@@ -295,6 +295,8 @@ Readonly our %MESSAGES => (
 
 # A table name is a bare SQL-safe identifier: starts with a letter or
 # underscore, followed by zero or more alphanumeric/underscore characters.
+Readonly my $XML_SCAN_BLOCK     => 65_536;
+Readonly my $XML_MARKER_OVERLAP => 7;	# one byte less than '<!ENTITY'
 Readonly my $TABLE_NAME_RE => qr/\A[A-Za-z_][A-Za-z0-9_]*\z/;
 
 # What may go into a MariaDB DSN.  A ';' would start another DSN attribute.
@@ -1255,14 +1257,27 @@ sub _detect_file_info :Protected {
 sub _refuse_xml_entities {
 	my ($path) = @_;
 	local ($@, $!);
-	local $/;
+	# Premise 1: only a plain file can be read to its end; a named pipe blocks
+	# the open until something writes to it.  Conclusion: leave anything else
+	# to the reader, which reports it.
+	return unless defined $path && -f $path;
 	# A file that cannot be read is the reader's to report; autodie would throw here.
 	my $fh;
 	{ no autodie 'open'; open $fh, '<:raw', $path or return; }
-	my $text = <$fh>;
+	# Read in blocks, not the whole file: a gigabyte of XML must not be held to
+	# look for eight bytes.  The last bytes of one block are kept in front of
+	# the next, so a marker cut by a block boundary is still found.
+	my ($tail, $bom_checked) = ('', 0);
+	my $found = 0;
+	while (read($fh, my $block, $XML_SCAN_BLOCK)) {
+		my $window = $tail . $block;
+		$found = 1, last if $window =~ /<!ENTITY|\0/ || (!$bom_checked && $window =~ /\A(?:\xFF\xFE|\xFE\xFF)/);
+		$bom_checked = 1;
+		$tail = substr($window, -$XML_MARKER_OVERLAP);
+	}
 	close $fh;
-	return unless defined $text && $text =~ /<!ENTITY|\0|\A(?:\xFF\xFE|\xFE\xFF)/;
-	croak _fmt('error_xml_entities', $path);
+	croak _fmt('error_xml_entities', $path) if $found;
+	return;
 }
 
 # _xml_table( $path ) -> { rows, columns, list } | undef
