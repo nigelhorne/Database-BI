@@ -86,6 +86,10 @@ sub blocked_address {
 		return undef;
 	}
 
+	# Premise: only a full dotted quad names one address on every platform;
+	# Windows' inet_pton also reads 1.2.3 as 1.2.0.3.  Conclusion: anything
+	# else is not an address here (numeric_host spells the short forms out).
+	return 'not an address' unless $bare =~ /\A[0-9]{1,3}(?:\.[0-9]{1,3}){3}\z/;
 	my $packed = inet_pton(AF_INET, $bare) // return 'not an address';
 	for my $net (@V4_BLOCKED) {
 		return $net->[2] if _in_net($packed, inet_pton(AF_INET, $net->[0]), $net->[1]);

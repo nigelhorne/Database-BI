@@ -3857,12 +3857,13 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		my ($name, $code) = @_;
 		local $@ = $KEPT_ERROR;
 		local $! = $KEPT_ERRNO;
-		alarm $ALARM_SECONDS;
+		my $can_alarm = $^O ne 'MSWin32';	# Windows has no alarm()
+		alarm $ALARM_SECONDS if $can_alarm;
 		$code->();
-		my $left = alarm 0;
+		my $left = $can_alarm ? alarm 0 : 0;
 		is $@, $KEPT_ERROR, "$name keeps \$\@";
 		is $! + 0, $KEPT_ERRNO, "$name keeps \$!";
-		ok $left > 0, "$name leaves the caller's alarm running";
+		ok $left > 0, "$name leaves the caller's alarm running" if $can_alarm;
 	};
 
 	subtest 'Password::is_password_hash accepts only what verify_password can check' => sub {
