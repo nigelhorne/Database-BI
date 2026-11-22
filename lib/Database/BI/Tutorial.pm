@@ -1094,6 +1094,14 @@ my @FAQ = (
 		answer   => 'Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.',
 	},
 	{
+		question => 'A JSON file shows address as text, not columns.',
+		answer   => 'A nested object is shown as JSON text unless the maintainer sets json_flatten to 1. Then each value is its own column, such as address.city. A list is always shown as text.',
+	},
+	{
+		question => 'Can I open a file with one JSON object on each line?',
+		answer   => 'Yes. A file ending .jsonl or .ndjson is a JSON Lines file, and each line is a row. A large one is read a line at a time, so it does not fill the memory.',
+	},
+	{
 		question => 'A time near midnight falls on the wrong day.',
 		answer   => 'A time that ends in Z or an offset, such as +01:00, names one moment. If the maintainer set time_zone, it is moved to that clock before filters, ranges and buckets read it. Without it, the time is read as written. A time with no zone is always read as written, and the table shows every cell as it was written.',
 	},
@@ -1267,6 +1275,7 @@ my @GLOSSARY = (
 	{ term => 'Filter',      meaning => 'A rule that hides rows which do not match.' },
 	{ term => 'Geocode',     meaning => 'Change a place name into a latitude and a longitude.' },
 	{ term => 'Join',        meaning => 'Add columns from a second table by matching a shared value.' },
+	{ term => 'JSON Lines', meaning => 'A text file with one JSON object on each line.' },
 	{ term => 'Pivot table', meaning => 'A grid that summarises rows and columns.' },
 	{ term => 'PSV',         meaning => 'A text file with values separated by pipe characters.' },
 	{ term => 'Row',         meaning => 'One record in a table.' },
