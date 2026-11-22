@@ -1,0 +1,747 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>File: lib/Database/BI/SafeUA.pm</title>
+<style>
+
+/* --------------------------------------------------
+   CSS Variables (Light Mode Default)
+-------------------------------------------------- */
+
+:root {
+    --bg: #ffffff;
+    --text: #000000;
+    --table-header: #333;
+    --table-header-text: #ffffff;
+
+    --survived-1: #f8d7da;
+    --survived-2: #f5b7b1;
+    --survived-3: #ec7063;
+
+    --killed: #d4edda;
+    --border: #cccccc;
+}
+
+/* --------------------------------------------------
+   Dark Mode Overrides
+-------------------------------------------------- */
+
+html[data-theme='dark'] {
+    --bg: #1e1e1e;
+    --text: #dddddd;
+    --table-header: #222;
+    --table-header-text: #ffffff;
+
+    --survived-1: #5c2b2e;
+    --survived-2: #7b2c2f;
+    --survived-3: #a93226;
+
+    --killed: #1e4620;
+    --border: #555;
+}
+
+/* --------------------------------------------------
+   Global Styles
+-------------------------------------------------- */
+
+body {
+	font-family: sans-serif;
+	background: var(--bg);
+	color: var(--text);
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+}
+
+th {
+    background: var(--table-header);
+    color: var(--table-header-text);
+}
+
+.survived-1 { background-color: var(--survived-1); }
+.survived-2 { background-color: var(--survived-2); }
+.survived-3 { background-color: var(--survived-3); }
+
+.killed { background-color: var(--killed); }
+
+.legend {
+    border: 1px solid #ccc;
+    background: #fafafa;
+    padding: 10px;
+    margin: 15px 0;
+    font-size: 0.9em;
+}
+
+.legend pre {
+    background: #f4f4f4;
+    padding: 5px;
+}
+
+.legend-box {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    margin: 0 6px 0 20px;
+    vertical-align: middle;
+    border: 1px solid var(--border);
+}
+
+/* White box for non-mutated lines */
+.legend-box.none {
+	background-color: var(--bg);
+}
+
+/* --------------------------------------------------
+   Suggested Test Box Styling
+   Theme-aware and readable in light & dark modes
+-------------------------------------------------- */
+
+.suggested-test {
+    margin-top: 6px;
+    margin-bottom: 12px;
+
+    /* Use theme variables instead of hardcoded colors */
+    background: var(--bg);
+    color: var(--text);
+
+    padding: 8px;
+    border-radius: 4px;
+
+    /* Subtle border for visual separation */
+    border: 1px solid var(--border);
+}
+
+/* Label styling */
+.suggest-label {
+    font-weight: bold;
+    margin-bottom: 4px;
+}
+
+/* Ensure the test code block inherits readable colors */
+.suggested-test pre {
+    background: transparent;   /* Prevent nested dark blocks */
+    color: inherit;            /* Match theme text color */
+    margin: 0;
+    font-family: monospace;
+}
+
+pre { line-height: 1.4; }
+
+pre > details {
+    margin: 0.2em 0;
+}
+
+pre > details:first-child {
+    margin-top: 0;
+}
+
+pre > details:last-child {
+    margin-bottom: 0;
+}
+
+pre details,
+pre summary,
+pre ul,
+pre li {
+    white-space: normal;
+    margin: 0;
+    padding: 0;
+    line-height: 1.2;
+}
+
+.nav { margin-bottom: 1em; }
+
+.toggle {
+    float: right;
+    cursor: pointer;
+    padding: 6px 10px;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+}
+
+/* Tooltip container */
+.tooltip {
+	position: relative;
+	cursor: help;
+}
+
+/* Tooltip bubble */
+.tooltip:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    left: 0;
+    top: 100%;
+    background: var(--table-header);
+    color: var(--table-header-text);
+    padding: 6px 10px;
+    white-space: normal;
+    max-width: 300px;
+    min-width: 30ch;
+    font-size: 12px;
+    border-radius: 6px;
+    z-index: 1000;
+    margin-left: 10ch;   /* move tooltip ~10 characters to the right */
+}
+
+.mutant-details {
+	margin-left: 2em;
+	font-size: 0.9em;
+}
+
+/* Indent the list of mutations that displays when expanding by 8 characters */
+pre details.mutant-details ul {
+	padding-left: 8ch;
+	margin: 0.2em 0;
+}
+
+.mutant-details summary {
+	cursor: pointer;
+	font-weight: bold;
+}
+
+.lcsaj-dot {
+    color: #5555ff;
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+.lcsaj-dot-uncovered {
+    color: #cc4444;
+    font-size: 10px;
+    margin-right: 3px;
+}
+
+.lcsaj-tip {
+	position: relative;
+	display: inline-block;
+}
+
+.lcsaj-tip .lcsaj-tip-text {
+	visibility: hidden;
+	background-color: #333;
+	color: #fff;
+	padding: 4px 8px;
+	border-radius: 4px;
+	font-size: 11px;
+	white-space: nowrap;
+	position: fixed;
+	z-index: 9999;
+	pointer-events: none;
+}
+
+.lcsaj-tip:hover .lcsaj-tip-text {
+	visibility: visible;
+}
+
+.cpd-dot {
+    color: #cc8800;
+    font-size: 10px;
+    margin-right: 3px;
+    cursor: help;
+    text-decoration: none;
+}
+a.cpd-dot { cursor: pointer; }
+a.cpd-dot:hover { color: #ff8800; }
+
+.cpd-tip {
+    position: relative;
+    display: inline-block;
+}
+
+.cpd-tip .cpd-tip-text {
+    visibility: hidden;
+    background-color: #333;
+    color: #fff;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    white-space: nowrap;
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+}
+
+.cpd-tip:hover .cpd-tip-text {
+    visibility: visible;
+}
+
+/* CPD drill-down page styles */
+.dup-line { background-color: #fff3cd; display: block; }
+.dup-line:hover { background-color: #ffe082; }
+.intra-dot { color: #9944cc; margin-right: 4px; cursor: help; text-decoration: none; }
+a.intra-dot { cursor: pointer; }
+a.intra-dot:hover { color: #7700bb; }
+.cpd-legend {
+    background: #fff3cd;
+    border: 1px solid #ffc107;
+    border-radius: 4px;
+    display: inline-block;
+    padding: 6px 10px;
+    margin-bottom: 1em;
+    font-size: 0.9em;
+}
+
+</style>
+</head>
+<body>
+<button class="toggle" onclick="toggleTheme()">🌙 Toggle Theme</button>
+<h1>lib/Database/BI/SafeUA.pm</h1>
+<div class="nav"><a href="CacheDir.pm.html">⬅ Previous</a> <a href="../../../../index.html">Index</a>
+ <a href="Tutorial.pm.html">Next ➡</a></div><div class='summary'>
+<strong>Structural Coverage (Approximate)</strong><p>
+TER1 (Statement): 100.00%<br>
+TER2 (Branch): 100.00%<br>
+TER3 (LCSAJ): 100.0% (8/8)<br>
+Approximate LCSAJ segments: 79<br>
+</div>
+
+    <div class="legend">
+        <h3>LCSAJ Legend</h3>
+
+        <p>
+        <span class="lcsaj-dot">●</span>
+        <b>Covered</b> — this LCSAJ path was executed during testing.
+        </p>
+
+        <p>
+        <span class="lcsaj-dot-uncovered">●</span>
+        <b>Not covered</b> — this LCSAJ path was never executed. These are the paths to focus on.
+        </p>
+
+        <p>
+        Multiple dots on a line indicate that multiple control-flow paths begin at that line.
+        Hovering over any dot shows:
+        </p>
+
+        <pre>
+        start → end → jump
+        </pre>
+
+        <ul>
+        <li><b>start</b> – first line of the linear sequence</li>
+        <li><b>end</b> – last line before control flow changes</li>
+        <li><b>jump</b> – line execution jumps to next</li>
+        </ul>
+
+        <p>
+        Uncovered paths show <b>[NOT COVERED]</b> in the tooltip.
+	</p>
+    </div>
+
+		<div class="legend">
+			<h3>Mutant Testing Legend</h3>
+			<span class="legend-box survived-1"></span> Survived (tests missed this)
+			<span class="legend-box killed"></span> Killed (tests detected this)
+			<span class="legend-box none"></span> No mutation
+		</div>
+	<pre>
+<span class="">    1: package Database::BI::SafeUA;
+</span><span class="">    2: 
+</span><span class="">    3: use strict;
+</span><span class="">    4: use warnings;
+</span><span class="">    5: 
+</span><span class="">    6: our $VERSION = &#39;0.023.1&#39;;
+</span><span class="">    7: 
+</span><span class="">    8: use parent &#39;LWP::UserAgent&#39;;
+</span><span class="">    9: 
+</span><span class="">   10: use HTTP::Response;
+</span><span class="">   11: use Readonly;
+</span><span class="">   12: use Socket qw(getaddrinfo getnameinfo inet_ntoa inet_pton AF_INET AF_INET6 SOCK_STREAM NI_NUMERICHOST NIx_NOSERV);
+</span><span class="">   13: 
+</span><span class="">   14: # The fetcher for url: sources and /import.  A page that names a URL gets the
+</span><span class="">   15: # server to fetch it, so the URL must not lead to this machine or a private
+</span><span class="">   16: # network (SSRF): an admin page on 127.0.0.1, a database on 10.x, a cloud&#39;s
+</span><span class="">   17: # metadata service on 169.254.169.254.  Checking the URL&#39;s text is not enough
+</span><span class="">   18: # (a name such as localtest.me, or one whose DNS answers 127.0.0.1, says
+</span><span class="">   19: # nothing in its text), and resolving it first is not enough either: LWP
+</span><span class="">   20: # resolves again when it connects, and a name can answer differently the
+</span><span class="">   21: # second time (DNS rebinding).  So every request, redirects included, is
+</span><span class="">   22: # resolved here, refused if any address is not public, and sent to the
+</span><span class="">   23: # address that was checked, with the name kept for the Host header, the TLS
+</span><span class="">   24: # server name and the certificate check.
+</span><span class="">   25: 
+</span><span class="">   26: Readonly my $MAX_REDIRECT =&gt; 5;
+</span><span class="">   27: Readonly my $TIMEOUT      =&gt; 30;
+</span><span class="">   28: 
+</span><span class="">   29: # [ network, prefix length, why ] for IPv4 and IPv6.  An address in any of them
+</span><span class="">   30: # is refused.
+</span><span class="">   31: Readonly my @V4_BLOCKED =&gt; (
+</span><span class="">   32: 	[ &#39;0.0.0.0&#39;,       8, &#39;not an address&#39; ],
+</span><span class="">   33: 	[ &#39;10.0.0.0&#39;,      8, &#39;a private network&#39; ],
+</span><span class="">   34: 	[ &#39;100.64.0.0&#39;,   10, &#39;a shared (carrier) network&#39; ],
+</span><span class="">   35: 	[ &#39;127.0.0.0&#39;,     8, &#39;this machine&#39; ],
+</span><span class="">   36: 	[ &#39;169.254.0.0&#39;,  16, &#39;link-local, where cloud metadata services are&#39; ],
+</span><span class="">   37: 	[ &#39;172.16.0.0&#39;,   12, &#39;a private network&#39; ],
+</span><span class="">   38: 	[ &#39;192.0.0.0&#39;,    24, &#39;reserved&#39; ],
+</span><span class="">   39: 	[ &#39;192.0.2.0&#39;,    24, &#39;reserved for documentation&#39; ],
+</span><span class="">   40: 	[ &#39;192.168.0.0&#39;,  16, &#39;a private network&#39; ],
+</span><span class="">   41: 	[ &#39;198.18.0.0&#39;,   15, &#39;reserved for testing&#39; ],
+</span><span class="">   42: 	[ &#39;198.51.100.0&#39;, 24, &#39;reserved for documentation&#39; ],
+</span><span class="">   43: 	[ &#39;203.0.113.0&#39;,  24, &#39;reserved for documentation&#39; ],
+</span><span class="">   44: 	[ &#39;224.0.0.0&#39;,     4, &#39;multicast&#39; ],
+</span><span class="">   45: 	[ &#39;240.0.0.0&#39;,     4, &#39;reserved&#39; ],
+</span><span class="">   46: );
+</span><span class="">   47: Readonly my @V6_BLOCKED =&gt; (
+</span><span class="">   48: 	[ &#39;::&#39;,             128, &#39;not an address&#39; ],
+</span><span class="">   49: 	[ &#39;::1&#39;,            128, &#39;this machine&#39; ],
+</span><span class="">   50: 	[ &#39;100::&#39;,           64, &#39;reserved&#39; ],
+</span><span class="">   51: 	[ &#39;2001:db8::&#39;,      32, &#39;reserved for documentation&#39; ],
+</span><span class="">   52: 	[ &#39;fc00::&#39;,           7, &#39;a private network&#39; ],
+</span><span class="">   53: 	[ &#39;fe80::&#39;,          10, &#39;link-local&#39; ],
+</span><span class="">   54: 	[ &#39;fec0::&#39;,          10, &#39;a private network&#39; ],
+</span><span class="">   55: 	[ &#39;ff00::&#39;,           8, &#39;multicast&#39; ],
+</span><span class="">   56: );
+</span><span class="">   57: 
+</span><span class="">   58: sub _in_net {
+</span><span class="">   59: 	my ($packed, $net, $bits) = @_;
+</span><span class="">   60: 	my $full = int($bits / 8);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   61: 	return 0 unless substr($packed, 0, $full) eq substr($net, 0, $full);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   62: 	my $rest = $bits % 8 or return 1;
+</span><span class="">   63: 	my $mask = (0xff &lt;&lt; (8 - $rest)) &amp; 0xff;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   64: 	return (ord(substr($packed, $full, 1)) &amp; $mask) == (ord(substr($net, $full, 1)) &amp; $mask) ? 1 : 0;
+</span><p> <b> Mutants (Total: 3, Killed: 3, Survived: 0)</b><p><span class="">   65: }
+</span><span class="">   66: 
+</span><span class="">   67: sub blocked_address {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">68 → 73 → 94</span></span>   68: 	my ($ip) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   69: 	return &#39;not an address&#39; unless defined $ip &amp;&amp; length $ip;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   70: 	(my $bare = $ip) =~ s/\A\[|\]\z//g;
+</span><span class="">   71: 	$bare =~ s/%.*\z//;	# a zone index (fe80::1%eth0)
+</span><span class="">   72: 
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   73: 	if ($bare =~ /:/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">   74: 		my $packed = inet_pton(AF_INET6, $bare) // return &#39;not an address&#39;;
+</span><span class="">   75: 		# IPv4 inside IPv6: mapped (::ffff:a.b.c.d), NAT64 (64:ff9b::a.b.c.d),
+</span><span class="">   76: 		# compatible (::a.b.c.d) and 6to4 (2002:aabb:ccdd::) all reach that
+</span><span class="">   77: 		# IPv4 address, so it is the one checked.
+</span><span class="">   78: 		for my $prefix (&quot;\0&quot; x 10 . &quot;\xff\xff&quot;, &quot;\0\x64\xff\x9b&quot; . &quot;\0&quot; x 8, &quot;\0&quot; x 12) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   79: 			return blocked_address(inet_ntoa(substr($packed, 12, 4)))
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   80: 				if substr($packed, 0, 12) eq $prefix &amp;&amp; $packed ne &quot;\0&quot; x 15 . &quot;\1&quot; &amp;&amp; $packed ne &quot;\0&quot; x 16;
+</span><span class="">   81: 		}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   82: 		return blocked_address(inet_ntoa(substr($packed, 2, 4))) if substr($packed, 0, 2) eq &quot;\x20\x02&quot;;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   83: 		for my $net (@V6_BLOCKED) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   84: 			return $net-&gt;[2] if _in_net($packed, inet_pton(AF_INET6, $net-&gt;[0]), $net-&gt;[1]);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   85: 		}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   86: 		return undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   87: 	}
+</span><span class="">   88: 
+</span><span class="">   89: 	# Premise: only a full dotted quad names one address on every platform;
+</span><span class="">   90: 	# Windows&#39; inet_pton also reads 1.2.3 as 1.2.0.3.  Conclusion: anything
+</span><span class="">   91: 	# else is not an address here (numeric_host spells the short forms out).
+</span><span class="">   92: 	# A leading zero (10.0.0.01) is octal to some libraries and decimal to
+</span><span class="">   93: 	# others, so it names no one address either: refused, not guessed.
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic."><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">94 → 96 → 99</span></span>   94: 	return &#39;not an address&#39; unless $bare =~ /\A(?:0|[1-9][0-9]{0,2})(?:\.(?:0|[1-9][0-9]{0,2})){3}\z/;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   95: 	my $packed = inet_pton(AF_INET, $bare) // return &#39;not an address&#39;;
+</span><span class="">   96: 	for my $net (@V4_BLOCKED) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   97: 		return $net-&gt;[2] if _in_net($packed, inet_pton(AF_INET, $net-&gt;[0]), $net-&gt;[1]);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">   98: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">   99: 	return undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  100: }
+</span><span class="">  101: 
+</span><span class="">  102: sub numeric_host {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">103 → 106 → 110</span></span>  103: 	my ($host) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  104: 	return undef unless defined $host;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  105: 	(my $h = lc $host) =~ s/\.\z//;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  106: 	if ($h =~ /\A\[([0-9a-f:.%a-z]+)\]\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  107: 		my $inner = $1;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  108: 		return $inner =~ /:/ ? $inner : undef;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  109: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  110: 	return $h if $h =~ /:/ &amp;&amp; defined inet_pton(AF_INET6, $h);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  111: 	return _numeric_v4($h);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  112: }
+</span><span class="">  113: 
+</span><span class="">  114: # _numeric_v4($host) -&gt; &#39;a.b.c.d&#39; | undef
+</span><span class="">  115: #
+</span><span class="">  116: # The forms the BSD and glibc inet_aton read as an address: 127.1,
+</span><span class="">  117: # 2130706433, 0x7f000001, 0177.0.0.1.  Each part is decimal, 0x hex or
+</span><span class="">  118: # 0-led octal; the last fills the bits the others leave.  Read here rather
+</span><span class="">  119: # than by the system&#39;s inet_aton, whose reading differs (on macOS 0177.0.0.1 is
+</span><span class="">  120: # not 127.0.0.1), so every platform checks, and connects to, the same address.
+</span><span class="">  121: sub _numeric_v4 {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">122 → 125 → 143</span></span>  122: 	my ($h) = @_;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  123: 	return undef unless $h =~ /\A(?:0x[0-9a-f]+|[0-9]+)(?:\.(?:0x[0-9a-f]+|[0-9]+)){0,3}\z/;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  124: 	my @parts;
+</span><span class="">  125: 	for my $part (split /\./, $h) {
+</span><span class="">  126: 		my $n;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  127: 		if ($part =~ /\A0x([0-9a-f]*)\z/) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  128: 			my $hex = $1 =~ s/\A0+//r;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  129: 			return undef if length($hex) &gt; 8;
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  130: 			$n = length $hex ? hex $hex : 0;
+</span><span class="">  131: 		} elsif ($part =~ /\A0([0-7]*)\z/) {
+</span><span class="">  132: 			my $oct = $1 =~ s/\A0+//r;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  133: 			return undef if length($oct) &gt; 11;
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  134: 			# Eleven octal digits can pass 32 bits: perl warns, and the range check below refuses it.
+</span><span class="">  135: 			{ no warnings &#39;portable&#39;; $n = length $oct ? oct $oct : 0; }
+</span><span class="">  136: 		} elsif ($part =~ /\A[1-9][0-9]{0,9}\z/) {
+</span><span class="">  137: 			$n = $part + 0;
+</span><span class="">  138: 		} else {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  139: 			return undef;	# 08, or too long to be a number
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  140: 		}
+</span><span class="">  141: 		push @parts, $n;
+</span><span class="">  142: 	}
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">143 → 144 → 147</span></span>  143: 	my $last = pop @parts;
+</span><span class="">  144: 	for my $n (@parts) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  145: 		return undef if $n &gt; 0xff;
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  146: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  147: 	return undef if $last &gt;= 2 ** (8 * (4 - @parts));
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  148: 	my $value = $last;
+</span><span class="">  149: 	$value += $parts[$_] * 2 ** (8 * (3 - $_)) for 0 .. $#parts;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  150: 	return join &#39;.&#39;, unpack &#39;C4&#39;, pack &#39;N&#39;, $value;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  151: }
+</span><span class="">  152: 
+</span><span class="">  153: sub resolve_host {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">154 → 161 → 165</span></span>  154: 	my ($host) = @_;
+</span><span class="">  155: 	local ($@, $!);
+</span><span class="">  156: 	# A host the resolver will not even take as text (a wide character)
+</span><span class="">  157: 	# does not resolve, which the POD states as an empty list.
+</span><span class="">  158: 	my ($err, @res) = eval { getaddrinfo($host, undef, { socktype =&gt; SOCK_STREAM }) };
+</span><span class="">  159: 	return () if $@ || !defined($err) || $err;
+</span><span class="">  160: 	my (%seen, @ips);
+</span><span class="">  161: 	for my $r (@res) {
+</span><span class="">  162: 		my ($e, $ip) = getnameinfo($r-&gt;{addr}, NI_NUMERICHOST, NIx_NOSERV);
+</span><span class="">  163: 		push @ips, $ip if !$e &amp;&amp; defined $ip &amp;&amp; !$seen{$ip}++;
+</span><span class="">  164: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  165: 	return @ips;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  166: }
+</span><span class="">  167: 
+</span><span class="">  168: sub new {
+</span><span class="">  169: 	my ($class, %args) = @_;
+</span><span class="">  170: 	my $resolve = delete $args{resolve};
+</span><span class="">  171: 	my $private = delete $args{private_hosts};
+</span><span class="">  172: 	my $self = $class-&gt;SUPER::new(
+</span><span class="">  173: 		timeout           =&gt; $TIMEOUT,
+</span><span class="">  174: 		max_redirect      =&gt; $MAX_REDIRECT,
+</span><span class="">  175: 		protocols_allowed =&gt; [ &#39;http&#39;, &#39;https&#39; ],
+</span><span class="">  176: 		agent             =&gt; &quot;Database-BI/$VERSION&quot;,
+</span><span class="">  177: 		%args,
+</span><span class="">  178: 	);
+</span><span class="">  179: 	$self-&gt;{bi_resolve} = ref($resolve) eq &#39;CODE&#39; ? $resolve : \&amp;resolve_host;
+</span><span class="">  180: 	$self-&gt;{bi_private} = [ map { lc } grep { defined &amp;&amp; !ref } @{ ref($private) eq &#39;ARRAY&#39; ? $private : [] } ];
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  181: 	return $self;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  182: }
+</span><span class="">  183: 
+</span><span class="">  184: sub private_host_allowed {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">185 → 187 → 191</span></span>  185: 	my ($self, $host) = @_;
+</span><span class="">  186: 	$host = lc($host // &#39;&#39;);
+</span><span class="">  187: 	for my $name (@{ $self-&gt;{bi_private} }) {
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  188: 		return 1 if $name eq $host;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  189: 		return 1 if $name =~ /\A\*(\..+)\z/ &amp;&amp; length($host) &gt; length($1) &amp;&amp; substr($host, -length $1) eq $1;
+</span><p> <b> Mutants (Total: 5, Killed: 5, Survived: 0)</b><p><span class="">  190: 	}
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  191: 	return 0;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  192: }
+</span><span class="">  193: 
+</span><span class="">  194: sub _refuse {
+</span><span class="">  195: 	my ($request, $why) = @_;
+</span><span class="">  196: 	my $res = HTTP::Response-&gt;new(403, &quot;Refused: $why&quot;);
+</span><span class="">  197: 	$res-&gt;header(&#39;Client-Warning&#39; =&gt; &#39;Internal response&#39;);
+</span><span class="">  198: 	$res-&gt;request($request);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  199: 	return $res;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  200: }
+</span><span class="">  201: 
+</span><span class="">  202: sub send_request {
+</span><span class=""><span class="lcsaj-tip"><span class="lcsaj-dot">●</span><span class="lcsaj-tip-text">203 → 214 → 223</span></span>  203: 	my ($self, $request, $arg, $size) = @_;
+</span><span class="">  204: 	my $uri    = $request-&gt;uri;
+</span><span class="">  205: 	my $scheme = lc($uri-&gt;scheme // &#39;&#39;);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  206: 	return _refuse($request, &#39;only http and https addresses are fetched&#39;)
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  207: 		unless $scheme eq &#39;http&#39; || $scheme eq &#39;https&#39;;
+</span><span class="">  208: 	(my $name = lc($uri-&gt;host // &#39;&#39;)) =~ s/\.\z//;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  209: 	return _refuse($request, &#39;the address names no host&#39;) unless length $name;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  210: 
+</span><span class="">  211: 	my $literal = numeric_host($name);
+</span><span class="">  212: 	my @addrs   = defined $literal ? ($literal) : $self-&gt;{bi_resolve}-&gt;($name);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  213: 	return _refuse($request, &quot;$name was not found&quot;) unless @addrs;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  214: 	unless (!defined $literal &amp;&amp; $self-&gt;private_host_allowed($name)) {
+</span><p> <b> Mutants (Total: 1, Killed: 1, Survived: 0)</b><p><span class="">  215: 		for my $ip (@addrs) {
+</span><span class="">  216: 			my $why = blocked_address($ip) // next;
+</span><span class="">  217: 			my $shown = $ip // &#39;&#39;;
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  218: 			return _refuse($request, $shown eq $name ? &quot;$name is $why&quot; : &quot;$name is $shown, which is $why&quot;);
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  219: 		}
+</span><span class="">  220: 	}
+</span><span class="">  221: 
+</span><span class="">  222: 	# Connect to the address checked, not to the name again.
+</span><span class="">  223: 	my $pinned = $request-&gt;clone;
+</span><span class="">  224: 	my $to     = $uri-&gt;clone;
+</span><span class="">  225: 	$to-&gt;host($addrs[0] =~ /:/ ? &quot;[$addrs[0]]&quot; : $addrs[0]);
+</span><span class="">  226: 	$pinned-&gt;uri($to);
+</span><span class="">  227: 	my $authority = $uri-&gt;authority;
+</span><span class="">  228: 	$authority =~ s/\A[^\@]*\@//;
+</span><span class="">  229: 	$pinned-&gt;header(Host =&gt; $authority);
+</span><span class="">  230: 	local $self-&gt;{ssl_opts} = $scheme eq &#39;https&#39;
+</span><span class="">  231: 		? { %{ $self-&gt;{ssl_opts} // {} }, SSL_hostname =&gt; $uri-&gt;host, SSL_verifycn_name =&gt; $uri-&gt;host }
+</span><span class="">  232: 		: $self-&gt;{ssl_opts};
+</span><span class="">  233: 
+</span><span class="">  234: 	my $res = $self-&gt;SUPER::send_request($pinned, $arg, $size);
+</span><span class="">  235: 	$res-&gt;request($request);
+</span><span class="killed tooltip" data-tooltip="Mutations here were killed. Tests are effectively covering this logic.">  236: 	return $res;
+</span><p> <b> Mutants (Total: 2, Killed: 2, Survived: 0)</b><p><span class="">  237: }
+</span><span class="">  238: 
+</span><span class="">  239: 1;
+</span><span class="">  240: 
+</span><span class="">  241: __END__
+</span><span class="">  242: 
+</span><span class="">  243: =head1 NAME
+</span><span class="">  244: 
+</span><span class="">  245: Database::BI::SafeUA - Fetch a URL only if it leads to the public internet
+</span><span class="">  246: 
+</span><span class="">  247: =head1 VERSION
+</span><span class="">  248: 
+</span><span class="">  249: 0.023.1
+</span><span class="">  250: 
+</span><span class="">  251: =head1 SYNOPSIS
+</span><span class="">  252: 
+</span><span class="">  253:     my $ua  = Database::BI::SafeUA-&gt;new(private_hosts =&gt; [&#39;intranet.example.com&#39;]);
+</span><span class="">  254:     my $res = $ua-&gt;get(&#39;https://example.com/table.html&#39;);
+</span><span class="">  255:     # http://localtest.me/ -&gt; 403 &quot;Refused: localtest.me is 127.0.0.1, which is this machine&quot;
+</span><span class="">  256: 
+</span><span class="">  257: =head1 DESCRIPTION
+</span><span class="">  258: 
+</span><span class="">  259: An L&lt;LWP::UserAgent&gt; for C&lt;url:&gt; sources and C&lt;/import&gt;.  Every request,
+</span><span class="">  260: including each redirect (at most 5), is resolved, refused with a C&lt;403&gt;
+</span><span class="">  261: response if any address is on this machine, a private or shared network,
+</span><span class="">  262: link-local (cloud metadata services), multicast or reserved, and then sent to
+</span><span class="">  263: the address that was checked.  The name stays in the C&lt;Host&gt; header, the TLS
+</span><span class="">  264: server name (SNI) and the certificate check, so DNS that answers differently
+</span><span class="">  265: on a second lookup (rebinding) changes nothing.  An IPv4 address inside IPv6
+</span><span class="">  266: (mapped, NAT64, compatible, 6to4) is checked as that IPv4 address.  Only
+</span><span class="">  267: C&lt;http&gt; and C&lt;https&gt; are fetched.
+</span><span class="">  268: 
+</span><span class="">  269: =head1 METHODS
+</span><span class="">  270: 
+</span><span class="">  271: =head2 new
+</span><span class="">  272: 
+</span><span class="">  273: =head3 API SPECIFICATION
+</span><span class="">  274: 
+</span><span class="">  275: =head4 INPUT
+</span><span class="">  276: 
+</span><span class="">  277:     private_hosts: arrayref of host names, optional; names (or *.suffix) that
+</span><span class="">  278:                    may resolve to private addresses (an intranet).  An address
+</span><span class="">  279:                    written as such is never one of them.
+</span><span class="">  280:     resolve:       code ref, optional; host -&gt; list of address strings (tests)
+</span><span class="">  281:     anything else: as LWP::UserAgent-&gt;new (timeout 30, max_redirect 5 by default)
+</span><span class="">  282: 
+</span><span class="">  283: =head4 OUTPUT
+</span><span class="">  284: 
+</span><span class="">  285: The user agent.
+</span><span class="">  286: 
+</span><span class="">  287: =head2 send_request
+</span><span class="">  288: 
+</span><span class="">  289: As L&lt;LWP::UserAgent/send_request&gt;, with the checks above.  LWP calls it for
+</span><span class="">  290: every request and each redirect; callers use C&lt;get&gt; and the rest as usual.
+</span><span class="">  291: 
+</span><span class="">  292: =head3 API SPECIFICATION
+</span><span class="">  293: 
+</span><span class="">  294: =head4 INPUT
+</span><span class="">  295: 
+</span><span class="">  296:     $request: HTTP::Request
+</span><span class="">  297:     $arg, $size: as LWP::UserAgent (content file or callback, read size)
+</span><span class="">  298: 
+</span><span class="">  299: =head4 OUTPUT
+</span><span class="">  300: 
+</span><span class="">  301: An L&lt;HTTP::Response&gt; whose C&lt;request&gt; is the one given (not the pinned copy).
+</span><span class="">  302: A refused request gets C&lt;403 Refused: E&lt;lt&gt;whyE&lt;gt&gt;&gt; and C&lt;Client-Warning: Internal
+</span><span class="">  303: response&gt;, and nothing is sent: a scheme other than http or https, no host, a
+</span><span class="">  304: name that does not resolve, or any address C&lt;blocked_address&gt; refuses (unless
+</span><span class="">  305: C&lt;private_host_allowed&gt; allows the name).
+</span><span class="">  306: 
+</span><span class="">  307: =head2 private_host_allowed
+</span><span class="">  308: 
+</span><span class="">  309:     $ua-&gt;private_host_allowed(&#39;reports.corp.example&#39;);   # 1 with private_hosts =&gt; [&#39;*.corp.example&#39;]
+</span><span class="">  310: 
+</span><span class="">  311: =head3 API SPECIFICATION
+</span><span class="">  312: 
+</span><span class="">  313: =head4 INPUT
+</span><span class="">  314: 
+</span><span class="">  315:     $host: a host name (case does not matter)
+</span><span class="">  316: 
+</span><span class="">  317: =head4 OUTPUT
+</span><span class="">  318: 
+</span><span class="">  319: 1 when C&lt;private_hosts&gt; names it, or a C&lt;*.suffix&gt; entry ends it (C&lt;*.corp.example&gt;
+</span><span class="">  320: matches C&lt;a.corp.example&gt;, not C&lt;corp.example&gt; or C&lt;evilcorp.example&gt;), else 0.
+</span><span class="">  321: C&lt;send_request&gt; asks this only for a name, never for an address written as one.
+</span><span class="">  322: 
+</span><span class="">  323: =head1 FUNCTIONS
+</span><span class="">  324: 
+</span><span class="">  325: =head2 blocked_address
+</span><span class="">  326: 
+</span><span class="">  327:     my $why = Database::BI::SafeUA::blocked_address(&#39;10.1.2.3&#39;);   # &#39;a private network&#39;
+</span><span class="">  328: 
+</span><span class="">  329: =head3 API SPECIFICATION
+</span><span class="">  330: 
+</span><span class="">  331: =head4 INPUT
+</span><span class="">  332: 
+</span><span class="">  333:     $ip: an IPv4 or IPv6 address as text (brackets and a zone index are allowed)
+</span><span class="">  334: 
+</span><span class="">  335: =head4 OUTPUT
+</span><span class="">  336: 
+</span><span class="">  337: Why the address is refused, or C&lt;undef&gt; when it is public.  Text that is not
+</span><span class="">  338: an address is refused.
+</span><span class="">  339: 
+</span><span class="">  340: =head2 numeric_host
+</span><span class="">  341: 
+</span><span class="">  342:     numeric_host(&#39;2130706433&#39;);   # &#39;127.0.0.1&#39;
+</span><span class="">  343:     numeric_host(&#39;example.com&#39;);  # undef
+</span><span class="">  344: 
+</span><span class="">  345: =head3 API SPECIFICATION
+</span><span class="">  346: 
+</span><span class="">  347: =head4 INPUT
+</span><span class="">  348: 
+</span><span class="">  349:     $host: a URL&#39;s host
+</span><span class="">  350: 
+</span><span class="">  351: =head4 OUTPUT
+</span><span class="">  352: 
+</span><span class="">  353: The address the host is when it is written as one, in any form the resolver
+</span><span class="">  354: reads (C&lt;127.1&gt;, C&lt;0x7f000001&gt;, C&lt;0177.0.0.1&gt;, C&lt;[::1]&gt;), else C&lt;undef&gt;.
+</span><span class="">  355: 
+</span><span class="">  356: =head2 resolve_host
+</span><span class="">  357: 
+</span><span class="">  358: =head3 API SPECIFICATION
+</span><span class="">  359: 
+</span><span class="">  360: =head4 INPUT
+</span><span class="">  361: 
+</span><span class="">  362:     $host: a host name
+</span><span class="">  363: 
+</span><span class="">  364: =head4 OUTPUT
+</span><span class="">  365: 
+</span><span class="">  366: Its addresses (getaddrinfo), or an empty list.
+</span><span class="">  367: 
+</span><span class="">  368: =head1 AUTHOR
+</span><span class="">  369: 
+</span><span class="">  370: Nigel Horne C&lt;&lt; &lt;njh@nigelhorne.com&gt; &gt;&gt;
+</span><span class="">  371: 
+</span><span class="">  372: =head1 LICENCE AND COPYRIGHT
+</span><span class="">  373: 
+</span><span class="">  374: Copyright 2026 Nigel Horne.
+</span><span class="">  375: 
+</span><span class="">  376: Usage is subject to the GPL2 licence terms.
+</span><span class="">  377: 
+</span><span class="">  378: =cut
+</span></pre>
+
+<script>
+function toggleTheme() {
+    const html = document.documentElement;
+    const current = html.getAttribute('data-theme');
+    const next = current === 'dark' ? 'light' : 'dark';
+    html.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+}
+
+(function() {
+    const saved = localStorage.getItem('theme');
+    if(saved) {
+        document.documentElement.setAttribute('data-theme', saved);
+    }
+})();
+
+document.addEventListener("mousemove", function(e) {
+	document.querySelectorAll(".lcsaj-tip-text, .cpd-tip-text").forEach(function(tip) {
+		tip.style.left = (e.clientX + 12) + "px";
+		tip.style.top  = (e.clientY + 12) + "px";
+	});
+});
+</script>
+</body>
+</html>
+	

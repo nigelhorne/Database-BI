@@ -633,7 +633,10 @@ https://pjcj.net
 <tr><td class="h"><a id="L8754">8754</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $page_columns</td></tr>
 <tr><td class="h"><a id="L8790">8790</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $named_it</td></tr>
 <tr><td class="h"><a id="L8791">8791</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (my $refusal = _outside_roots($self, $file_path))</td></tr>
-<tr><td class="h"><a id="L8796">8796</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and -f $file and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
+<tr><td class="h"><a id="L8797">8797</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $file and CORE::index($file, &quot;\0&quot;) == -1 and do {
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;BEGIN {${^WARNING_BITS} = &quot;\x55\x55\x51\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55\x55&quot;}
+&#11;-f $file
+} and $file-&gt;basename =~ /$EXT_RE/u</td></tr>
 <tr><td class="h"><a id="L8810">8810</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if (defined $it and $it =~ /$TABLE_NAME_RE/u)</td></tr>
 <tr><td class="h"><a id="L8813">8813</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $data_dir and $file_dir and &quot;$file_dir&quot; eq &quot;$data_dir&quot;</td></tr>
 <tr><td class="h"><a id="L8817">8817</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if defined $it and length $it and not $it =~ /[#\n]/u and $lspec =~ /\Apath:/u</td></tr>
