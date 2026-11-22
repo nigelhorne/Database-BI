@@ -26,7 +26,9 @@ use Scalar::Util ();
 use Database::BI::Password ();
 use File::Path		qw(remove_tree);
 use File::Spec;
+use Fcntl		qw(:flock);
 use File::Temp		qw(tempfile tempdir);
+use Time::HiRes		();
 use Readonly;
 use Sub::Protected;
 use version ();
@@ -1621,6 +1623,7 @@ sub accelerate {
 	my $path  = eval { $cache->put($key, $st[9], $st[7], $bytes) };
 	croak $c->_i18n('error_accel_build', $spec, _tidy_error($@)) unless defined $path;
 
+	my $lock   = $c->_models_lock;
 	my $models = $c->_read_models;
 	my $old    = $models->{accelerated}{$key};
 	my $name   = Mojo::File->new($path)->basename;
@@ -1642,6 +1645,7 @@ sub unaccelerate {
 	my ($c, $spec) = @_;
 	croak 'unaccelerate() needs a controller and a spec' unless ref $c && defined $spec;
 	$spec = canonical_spec($spec);	# unaccelerate names no spec in a message
+	my $lock   = $c->_models_lock;
 	my $models = $c->_read_models;
 	my $entry  = delete $models->{accelerated}{$spec};
 	return 0 unless ref $entry eq 'HASH';
@@ -5103,9 +5107,105 @@ sub _write_models :Protected ($self, $models) {
 	my $path = $self->_calc_models_path;
 	return 0 unless defined $path;
 	$self->_set_aside_corrupt_store($path);
-	my $ok = eval { Mojo::File->new($path)->spurt(encode_json($models)); 1 };
+	# Premise 1: a reader treats a file that does not parse as empty.  Premise 2:
+	# a write in place that stops half way (disk full, a killed worker) leaves
+	# exactly such a file.  Conclusion: write beside it and rename, so the store
+	# is the old one or the new one, never a torn one (as _write_analyses does).
+	my $ok = eval { _write_file_atomically($path, encode_json($models)); 1 };
 	$self->app->log->warn("Cannot write $path: $@") if !$ok && $@;
 	return $ok ? 1 : 0;
+}
+
+# _write_file_atomically($path, $bytes) -> void
+#
+# Writes $bytes to a temporary file in the same folder and renames it over
+# $path, keeping the mode of the file it replaces.  Croaks, after removing its
+# temporary file, when any step fails.
+sub _write_file_atomically {
+	my ($path, $bytes) = @_;
+	my $dir = Mojo::File->new($path)->dirname->to_string;
+	my ($fh, $temp) = tempfile('.bi-store-XXXXXXXX', DIR => $dir, UNLINK => 0);
+	my $ok = eval {
+		binmode $fh;
+		print {$fh} $bytes or croak "print: $!";
+		close $fh or croak "close: $!";
+		my $mode = -e $path ? (stat $path)[2] & 07777 : (0666 & ~umask);
+		chmod $mode, $temp;
+		rename($temp, $path) or croak "rename: $!";
+		1;
+	};
+	my $why = $@;
+	unless ($ok) {
+		unlink $temp;
+		croak $why;
+	}
+	return;
+}
+
+# _models_lock($self) / _analyses_lock($self) -> a guard, held until it is let go
+#
+# Purpose: Make a save's read, change and write one step among the server's
+#          worker processes.  Without it two workers read the same store, each
+#          adds its own change, and the second to write erases the first's.
+# Method:  An exclusive flock on <store>.lock, kept for as long as the returned
+#          guard lives (a handler writes `my $lock = $self->_models_lock;` and
+#          the lock goes when the handler returns, or dies).  A second call in
+#          the same process, which would wait for itself, gets a guard that
+#          holds nothing.
+# Failure: A lock file that cannot be opened, or a holder that does not let go
+#          within $LOCK_WAIT_TRIES tries, is logged and the save goes ahead
+#          unlocked: a stuck lock must not take the application down.
+Readonly my $LOCK_WAIT_TRIES   => 100;
+Readonly my $LOCK_WAIT_SECONDS => 0.1;
+my %STORE_LOCKS_HELD;	# path => 1 while this process holds that lock
+
+sub _models_lock :Protected ($self) {
+	return _store_lock($self, $self->_calc_models_path);
+}
+
+sub _analyses_lock :Protected ($self) {
+	return _store_lock($self, $self->_analyses_path);
+}
+
+sub _store_lock {
+	my ($self, $path) = @_;
+	return bless({}, 'Database::BI::Controller::Dashboard::StoreLock')
+		if !defined($path) || $STORE_LOCKS_HELD{$path};
+
+	my $lock_path = "$path.lock";
+	my $fh;
+	{
+		local ($@, $!);
+		my $opened = eval { no autodie; open($fh, '>>', $lock_path) };
+		unless ($opened) {
+			$self->app->log->warn("Cannot open $lock_path, so saving without a lock: $!");
+			return bless({}, 'Database::BI::Controller::Dashboard::StoreLock');
+		}
+	}
+	my $locked = 0;
+	for (1 .. $LOCK_WAIT_TRIES) {
+		$locked = flock($fh, LOCK_EX | LOCK_NB) and last;
+		Time::HiRes::sleep($LOCK_WAIT_SECONDS);
+	}
+	unless ($locked) {
+		$self->app->log->warn("Waited for $lock_path and gave up, so saving without it");
+		return bless({}, 'Database::BI::Controller::Dashboard::StoreLock');
+	}
+	$STORE_LOCKS_HELD{$path} = 1;
+	return bless({ fh => $fh, path => $path, held => \%STORE_LOCKS_HELD }, 'Database::BI::Controller::Dashboard::StoreLock');
+}
+
+# The guard: letting go of it unlocks and closes the file.
+{
+	package Database::BI::Controller::Dashboard::StoreLock;
+	sub DESTROY {
+		my $self = shift;
+		return unless $self->{fh};
+		delete $self->{held}{ $self->{path} };
+		flock($self->{fh}, Fcntl::LOCK_UN());
+		close $self->{fh};
+		return;
+	}
 }
 
 # _set_aside_corrupt_store($self, $path) -> void
@@ -5461,6 +5561,7 @@ sub analyses_list ($self) {
 
 # POST /api/analyses
 sub analyses_create ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $body = eval { decode_json($self->req->body) };
 	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
 		unless ref $body eq 'HASH';
@@ -5509,6 +5610,7 @@ sub analyses_get ($self) {
 
 # PUT /api/analyses/:id  (full replace)
 sub analyses_update ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -5539,6 +5641,7 @@ sub analyses_update ($self) {
 
 # PATCH /api/analyses/:id  (partial update -- merges supplied keys)
 sub analyses_patch ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -5574,6 +5677,7 @@ sub analyses_patch ($self) {
 
 # DELETE /api/analyses/:id
 sub analyses_delete ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -5601,6 +5705,7 @@ sub analyses_delete ($self) {
 # position that the next drag would have to fight; the canvas writes a layout
 # entry once the reader moves or resizes it.
 sub analyses_add_visual ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -5736,6 +5841,7 @@ sub analyses_add_visual ($self) {
 # empty plan (C<{ cs => [] }>) is the card running no pass even where the page
 # runs one, and leaving the key out is no request to change it at all.
 sub analyses_update_visual ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -5850,6 +5956,7 @@ sub analyses_update_visual ($self) {
 # everything that names a later card moves down by one with it.  The page reloads
 # afterwards, because the cards on screen carry the old numbers.
 sub analyses_delete_visual ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $id = $self->stash('id') // '';
 	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
 		unless $id =~ /\A[A-Za-z0-9]+\z/;
@@ -6056,6 +6163,7 @@ sub analyses_export ($self) {
 
 # POST /api/analyses/import  (create from uploaded JSON or raw body)
 sub analyses_import ($self) {
+	my $lock = $self->_analyses_lock;	# read, change and write as one step
 	my $upload    = $self->req->upload('file');
 	my $body_json = $upload ? $upload->slurp : $self->req->body;
 
@@ -11998,6 +12106,7 @@ sub stats_view ($self) {
 # ---------------------------------------------------------------------------
 
 sub calc_save ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l') // '');
 	my $name = $self->param('name') // '';
 	my $expr = $self->param('expr') // '';
@@ -12018,6 +12127,7 @@ sub calc_save ($self) {
 }
 
 sub calc_delete ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l') // '');
 	my $name = $self->param('name') // '';
 
@@ -12044,6 +12154,7 @@ sub calc_list ($self) {
 # ---------------------------------------------------------------------------
 
 sub groups_save ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec       = canonical_spec($self->param('l')     // '');
 	my $col        = $self->param('col')   // '';
 	my $group_name = $self->param('group') // '';
@@ -12066,6 +12177,7 @@ sub groups_save ($self) {
 }
 
 sub groups_delete ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec       = canonical_spec($self->param('l')     // '');
 	my $col        = $self->param('col')   // '';
 	my $group_name = $self->param('group') // '';
@@ -12110,6 +12222,7 @@ sub groups_list ($self) {
 # comparisons already read to the second, so a last_24_hours window filters on
 # a column that has a pattern of this kind.
 sub dates_save ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec    = canonical_spec($self->param('l')       // '');
 	my $col     = $self->param('col')     // '';
 	my $pattern = $self->param('pattern') // '';
@@ -12146,6 +12259,7 @@ sub dates_save ($self) {
 # dates_delete: POST /dates/delete?l=<spec>&col=<col>
 # Removes the pattern for $col (or all patterns for $spec when col is absent).
 sub dates_delete ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l')   // '');
 	my $col  = $self->param('col') // '';
 
@@ -12186,6 +12300,7 @@ sub dates_list ($self) {
 # have are all 400s here rather than on the next page.  fields= may repeat or
 # hold a comma-separated list; without it every column but the key is added.
 sub lookups_save ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l')    // '');
 	my $name = $self->param('name') // '';
 	my $key  = $self->param('key')  // '';
@@ -12218,6 +12333,7 @@ sub lookups_save ($self) {
 # lookups_delete: POST /lookups/delete?l=<spec>[&name=<ident>]
 # Removes one lookup, or every lookup of $spec when name= is absent.
 sub lookups_delete ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l')    // '');
 	my $name = $self->param('name') // '';
 
@@ -12256,6 +12372,7 @@ sub lookups_list ($self) {
 # does not compile or names no group is a 400 here.  fields= picks some of the
 # named groups; without it every named group becomes a column.
 sub extract_save ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec    = canonical_spec($self->param('l')       // '');
 	my $name    = $self->param('name')    // '';
 	my $col     = $self->param('col')     // '';
@@ -12286,6 +12403,7 @@ sub extract_save ($self) {
 # extract_delete: POST /extract/delete?l=<spec>[&name=<ident>]
 # Removes one extraction, or every extraction of $spec when name= is absent.
 sub extract_delete ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l')    // '');
 	my $name = $self->param('name') // '';
 
@@ -12331,6 +12449,7 @@ sub extract_list ($self) {
 # panel's "Remember" sends it, so a new choice replaces the old one rather than
 # leaving, say, a place-name column beside the latitude chosen after it.
 sub geo_save ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec  = canonical_spec($self->param('l') // '');
 	my @cols  = @{ $self->every_param('col')  // [] };
 	my @kinds = @{ $self->every_param('kind') // [] };
@@ -12360,6 +12479,7 @@ sub geo_save ($self) {
 # geo_delete: POST /geo/delete?l=<spec>&col=<col>
 # Omit col= to clear all column preferences for the spec, and its loc_text.
 sub geo_delete ($self) {
+	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l')   // '');
 	my $col  = $self->param('col') // '';
 
