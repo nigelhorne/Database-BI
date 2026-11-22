@@ -165,6 +165,7 @@ my @CHAPTERS = (
 			'To keep just a recent window instead, pick a Time range such as the last 30 days.',
 			'Time range is shown only when the table has a date or time column.',
 			'Choose the column that window applies to, then click Apply range.',
+			'Today and the other windows follow the time zone the maintainer set, if there is one.',
 			'Press Enter or click Apply filter.',
 			'Each active filter is shown as a small label in the toolbar. Click the x on a label to remove it.',
 			'For more rules, click Merge / Filter... and use the Filter results section.',
@@ -433,6 +434,7 @@ my @CHAPTERS = (
 			'Choose the date or timestamp column for the category or X axis.',
 			'Set Time bucket to the period you want, such as 1 hour or 1 month.',
 			'Click Plot.',
+			'A time that ends in Z or an offset, such as +01:00, lands in the day and hour of the time zone that was set.',
 		],
 		tip   => 'The bucket is a new column, so the chart still has the original timestamp beside it. Use the pivot table to bucket a row group the same way.',
 		routes => [],
@@ -1058,6 +1060,7 @@ my @CHAPTERS = (
 			'model_dir holds the saved canvases and settings. It must not be inside data_dir.',
 			'Set page_cache_dir to keep a copy of the Catalog and Tutorial pages on disc. page_cache_duration says for how long.',
 			'cache_dir is where the places found for maps, the extracts and the page cache are kept. CACHEDIR or CACHE_DIR in the environment wins over it.',
+			'Set time_zone to UTC, local or an offset such as +05:30. A time that ends in Z or +01:00 is then read on that clock.',
 			'Set ai_api_key to show the Ask button and the AI choice on the insights page.',
 			'Restart the program after you change the file.',
 		],
@@ -1086,6 +1089,10 @@ my @FAQ = (
 	{
 		question => 'The file is not in the list. What can I do?',
 		answer   => 'Put the file in the data folder, or open it from Browse your files. The program only lists files that it can read.',
+	},
+	{
+		question => 'A time near midnight falls on the wrong day.',
+		answer   => 'A time that ends in Z or an offset, such as +01:00, names one moment. If the maintainer set time_zone, it is moved to that clock before filters, ranges and buckets read it. Without it, the time is read as written. A time with no zone is always read as written, and the table shows every cell as it was written.',
 	},
 	{
 		question => 'The home address shows one file, not the list.',
@@ -1263,6 +1270,7 @@ my @GLOSSARY = (
 	{ term => 'Server',      meaning => 'The program on a computer that sends pages to your browser.' },
 	{ term => 'SQLite',      meaning => 'A database file that can hold more than one table.' },
 	{ term => 'Time bucket', meaning => 'One group for each hour, day, month or other period.' },
+	{ term => 'Time zone',   meaning => 'The clock that times are read on, set by the maintainer.' },
 	{ term => 'Time range',  meaning => 'A recent window, such as the last 30 days, worked out from today.' },
 	{ term => 'TSV',         meaning => 'A text file with values separated by tab characters.' },
 	{ term => 'URL',         meaning => 'The address of a web page, shown in the address bar.' },

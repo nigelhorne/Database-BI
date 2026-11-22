@@ -7,6 +7,18 @@ use Database::BI::Util qw(iso_datetime parse_zone zone_wall frame_epoch);
 use Database::BI::Calc;
 use Readonly;
 
+# Windows has no POSIX::tzset and does not read Olson names from TZ, so a test
+# that needs the server in another zone cannot run there.
+Readonly my $CAN_SET_TZ => $^O ne 'MSWin32';
+
+sub set_tz {
+	my ($tz) = @_;
+	return unless $CAN_SET_TZ;
+	if (defined $tz) { $ENV{TZ} = $tz } else { delete $ENV{TZ} }
+	POSIX::tzset();
+	return;
+}
+
 # One formula over one row, as the pipeline runs it.
 sub calc {
 	my ($expr, $row) = @_;
@@ -52,18 +64,18 @@ subtest 'moved to the zone' => sub {
 };
 
 subtest 'local zone' => sub {
+	plan skip_all => 'no tzset on Windows' unless $CAN_SET_TZ;
 	local $Database::BI::Util::ZONE = parse_zone('local');
-	local $ENV{TZ} = 'Etc/GMT+3';
-	POSIX::tzset();
+	local $ENV{TZ} = $ENV{TZ};
+	set_tz('Etc/GMT+3');
 	is_deeply([iso_datetime('2026-11-06T02:00:00Z')], ['2026-11-05', '23', '00', '00'], 'server zone');
-	delete $ENV{TZ};
-	POSIX::tzset();
+	set_tz(undef);
 };
 
 subtest 'formulas and buckets follow the zone' => sub {
 	local $Database::BI::Util::ZONE = parse_zone('UTC');
-	local $ENV{TZ} = 'Etc/GMT+3';
-	POSIX::tzset();
+	local $ENV{TZ} = $ENV{TZ};
+	set_tz('Etc/GMT+3');
 	is(calc('hour(t)', { t => '2026-11-06T23:30:00+01:00' }), 22, 'hour is UTC');
 	is(calc('hour(t)', { t => '1794007800' }), 23, 'epoch read on the UTC clock');
 	is(calc('span(t, "1d")', { t => '2026-11-06T23:30:00-05:00' }), '2026-11-07', 'bucket day moves');
@@ -71,23 +83,22 @@ subtest 'formulas and buckets follow the zone' => sub {
 		local $Database::BI::Util::ZONE;
 		is(calc('span(t, "1d")', { t => '2026-11-06T23:30:00-05:00' }), '2026-11-06', 'no zone: as written');
 	}
-	delete $ENV{TZ};
-	POSIX::tzset();
+	set_tz(undef);
 };
 
 subtest 'time range today is the zone\'s' => sub {
+	plan skip_all => 'no tzset on Windows' unless $CAN_SET_TZ;
 	require Database::BI::Controller::Dashboard;
 	my $preset = { day => 0 };
-	local $ENV{TZ} = 'Etc/GMT+3';
-	POSIX::tzset();
+	local $ENV{TZ} = $ENV{TZ};
+	set_tz('Etc/GMT+3');
 	my $now = 1_794_018_600;	# 2026-11-07 02:30 UTC, 2026-11-06 23:30 at -03:00
 	my @server = Database::BI::Controller::Dashboard::_time_range_bounds($preset, $now);
 	local $Database::BI::Util::ZONE = parse_zone('UTC');
 	my @utc = Database::BI::Controller::Dashboard::_time_range_bounds($preset, $now);
 	is($server[0], '2026-11-06', 'server clock');
 	is($utc[0], '2026-11-07', 'UTC clock');
-	delete $ENV{TZ};
-	POSIX::tzset();
+	set_tz(undef);
 };
 
 subtest 'filter and startup' => sub {

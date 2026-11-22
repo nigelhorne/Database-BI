@@ -24,9 +24,6 @@ use version; our $VERSION = version->declare('0.023.1');
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
 # Features:
-# TODO: Time zones.  A timestamp's Z or offset is accepted and ignored (times
-#	are compared as written).  Normalise to UTC or a configured zone, with
-#	Time range and span= buckets aware of it.
 # TODO: More JSON: JSON Lines (.jsonl, .ndjson); optional dot-path flattening
 #	of nested objects (address.city) instead of JSON text; reading a large
 #	file as a stream rather than all at once.
