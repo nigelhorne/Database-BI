@@ -2771,6 +2771,7 @@ subtest 'GET /map -- many rows at one place: capped, escaped, linked' => sub {
 		is Database::BI::I18N::text('Some::Package', {}, 'known'), undef, 'an empty table has nothing';
 
 		# A language that is set to something hostile must not load code or a path.
+		no warnings q(once);
 		for my $language ('../../etc/passwd', 'en-us/../x', "en-us\0", 'EN-US', '', 'en us', 'Database::BI::I18N::en_us', '$(id)') {
 			local $Database::BI::I18N::LANGUAGE = $language;
 			my $got = eval { Database::BI::I18N::text('Database::BI::Controller::Dashboard', { warn_measure_fallback => 'British' }, 'warn_measure_fallback') };
@@ -2842,7 +2843,8 @@ subtest 'GET /map -- many rows at one place: capped, escaped, linked' => sub {
 		throws_ok { $class->file_cache(undef) } qr/\AThe boundary cache needs a directory, not undef/, 'file_cache wants a directory';
 		throws_ok { $class->file_cache('/no/such/dir/here') } qr/\AThe boundary cache needs a directory, not \/no\/such\/dir\/here/, '... that exists';
 		throws_ok { $class->file_cache($circular) } qr/\AThe boundary cache needs a directory/, '... and is a name';
-		my $file = File::Spec->catfile(tempdir(CLEANUP => 1), "a file with spaces\nand a newline");
+		# A newline cannot be in a Windows file name, so there the name has spaces only.
+		my $file = File::Spec->catfile(tempdir(CLEANUP => 1), $^O eq 'MSWin32' ? 'a file with spaces' : "a file with spaces\nand a newline");
 		Mojo::File->new($file)->spew('x');
 		throws_ok { $class->file_cache($file) } qr/\AThe boundary cache needs a directory/, 'a file is not a directory, whatever it is called';
 

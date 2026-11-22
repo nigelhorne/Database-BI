@@ -24,7 +24,7 @@ my %number = (
 );
 for my $text (sort keys %number) {
 	my $got = Database::BI::Util::parse_number($text);
-	is($got, $number{$text}, 'parse_number(' . ($text =~ s/\W/?/gr) . ')');
+	is($got, $number{$text}, 'parse_number(' . ($text =~ s/[^\x20-\x7e]/?/gr) . ')');
 }
 
 # 300 integer digits is the fast path's edge; 301 goes the long way, and a

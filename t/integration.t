@@ -104,6 +104,7 @@ require Database::BI::Model::DataSource;    # already in %INC; stash intact
 		my ($self, $key, @args) = @_;
 		push @{ $self->{log} }, { key => $key, args => \@args };
 		# Delegate to the built-in message dict so error text is still human-readable.
+		no warnings 'once';
 		my %msgs = %Database::BI::Model::DataSource::MESSAGES;
 		return sprintf($msgs{$key} // $key, @args);
 	}

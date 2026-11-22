@@ -1397,6 +1397,7 @@ subtest 'DataSource: XLSX and Berkeley DB are read by Database::Abstraction' => 
 	SKIP: {
 		skip 'DB_File is needed', 4 unless eval { require DB_File; require Fcntl; 1 };
 		my %bdb;
+		no warnings 'once';
 		tie(%bdb, 'DB_File', "$dir/kv.db", Fcntl::O_CREAT() | Fcntl::O_RDWR(), 0644, $DB_File::DB_HASH)
 			or skip "cannot create a Berkeley DB file: $!", 4;
 		%bdb = (b => 2, a => 1, c => 3);
@@ -8040,6 +8041,7 @@ sub croak_rethrow {
 		{
 			no warnings 'redefine';
 			local $^O = 'MSWin32';
+			no warnings 'once';
 			local *Database::BI::Controller::Dashboard::realpath = sub {
 				my $abs = File::Spec->rel2abs($_[0]);
 				my @parts = File::Spec->splitdir($abs);

@@ -2230,7 +2230,9 @@ None.
 sub split_path {
 	my ($path) = @_;
 	return ('', undef) unless defined $path;
-	return ($path, undef) if -e $path;
+	# A NUL or a newline cannot be in a Windows file name, and stat on one warns
+	# there ("Invalid \0 character in pathname", "filename containing newline").
+	return ($path, undef) if index($path, "\0") < 0 && do { no warnings 'newline'; -e $path };
 	return ($1, $2) if $path =~ /\A(.+)#([^#\n]+)\z/s;
 	return ($path, undef);
 }

@@ -8794,7 +8794,7 @@ sub open_file ($self) {
 
 	my $file = eval { Mojo::File->new($file_path)->realpath };
 	return $self->reply->not_found
-		unless defined $file && -f $file && $file->basename =~ $EXT_RE;
+		unless defined $file && index($file, "\0") < 0 && do { no warnings 'newline'; -f $file } && $file->basename =~ $EXT_RE;
 
 	my $dir      = $file->dirname;
 	(my $table   = $file->basename) =~ s/\.[^.]+\z//;

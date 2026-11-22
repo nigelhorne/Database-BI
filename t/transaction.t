@@ -1827,6 +1827,7 @@ subtest 'Transaction 29 -- Berkeley DB file open lifecycle' => sub {
 		# Phase 1: create a Berkeley DB file with known key-value pairs.
 		{
 			my %bdb;
+			no warnings 'once';
 			tie(%bdb, 'DB_File', $path, DB_File::O_CREAT()|DB_File::O_RDWR(), 0644, $DB_File::DB_HASH)
 				or skip "Cannot create Berkeley DB file: $!", 7;
 			$bdb{apple}  = 'red fruit';
@@ -2654,6 +2655,7 @@ subtest 'Transaction 42 -- import_url drill-down breadcrumb lifecycle' => sub {
 	         . '</table>';
 
 	no warnings 'redefine';
+	no warnings 'once';
 	local *LWP::UserAgent::get = sub {
 		my ($self, $url) = @_;
 		return HTTP::Response->new(200, 'OK', [], $html);
