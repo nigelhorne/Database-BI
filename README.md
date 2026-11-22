@@ -2310,10 +2310,10 @@ the same and shows that database, with a command word it runs that command, and 
     American spelling it does not list.  The tutorial's text is still in British
     English.
 
-- **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json**
+- **Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json, jsonl, ndjson**
 
     The application recognises `.csv`, `.db`, `.sql`, `.sqlite`, `.sqlite3`,
-    `.xml`, `.psv`, `.tsv`, `.xlsx` and `.json` files.  All three SQLite extensions
+    `.xml`, `.psv`, `.tsv`, `.xlsx`, `.json`, `.jsonl` and `.ndjson` files.  All three SQLite extensions
     (`.sql`, `.sqlite`, `.sqlite3`) are treated identically -- `inventory.sqlite`
     and `inventory.sqlite3` are both opened as SQLite databases without renaming.
     Excel `.xlsx` files are read by [Database::Abstraction](https://metacpan.org/pod/Database%3A%3AAbstraction), using
@@ -2329,6 +2329,15 @@ the same and shows that database, with a command word it runs that command, and 
     or a list shows as its JSON text, `true` and `false` as words and `null` as
     an empty cell, and the columns are in the order the file first names them.  A
     file of another format with the same name in the same folder is the one read.
+
+    A `.jsonl` or `.ndjson` file (JSON Lines, one object a line, as logs and API
+    exports write it) is a table with a row for each line.  It is read as a stream,
+    and so is a `.json` list of objects over 16 MiB, so a large file does not
+    need memory for its text and its parse as well.  Set `json_flatten` to 1 in
+    `database_bi.conf` and a nested object becomes a column for each of its
+    values, named by its path (`address.city`), instead of one cell of JSON text;
+    lists stay text.  It is off by default, and applies to `.json` and JSON Lines
+    alike.
 
     URLs will work.
     For example enter

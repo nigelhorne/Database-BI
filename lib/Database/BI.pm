@@ -2419,10 +2419,10 @@ that read differently; C<t/i18n.t> fails when a British message needs an
 American spelling it does not list.  The tutorial's text is still in British
 English.
 
-=item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json>
+=item B<Supported data file extensions are: csv, db, sql, sqlite, sqlite3, xml, psv, tsv, xlsx, json, jsonl, ndjson>
 
 The application recognises C<.csv>, C<.db>, C<.sql>, C<.sqlite>, C<.sqlite3>,
-C<.xml>, C<.psv>, C<.tsv>, C<.xlsx> and C<.json> files.  All three SQLite extensions
+C<.xml>, C<.psv>, C<.tsv>, C<.xlsx>, C<.json>, C<.jsonl> and C<.ndjson> files.  All three SQLite extensions
 (C<.sql>, C<.sqlite>, C<.sqlite3>) are treated identically -- C<inventory.sqlite>
 and C<inventory.sqlite3> are both opened as SQLite databases without renaming.
 Excel C<.xlsx> files are read by L<Database::Abstraction>, using
@@ -2438,6 +2438,15 @@ opens on C</tables>, with a card for each, and other values beside the lists
 or a list shows as its JSON text, C<true> and C<false> as words and C<null> as
 an empty cell, and the columns are in the order the file first names them.  A
 file of another format with the same name in the same folder is the one read.
+
+A C<.jsonl> or C<.ndjson> file (JSON Lines, one object a line, as logs and API
+exports write it) is a table with a row for each line.  It is read as a stream,
+and so is a C<.json> list of objects over 16 MiB, so a large file does not
+need memory for its text and its parse as well.  Set C<json_flatten> to 1 in
+C<database_bi.conf> and a nested object becomes a column for each of its
+values, named by its path (C<address.city>), instead of one cell of JSON text;
+lists stay text.  It is off by default, and applies to C<.json> and JSON Lines
+alike.
 
 URLs will work.
 For example enter
@@ -3200,6 +3209,7 @@ sub startup ($self) {
 			exists $opts{file_ext}       ? (file_ext       => $opts{file_ext})       : (),
 			exists $opts{internal_table} ? (internal_table => $opts{internal_table}) : (),
 			exists $opts{column_order}   ? (column_order   => $opts{column_order})   : (),
+			json_flatten   => $c->app->config('json_flatten') ? 1 : 0,
 		);
 	});
 

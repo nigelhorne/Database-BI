@@ -69,7 +69,7 @@ Readonly my %SEQUENTIAL_SCHEMES => map { $_ => 1 } qw(YlOrRd Blues Greens Purple
 Readonly my $DEFAULT_SEQUENTIAL_SCHEME  => 'YlOrRd';
 Readonly my $DEFAULT_CATEGORICAL_SCHEME => 'tableau10';
 
-Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx json );
+Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx json jsonl ndjson );
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
 # that passes the extension guard and reaches realpath with an embedded newline.
