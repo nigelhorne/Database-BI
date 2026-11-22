@@ -2,6 +2,11 @@ Revision history for Database-BI
 
 0.024.0
 	[ Enhancements ]
+	- time_zone in database_bi.conf (UTC, local, or an offset such as
+	  +05:30): a timestamp ending Z or +01:00 is moved to that zone before
+	  the filters, Time range, hour/minute and span= buckets read it, and
+	  the Time range presets use that zone's today.  Unset, a zone is
+	  ignored as before.
 	- Delta, a new button right of Combine data: choose two columns and
 	  every row where they are identical is removed, leaving the rows
 	  that differ.  It is the filter f=a:differ:b, so charts, export and

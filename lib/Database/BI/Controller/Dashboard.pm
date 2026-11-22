@@ -1914,7 +1914,8 @@ sub _get_columns {
 #          timestamp (YYYY-MM-DDTHH:MM:SS) or the same with a space separator,
 #          which is what CSV exports and SQLite text columns usually hold, and
 #          one with a fraction of a second or a zone (Z, +01:00), which is what
-#          JSON APIs write.  The time is taken as written (Util::iso_datetime).
+#          JSON APIs write.  A zone is applied when config time_zone is set
+#          (Util::iso_datetime).
 sub _is_iso_date {
 	return scalar(() = Database::BI::Util::iso_datetime($_[0])) ? 1 : 0;
 }
@@ -2033,6 +2034,8 @@ sub _midday {
 sub _time_range_bounds {
 	my ($preset, $now) = @_;
 	$now = time() unless defined $now;
+	# On the configured zone's clock (Util::frame_epoch), not the server's.
+	$now = Database::BI::Util::frame_epoch($now);
 
 	my @lt = localtime($now);
 	my ($mday, $mon, $year) = @lt[3, 4, 5];	# mon is 0-based

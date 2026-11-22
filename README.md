@@ -1757,6 +1757,26 @@ server other machines reach should be behind https.  Ten wrong passwords from
 one address within 15 minutes lock that address out for the rest of the 15
 minutes (`429`); each server process counts its own.
 
+### Time Zones
+
+A timestamp that names its zone (`2026-11-06T23:30:00Z`, `...+01:00`) is read
+as written unless `time_zone` is set.  With it, such a value is moved to that
+zone's clock first, so the day and hour a filter, the Time range, a formula
+(`hour`, `minute`) and the `span=` buckets see are the ones on that clock,
+and "today", "this month" and the other Time range presets are that zone's too.
+A value with no zone written is taken to be on that clock already, and a table
+still shows each cell as it was written.
+
+```perl
+{
+    time_zone => 'UTC',        # or '-05:00', '+05:30', or 'local'
+}
+```
+
+`local` is the server's own zone, daylight saving included (set `TZ` to
+change it).  Named zones such as `America/New_York` are not read: use `local`
+with `TZ`, or an offset.  Anything else stops the start.
+
 ### MariaDB and MySQL Servers
 
 A server is opened by name.  Each entry of `mariadb_servers` is one database:

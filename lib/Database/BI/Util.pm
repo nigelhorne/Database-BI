@@ -8,8 +8,10 @@ our $VERSION = '0.023.1';
 use Exporter qw(import);
 use Readonly;
 use POSIX ();
+use Carp qw(croak);
 
-our @EXPORT_OK = qw( urlencode parse_number iso_datetime minute_stamp iso8601_utc );
+our @EXPORT_OK = qw( urlencode parse_number iso_datetime minute_stamp iso8601_utc
+	parse_zone zone_wall frame_epoch );
 
 # A list rather than any three capitals, or 'SKU 100' would be read as 100.
 Readonly my $CURRENCY_CODES => join '|', qw(AUD BRL CAD CHF CNY DKK EUR GBP HKD INR JPY MXN NOK NZD SEK SGD USD ZAR);
@@ -26,7 +28,7 @@ Readonly my $LARGEST_NUMBER => POSIX::DBL_MAX();
 Readonly my $ISO_DATETIME_RE => qr{
 	\A (\d{4}-\d{2}-\d{2})
 	(?: [T ] (\d{2}) : (\d{2}) (?: : (\d{2}) (?: [.,] \d+ )? )?
-		(?: [Zz] | [+-] \d{2} (?: :? \d{2} )? )? )?
+		( [Zz] | [+-] \d{2} (?: :? \d{2} )? )? )?
 	\z
 }x;
 
@@ -96,17 +98,115 @@ sub parse_number {
 	return $number;
 }
 
+# The zone the server works in, or undef (the default: a time is as written).
+# A { kind => 'fixed', offset => seconds } or { kind => 'local' } from
+# parse_zone.  The app's around_dispatch hook sets it with `local` from config
+# time_zone, so it is the one setting every reader of a time sees.
+our $ZONE;
+
+# parse_zone($spec) -> \%zone | undef
+#
+# 'UTC' (or 'Z', 'GMT'), 'local' (the server's own zone, daylight saving
+# included), or a fixed offset: +05:30, -0800, +01.  undef and '' are no zone.
+# Anything else croaks, so a typo in the configuration stops the start.
+sub parse_zone {
+	my ($spec) = @_;
+	return undef unless defined $spec && length $spec;
+	croak "time_zone: '" . (ref $spec || $spec) . "' is not UTC, local, or an offset such as +05:30"
+		if ref $spec;
+	return { kind => 'fixed', offset => 0 } if $spec =~ /\A(?:utc|gmt|z)\z/i;
+	return { kind => 'local' }             if $spec =~ /\Alocal\z/i;
+	if (my ($sign, $hh, $mm) = $spec =~ /\A([+-])([0-9]{2})(?::?([0-9]{2}))?\z/) {
+		croak "time_zone: '$spec' is not UTC, local, or an offset such as +05:30"
+			unless $hh <= 14 && ($mm // 0) <= 59;
+		my $secs = $hh * 3_600 + ($mm // 0) * 60;
+		return { kind => 'fixed', offset => $sign eq '-' ? -$secs : $secs };
+	}
+	croak "time_zone: '$spec' is not UTC, local, or an offset such as +05:30";
+}
+
+# zone_wall($epoch) -> (sec, min, hour, mday, mon, year, wday, yday, isdst)
+#
+# What localtime gives, but in the configured zone: the clock on the wall
+# there at that moment.  With no zone it is localtime.
+sub zone_wall {
+	my ($epoch) = @_;
+	local $!;	# localtime's tzset may leave errno set; see Calc::_epoch_of
+	return ($ZONE && $ZONE->{kind} eq 'fixed')
+		? gmtime($epoch + $ZONE->{offset})
+		: localtime($epoch);
+}
+
+# frame_epoch($epoch) -> $epoch'
+#
+# The date code (Calc, the time range) reads a clock with localtime and builds
+# one with mktime, so it lives in the server's zone.  For a time read in
+# another zone this gives the epoch whose localtime shows that zone's wall
+# clock; with no zone, or the server's own, it is $epoch.
+sub frame_epoch {
+	my ($epoch) = @_;
+	return $epoch unless $ZONE && $ZONE->{kind} eq 'fixed';
+	my @wall = zone_wall($epoch);
+	local $!;
+	return POSIX::mktime(@wall[0 .. 5]) // $epoch;
+}
+
+# _days_from_civil($y, $m, $d) -> days since 1970-01-01 (proleptic Gregorian)
+sub _days_from_civil {
+	my ($y, $m, $d) = @_;
+	$y -= $m <= 2 ? 1 : 0;
+	my $era = int(($y >= 0 ? $y : $y - 399) / 400);
+	my $yoe = $y - $era * 400;
+	my $doy = int((153 * ($m + ($m > 2 ? -3 : 9)) + 2) / 5) + $d - 1;
+	my $doe = $yoe * 365 + int($yoe / 4) - int($yoe / 100) + $doy;
+	return $era * 146_097 + $doe - 719_468;
+}
+
+# _in_zone($day, $hour, $minute, $second, $zone_text) -> ($day, $h, $m, $s)
+#
+# Premise 1: a value that names a zone names one moment.
+# Premise 2: a configured zone is the clock the reader works to.
+# Conclusion: the written time is moved to that zone's clock, and the day may
+#             change with it.  A date or time that cannot exist (a 31st of
+#             February, hour 25) is left as written: the callers that need a
+#             real one refuse it, and arithmetic would make it another day.
+sub _in_zone {
+	my ($day, $hour, $minute, $second, $zone_text) = @_;
+	my ($y, $mon, $dom) = split /-/, $day;
+	my @dim = (31, (($y % 4 == 0 && $y % 100 != 0) || $y % 400 == 0) ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+	return ($day, $hour, $minute, $second)
+		unless $mon >= 1 && $mon <= 12 && $dom >= 1 && $dom <= $dim[$mon - 1]
+			&& $hour <= 23 && $minute <= 59 && ($second // 0) <= 59;
+
+	my $from = 0;
+	if ($zone_text =~ /\A([+-])([0-9]{2}):?([0-9]{2})?\z/) {
+		$from = ($2 * 3_600 + ($3 // 0) * 60) * ($1 eq '-' ? -1 : 1);
+	}
+	my $epoch = _days_from_civil($y + 0, $mon + 0, $dom + 0) * 86_400
+		+ $hour * 3_600 + $minute * 60 + ($second // 0) - $from;
+	my @wall = zone_wall($epoch);
+	return (
+		sprintf('%04d-%02d-%02d', $wall[5] + 1900, $wall[4] + 1, $wall[3]),
+		sprintf('%02d', $wall[2]),
+		sprintf('%02d', $wall[1]),
+		defined $second ? sprintf('%02d', $wall[0]) : undef,
+	);
+}
+
 # iso_datetime($value) -> ($day, $hour, $minute, $second) | ()
 #
 # The one reading of an ISO date or timestamp, for the filters, the time range
-# and the formulas alike.  A time is taken as written: a fraction of a second
-# and a zone are accepted and set aside, so 2026-11-06T23:30:00Z is 23:30 on
-# the 6th, the day the table shows, for every reader.
+# and the formulas alike.  A fraction of a second is set aside.  A time that
+# names a zone (Z, +01:00) is moved to the configured zone ($ZONE, config
+# time_zone) when there is one, so 2026-11-06T23:30:00Z is 18:30 on the 6th
+# for -05:00; with no zone configured, or a time with none written, the time
+# is taken as written and the value is the day the table shows.
 sub iso_datetime {
 	my ($value) = @_;
 	return () unless defined $value && !ref $value;
-	my ($day, $hour, $minute, $second) = $value =~ $ISO_DATETIME_FAST or return ();
-	return ($day, $hour, $minute, $second);
+	my ($day, $hour, $minute, $second, $zone) = $value =~ $ISO_DATETIME_FAST or return ();
+	return ($day, $hour, $minute, $second) unless defined $zone && $ZONE;
+	return _in_zone($day, $hour, $minute, $second, $zone =~ /\A[Zz]\z/ ? '+00:00' : $zone);
 }
 
 # minute_stamp(@tm) -> 'YYYY-MM-DD HH:MM'
@@ -215,11 +315,37 @@ Read an ISO 8601 date or timestamp.
     iso_datetime('2026-11-06T23:30:00+01:00');   # ('2026-11-06', '23', '30', '00')
     iso_datetime('06/11/2026');                  # ()
 
-The time is the one written in the value: a fraction of a second and a zone
-(C<Z>, C<+01:00>, C<+0100>, C<+01>) are accepted and not applied, so a
-timestamp falls on the day it names, the one the table shows.  The month and
-day are not checked against a calendar; the callers that need a real day check
-it themselves.
+A fraction of a second is accepted and set aside.  A zone (C<Z>, C<+01:00>,
+C<+0100>, C<+01>) is applied only when a C<time_zone> is configured
+(C<$Database::BI::Util::ZONE>, see L</parse_zone>): the time is then moved to
+that zone's clock, and the day moves with it, so C<2026-11-06T23:30:00Z> is
+C<2026-11-06 18:30> for C<-05:00>.  With no zone configured, or a value that
+names none, the time is the one written.  The month and day are not checked
+against a calendar, and a date or time that cannot exist is never moved; the
+callers that need a real day check it themselves.
+
+=head2 parse_zone
+
+Read the C<time_zone> setting.
+
+    parse_zone('UTC');      # { kind => 'fixed', offset => 0 }
+    parse_zone('+05:30');   # { kind => 'fixed', offset => 19800 }
+    parse_zone('local');    # { kind => 'local' }
+    parse_zone(undef);      # undef: no zone, times are as written
+
+Croaks, C<time_zone: 'x' is not UTC, local, or an offset such as +05:30>, for
+anything else.
+
+=head2 zone_wall
+
+C<localtime>, in the configured zone: C<zone_wall($epoch)> returns the nine
+values for the clock on the wall there.
+
+=head2 frame_epoch
+
+The epoch whose C<localtime> shows the configured zone's clock, so date code
+that reads C<localtime> and builds with C<mktime> works in the configured zone.
+It is its argument when there is no zone, or the zone is C<local>.
 
 =head3 API SPECIFICATION
 

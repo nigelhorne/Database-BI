@@ -1889,6 +1889,24 @@ server other machines reach should be behind https.  Ten wrong passwords from
 one address within 15 minutes lock that address out for the rest of the 15
 minutes (C<429>); each server process counts its own.
 
+=head2 Time zones
+
+A timestamp that names its zone (C<2026-11-06T23:30:00Z>, C<...+01:00>) is read
+as written unless C<time_zone> is set.  With it, such a value is moved to that
+zone's clock first, so the day and hour a filter, the Time range, a formula
+(C<hour>, C<minute>) and the C<span=> buckets see are the ones on that clock,
+and "today", "this month" and the other Time range presets are that zone's too.
+A value with no zone written is taken to be on that clock already, and a table
+still shows each cell as it was written.
+
+    {
+        time_zone => 'UTC',        # or '-05:00', '+05:30', or 'local'
+    }
+
+C<local> is the server's own zone, daylight saving included (set C<TZ> to
+change it).  Named zones such as C<America/New_York> are not read: use C<local>
+with C<TZ>, or an offset.  Anything else stops the start.
+
 =head2 MariaDB and MySQL servers
 
 A server is opened by name.  Each entry of C<mariadb_servers> is one database:
@@ -2688,6 +2706,9 @@ sub startup ($self) {
 	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
 		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A[0-9]+\z/;
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
+	require Database::BI::Util;
+	# Read once: a bad time_zone stops the start, as the other settings do.
+	my $time_zone = Database::BI::Util::parse_zone($self->config('time_zone'));
 	_require_export_dirs_with_password($self->config('password_hash'), $self->config('export_dirs'));
 
 	# Only this machine can reach a server unless the configuration says
@@ -2820,6 +2841,7 @@ sub startup ($self) {
 	# would need to set it again there.
 	$self->hook(around_dispatch => sub {
 		my ($next, $c) = @_;
+		local $Database::BI::Util::ZONE = $time_zone;
 		local $Database::BI::I18N::LANGUAGE = Database::BI::I18N::choose(
 			accept  => scalar $c->req->headers->accept_language,
 			default => $c->app->config->{language},
