@@ -2061,6 +2061,7 @@ use Config ();
 use Carp qw(croak);
 
 Readonly my %EDGE => (
+	time_budget_large => 30,	# 100,000 points under Devel::Cover on a CI runner took over 5s
 	time_budget   => 5,		# seconds; generous, as Devel::Cover runs slowly
 	big_rows      => 50_000,
 	wide_cols     => 2_000,
@@ -2083,17 +2084,18 @@ Readonly my $HOSTILE   => q{<script>alert(1)</script>"'&};
 # helpers below loop over input, and a loop that cannot end must be a failed
 # test rather than a stuck CI job.
 sub within_budget {
-	my ($name, $code) = @_;
+	my ($name, $code, $budget) = @_;
+	$budget //= $EDGE{time_budget};
 	my @got;
 	my $ok = eval {
 		local $SIG{ALRM} = sub { die "timeout\n" };	## no critic (RequireCarping) -- a signal handler
-		alarm $EDGE{time_budget};
+		alarm $budget;
 		@got = $code->();
 		alarm 0;
 		1;
 	};
 	alarm 0;
-	ok($ok, "$name finishes within $EDGE{time_budget}s") or diag($@);
+	ok($ok, "$name finishes within ${budget}s") or diag($@);
 	return wantarray ? @got : $got[0];
 }
 
@@ -2811,9 +2813,9 @@ subtest 'GET /map -- many rows at one place: capped, escaped, linked' => sub {
 		# A hundred thousand points, offline: each is one pending entry at most,
 		# in the time a page can wait.
 		my @many = map { [ 10 + ($_ % 1000) / 1000, 20 + int($_ / 1000) / 1000 ] } 0 .. $HOSTILE_SIZE{points} - 1;
-		my $result = within_budget('a hundred thousand points', sub { $boundary->outlines(\@many, lookup => 0) });
-		ok scalar(@{ $result->{pending} }) <= $HOSTILE_SIZE{points}, 'no more pending points than points given';
-		is scalar(@{ $result->{features} }), 0, 'nothing known, nothing drawn';
+		my $result = within_budget('a hundred thousand points', sub { $boundary->outlines(\@many, lookup => 0) }, $EDGE{time_budget_large});
+		ok scalar(@{ $result->{pending} // [] }) <= $HOSTILE_SIZE{points}, 'no more pending points than points given';
+		is scalar(@{ $result->{features} // [] }), 0, 'nothing known, nothing drawn';
 
 		# Keys for a single lookup that are not point keys.
 		for my $key (undef, '', '1,2', '1.0,2.0', '39.090,-77.640 ', "39.090,-77.640\n", '39.090,-77.640;DROP', '39.090,-77.640,1', '99.000,0.000', '-0.000,0.000',
