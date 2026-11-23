@@ -9,6 +9,7 @@ use Carp qw(croak);
 use Mojo::File ();
 use Mojo::URL;
 use Database::BI::I18N ();
+use Database::BI::Util ();
 use Database::BI::Sessions;
 use CHI	();
 use File::Spec ();
@@ -18,8 +19,8 @@ use Database::BI::Model::DataSource;
 use Database::BI::Tutorial;
 
 # version->declare here alone: this is VERSION_FROM, and with it MakeMaker
-# writes 0.023.1 into META; a plain dotted string becomes v0.023.1 there.
-use version; our $VERSION = version->declare('0.023.1');
+# writes 0.024.0 into META; a plain dotted string becomes v0.024.0 there.
+use version; our $VERSION = version->declare('0.024.0');
 
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
@@ -147,7 +148,7 @@ Database::BI - Web-based Business Intelligence viewer for data files
 
 =head1 VERSION
 
-0.023.1
+0.024.0
 
 =head1 DESCRIPTION
 
@@ -2712,7 +2713,6 @@ sub startup ($self) {
 	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
 		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A[0-9]+\z/;
 	_check_login($self->config('password_hash'), $self->config('login_expiration'));
-	require Database::BI::Util;
 	# Read once: a bad time_zone stops the start, as the other settings do.
 	my $time_zone = Database::BI::Util::parse_zone($self->config('time_zone'));
 	_require_export_dirs_with_password($self->config('password_hash'), $self->config('export_dirs'));

@@ -13,7 +13,7 @@ use Sub::Protected;
 use Params::Validate::Strict qw(validate_strict);
 use Params::Get		();
 
-our $VERSION = '0.023.1';
+our $VERSION = '0.024.0';
 
 =head1 NAME
 
@@ -21,7 +21,7 @@ Database::BI::Model::DataSource - Table-agnostic adapter around Database::Abstra
 
 =head1 VERSION
 
-0.023.1
+0.024.0
 
 =head1 SYNOPSIS
 
@@ -1206,7 +1206,7 @@ sub _detect_file_info :Protected {
 				# DB_File warns "untie while N inner references" if the object
 				# reference count is > 0 when untie fires.
 				my $db_obj = tie %bdb, 'DB_File', $non_sqlite_db,
-					Fcntl::O_RDONLY(), 0644, $DB_File::DB_HASH;
+					Fcntl::O_RDONLY(), 0644, do { no warnings "once"; $DB_File::DB_HASH };
 				return 0 unless $db_obj;
 				undef $db_obj;
 				untie %bdb;

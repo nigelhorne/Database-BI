@@ -3,7 +3,7 @@ package Database::BI::Extract;
 use strict;
 use warnings;
 
-our $VERSION = '0.023.1';
+our $VERSION = '0.024.0';
 
 use Carp		qw(croak carp);
 use Digest::MD5		qw(md5_hex);

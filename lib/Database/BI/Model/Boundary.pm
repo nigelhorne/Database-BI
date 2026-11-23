@@ -80,7 +80,7 @@ use Scalar::Util		qw(blessed);
 use Storable			qw(dclone);
 use URI				();
 
-our $VERSION = '0.023.1';
+our $VERSION = '0.024.0';
 
 # The place rank an answer must have at each level: rank for a country not
 # listed, countries for those that differ, by ISO 3166-1 alpha-2 code.  Checked
@@ -207,7 +207,7 @@ Database::BI::Model::Boundary - The outline of the area around each map marker
 
 =head1 VERSION
 
-0.023.1
+0.024.0
 
 =head1 SYNOPSIS
 

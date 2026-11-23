@@ -1,12 +1,13 @@
 Revision history for Database-BI
 
-0.024.0
+0.024.0	Sun Nov 22 09:10:13 PM EST 2026
 	[ Enhancements ]
 	- JSON Lines (.jsonl, .ndjson) files open as a table, a row to a
 	  line, and are read as a stream.  A .json list of objects over 16 MiB
 	  is streamed too.
 	- json_flatten in database_bi.conf shows a nested JSON object as a
-	  column for each value (address.city) instead of JSON text.
+	  column for each value (address.city) instead of JSON text.  It and
+	  time_zone apply to the whole server, not to one request or file.
 	- time_zone in database_bi.conf (UTC, local, or an offset such as
 	  +05:30): a timestamp ending Z or +01:00 is moved to that zone before
 	  the filters, Time range, hour/minute and span= buckets read it, and
@@ -32,7 +33,6 @@ Revision history for Database-BI
 	  (MOJO_MAX_LINE_SIZE), for the long link a stack of many files makes.
 
 	[ Bug fixes ]
-	- Fixed https://matrix.perl-magpie.org/results/21c9b894-de5f-11f1-9bf6-633e6e8775ea
 	- SafeUA::resolve_host returns an empty list for a host the resolver will
 	  not take as text (a wide character), as the POD says it does when a
 	  host does not resolve, instead of dying inside getaddrinfo
@@ -42,6 +42,13 @@ Revision history for Database-BI
 	- The rows per page you chose now stay when you Merge or Combine more
 	  data, instead of going back to 200.
 	- JSON exports write each row's keys in the table's column order.
+
+	[ Other ]
+	- Tests: the time zone tests that need another server zone skip on
+	  Windows, which has no tzset; a fixed-offset check runs there.  A slow
+	  edge-case test has a longer time limit, and the SafeUA test skips
+	  where the DNS resolver answers names that cannot exist.
+	- No more "used only once" warnings when Database::BI is compiled.
 
 0.023.1	Wed Nov 11 08:33:35 PM EST 2026
 	[ Enhancements ]

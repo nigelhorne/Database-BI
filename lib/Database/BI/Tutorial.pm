@@ -3,7 +3,7 @@ package Database::BI::Tutorial;
 use strict;
 use warnings;
 
-our $VERSION = '0.023.1';
+our $VERSION = '0.024.0';
 
 # ---------------------------------------------------------------------------
 # The tutorial that the application shows at GET /tutorial.
@@ -1062,8 +1062,8 @@ my @CHAPTERS = (
 			'model_dir holds the saved canvases and settings. It must not be inside data_dir.',
 			'Set page_cache_dir to keep a copy of the Catalog and Tutorial pages on disc. page_cache_duration says for how long.',
 			'cache_dir is where the places found for maps, the extracts and the page cache are kept. CACHEDIR or CACHE_DIR in the environment wins over it.',
-			'Set time_zone to UTC, local or an offset such as +05:30. A time that ends in Z or +01:00 is then read on that clock.',
-			'Set json_flatten to 1 to split nested JSON objects into columns, named by their path, such as address.city.',
+			'Set time_zone to UTC, local or an offset such as +05:30. A time that ends in Z or +01:00 is then read on that clock. Names such as Europe/London are not read.',
+			'Set json_flatten to 1 to split nested JSON objects into columns, named by their path, such as address.city. Both settings apply to the whole server, not to one file.',
 			'Set ai_api_key to show the Ask button and the AI choice on the insights page.',
 			'Restart the program after you change the file.',
 		],
