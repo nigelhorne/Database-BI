@@ -3360,6 +3360,8 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(Dashboard => 'error_upload_none', $tm->tx->res->json->{error});
 		$tm->post_ok('/upload' => form => { file => { content => 'x', filename => 'x.exe' } })->status_is(415);
 		message_ok(Dashboard => 'error_upload_ext', $tm->tx->res->json->{error});
+		$tm->post_ok('/upload' => form => { file => { content => "a,b\ncaf\xe9,1\n", filename => 'latin.csv' } })->status_is(200);
+		message_ok(Dashboard => 'upload_encoding_note', $tm->tx->res->json->{note}, ['Windows-1252']);
 		# The size is what is mocked, not the body.  A really oversized body has the
 		# server answer and close while the client still writes, which on Windows can
 		# lose the answer; the subtest for POST /upload above sends a real one.

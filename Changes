@@ -14,6 +14,9 @@ Revision history for Database-BI
 	  range and duplicate setting.  New Print shown prints only the rows on
 	  the screen.  New PDF button (GET /export?format=pdf, Latin-1 text, up to 50,000 rows) makes
 	  the PDF on the server, and Print offers it past 10,000 rows.
+	- Uploading a CSV, TSV, PSV or JSON file that is not UTF-8 (Excel's plain
+	  CSV on Windows is Windows-1252) now reads it correctly, and the table
+	  page says which encoding was used.  UTF-16 files with a BOM work too.
 	- Excel workbooks with several sheets: /open sends you to the table
 	  picker, which lists each sheet; ?sheet=NAME (or it=NAME) opens one,
 	  including a sheet whose name has spaces.

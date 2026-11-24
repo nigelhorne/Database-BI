@@ -195,6 +195,9 @@
 <p class="accel-note accel-stale" id="accel-note" data-state="stale" role="status">&#9888; Accelerated, but the file has changed since its extract was built[% IF acceleration.built_text.length %] ([% acceleration.built_text | html %])[% END %], so the file itself was read.  Rebuild it with <code>script/bi-extract --spec [% acceleration.spec | html %]</code>.</p>
 [%- END -%]
 [%- END -%]
+[%- IF upload_encoding_note.length -%]
+<p class="accel-note" id="encoding-note" role="status">[% upload_encoding_note | html %]</p>
+[%- END -%]
 [%- IF stored_error.length -%]
 <p class="accel-note accel-stale" id="stored-error-note" role="alert">&#9888; The columns saved for this data could not be added: [% stored_error.replace('\.\s*$', '') | html %].  The table is shown without its saved calculated fields, lookups and extractions, and its charts and exports will refuse until this is mended.  Correct or delete the one at fault with <button type="button" class="link-btn" data-open="btn-calc">Calc fields</button>, <button type="button" class="link-btn" data-open="btn-lookups">Lookups</button> or <button type="button" class="link-btn" data-open="btn-extract">Extract fields</button>.</p>
 [%- END -%]

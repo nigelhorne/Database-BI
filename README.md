@@ -208,7 +208,12 @@ through without re-encoding; the application serves the resulting page as
 `text/html; charset=UTF-8`, so full Unicode is displayed correctly as
 long as the source file itself is UTF-8.  A UTF-8 byte-order mark at the
 start of a CSV, TSV, PSV or JSON file (Excel's "CSV UTF-8" writes one) is
-read past, so it is not part of the first column's name.
+read past, so it is not part of the first column's name.  A file dropped
+on the page (`POST /upload`) that is a CSV, TSV, PSV, JSON or JSON Lines file
+and is not valid UTF-8 is read as Windows-1252 (what Excel's plain "CSV" writes
+on Windows), or as UTF-16 when it starts with that byte-order mark; the saved
+copy is UTF-8, and the table page says which encoding was used.  A file opened
+from a folder, not uploaded, is read as it is.
 
 Filter values (`f=col:op:val`) are decoded from the URL by Mojolicious
 before reaching the controller and are compared against cell values as

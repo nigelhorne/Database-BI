@@ -20,6 +20,7 @@ use Mojo::File;
 use Mojo::JSON		qw(encode_json decode_json from_json to_json);
 use Mojo::Parameters;
 use Mojo::URL;
+use Encode ();
 use Mojo::Util		qw(url_escape encode xml_escape secure_compare);
 use Digest::SHA		qw(hmac_sha256_hex);
 use Scalar::Util ();
@@ -73,6 +74,11 @@ Readonly my @SUPPORTED_EXT => qw( csv db sql sqlite sqlite3 xml tsv psv xlsx jso
 # Use \z (absolute end-of-string) not $ (which permits a trailing \n before \z).
 # A query param decoded from "file.csv%0A" has basename "sales.csv\n"; without \z
 # that passes the extension guard and reaches realpath with an embedded newline.
+# Text formats an upload may be converted from another encoding (XML names its
+# own; the rest are binary).
+Readonly my $TEXT_EXT_RE   => qr/\.(?:csv|tsv|psv|json|jsonl|ndjson)\z/i;
+# The encodings an upload can be converted from, as /open?enc= may name them.
+Readonly my %UPLOAD_ENCODINGS => map { $_ => 1 } qw(Windows-1252 UTF-16LE UTF-16BE);
 Readonly my $EXT_RE        => do { my $p = join '|', @SUPPORTED_EXT; qr/\.(?:$p)\z/i };
 
 # Table name safe-identifier pattern -- must match DataSource's TABLE_NAME_RE
@@ -161,6 +167,7 @@ Readonly my %MESSAGES => (
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, JSON, SQLite (.sql, .sqlite, .sqlite3), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_upload_save      => 'Could not save uploaded file',
+	upload_encoding_note   => 'This file is not UTF-8, so it was read as %s and saved as UTF-8. If accented letters or symbols look wrong, it was in another encoding.',
 	error_uploads_clear    => 'Could not clear the uploaded files',
 	error_export_sqlite    => 'Could not build the SQLite export; the server log has the reason',
 	error_path_required    => '"path" parameter is required',
@@ -8716,6 +8723,13 @@ sub open_file ($self) {
 
 	my ($page, $per_page, $offset) = $self->_pagination;
 
+	# An upload that was converted from another encoding says so (the name is
+	# one of a short list, so the reader cannot put text of their own here).
+	my $enc = $self->param('enc');
+	if (defined $enc && $UPLOAD_ENCODINGS{$enc}) {
+		$self->stash(upload_encoding_note => $self->_i18n('upload_encoding_note', $enc));
+	}
+
 	# Bare redis:// URL (no table name) -- redirect to key-listing page.
 	if ($file_path =~ $REDIS_URL_RE) {
 		return $self->redirect_to('/tables?l=' . url_escape($file_path));
@@ -10207,7 +10221,8 @@ Multipart form upload, field name: C<file>.
 
 =head4 OUTPUT
 
-  200 application/json   { "url": "/open?path=/abs/path/file.csv", "path": "/abs/path/file.csv" }
+  200 application/json   { "url": "/open?path=/abs/path/file.csv", "path": "/abs/path/file.csv",
+                           "encoding": "UTF-8" }
   400 application/json   { "error": "No file received" }
   413 application/json   { "error": "File too large to upload (limit: 50 MB)" }
   415 application/json   { "error": "Unsupported file type. Accepted: ..." }
@@ -10220,8 +10235,16 @@ Multipart form upload, field name: C<file>.
   error_upload_too_large  -- the upload body exceeded MAX_UPLOAD_MIB (50 MiB).
   error_upload_save       -- move_to failed or the destination file was not
                              created (I/O error, full disk, permission error).
+  upload_encoding_note    -- a CSV, TSV, PSV, JSON or JSON Lines upload was not
+                             UTF-8; it was converted, and the reply's C<note>
+                             and the table page say what it was read as.
 
 =head3 IMPLEMENTATION NOTES
+
+A text upload that is not valid UTF-8 is read as Windows-1252 and saved as
+UTF-8; one with a UTF-16 byte-order mark is read as UTF-16 (C<_convert_upload>).
+The reply then carries C<encoding> and C<note>, and C<url> ends C<&enc=NAME>,
+which makes the table page show the note.  Other files are not touched.
 
 The C<move_to> call is wrapped with the C<eval { ...; 1 }> idiom (not
 C<eval {}> + C<if ($@)>).  Mojolicious dispatch and DESTROY-phase evals can
@@ -10316,10 +10339,44 @@ sub upload_file ($self) {
 		);
 	}
 
+	# A file that is not UTF-8 is converted, and the reply says what it was read as.
+	my ($encoding, $converted) = $filename =~ $TEXT_EXT_RE ? _convert_upload($dest) : ('UTF-8', 0);
+	$encoding //= 'UTF-8';
+
 	$self->render(json => {
-		url  => '/open?path=' . url_escape($dest),
+		url  => '/open?path=' . url_escape($dest) . ($converted ? '&enc=' . url_escape($encoding) : ''),
 		path => $dest,
+		encoding => $encoding,
+		($converted ? (note => $self->_i18n('upload_encoding_note', $encoding)) : ()),
 	});
+}
+
+# _convert_upload($path) -> ($encoding, $converted)
+#
+# Purpose: Names the encoding of an uploaded text file and, when it is not
+#          UTF-8, rewrites it as UTF-8, which is what every reader here expects.
+# Entry:   $path is the staged copy (nobody else reads it yet).
+# Exit:    ('UTF-8', 0) for ASCII and UTF-8, with or without a BOM (a BOM is
+#          read past elsewhere); ('UTF-16LE' | 'UTF-16BE', 1) for a file with
+#          that BOM; ('Windows-1252', 1) for any other bytes, the encoding of
+#          Excel's plain "CSV" on Windows (Latin-1 text reads the same except
+#          for 0x80-0x9F).  An unreadable or unwritable file is left alone.
+sub _convert_upload ($path) {
+	local ($@, $!);
+	my $bytes = eval { Mojo::File->new($path)->slurp };
+	return ('UTF-8', 0) unless defined $bytes && length $bytes;
+	my ($name, $text);
+	if ($bytes =~ /\A\xFF\xFE(?!\x00\x00)/) {
+		($name, $text) = ('UTF-16LE', Encode::decode('UTF-16LE', substr($bytes, 2)));
+	} elsif ($bytes =~ /\A\xFE\xFF/) {
+		($name, $text) = ('UTF-16BE', Encode::decode('UTF-16BE', substr($bytes, 2)));
+	} elsif (eval { Encode::decode('UTF-8', $bytes, Encode::FB_CROAK() | Encode::LEAVE_SRC()); 1 }) {
+		return ('UTF-8', 0);
+	} else {
+		($name, $text) = ('Windows-1252', Encode::decode('cp1252', $bytes));
+	}
+	my $ok = eval { Mojo::File->new($path)->spurt(Encode::encode('UTF-8', $text)); 1 };
+	return $ok ? ($name, 1) : ('UTF-8', 0);
 }
 
 sub clear_uploads ($self) {

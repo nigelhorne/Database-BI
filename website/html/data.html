@@ -101,6 +101,10 @@
 	<em>is not empty</em> on that column picks out the cheques. A UTF-8
 	byte-order mark at the start of a file, which Excel's <em>CSV UTF-8</em>
 	writes, is read past, so it never becomes part of the first column's name.
+	A CSV, TSV, PSV, JSON or JSON Lines file dropped on the page that is not
+	UTF-8 is read as Windows-1252, which is what Excel's plain <em>CSV</em>
+	writes on Windows (or as UTF-16 when it starts with that byte-order mark).
+	It is saved as UTF-8 and the table page says which encoding was used.
 </p>
 <p>
 	A JSON file is a table when it is a list of objects, an object of objects
