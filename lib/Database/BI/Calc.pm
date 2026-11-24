@@ -68,7 +68,7 @@ our %MESSAGES = (
 	error_time_format       => "Unsupported time format token %s",
 	error_time_format_date  => "Time format '%s' must name a date, with a year, a month and a day token",
 	error_const_arg         => "The second argument of %s() must be a quoted literal",
-	error_span_interval     => "Unknown time bucket '%s'; use a count and one of s, m, h, d, w, mon, q or y, for example 1h or 15m",
+	error_span_interval     => "Unknown time bucket '%s'; use a count and one of s, m, h, d, w, mon, q, y, dec or c, for example 1h or 15m",
 	error_pattern_too_long  => "Pattern '%s' is longer than %d characters",
 	error_pattern_construct => "Pattern '%s' uses %s, which is not allowed",
 	error_pattern_invalid   => "Pattern '%s' does not compile: %s",
@@ -492,15 +492,23 @@ sub _shift_days {
 #          lives: a count and a unit, 'mon' for months (because 'm' is
 #          minutes) and 'q' for quarters.  A count below one and an unknown
 #          unit are both undef rather than a bucket that quietly means
-#          something else.  Public because the span= sugar validates an
+#          something else.  'dec' (ten years) and 'c' (a hundred) come back as
+#          years, so { n => 10, unit => 'y' } is both '1dec' and '10y'.  Public because the span= sugar validates an
 #          interval before it builds the expression, and one rule with two
 #          callers beats two rules that drift apart.
 sub span_interval {
 	my ($interval) = @_;
 	return undef unless defined $interval && !ref $interval && length $interval;
-	my ($n, $unit) = $interval =~ /\A(\d+)(mon|s|m|h|d|w|q|y)\z/ or return undef;
+	my ($n, $unit) = $interval =~ /\A(\d+)(mon|dec|s|m|h|d|w|q|y|c)\z/ or return undef;
 	$n += 0;
 	return undef if $n < 1;
+
+	# A decade and a century are only a count of years, so the label code below
+	# has one rule for all three.
+	if ($unit eq 'dec' || $unit eq 'c') {
+		$n *= $unit eq 'dec' ? 10 : 100;
+		$unit = 'y';
+	}
 
 	my $secs = $unit eq 's' ? 1
 		: $unit eq 'm' ? 60
@@ -596,6 +604,15 @@ sub capture_of {
 sub _span_label {
 	my ($value, $interval) = @_;
 	my $t = _parse_time($value);
+
+	# A column of years -- 1887, with no month or day -- is not a time, but a
+	# year bucket (1y, a decade, a century) is exactly what one is for.  Only
+	# a year unit reads it: a month or a day of "1887" would be made up.
+	if (!$t && $interval->{unit} eq 'y' && defined $value && !ref $value
+		&& $value =~ /\A\s*([0-9]{3,4})\s*\z/) {
+		my $year = $1 + 0;
+		return sprintf('%04d-01-01', $year - ($year % $interval->{n}));
+	}
 	return undef unless $t;
 
 	my $n    = $interval->{n};
@@ -1468,7 +1485,8 @@ for C<hour()>, C<minute()> and C<second()> rather than a made-up zero.
     span(v, '<n><unit>')     the ISO label of the bucket v falls in
 
 The unit is C<s>, C<m>, C<h>, C<d>, C<w>, C<mon> (months, because C<m> is
-minutes), C<q> (quarters) or C<y>, and the count is one or more.  The label is
+minutes), C<q> (quarters), C<y>, C<dec> (decades) or C<c> (centuries), and the
+count is one or more.  The label is
 the start of the half-open interval containing the value:
 
     span(v, '1s')    2026-10-27T14:05:03
@@ -1480,6 +1498,13 @@ the start of the half-open interval containing the value:
     span(v, '1mon')  2026-10-01        the first of that month
     span(v, '1q')    2026-10-01        the first day of that quarter
     span(v, '1y')    2026-01-01
+    span(v, '1dec')  2020-01-01        a decade starts in a year ending 0; 10y is the same
+    span(v, '1c')    2000-01-01        a century starts in a year ending 00; 100y is the same
+
+A column that holds only a year -- C<1887> -- is read as the first of January of
+that year by the year units (C<y>, C<dec>, C<c>), so C<span(year, '1dec')> is
+C<1880-01-01>.  The other units give C<undef> for it, because a month or a day
+would be made up.
 
 A count above one widens the bucket without moving the calendar: C<3mon>
 aligns to January, April, July and October because a month count runs from
@@ -1502,6 +1527,7 @@ The interval rule is also a function:
 
     Database::BI::Calc::span_interval('1mon')   # { n => 1, unit => 'mon' }
     Database::BI::Calc::span_interval('15m')    # { n => 15, unit => 'm', secs => 60 }
+    Database::BI::Calc::span_interval('1dec')   # { n => 10, unit => 'y' }
     Database::BI::Calc::span_interval('0h')     # undef
 
 =head3 API SPECIFICATION

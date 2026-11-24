@@ -294,7 +294,7 @@ Readonly my %MESSAGES => (
 	error_filter_op             => 'Unknown filter operator "%s" in f=%s; expected one of: %s',
 	error_filter_column         => 'There is no column called "%s" to filter on (f=%s); the columns are: %s',
 	error_range_column_unknown  => 'There is no column called "%s" for the time range (rcol=%s); the columns are: %s',
-	error_span_interval         => 'Unknown time bucket "%s" for span=; use a count and one of s, m, h, d, w, mon, q or y, for example 1h or 15m',
+	error_span_interval         => 'Unknown time bucket "%s" for span=; use a count and one of s, m, h, d, w, mon, q, y, dec or c, for example 1h or 15m',
 	error_span_no_column        => 'A time bucket needs one column to bucket: add tcol=<column>, or name exactly one of the dimensions this page already takes',
 	error_span_tcol_orphan      => 'tcol=%s names the column to bucket, but span=<interval> is missing',
 	error_span_tcol_unknown     => 'Column "%s" is not in this view, so there is nothing to bucket',
@@ -8808,7 +8808,7 @@ sub open_file ($self) {
 	my $filename = $file->basename;
 	my $lspec    = 'path:' . $file->to_string;
 
-	my $it = $self->param('it') // $named_it;	# optional: select a specific internal table
+	my $it = $self->param('it') // $self->param('sheet') // $named_it;	# optional: select a specific internal table
 
 	# A table opened from the schema browser belongs to a file in data_dir.  Name
 	# it as table:store/sales so the join, filter and export panels keep the
@@ -9152,8 +9152,13 @@ count.  Filters are not applied.
 
 =head4 OUTPUT
 
-  200 application/json   { "min": "YYYY-MM-DD", "max": "YYYY-MM-DD" }
+  200 application/json   { "min": "YYYY-MM-DD", "max": "YYYY-MM-DD",
+                           "windows": [ { "name", "label", "lo", "hi" }, ... ] }
   200 application/json   { "min": null, "max": null }  (no parseable dates)
+
+windows are the first and last decade and year of the column's own extent
+(Database::BI::Util::data_windows), which the Time range menu offers as "First
+decade in the data" and so on.  A window as long as the data is not listed.
   400 application/json   { "error": "..." }
 
 =head3 FORMAL SPECIFICATION
@@ -9192,7 +9197,13 @@ sub range_api ($self) {
 
 	return $self->render(json => { min => undef, max => undef }) unless @dates;
 	@dates = sort @dates;
-	$self->render(json => { min => $dates[0], max => $dates[-1] });
+	# windows: the first and last decade and year of this column, for the Time
+	# range menu's entries that follow the data (see Util::data_windows).
+	$self->render(json => {
+		min     => $dates[0],
+		max     => $dates[-1],
+		windows => Database::BI::Util::data_windows($dates[0], $dates[-1]),
+	});
 }
 
 =head2 join_tables
@@ -11348,7 +11359,7 @@ sub tables_view ($self) {
 
 	if ($spec =~ /\Atable:([A-Za-z0-9_]+)\z/) {
 		my $data_dir   = _data_dir_for($self->app);
-		my @exts       = qw(sql sqlite sqlite3 db json);
+		my @exts       = qw(sql sqlite sqlite3 db json xlsx);
 		my $table_name = _table_stem($data_dir, $1, @exts) // lc $1;
 		for my $ext (@exts) {
 			my $p = $data_dir->child("$table_name.$ext");
@@ -11368,7 +11379,7 @@ sub tables_view ($self) {
 		}
 		my $file = eval { Mojo::File->new($path_arg)->realpath };
 		return $self->reply->not_found
-			unless defined $file && -f $file && $file->basename =~ /\.(?:sql|sqlite|sqlite3|db|json)\z/i;
+			unless defined $file && -f $file && $file->basename =~ /\.(?:sql|sqlite|sqlite3|db|json|xlsx)\z/i;
 		$file_path  = $file->to_string;
 		($db_label  = $file->basename) =~ s/\.[^.]+\z//;
 		$back_url   = '/browse?path=' . url_escape($file->dirname->to_string);
@@ -11468,6 +11479,8 @@ sub tables_view ($self) {
 		# listed by Database::Join.
 		my $schema = $file_path =~ /\.json\z/i
 			? eval { Database::BI::Model::DataSource->json_lists($file_path) }
+			: $file_path =~ /\.xlsx\z/i
+			? eval { Database::BI::Model::DataSource->xlsx_sheets($file_path) }
 			: eval { require Database::Join::Catalog; Database::Join::Catalog->schema(file => $file_path) };
 		return $self->reply->not_found unless $schema;
 		for my $table_info (@{$schema}) {
@@ -11476,7 +11489,7 @@ sub tables_view ($self) {
 			# Database::Abstraction refuses this name, so the card says so
 			# rather than linking to an error.  A JSON list's name never
 			# reaches SQL, so any name opens.
-			if ($tname !~ $TABLE_NAME_RE && $file_path !~ /\.json\z/i) {
+			if ($tname !~ $TABLE_NAME_RE && $file_path !~ /\.(?:json|xlsx)\z/i) {
 				(my $safe = $tname) =~ s/[^A-Za-z0-9_]/_/g;
 				$safe = "_$safe" unless $safe =~ /\A[A-Za-z_]/;
 				push @tables, { name => $tname, columns => \@cols, unusable => 1, safe_name => $safe };

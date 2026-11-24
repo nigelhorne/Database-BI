@@ -366,7 +366,9 @@ perl Makefile.PL
     Opens any supported file by absolute path (`?path=`).  Accepts `?f=`
     filters.  When the file is a multi-table SQLite database, passing
     `?it=<table>` selects a specific internal table instead of the
-    auto-detected first one.
+    auto-detected first one.  An Excel workbook with several sheets is treated the
+    same way: `/open` sends you to `/tables`, which lists the sheets, and
+    `?sheet=<name>` (or `?it=`) opens one.
 
 - `GET /join`
 
@@ -1302,6 +1304,16 @@ this_year, last_year
 A `this` period ends today; the completed one is `last_month`,
 `last_quarter` and so on.
 
+For historical data the Time range menu has four more entries, under
+"Anchored to the data": the first decade, the last decade, the first year and
+the last year of the chosen column's own extent (`/api/range` lists them as
+`windows`, from ["data\_windows" in Database::BI::Util](https://metacpan.org/pod/Database%3A%3ABI%3A%3AUtil#data_windows)).  A window is counted in
+calendar years from the first day in the data, or back from the last, and one
+as long as the data is not offered.  Unlike the names above they are not
+`range=` values: choosing one adds the two filters `col:ge:lo` and
+`col:le:hi` for that column, so the link keeps the dates it was made with
+and the toolbar shows them as ordinary chips.
+
 The range is applied as two ordinary filters on that column --
 `col:ge:lo` and `col:le:hi` -- so the table view, every chart, the
 pivot, the column statistics, the insights page, the exports and a saved canvas
@@ -1347,8 +1359,9 @@ The chart and pivot panels carry a `Time bucket` menu for it, and the line
 graph panel an `Aggregate` menu beside it and a `Lines by` menu, which
 sends `series=`.
 
-`span=` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`
-or `y` -- `15m`, `6h`, `2d`, `3mon`, `1q` -- and is refused, naming the
+`span=` takes a count and one of `s`, `m`, `h`, `d`, `w`, `mon`, `q`,
+`y`, `dec` (a decade) or `c` (a century) -- `15m`, `6h`, `2d`, `3mon`,
+`1q`, `1dec` -- and is refused, naming the
 interval and the parameter, when the count is zero or the unit is not one of
 those.  It expands into the calculated field a reader could have typed,
 `<col>_span:span(<col>,'1h')`, so there is one pipeline and one set of

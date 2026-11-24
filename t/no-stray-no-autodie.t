@@ -14,7 +14,7 @@ use Test::More;
 use File::Find;
 
 my @files;
-find({ no_chdir => 1, wanted => sub { push @files, $_ if /\.pm\z/ || m{/script/[^/]+\z} && -f } }, 'lib', 'script');
+find({ no_chdir => 1, wanted => sub { push @files, $_ if /\.pm\z/ || m{\Ascript/[^/]+\z} && -f } }, 'lib', 'script');
 
 ok(scalar @files, 'there are files to check');
 

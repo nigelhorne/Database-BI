@@ -289,6 +289,7 @@ Readonly our %MESSAGES => (
 	error_json_invalid		=> 'DataSource: "%s" is not valid JSON: %s',
 	error_json_no_rows		=> 'DataSource: "%s" holds no table: it needs a list of objects, an object of objects, or an object holding one list of objects',
 	error_json_list_not_found	=> 'DataSource: JSON file "%s" has no list of objects called "%s"',
+	error_sheet_not_found       => 'DataSource: workbook "%s" has no sheet called "%s"; its sheets are: %s',
 	warn_empty_result		=> 'DataSource: fetch_all returned no records for table "%s"',
 	warn_data_normalised		=> 'DataSource: result from backend was a hashref; converted to arrayref for table "%s"',
 );
@@ -426,6 +427,11 @@ C<internal_table> selects a named table inside a multi-table SQLite file.
 When omitted, C<DataSource> auto-selects the first user table whose name
 matches the filename stem; if no match, it picks the first table found.
 Supplying a name that does not exist in the file croaks C<error_table_not_found>.
+
+An C<.xlsx> workbook with two or more sheets works the same way: each sheet
+is a table, C<internal_table> names one (the sheet named after the file, else
+the first, is read without it), C<sqlite_tables> lists them and C<xlsx_sheets>
+describes them.  A sheet that does not exist croaks C<error_sheet_not_found>.
 
 A C<.json> file is read as a table when it is a list of objects, an object
 of objects (each key a row, kept in a column C<id>, or C<key> when the rows
@@ -982,11 +988,25 @@ sub _detect_file_info :Protected {
 			if ($ok) {
 				my $parser = Spreadsheet::ParseXLSX->new;
 				my $wb     = $parser->parse($path);
-				# The sheet D::A will read: the one named after the table, or
-				# failing that the first.
-				my $sheet_name = _safe_table_name($table);
-				my ($ws) = $wb ? grep { $_->get_name eq $sheet_name } $wb->worksheets : ();
-				$ws //= $wb ? $wb->worksheet(0) : undef;
+
+				# A workbook's sheets are its tables, as a JSON file's lists are:
+				# with two or more, _init_backend lists them (so /open offers the
+				# picker) and $want, the internal_table, names the one to read.
+				my @sheets = $wb ? map { $_->get_name } $wb->worksheets : ();
+				my %multi  = @sheets > 1 ? (_json_lists => [ @sheets ]) : ();
+
+				# The sheet to read: the one asked for, else the one named after
+				# the table, else the first.
+				my $ws;
+				if (defined $want) {
+					($ws) = grep { $_->get_name eq $want } $wb->worksheets if $wb;
+					croak _fmt('error_sheet_not_found', $table, $want, join(', ', @sheets))
+						unless $ws;
+				} else {
+					my $sheet_name = _safe_table_name($table);
+					($ws) = $wb ? grep { $_->get_name eq $sheet_name } $wb->worksheets : ();
+					$ws //= $wb ? $wb->worksheet(0) : undef;
+				}
 
 				unless ($ws) {
 					# Empty workbook or parse failure: sentinel so _init_backend
@@ -998,7 +1018,7 @@ sub _detect_file_info :Protected {
 				my ($cmin, $cmax) = $ws->col_range;
 
 				# No rows at all (blank worksheet).
-				return { _file_is_empty => 1, file_size => -s $path }
+				return { _file_is_empty => 1, file_size => -s $path, %multi }
 					if $rmax < $rmin;
 
 				# Row 0 = column headers, spelt as D::A will key the rows.  A
@@ -1011,8 +1031,34 @@ sub _detect_file_info :Protected {
 				}
 
 				# No parseable column names.
-				return { _file_is_empty => 1, file_size => -s $path }
+				return { _file_is_empty => 1, file_size => -s $path, %multi }
 					unless @cols;
+
+				# D::A names a worksheet in SQL and refuses one whose name is not
+				# a safe identifier ("Q1 Sales"), so a chosen sheet like that is
+				# read here and handed over as a flat JSON copy, as a JSON file is.
+				if (defined $want && $ws->get_name !~ $TABLE_NAME_RE) {
+					my @rows;
+					my %keep = map { $_ => 1 } @cols;
+					for my $r ($rmin + 1 .. $rmax) {
+						my %row;
+						my $any;
+						for my $c ($cmin .. $cmax) {
+							my $h = $ws->get_cell($rmin, $c);
+							my $hn = defined $h ? ($h->value // '') : '';
+							next unless $keep{$hn};
+							my $cell = $ws->get_cell($r, $c);
+							my $v = defined $cell ? $cell->value : undef;
+							$any = 1 if defined $v && length $v;
+							$row{$hn} = defined $v ? "$v" : '';
+						}
+						push @rows, \%row if $any;
+					}
+					return { _file_is_empty => 1, file_size => -s $path, %multi } unless @rows;
+					return { _json => { rows => \@rows, columns => \@cols, list => $ws->get_name },
+						columns => \@cols, id => (grep({ $_ =~ $TABLE_NAME_RE } @cols))[0] // 'entry',
+						file_size => -s $path, %multi };
+				}
 
 				my ($safe_id) = grep { $_ =~ $TABLE_NAME_RE } @cols;
 
@@ -1022,6 +1068,8 @@ sub _detect_file_info :Protected {
 					columns   => \@cols,
 					id        => $safe_id // 'entry',
 					file_size => -s $path,
+					(defined $want ? (_sheet => $ws->get_name) : ()),
+					%multi,
 				};
 			}
 		}
@@ -2013,6 +2061,8 @@ sub _cache_key :Protected {
 		my $mtime = (stat($self->{_file_path}))[9];
 		return defined $mtime
 			? 'bi:file:' . $self->{_file_path} . ':' . $mtime
+				# Another table or sheet of one file is other rows.
+				. (defined $self->{_internal_table} ? ':' . $self->{_internal_table} : '')
 			: undef;
 	}
 
@@ -2246,6 +2296,9 @@ sub _init_backend :Protected {
 	# D::A uses 'dbname' to find the file and 'table' for the SELECT statement,
 	# so both must be set to the actual table name when a mismatch is corrected.
 	my $da_table = $table;	# D::A 'table' param -- controls the SQL table name
+	# A workbook: D::A reads the worksheet named by 'table', and dbname alone
+	# finds the file, so the sheet chosen above is passed as the table.
+	$da_table = $info->{_sheet} if defined $info->{_sheet};
 	if (exists $info->{sqlite_tables}) {
 		my @tbls = @{ $info->{sqlite_tables} };
 		croak $self->_msg('error_no_tables', $raw_table) unless @tbls;
@@ -2518,6 +2571,58 @@ sub json_lists {
 	return [ map {
 		{ name => $_, columns => _json_columns($text, $data->{$_}, 3, $_) }
 	} _json_list_keys($text, $data) ];
+}
+
+=head2 xlsx_sheets
+
+  my $sheets = Database::BI::Model::DataSource->xlsx_sheets('/data/budget.xlsx');
+  # [ { name => 'Q1 Sales', columns => ['region', 'amount'] }, { name => 'Costs', ... } ]
+
+The worksheets of a workbook, in the workbook's order, each with the first
+cells of its header row, for the C</tables> picker -- the cards a SQLite file's
+tables and a JSON file's lists have.  C<< new(internal_table => $name) >> opens
+one.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+  $path : string, a .xlsx file
+
+=head4 OUTPUT
+
+An array reference of C<< { name => STRING, columns => ARRAYREF } >>; C<[]> when
+the file cannot be read, has no sheets, or L<Spreadsheet::ParseXLSX> is not
+installed.  A blank sheet has no columns.
+
+=head3 MESSAGES
+
+None.
+
+=cut
+
+sub xlsx_sheets {
+	my ($class, $path) = @_;
+	local ($@, $!);
+	return [] unless defined $path && -r $path;
+	return [] unless eval { require Spreadsheet::ParseXLSX; 1 };
+	my $wb = eval { Spreadsheet::ParseXLSX->new->parse($path) } or return [];
+	my @out;
+	for my $ws ($wb->worksheets) {
+		my @cols;
+		my ($rmin, $rmax) = $ws->row_range;
+		my ($cmin, $cmax) = $ws->col_range;
+		if ($rmax >= $rmin) {
+			for my $c ($cmin .. $cmax) {
+				my $cell = $ws->get_cell($rmin, $c);
+				my $name = defined $cell ? ($cell->value // '') : '';
+				push @cols, $name if $name =~ /[^\s"]/;
+				last if @cols >= 3;
+			}
+		}
+		push @out, { name => $ws->get_name, columns => \@cols };
+	}
+	return \@out;
 }
 
 =head2 columns

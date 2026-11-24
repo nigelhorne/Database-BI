@@ -23,6 +23,8 @@ use File::Temp qw(tempdir);
 use Mojo::File;
 use Mojo::JSON;
 use Mojo::Util qw(url_escape);
+use IPC::Open3 qw(open3);
+use Symbol qw(gensym);
 
 # Fresh, empty folders: no data, no saved models, no uploads.  They are given
 # at construction, because the open_table helper reads data_dir once, at start.
@@ -523,15 +525,31 @@ subtest 'Empty and header-only files give no rows and no warnings' => sub {
 # 7. Command-line style first use
 # ---------------------------------------------------------------------------
 subtest 'The launcher refuses nonsense in words' => sub {
-	my $out = `$^X -Ilib script/database-bi password </dev/null 2>&1`;
-	my $status = $? >> 8;
+	# open3, not a shell redirect from /dev/null, which Windows has not got; and
+	# on Windows an empty line, not end-of-file, because a child started by open3
+	# can inherit the write end of its own STDIN (see t/login.t).
+	my $run = sub {
+		my ($input, @args) = @_;
+		my $err = gensym;
+		my $pid = open3(my $in, my $out, $err, $^X, '-Ilib', 'script/database-bi', @args);
+		print {$in} $input if length $input;
+		close $in;
+		my $stdout = do { local $/; <$out> } // '';
+		my $stderr = do { local $/; <$err> } // '';
+		waitpid $pid, 0;
+		my $status = $? >> 8;
+		s/\r\n/\n/g for $stdout, $stderr;
+		return ($status, "$stdout$stderr");
+	};
+
+	my ($status, $out) = $run->($^O eq 'MSWin32' ? "\n" : '', 'password');
 	isnt($status, 0, 'password with nothing to read fails');
 	like($out, qr/\S/, 'and says something');
 	unlike($out, qr/uninitialized/, 'without a warning');
 
-	$out = `$^X -Ilib script/database-bi /no/such/file.csv 2>&1`;
-	is($? >> 8, 2, 'a file that is not there exits 2');
-	like($out, qr/no\/such|file/i, 'and names it');
+	($status, $out) = $run->('', '/no/such/file.csv');
+	is($status, 2, 'a file that is not there exits 2');
+	like($out, qr/no.such|file/i, 'and names it');
 };
 
 done_testing();

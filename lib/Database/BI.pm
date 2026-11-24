@@ -25,12 +25,6 @@ use version; our $VERSION = version->declare('0.024.0');
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
 # Features:
-# TODO: More JSON: JSON Lines (.jsonl, .ndjson); optional dot-path flattening
-#	of nested objects (address.city) instead of JSON text; reading a large
-#	file as a stream rather than all at once.
-# TODO: Ranges for historical data: windows anchored to the data rather than
-#	to today ("the first decade in the data"), and decade and century span=
-#	buckets for year columns.
 # TODO: Multi-sheet XLSX: ?sheet= and a sheet picker, through the /tables
 #	cards that JSON and SQLite use.
 # TODO: A better Print: a heading naming the view's filters and range, a
@@ -558,7 +552,9 @@ is set to that at startup unless it is already set).
 Opens any supported file by absolute path (C<?path=>).  Accepts C<?f=>
 filters.  When the file is a multi-table SQLite database, passing
 C<?it=E<lt>tableE<gt>> selects a specific internal table instead of the
-auto-detected first one.
+auto-detected first one.  An Excel workbook with several sheets is treated the
+same way: C</open> sends you to C</tables>, which lists the sheets, and
+C<?sheet=E<lt>nameE<gt>> (or C<?it=>) opens one.
 
 =item C<GET /join>
 
@@ -1454,6 +1450,16 @@ dates it happened to resolve to when it was written.  The vocabulary is
 A C<this> period ends today; the completed one is C<last_month>,
 C<last_quarter> and so on.
 
+For historical data the Time range menu has four more entries, under
+"Anchored to the data": the first decade, the last decade, the first year and
+the last year of the chosen column's own extent (C</api/range> lists them as
+C<windows>, from L<Database::BI::Util/data_windows>).  A window is counted in
+calendar years from the first day in the data, or back from the last, and one
+as long as the data is not offered.  Unlike the names above they are not
+C<range=> values: choosing one adds the two filters C<< col:ge:lo >> and
+C<< col:le:hi >> for that column, so the link keeps the dates it was made with
+and the toolbar shows them as ordinary chips.
+
 The range is applied as two ordinary filters on that column --
 C<< col:ge:lo >> and C<< col:le:hi >> -- so the table view, every chart, the
 pivot, the column statistics, the insights page, the exports and a saved canvas
@@ -1497,8 +1503,9 @@ The chart and pivot panels carry a C<Time bucket> menu for it, and the line
 graph panel an C<Aggregate> menu beside it and a C<Lines by> menu, which
 sends C<series=>.
 
-C<span=> takes a count and one of C<s>, C<m>, C<h>, C<d>, C<w>, C<mon>, C<q>
-or C<y> -- C<15m>, C<6h>, C<2d>, C<3mon>, C<1q> -- and is refused, naming the
+C<span=> takes a count and one of C<s>, C<m>, C<h>, C<d>, C<w>, C<mon>, C<q>,
+C<y>, C<dec> (a decade) or C<c> (a century) -- C<15m>, C<6h>, C<2d>, C<3mon>,
+C<1q>, C<1dec> -- and is refused, naming the
 interval and the parameter, when the count is zero or the unit is not one of
 those.  It expands into the calculated field a reader could have typed,
 C<< <col>_span:span(<col>,'1h') >>, so there is one pipeline and one set of

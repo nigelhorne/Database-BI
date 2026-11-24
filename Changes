@@ -1,6 +1,19 @@
 Revision history for Database-BI
 
 0.025.0
+	[ Enhancements ]
+	- Time buckets: span=1dec and span=1c group by decade and century
+	  (2dec, 5c and so on count from year 0).  A column that holds only a
+	  year, such as 1887, now takes the year, decade and century buckets;
+	  it gave (unparseable) before.  The Time bucket menus offer both.
+	- Time range, for historical data: first and last decade and year in
+	  the data, counted from the chosen column's own earliest and latest
+	  day, not from today.  They add ordinary date filters, so links keep
+	  the dates.  /api/range lists them as windows.
+	- Excel workbooks with several sheets: /open sends you to the table
+	  picker, which lists each sheet; ?sheet=NAME (or it=NAME) opens one,
+	  including a sheet whose name has spaces.
+
 	[ Bug fixes ]
 	- On perl 5.28 every save (an export, a calculated field, a canvas) was
 	  a 500 error, "Undefined subroutine called", and so was bi-extract.

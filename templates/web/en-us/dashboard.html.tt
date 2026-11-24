@@ -376,6 +376,12 @@
     [%- FOREACH rp IN time_range_presets -%]
     <option value="[% rp.name | html %]" data-lo="[% rp.lo | html %]" data-hi="[% rp.hi | html %]"[% IF time_range and time_range.name == rp.name %] selected[% END %]>[% rp.label | html %]</option>
     [%- END -%]
+    <optgroup label="Anchored to the data" id="dash-range-data">
+      <option value="data_first_decade" disabled>First decade in the data</option>
+      <option value="data_last_decade" disabled>Last decade in the data</option>
+      <option value="data_first_year" disabled>First year in the data</option>
+      <option value="data_last_year" disabled>Last year in the data</option>
+    </optgroup>
   </select>
   <select id="dash-range-col" aria-label="Column the time range applies to">
     <option value="">&#x2014; column &#x2014;</option>
@@ -691,6 +697,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="join-field">
@@ -782,6 +790,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -858,6 +868,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -934,6 +946,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -1005,6 +1019,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -1145,6 +1161,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -1235,6 +1253,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </div>
       <div class="graph-btn-col">
@@ -1669,6 +1689,8 @@
           <option value="1mon">1 month</option>
           <option value="1q">1 quarter</option>
           <option value="1y">1 year</option>
+          <option value="1dec">1 decade</option>
+          <option value="1c">1 century</option>
         </select>
       </span>
       <span id="pivot-tcol-wrap" hidden style="margin-left:0.75rem;white-space:nowrap" title="Which row dimension the bucket replaces">
@@ -3393,9 +3415,35 @@ function biDetectColType(colName) {
     location.href = u.toString();
   }
 
+  // The windows that follow the data (the first decade in it, and so on) are
+  // worked out by /api/range from the column's own earliest and latest day.
+  // They are applied as ordinary filters on that column, ge the start and le the
+  // end, so every page, chart and export reads them as it reads any filter, and
+  // a link keeps the dates it was made with.
+  var anchored = {};
+
+  function goAnchored(w, col) {
+    var u = new URL(location.href);
+    u.searchParams.delete('range');
+    u.searchParams.delete('rcol');
+    u.searchParams.delete('page');
+    var keep = u.searchParams.getAll('f').filter(function (f) {
+      return f.indexOf(col + ':ge:') !== 0 && f.indexOf(col + ':le:') !== 0;
+    });
+    u.searchParams.delete('f');
+    keep.forEach(function (f) { u.searchParams.append('f', f); });
+    u.searchParams.append('f', col + ':ge:' + w.lo);
+    u.searchParams.append('f', col + ':le:' + w.hi);
+    location.href = u.toString();
+  }
+
   function ask(name, col) {
     if (!name)       { go('', '');  return; }
     if (!col)        { colSel.focus(); return; }
+    if (name.indexOf('data_') === 0) {
+      if (anchored[name]) goAnchored(anchored[name], col);
+      return;
+    }
     go(name, col);
   }
 
@@ -3403,8 +3451,9 @@ function biDetectColType(colName) {
   // latest, has no rows to show.  /api/range answers from the whole dataset, so
   // the menu can say so before the reader picks it rather than after.
   function boundPresets() {
+    anchored = {};
     Array.from(presetSel.options).forEach(function (o) {
-      o.disabled = false;
+      o.disabled = o.value.indexOf('data_') === 0;
       o.removeAttribute('title');
     });
 
@@ -3415,6 +3464,13 @@ function biDetectColType(colName) {
       .then(function (r) { return r.json(); })
       .then(function (d) {
         if (!d || !d.min || !d.max) return;
+        (d.windows || []).forEach(function (w) {
+          var o = Array.from(presetSel.options).find(function (x) { return x.value === w.name; });
+          if (!o) return;
+          anchored[w.name] = w;
+          o.disabled = false;
+          o.title = w.lo + ' to ' + w.hi;
+        });
         var min = String(d.min).slice(0, 10);
         var max = String(d.max).slice(0, 10);
         Array.from(presetSel.options).forEach(function (o) {

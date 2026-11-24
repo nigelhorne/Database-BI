@@ -255,6 +255,9 @@ this_year, last_year</code></pre>
 	filters on that column, <code>col:ge:lo</code> and <code>col:le:hi</code>, so
 	the table, every chart, the pivot, the statistics, the insights, the exports
 	and a saved canvas all show the same rows. Filters you wrote are untouched.
+	For historical data the menu also offers the first and last decade and year
+	<em>in the data</em>, counted from the column's own earliest and latest day. These add
+	the same two filters with the dates written out, so a link keeps them.
 	Entries whose window falls entirely outside the data are disabled in the
 	filter bar, with the column's earliest and latest value in the tooltip.
 	With <code>time_zone</code> set in <code>database_bi.conf</code>, today and
@@ -404,6 +407,8 @@ order=&lt;column&gt;[:asc|desc]                  the order rows are read in</cod
 	Cross-row columns and calculated fields can build on each other. A calculated field can read
 	the new column, as in <code>c=half:ytd/2</code>, and <code>cs=</code> can read a calculated field or a
 	time bucket, as in <code>span=1mon&amp;tcol=at&amp;order=at_span&amp;cs=amount:running_total:ytd</code>.
+	A bucket is a count and a unit: <code>s m h d w mon q y</code>, <code>dec</code> for a decade or <code>c</code> for a century.
+	A column that holds only a year, such as 1887, takes the year units, so <code>span=1dec</code> groups it by decade.
 	Filters run before the pass, so a window is over the rows they leave. A filter that names a
 	column the pass writes runs last instead: <code>f=ytd:gt:50</code> selects rows without changing their totals.
 </p>

@@ -11,7 +11,7 @@ use POSIX ();
 use Carp qw(croak);
 
 our @EXPORT_OK = qw( urlencode parse_number iso_datetime minute_stamp iso8601_utc
-	parse_zone zone_wall frame_epoch );
+	parse_zone zone_wall frame_epoch data_windows );
 
 # A list rather than any three capitals, or 'SKU 100' would be read as 100.
 Readonly my $CURRENCY_CODES => join '|', qw(AUD BRL CAD CHF CNY DKK EUR GBP HKD INR JPY MXN NOK NZD SEK SGD USD ZAR);
@@ -227,6 +227,79 @@ sub iso8601_utc {
 	return sprintf '%04d-%02d-%02dT%02d:%02d:%02dZ', $tm[5] + 1900, $tm[4] + 1, $tm[3], $tm[2], $tm[1], $tm[0];
 }
 
+# _civil_from_days($days) -> ($y, $m, $d)
+#
+# The inverse of _days_from_civil above (Howard Hinnant's calendar arithmetic),
+# in whole days and no clock: a window anchored to the data is a matter of
+# dates, and mktime would make it depend on the server's zone.
+sub _civil_from_days {
+	my ($z) = @_;
+	$z += 719_468;
+	my $era = int(($z >= 0 ? $z : $z - 146_096) / 146_097);
+	my $doe = $z - $era * 146_097;
+	my $yoe = int(($doe - int($doe / 1_460) + int($doe / 36_524) - int($doe / 146_096)) / 365);
+	my $doy = $doe - (365 * $yoe + int($yoe / 4) - int($yoe / 100));
+	my $mp  = int((5 * $doy + 2) / 153);
+	my $d   = $doy - int((153 * $mp + 2) / 5) + 1;
+	my $m   = $mp + ($mp < 10 ? 3 : -9);
+	my $y   = $yoe + $era * 400 + ($m <= 2 ? 1 : 0);
+	return ($y, $m, $d);
+}
+
+# _plus_years($y, $m, $d, $n) -> days since 1970-01-01 of the same day $n years on
+# (29 February lands on the 28th in a year that has none).
+sub _plus_years {
+	my ($y, $m, $d, $n) = @_;
+	$y += $n;
+	my $leap = ($y % 4 == 0 && $y % 100 != 0) || $y % 400 == 0;
+	$d = 28 if $m == 2 && $d == 29 && !$leap;
+	return _days_from_civil($y, $m, $d);
+}
+
+# data_windows($min, $max) -> \@windows
+#
+# Purpose: Windows anchored to the data rather than to today: the first and
+#          the last decade and year of a column's own extent.  Only a window
+#          shorter than the extent is offered, because one as long as the data
+#          would show every row.
+# Entry:   $min and $max are 'YYYY-MM-DD', the column's earliest and latest day.
+# Exit:    A list of { name, label, lo, hi }, 'YYYY-MM-DD' bounds that are
+#          inclusive at both ends; [] when either bound is not a date or min is
+#          after max.
+# Notes:   A window is ten (or one) calendar years counted from the first day
+#          in the data: 1883-04-09 starts the first decade, which ends on
+#          1893-04-08.  The last window is counted back from the last day the
+#          same way.  It does not read the clock.
+sub data_windows {
+	my ($min, $max) = @_;
+	my @parts;
+	for my $day ($min, $max) {
+		return [] unless defined $day && !ref $day && $day =~ /\A([0-9]{4})-([0-9]{2})-([0-9]{2})\z/;
+		my ($y, $m, $d) = ($1 + 0, $2 + 0, $3 + 0);
+		return [] unless $m >= 1 && $m <= 12 && $d >= 1 && $d <= 31;
+		my @back = _civil_from_days(_days_from_civil($y, $m, $d));
+		return [] unless "@back" eq "$y $m $d";	# 31 February is not a day
+		push @parts, [ $y, $m, $d ];
+	}
+	my $first = _days_from_civil(@{ $parts[0] });
+	my $last  = _days_from_civil(@{ $parts[1] });
+	return [] if $first > $last;
+
+	my $iso = sub { sprintf '%04d-%02d-%02d', _civil_from_days($_[0]) };
+	my @out;
+	for my $span ([ decade => 10, 'decade' ], [ year => 1, 'year' ]) {
+		my ($name, $years, $word) = @$span;
+		my $end = _plus_years(@{ $parts[0] }, $years) - 1;
+		next unless $end < $last;	# the data is longer than the window
+		push @out, { name => "data_first_$name", label => "First $word in the data",
+			lo => $iso->($first), hi => $iso->($end) };
+		my $start = _plus_years(@{ $parts[1] }, -$years) + 1;
+		push @out, { name => "data_last_$name", label => "Last $word in the data",
+			lo => $iso->($start), hi => $iso->($last) };
+	}
+	return \@out;
+}
+
 1;
 
 __END__
@@ -358,6 +431,33 @@ It is its argument when there is no zone, or the zone is C<local>.
 A list: the day (C<YYYY-MM-DD>), then the hour, minute and second as written
 (two digits each, C<undef> when absent), or the empty list when the value is
 not an ISO date or timestamp.
+
+=head2 data_windows
+
+Windows anchored to a column's own extent, not to today: "the first decade in
+the data".
+
+    data_windows('1883-04-09', '1957-01-02');
+    # [ { name => 'data_first_decade', label => 'First decade in the data',
+    #     lo => '1883-04-09', hi => '1893-04-08' },
+    #   { name => 'data_last_decade', ..., lo => '1947-01-03', hi => '1957-01-02' },
+    #   { name => 'data_first_year', ... }, { name => 'data_last_year', ... } ]
+
+A window as long as the data, or longer, is left out.
+
+=head3 API SPECIFICATION
+
+=head4 INPUT
+
+    $min: string, the earliest day, YYYY-MM-DD
+    $max: string, the latest day, YYYY-MM-DD
+
+=head4 OUTPUT
+
+An array reference of hash references C<{ name, label, lo, hi }> with
+inclusive C<YYYY-MM-DD> bounds, in the order first decade, last decade, first
+year, last year.  Empty when a bound is not a real date or C<$min> is after
+C<$max>.  It does not read the clock or the time zone.
 
 =head2 minute_stamp
 

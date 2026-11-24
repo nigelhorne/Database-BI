@@ -2678,6 +2678,22 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 			'json_lists: a file that is a list of rows holds no lists');
 		delete $ledger{'api.DataSource.json_lists'};
 
+		SKIP: {
+			skip 'Excel::Writer::XLSX is not installed', 1
+				unless eval { require Excel::Writer::XLSX; require Spreadsheet::ParseXLSX; 1 };
+			my $xdir = File::Temp::tempdir(CLEANUP => 1);
+			my $book = Excel::Writer::XLSX->new("$xdir/wb.xlsx");
+			$book->add_worksheet('One')->write_row(0, 0, ['a']);
+			$book->add_worksheet('Two')->write_row(0, 0, ['b']);
+			$book->close;
+			message_ok(DataSource => 'error_sheet_not_found',
+				$err->(directory => $xdir, table => 'wb', internal_table => 'Three'), ['wb', 'Three', 'One, Two']);
+			is_deeply(Database::BI::Model::DataSource->xlsx_sheets("$xdir/wb.xlsx"),
+				[ { name => 'One', columns => ['a'] }, { name => 'Two', columns => ['b'] } ],
+				'xlsx_sheets: each sheet, with its columns');
+		}
+		delete $ledger{'api.DataSource.xlsx_sheets'};
+
 		my $odd = unit_sqlite('odd.sqlite', 'CREATE TABLE "bad name" (id INTEGER)', 'CREATE TABLE good (id INTEGER)');
 		my $unsafe = $err->(directory => $dir_of->($odd), table => 'odd', internal_table => 'bad name');
 		like $unsafe, qr/\AThe table "bad name" in /, 'error_table_name_unsafe says which table';
