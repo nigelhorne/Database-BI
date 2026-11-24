@@ -2,6 +2,12 @@ Revision history for Database-BI
 
 0.025.0
 	[ Bug fixes ]
+	- On perl 5.28 every save (an export, a calculated field, a canvas) was
+	  a 500 error, "Undefined subroutine called", and so was bi-extract.
+	  A stray "no autodie" in the file that takes the save lock left flock
+	  and unlink undefined there.  It is gone, and a test stops it coming
+	  back.
+	  Fixes https://matrix.perl-magpie.org/results/07fdfa68-e6ea-11f1-a97f-a124ff86eec4
 	- Calc fields: a formula that cannot be read, such as "amount +", is
 	  refused when you save it, with a message that names the field.  It
 	  was saved, and found out each time the table was drawn.  A formula

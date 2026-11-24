@@ -5179,7 +5179,10 @@ sub _store_lock {
 	my $fh;
 	{
 		local ($@, $!);
-		my $opened = eval { no autodie; open($fh, '>>', $lock_path) };
+		# No "no autodie" here: this file does not use autodie, and on perl 5.28
+		# (autodie 2.29) a "no autodie" with none in scope leaves every later
+		# flock and unlink in the package "Undefined subroutine called".
+		my $opened = eval { open($fh, '>>', $lock_path) };
 		unless ($opened) {
 			$self->app->log->warn("Cannot open $lock_path, so saving without a lock: $!");
 			return bless({}, 'Database::BI::Controller::Dashboard::StoreLock');
