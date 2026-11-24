@@ -40,7 +40,7 @@ subtest 'Database::Pdf' => sub {
 	like pdf_text($many), qr/r200/, 'the last row is there';
 
 	my $odd = pdf_text(table_pdf(columns => ['c'], rows => [ ["(a) \\ caf\x{e9} \x{4e2d}"] ]));
-	like $odd, qr/\\\(a\\\) \\\\ caf\\351 \?/, 'brackets and backslashes escaped, Latin-1 kept, other text a ?';
+	like $odd, qr/\\\(a\\\) \\\\ caf\xe9 \?/, 'brackets and backslashes escaped, Latin-1 kept, other text a ?';
 
 	my $none = table_pdf(columns => ['c'], rows => []);
 	my ($c0) = $none =~ m{/Count (\d+)};

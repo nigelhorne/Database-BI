@@ -7,16 +7,25 @@ our $VERSION = '0.024.0';
 
 use Carp qw(croak);
 use Encode ();
+use PDF::API2;
+use Scalar::Util ();
 use Exporter qw(import);
 use Readonly;
 
+# Why PDF::Table is not used: it was tried (1.007) and takes about 2 ms a row,
+# five times what the layout below costs with PDF::API2 alone (2,000 rows 4 s,
+# against 20,000 rows 8 s), so a 50,000-row PDF would take over a minute.  It
+# also wraps long cells, which makes row heights and page counts unpredictable
+# (this module cuts a cell short with "..." instead), and it has no "Page N of
+# M", which needs the page count before any page is drawn.  The layout is about
+# 60 lines; PDF::API2 does the rest.
 our @EXPORT_OK = qw(table_pdf text_width);
 
 =encoding utf8
 
 =head1 NAME
 
-Database::BI::Pdf - A table as a PDF, with no PDF library
+Database::BI::Pdf - A table as a PDF
 
 =head1 SYNOPSIS
 
@@ -31,24 +40,13 @@ Database::BI::Pdf - A table as a PDF, with no PDF library
 =head1 DESCRIPTION
 
 Writes a PDF of a heading and a table for views too large for the browser to
-lay out.  It uses the PDF's own Helvetica, so nothing is embedded and no module
-beyond core Perl is needed.  Text is written in Windows Latin-1 (WinAnsi):
-accents and the usual punctuation come out as written, any other character as
-C<?>.  A cell wider than its column is cut short with C<...>; nothing wraps.
+lay out.  The PDF is made by L<PDF::API2>; this module only lays the table out.
+It uses the PDF's own Helvetica, so no font is embedded.  Text is written in
+Windows Latin-1 (WinAnsi): accents and the usual punctuation come out as
+written, any other character as C<?>.  A cell wider than its column is cut short with C<...>; nothing wraps.
 Each page repeats the header row and says "Page N of M".
 
 =cut
-
-# Helvetica's advance widths (1/1000 em) for ASCII 32..126, from its AFM.
-Readonly my @WIDTH => (
-	278, 278, 355, 556, 556, 889, 667, 191, 333, 333, 389, 584, 278, 333, 278, 278,
-	556, 556, 556, 556, 556, 556, 556, 556, 556, 556, 278, 278, 584, 584, 584, 556,
-	1015, 667, 667, 722, 722, 667, 611, 778, 722, 278, 500, 667, 556, 833, 722, 778,
-	667, 778, 722, 667, 611, 722, 667, 944, 667, 667, 611, 278, 278, 278, 469, 556,
-	333, 556, 556, 500, 556, 556, 278, 556, 556, 222, 222, 500, 222, 833, 556, 556,
-	556, 556, 333, 500, 278, 556, 500, 722, 500, 500, 500, 334, 260, 334, 584,
-);
-Readonly my $OTHER_WIDTH => 556;	# any character past ASCII
 
 Readonly my $FONT_SIZE  => 8;
 Readonly my $ROW_HEIGHT => 12;
@@ -80,33 +78,30 @@ A number.
 
 =cut
 
+my $measure;	# one Helvetica, to ask for widths
+my %WIDTH_OF;	# its width of each string seen
+
 sub text_width {
 	my ($text, $size) = @_;
 	$size //= $FONT_SIZE;
 	return 0 unless defined $text;
-	my $w = 0;
-	for my $c (unpack 'U*', $text) {
-		$w += ($c >= 32 && $c <= 126) ? $WIDTH[$c - 32] : $OTHER_WIDTH;
-	}
-	return $w * $size / 1000;
+	$measure //= PDF::API2->new->font('Helvetica');
+	%WIDTH_OF = () if keys %WIDTH_OF > 20_000;
+	return ($WIDTH_OF{$text} //= $measure->width(_clean($text))) * $size;
 }
 
-# Latin-1 bytes for a PDF string, escaped.
-sub _pdf_text {
+# Text with control characters turned to spaces and anything WinAnsi lacks to "?".
+sub _clean {
 	my ($text) = @_;
 	$text = '' unless defined $text;
 	$text =~ s/[\x00-\x1f\x7f]+/ /g;
-	my $bytes = Encode::encode('cp1252', $text, sub { '?' });
-	$bytes =~ s{([\\()])}{\\$1}g;
-	$bytes =~ s{([\x80-\xff])}{sprintf '\\%03o', ord $1}ge;
-	return $bytes;
+	return Encode::decode('cp1252', Encode::encode('cp1252', $text, sub { '?' }));
 }
 
 # $text cut to fit $width points, with "..." when it was cut.
 sub _fit {
 	my ($text, $width) = @_;
-	$text = '' unless defined $text;
-	$text =~ s/[\x00-\x1f\x7f]+/ /g;
+	$text = _clean($text);
 	return $text if text_width($text) <= $width;
 	my $dots = text_width('...');
 	return '' if $width <= $dots;
@@ -197,38 +192,53 @@ sub table_pdf {
 	} while ($at <= $#rows);
 	my $count = @pages;
 
-	my $deflate = eval { require Compress::Zlib; 1 };
-	my @obj;	# 1-based object bodies
-	$obj[1] = '<< /Type /Catalog /Pages 2 0 R >>';
-	$obj[3] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>';
-	$obj[4] = '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>';
-	my @kids;
-	my $n = 5;
+	my $pdf = PDF::API2->new;
+	$pdf->title($title) if defined $title && length $title;
+	my $reg  = $pdf->font('Helvetica');
+	my $bold = $pdf->font('Helvetica-Bold');
+	# One text object a page for each font and size, not one a cell: far faster.
+	my %on;
+	my $text = sub {
+		my ($page, $font, $size, $x, $y, $str) = @_;
+		my $t = $on{ join ',', $size, Scalar::Util::refaddr($font) } //= do {
+			my $o = $page->text;
+			$o->font($font, $size);
+			$o;
+		};
+		$t->matrix(1, 0, 0, 1, $x, $y);
+		$t->text(_clean($str));
+	};
 
 	for my $p (0 .. $#pages) {
 		my ($lo, $hi) = @{ $pages[$p] };
-		my $c = '';
+		my $page = $pdf->page;
+		%on = ();
+		$page->mediabox(0, 0, $pw, $ph);
 		my $y = $body_top;
 		if ($p == 0) {
 			if (defined $title && length $title) {
 				$y -= 14;
-				$c .= sprintf "BT /F2 14 Tf 1 0 0 1 %d %.2f Tm (%s) Tj ET\n", $MARGIN, $y, _pdf_text(_fit($title, $usable * 1.2 / 1.4));
+				$text->($page, $bold, 14, $MARGIN, $y, _fit($title, $usable * 1.2 / 1.4));
 				$y -= 6;
 			}
 			for my $l (@lines) {
 				$y -= 12;
-				$c .= sprintf "BT /F1 9 Tf 1 0 0 1 %d %.2f Tm (%s) Tj ET\n", $MARGIN, $y, _pdf_text(_fit($l, $usable * 8 / 9));
+				$text->($page, $reg, 9, $MARGIN, $y, _fit($l, $usable * 8 / 9));
 			}
 			$y -= 6 if $head_h;
 		}
 		# The header row: grey band, bold names.
-		$c .= sprintf "0.88 g %d %.2f %.2f %d re f 0 g\n", $MARGIN, $y - $ROW_HEIGHT, $right - $MARGIN, $ROW_HEIGHT;
+		my $g = $page->graphics;
+		$g->fill_color('#e0e0e0');
+		$g->rectangle($MARGIN, $y - $ROW_HEIGHT, $right, $y);
+		$g->fill;
 		$y -= $ROW_HEIGHT;
 		for my $i (0 .. $#columns) {
-			$c .= sprintf "BT /F2 %d Tf 1 0 0 1 %.2f %.2f Tm (%s) Tj ET\n", $FONT_SIZE, $x[$i] + $PAD, $y + 3.5,
-				_pdf_text(_fit($columns[$i], $want[$i] - 2 * $PAD));
+			$text->($page, $bold, $FONT_SIZE, $x[$i] + $PAD, $y + 3.5, _fit($columns[$i], $want[$i] - 2 * $PAD));
 		}
-		$c .= "0.5 w\n";
+		my $rules = $page->graphics;
+		$rules->stroke_color('#cccccc');
+		$rules->line_width(0.5);
 		for my $ri ($lo .. $hi) {
 			last if $ri > $#rows;
 			my $row = $rows[$ri];
@@ -236,45 +246,17 @@ sub table_pdf {
 			for my $i (0 .. $#columns) {
 				my $v = $row->[$i];
 				next unless defined $v && length $v;
-				$c .= sprintf "BT /F1 %d Tf 1 0 0 1 %.2f %.2f Tm (%s) Tj ET\n", $FONT_SIZE, $x[$i] + $PAD, $y + 3.5,
-					_pdf_text(_fit($v, $want[$i] - 2 * $PAD));
+				$text->($page, $reg, $FONT_SIZE, $x[$i] + $PAD, $y + 3.5, _fit($v, $want[$i] - 2 * $PAD));
 			}
-			$c .= sprintf "0.8 G %d %.2f m %.2f %.2f l S 0 G\n", $MARGIN, $y, $right, $y;
+			$rules->move($MARGIN, $y);
+			$rules->line($right, $y);
 		}
-		$c .= sprintf "BT /F1 7 Tf 1 0 0 1 %d %d Tm (%s) Tj ET\n", $MARGIN, $MARGIN - 4, _pdf_text($footer);
+		$rules->stroke;
+		$text->($page, $reg, 7, $MARGIN, $MARGIN - 4, $footer);
 		my $pn = sprintf 'Page %d of %d', $p + 1, $count;
-		$c .= sprintf "BT /F1 7 Tf 1 0 0 1 %.2f %d Tm (%s) Tj ET\n", $right - text_width($pn, 7), $MARGIN - 4, $pn;
-
-		my $page_id    = $n++;
-		my $content_id = $n++;
-		push @kids, "$page_id 0 R";
-		$obj[$page_id] = sprintf '<< /Type /Page /Parent 2 0 R /MediaBox [0 0 %d %d] '
-			. '/Resources << /Font << /F1 3 0 R /F2 4 0 R >> >> /Contents %d 0 R >>', $pw, $ph, $content_id;
-		if ($deflate) {
-			my $z = Compress::Zlib::compress($c);
-			$obj[$content_id] = [ sprintf("<< /Length %d /Filter /FlateDecode >>", length $z), $z ];
-		} else {
-			$obj[$content_id] = [ sprintf('<< /Length %d >>', length $c), $c ];
-		}
+		$text->($page, $reg, 7, $right - text_width($pn, 7), $MARGIN - 4, $pn);
 	}
-	$obj[2] = sprintf '<< /Type /Pages /Kids [%s] /Count %d >>', join(' ', @kids), scalar @kids;
-
-	my $out = "%PDF-1.4\n%\xE2\xE3\xCF\xD3\n";
-	my @offset;
-	for my $i (1 .. $#obj) {
-		$offset[$i] = length $out;
-		my $b = $obj[$i];
-		if (ref $b) {
-			$out .= "$i 0 obj\n$b->[0]\nstream\n$b->[1]\nendstream\nendobj\n";
-		} else {
-			$out .= "$i 0 obj\n$b\nendobj\n";
-		}
-	}
-	my $xref = length $out;
-	$out .= sprintf "xref\n0 %d\n0000000000 65535 f \n", scalar @obj;
-	$out .= sprintf "%010d 00000 n \n", $offset[$_] for 1 .. $#obj;
-	$out .= sprintf "trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n", scalar @obj, $xref;
-	return $out;
+	return $pdf->to_string;
 }
 
 =head1 AUTHOR

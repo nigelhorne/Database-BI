@@ -38,6 +38,7 @@ requires 'Mojolicious::Plugin::Buffer', '0.001.1';
 requires 'Mojolicious::Plugin::TemplateToolkit';
 requires 'Net::SFTP::Foreign';
 requires 'Object::Configure', '0.25';   # cache_dir for each object that keeps a cache (Database::BI::CacheDir); 0.25: configure($class, \%params), and logger => [] keeps a syslog universal.yml from opening
+requires 'PDF::API2', '2.0';
 requires 'POSIX';   # For floor/ceil in Calc.pm (core module, listed for completeness)
 requires 'Params::Get', '0.17';
 requires 'Params::Validate::Strict', '0.41';

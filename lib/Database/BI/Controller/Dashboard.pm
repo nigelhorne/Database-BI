@@ -341,7 +341,7 @@ Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
 # Most rows the server lays out in a PDF (config print_pdf_max_rows).
-Readonly my $PDF_MAX_ROWS          => 200_000;
+Readonly my $PDF_MAX_ROWS          => 50_000;
 Readonly my $MAX_PER_PAGE          => 2_000;
 # The page sizes offered under a table or pivot and on /preferences; 0 is every
 # row on one page.  The preference is the cookie $PAGE_SIZE_COOKIE (the server

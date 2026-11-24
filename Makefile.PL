@@ -69,6 +69,7 @@ WriteMakefile(
 		'Excel::Writer::XLSX'	=> '1.07',
 		'POSIX'			=> 0,		# For floor/ceil in Calc.pm (core module, listed for completeness)
 		'Spreadsheet::ParseXLSX'	=> 0,
+		'PDF::API2'			=> 2.0,
 		'Sub::Protected' => 0.03,
 		'Text::CSV'	=> 0,		# Files with no header row; script/bi-alert's fallback reader when Database::Abstraction cannot open the file
 		'version'        => '0.77',

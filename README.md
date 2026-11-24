@@ -184,7 +184,7 @@ page) for a view too large for the browser.  Print offers it when a view has
 more than 10,000 rows.  The PDF uses the PDF's own Helvetica: Latin-1 text
 prints as written, any other character as `?`, and a cell wider than its
 column is cut short.  A view of more than config `print_pdf_max_rows` rows
-(default 200,000) is refused with a 413.
+(default 50,000) is refused with a 413.
 - **URL import** -- `/import` fetches an HTML table from any public URL and
 renders it in the browser without saving to disc.
 - **Redis data source** (optional) -- when the `Redis` or `Redis::Fast` module
