@@ -1,8 +1,27 @@
 Revision history for Database-BI
 
 0.025.0
+	[ Bug fixes ]
+	- Calc fields: a formula that cannot be read, such as "amount +", is
+	  refused when you save it, with a message that names the field.  It
+	  was saved, and found out each time the table was drawn.  A formula
+	  that names a column the file does not have yet is still kept: it
+	  may come from a lookup, an extraction or a cross-row column.
+	- Group values: a group with no values is refused.  It matched no row,
+	  so every row showed as (other).
+
 	[ Documentation ]
-	- Make the docs easier to read for the first-time user
+	- Tutorial: a five-minute tour, and a new chapter, Map: colours,
+	  outlines and shading, which takes the advanced options out of the
+	  Map chapter.
+	- Tutorial: the two chapters called "Add columns from another file" are
+	  now Merge and Lookups, and the glossary and FAQ explain the words and
+	  the buttons a new reader meets first.
+
+	[ Other ]
+	- New t/first-time-user.t: first-use flows from an empty install, with
+	  bare, empty and untidy input, repeated calls, and each saved-model
+	  panel given input it cannot use.
 
 0.024.0	Sun Nov 22 09:10:13 PM EST 2026
 	[ Enhancements ]

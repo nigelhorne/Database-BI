@@ -12108,6 +12108,30 @@ sub stats_view ($self) {
 # Calculated-field CRUD  (POST /calc/save, POST /calc/delete, GET /calc/list)
 # ---------------------------------------------------------------------------
 
+# _calc_syntax_problem($expr) -> $message | undef
+#
+# Whether the formula can be read at all.  Save has no table to check column
+# names against (a name may come from a lookup, an extraction or a cross-row
+# column), so an "Unknown column" answer is taken as a column that will exist
+# and compiling goes on; any other error is a mistake in the formula itself.
+# The loop is bounded, so a formula naming many columns cannot spin.
+sub _calc_syntax_problem {
+	my ($expr) = @_;
+	require Database::BI::Calc;
+	my %cols;
+	for (1 .. 200) {
+		my $calc = Database::BI::Calc->new(expr => $expr, columns => [ sort keys %cols ]);
+		return undef unless $calc->has_error;
+		my $err = $calc->error;
+		if ($err =~ /\AUnknown column '([^']+)'/ && !$cols{$1}) {
+			$cols{$1} = 1;
+			next;
+		}
+		return $err =~ /\S/ ? $err : 'the formula cannot be read';
+	}
+	return undef;
+}
+
 sub calc_save ($self) {
 	my $lock = $self->_models_lock;	# read, change and write as one step
 	my $spec = canonical_spec($self->param('l') // '');
@@ -12122,6 +12146,15 @@ sub calc_save ($self) {
 	) unless $name =~ /\A[A-Za-z_][A-Za-z0-9_]*\z/;
 	return $self->render(json => { error => 'expr= required' }, status => 400)
 		unless length $expr;
+
+	# A formula that cannot be read is refused now, in words, rather than saved
+	# and found out each time the table is drawn.
+	if (defined(my $problem = _calc_syntax_problem($expr))) {
+		return $self->render(
+			json   => { error => $self->_i18n('error_calc_compile', $name, $problem) },
+			status => 400,
+		);
+	}
 
 	my $models = $self->_read_models;
 	$models->{fields}{$spec}{$name} = $expr;
@@ -12172,6 +12205,10 @@ sub groups_save ($self) {
 		unless length $col;
 	return $self->render(json => { error => 'group= required' }, status => 400)
 		unless length $group_name;
+	# A group with no values would match no row and show as (other) for all of
+	# them, so a blank box is a mistake to report, not a group to keep.
+	return $self->render(json => { error => 'values= required: one value on each line' }, status => 400)
+		unless grep { /\S/ } @values;
 
 	my $models = $self->_read_models;
 	$models->{groups}{$spec}{$col}{$group_name} = \@values;
