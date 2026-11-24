@@ -290,6 +290,7 @@ Readonly my %MESSAGES => (
 	freshness_stale_msg         => 'Source data has changed since this analysis was last saved',
 	error_agg_fn                => 'Unknown aggregate function "%s"; expected one of: %s, or p1 to p100 for a percentile',
 	error_range_name            => 'Unknown time range "%s"; expected one of: %s',
+	error_pdf_too_many          => 'This view has %d rows, more than the %d the server will lay out in a PDF. Filter the view, or export it as CSV.',
 	error_range_column          => 'A time range is applied to one column: add rcol=<column> to the URL',
 	error_filter_op             => 'Unknown filter operator "%s" in f=%s; expected one of: %s',
 	error_filter_column         => 'There is no column called "%s" to filter on (f=%s); the columns are: %s',
@@ -339,6 +340,8 @@ Readonly my %NAMED_COLORS          => map { $_ => 1 } qw(
 );
 Readonly my $MAX_PREFIX_LEN        => 20;
 Readonly my $DEFAULT_PER_PAGE      => 200;
+# Most rows the server lays out in a PDF (config print_pdf_max_rows).
+Readonly my $PDF_MAX_ROWS          => 200_000;
 Readonly my $MAX_PER_PAGE          => 2_000;
 # The page sizes offered under a table or pivot and on /preferences; 0 is every
 # row on one page.  The preference is the cookie $PAGE_SIZE_COOKIE (the server
@@ -2192,6 +2195,49 @@ sub _time_range_request ($c) {
 		range_specs => $specs,
 	);
 	return 1;
+}
+
+# view_heading($c, $title) -> { title => STRING, lines => [STRING, ...] }
+#
+# Purpose: Say what a printed view shows: its filters, its time range and
+#          whether duplicates were removed, in words.  The table page carries
+#          it for Print (data-heading), and a PDF prints it above the table,
+#          so the two say the same.
+# Entry:   $c -- the controller; reads f=, d= and the stash's time_range.
+#          $title -- the view's name.
+# Exit:    A hashref; lines is empty for an unfiltered view.
+# Notes:   A package function, called from BI.pm's before_render hook as well.
+sub view_heading {
+	my ($c, $title) = @_;
+	my %word = (
+		eq => 'is', ne => 'is not', contains => 'contains', starts => 'starts with',
+		lt => '<', le => '<=', gt => '>', ge => '>=',
+		empty => 'is empty', notempty => 'is not empty', differ => 'differs from column',
+		between => 'is between', in => 'is one of',
+	);
+	my @filters;
+	for my $spec (@{ $c->every_param('f') // [] }) {
+		my ($col, $op, $val) = split /:/, $spec, 3;
+		next unless defined $col && length $col && defined $op && $word{$op};
+		$val //= '';
+		if ($op eq 'between') {
+			my ($lo, $hi) = _between_bounds($val);
+			$val = defined $hi ? "$lo and $hi" : $val;
+		} elsif ($op eq 'in') {
+			my $list = eval { Mojo::JSON::decode_json($val) };
+			$val = join ', ', @$list if ref $list eq 'ARRAY';
+		}
+		push @filters, join ' ', $col, $word{$op}, ($op =~ /\A(?:empty|notempty)\z/ ? () : $val);
+	}
+	my @lines;
+	push @lines, 'Filters: ' . join('; ', @filters) if @filters;
+	my $range = $c->stash('time_range');
+	if (ref $range eq 'HASH' && defined $range->{col}) {
+		push @lines, sprintf 'Time range: %s on %s (%s to %s)',
+			$range->{label} // $range->{name}, $range->{col}, $range->{lo} // '', $range->{hi} // '';
+	}
+	push @lines, 'Duplicate rows removed' if $c->param('d');
+	return { title => $title // '', lines => \@lines };
 }
 
 # _filter_request($c) -> bool
@@ -7890,6 +7936,46 @@ sub _render_csv :Protected ($self, $records, $columns, $name) {
 	$self->render(data => _serialize_csv($records, $columns));
 }
 
+# _render_pdf($self, $records, \@columns, $name, $label) -> void (renders response)
+#
+# Purpose: The view as a PDF made here, for views too many rows for the
+#          browser to lay out.  A heading names the filters and time range;
+#          sort=/dir= order the rows as the table showed them.
+# Entry:   $name is a safe filename stem; $label the view's name.
+# Exit:    Renders the PDF, or 413 past config print_pdf_max_rows (default
+#          $PDF_MAX_ROWS).
+sub _render_pdf :Protected ($self, $records, $columns, $name, $label) {
+	my $max = $self->app->config('print_pdf_max_rows');
+	$max = $PDF_MAX_ROWS unless defined $max && !ref $max && $max =~ /\A[0-9]+\z/ && $max > 0;
+	if (@$records > $max) {
+		return $self->render(status => 413,
+			text => sprintf(_message_text('error_pdf_too_many'), scalar @$records, $max));
+	}
+	my $sort = $self->param('sort');
+	if (defined $sort && length $sort && grep { $_ eq $sort } @$columns) {
+		$records = _sort_records($records, $sort, ($self->param('dir') // '') eq 'desc' ? 'desc' : 'asc');
+	}
+	my $heading = view_heading($self, $label);
+	require Database::BI::Pdf;
+	my @cols = @$columns;
+	my @lines = @{ $heading->{lines} };
+	push @lines, scalar(@$records) . ' row' . (@$records == 1 ? '' : 's')
+		. ', printed ' . Database::BI::Util::minute_stamp(localtime);
+	my $pdf = Database::BI::Pdf::table_pdf(
+		title   => $heading->{title},
+		lines   => \@lines,
+		columns => \@cols,
+		rows    => [ map {
+			my $r = $_;
+			[ map { my $v = $r->{$_}; !defined $v ? '' : ref $v ? Mojo::JSON::encode_json($v) : $v } @cols ]
+		} @$records ],
+	);
+	$self->stash(buffer => 0);
+	$self->res->headers->content_type('application/pdf');
+	$self->res->headers->content_disposition(qq{attachment; filename="${name}.pdf"});
+	$self->render(data => $pdf);
+}
+
 # _render_sqlite($self, $records, \@columns, $name) -> void (renders response)
 #
 # Purpose: Write $records to a SQLite database and emit it as a binary download.
@@ -9569,7 +9655,7 @@ C<GET /export> -- Stream the current logical view as a browser file download.
   ?l=        string   (required) Left table spec.
   ?j=        string   (repeatable) Join steps.
   ?f=        string   (repeatable) Filter specs.
-  ?format=   string   "csv" (default), "sqlite", or "json".
+  ?format=   string   "csv" (default), "sqlite", "json" or "pdf".
   ?xcol=     string   (repeatable) Keep only these columns, in this order.
 
 =head4 DOMAIN CONSTRAINTS: ?xcol=
@@ -9606,7 +9692,9 @@ Exact lowercase string match.
 =item Valid partitions
 
 C<csv> (explicit CSV), C<sqlite> (SQLite binary), C<json> (JSON array),
-absent/undef (defaults to CSV).
+C<pdf> (a table under a heading naming the filters and time range; also
+takes C<sort=> and C<dir=>; 413 past config C<print_pdf_max_rows>, default
+200,000), absent/undef (defaults to CSV).
 
 =item Invalid partitions (all fall back to CSV)
 
@@ -9700,6 +9788,8 @@ sub export_data ($self) {
 
 	my $format = $self->param('format') // 'csv';
 	(my $safe_name = lc $left_label) =~ s/[^a-z0-9_]+/_/g;
+
+	return $self->_render_pdf($records, $columns, $safe_name, $left_label) if $format eq 'pdf';
 
 	return $format eq 'sqlite' ? $self->_render_sqlite($records, $columns, $safe_name)
 	     : $format eq 'json'   ? $self->_render_json($records, $columns, $safe_name)

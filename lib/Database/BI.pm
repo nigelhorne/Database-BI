@@ -25,11 +25,6 @@ use version; our $VERSION = version->declare('0.024.0');
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
 # Features:
-# TODO: Multi-sheet XLSX: ?sheet= and a sheet picker, through the /tables
-#	cards that JSON and SQLite use.
-# TODO: A better Print: a heading naming the view's filters and range, a
-#	"print the rows shown" mode, and a server-side PDF for views too large
-#	for the browser to lay out (Print asks first past 10,000 rows).
 # TODO: Encoding on upload: detect Windows-1252 (a BOM is read past since
 #	0.021.0) and say which encoding was used.
 # TODO: Alerts in the app: a canvas panel to set bi-alert's thresholds and
@@ -364,7 +359,17 @@ columns, and dedup), read from C<GET /export?format=json>, with the columns in
 the order the table shows them and sorted as it is sorted.  Nothing else on
 the page is printed, and the header row repeats on each printed page.  A row
 deleted from the page with Delete selected is still printed; a deleted column
-is not.
+is not.  Every print starts with a heading: the view's name, its filters in
+words (C<region is North; amount E<gt> 20>), its time range and whether
+duplicates were removed, and when it was printed.  B<Print shown>, beside it,
+prints only the rows the table shows now (this page of a long view), as it
+shows them.  B<PDF> asks the server to lay out every row (C<GET
+/export?format=pdf>, which takes C<xcol=>, C<sort=> and C<dir=> like the
+page) for a view too large for the browser.  Print offers it when a view has
+more than 10,000 rows.  The PDF uses the PDF's own Helvetica: Latin-1 text
+prints as written, any other character as C<?>, and a cell wider than its
+column is cut short.  A view of more than config C<print_pdf_max_rows> rows
+(default 200,000) is refused with a 413.
 
 =item *
 
@@ -776,7 +781,7 @@ Renders a pivot/crosstab table.  Parameters:
   topn=N               keep only the top-N row groups
   topn_col=<alias>     measure alias to rank by (required when topn= is set)
   max_cols=N           collapse tail column combos beyond top-N into "Other"
-  format=csv|sqlite|json|xlsx  stream result as a download
+  format=csv|sqlite|json|xlsx|pdf  stream result as a download
   back=<url>           URL for the back breadcrumb link
   f=                   result filters applied before aggregating (repeatable)
 
@@ -3104,6 +3109,10 @@ sub startup ($self) {
 			push @time, $active->{col}
 				if ref($active) eq 'HASH' && !grep { $_ eq $active->{col} } @time;
 			$args->{time_columns} = \@time;
+
+			# What Print writes above the table: the view's filters and range.
+			my $heading = Database::BI::Controller::Dashboard::view_heading($c, $args->{title} // $c->stash('title'));
+			$args->{print_heading} = Mojo::JSON::to_json($heading);
 		}
 
 		# Mojolicious's own 404 page has no navigation and no breadcrumb; an

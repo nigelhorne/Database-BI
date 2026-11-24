@@ -3299,6 +3299,12 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		$tm->get_ok('/view/nosuch_table')->status_is(404);
 		message_ok(Dashboard => 'error_table_missing', $tm->tx->res->body, ['nosuch_table'], 1);
 
+		$tm->app->config->{print_pdf_max_rows} = 1;
+		$tm->get_ok("/export?l=$SPEC&format=pdf")->status_is(413);
+		my ($pdf_rows) = $tm->tx->res->body =~ /\AThis view has ([0-9]+) rows/;
+		message_ok(Dashboard => 'error_pdf_too_many', $tm->tx->res->body, [ $pdf_rows, 1 ]);
+		delete $tm->app->config->{print_pdf_max_rows};
+
 		$tm->get_ok('/api/stat')->status_is(400);
 		message_ok(Dashboard => 'error_path_required', $tm->tx->res->json->{error});
 		$tm->post_ok("/export?l=$SPEC&dir=/no/such/dir&filename=x.csv")->status_is(404);

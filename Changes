@@ -10,6 +10,10 @@ Revision history for Database-BI
 	  the data, counted from the chosen column's own earliest and latest
 	  day, not from today.  They add ordinary date filters, so links keep
 	  the dates.  /api/range lists them as windows.
+	- Print: every printout has a heading naming the view's filters, time
+	  range and duplicate setting.  New Print shown prints only the rows on
+	  the screen.  New PDF button (GET /export?format=pdf, Latin-1 text) makes
+	  the PDF on the server, and Print offers it past 10,000 rows.
 	- Excel workbooks with several sheets: /open sends you to the table
 	  picker, which lists each sheet; ?sheet=NAME (or it=NAME) opens one,
 	  including a sheet whose name has spaces.

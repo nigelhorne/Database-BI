@@ -174,7 +174,17 @@ columns, and dedup), read from `GET /export?format=json`, with the columns in
 the order the table shows them and sorted as it is sorted.  Nothing else on
 the page is printed, and the header row repeats on each printed page.  A row
 deleted from the page with Delete selected is still printed; a deleted column
-is not.
+is not.  Every print starts with a heading: the view's name, its filters in
+words (`region is North; amount > 20`), its time range and whether
+duplicates were removed, and when it was printed.  **Print shown**, beside it,
+prints only the rows the table shows now (this page of a long view), as it
+shows them.  **PDF** asks the server to lay out every row (`GET
+/export?format=pdf`, which takes `xcol=`, `sort=` and `dir=` like the
+page) for a view too large for the browser.  Print offers it when a view has
+more than 10,000 rows.  The PDF uses the PDF's own Helvetica: Latin-1 text
+prints as written, any other character as `?`, and a cell wider than its
+column is cut short.  A view of more than config `print_pdf_max_rows` rows
+(default 200,000) is refused with a 413.
 - **URL import** -- `/import` fetches an HTML table from any public URL and
 renders it in the browser without saving to disc.
 - **Redis data source** (optional) -- when the `Redis` or `Redis::Fast` module
@@ -609,7 +619,7 @@ perl Makefile.PL
     topn=N               keep only the top-N row groups
     topn_col=<alias>     measure alias to rank by (required when topn= is set)
     max_cols=N           collapse tail column combos beyond top-N into "Other"
-    format=csv|sqlite|json|xlsx  stream result as a download
+    format=csv|sqlite|json|xlsx|pdf  stream result as a download
     back=<url>           URL for the back breadcrumb link
     f=                   result filters applied before aggregating (repeatable)
     ```

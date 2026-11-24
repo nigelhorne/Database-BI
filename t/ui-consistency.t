@@ -129,7 +129,7 @@ subtest 'every chart, analysis and model button in the toolbar looks the same' =
 	# toggles); every other toolbar button opens a chart, an analysis or a
 	# model panel and shares one look.
 	my %own_style = map { $_ => 1 } qw(
-		btn-copy-link btn-export-open btn-refresh btn-print btn-delete-sel btn-dedup
+		btn-copy-link btn-export-open btn-refresh btn-print btn-print-shown btn-print-pdf btn-delete-sel btn-dedup
 		btn-add-db btn-combine btn-delta dash-f-apply dash-range-apply chip-remove-range
 	);
 	my @buttons = grep { ($_->{id} // '') =~ /\Abtn-/ && !$own_style{$_->{id}} }
@@ -168,7 +168,7 @@ subtest 'Print sits to the right of Refresh and prints every row of the view' =>
 	ok($dom->at('#print-status[role="status"]'), 'with a place to say how it went');
 
 	my $tt = Mojo::File->new('templates/web/en/dashboard.html.tt')->slurp;
-	my ($print) = $tt =~ /(\/\/ Print button.*?\n\}\(\)\);)/s;
+	my ($print) = $tt =~ /(\/\/ Print buttons.*?\n\}\(\)\);)/s;
 	ok($print, 'the page has the Print script');
 	$print //= '';
 	like($print, qr/biViewParams\(\)/, 'Print takes the view from biViewParams');
@@ -179,13 +179,16 @@ subtest 'Print sits to the right of Refresh and prints every row of the view' =>
 	like($print, qr/window\.print\(\)/, 'and prints');
 	my ($cap) = $print =~ /var PRINT_CONFIRM_ROWS = (\d+);/;
 	ok($cap, 'a row count past which Print asks first');
-	like($print, qr/rows\.length > PRINT_CONFIRM_ROWS\s*&& !window\.confirm\(/,
+	like($print, qr/rows\.length > PRINT_CONFIRM_ROWS\)\s*\{\s*if \(window\.confirm\(/,
 		'it asks before building a table of more rows than that');
-	like($print, qr/window\.confirm\(.*?\{\s*done\(\);.*?return;\s*\}\s*var n = build\(rows\);/s,
-		'and a No builds nothing and prints nothing');
+	like($print, qr/return pdf\(\);/, 'offering a PDF made by the server');
+	like($print, qr/window\.confirm\('Print all .*?\{\s*done\(\);.*?return;\s*\}/s,
+		'and a No to both builds nothing and prints nothing');
 	my @markup = $print =~ /\.innerHTML\s*=\s*(.+?);\s*$/mg;
-	is_deeply(\@markup, [q{'&#x2399; Preparing&hellip;'}, 'label'],
-		'only the button label is set as markup; cells are set as text');
+	is_deeply(\@markup, ['on && b === text.button ? text.html : labels[i]'],
+		'only button labels are set as markup; cells are set as text');
+	like($print, qr/biShownRows\(\)/, 'Print shown reads the rows the table shows');
+	like($print, qr/params\.set\('format', 'pdf'\)/, 'PDF asks the server for format=pdf');
 	my ($export) = $tt =~ /(var params = biViewParams\(\);\s*params\.set\('dir')/;
 	ok($export, 'Export takes its parameters from biViewParams too');
 	like($tt, qr/function biViewParams\(\) \{.*?\['cs', 'order', 'by', 'lk', 'nolk'\]/s, 'which carries the cross-row and lookup parameters');

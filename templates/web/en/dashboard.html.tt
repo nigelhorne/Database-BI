@@ -274,7 +274,11 @@
   <button class="btn-refresh" id="btn-refresh" type="button"
           title="Reload the data from disc - use this after the source file has changed">&#x21BB; Refresh</button>
   <button class="btn-refresh btn-print" id="btn-print" type="button"
-          title="Print the header row and every row of this view, in the order and with the columns the table shows">&#x2399; Print</button>
+          title="Print the header row and every row of this view, in the order and with the columns the table shows, under a heading naming its filters and time range">&#x2399; Print</button>
+  <button class="btn-refresh btn-print" id="btn-print-shown" type="button"
+          title="Print only the rows on this page, as the table shows them now">&#x2399; Print shown</button>
+  <button class="btn-refresh btn-print" id="btn-print-pdf" type="button"
+          title="Make a PDF of every row of this view on the server: for views too large for the browser to print">&#x2193; PDF</button>
   <span class="print-status" id="print-status" role="status" aria-live="polite"></span>
   <button class="btn-delete-sel" id="btn-delete-sel" type="button" hidden
           title="Remove the selected rows and/or columns from this view">&#x1F5D1; Delete selected</button>
@@ -1929,6 +1933,7 @@ dragging it moves it.</p>
     server (sort=, dir=) rather than sorting the rows on this page; data-sort-*:
     the sort the server applied to every row before cutting this page. -%]
 <table id="bi-table" data-table="[% table | html %]"
+  [%- IF print_heading.length %] data-heading="[% print_heading | html %]"[% END %]
   [%- IF (page AND page > 1) OR has_next %] data-paged="1"[% END %]
   [%- IF sorted_by AND sorted_by.col.length %] data-sort-col="[% sorted_by.col | html %]" data-sort-dir="[% sorted_by.dir | html %]"[% END %]>
   <thead>
@@ -2521,6 +2526,20 @@ function biDetectColType(colName) {
     };
   };
 
+  // The rows this page shows right now, as text, in the columns' order: the
+  // rows left after any deleted by hand, in the order the sort gave.
+  window.biShownRows = function () {
+    var cols = headers.map(function (h) { return h.textContent.trim(); });
+    var body = table.tBodies[0];
+    var rows = Array.prototype.map.call(body ? body.rows : [], function (tr) {
+      return cols.map(function (c, i) {
+        var cell = tr.cells[i + SEL];
+        return cell ? cell.textContent.trim() : '';
+      });
+    });
+    return { columns: cols, rows: rows };
+  };
+
   // --- Restore saved state on load ---
 
   (function restore() {
@@ -3104,23 +3123,36 @@ function biDetectColType(colName) {
 }());
 
 // ---------------------------------------------------------------------------
-// Print button -- the header row and every row of the view, not just this
-// page of it: the rows come from GET /export?format=json with the view's own
-// parameters, are laid out with the table's columns and sort, and are printed
-// from a table that only the printed page shows.
+// Print buttons -- Print: the header row and every row of the view, not just
+// this page of it (the rows come from GET /export?format=json with the view's
+// own parameters, laid out with the table's columns and sort); Print shown:
+// only the rows this page shows; PDF: the server lays out every row, for views
+// too large for the browser.  Each prints under a heading naming the view's
+// filters and time range, from a table that only the printed page shows.
 // ---------------------------------------------------------------------------
 (function () {
-  var btn    = document.getElementById('btn-print');
-  var status = document.getElementById('print-status');
+  var btn      = document.getElementById('btn-print');
+  var btnShown = document.getElementById('btn-print-shown');
+  var btnPdf   = document.getElementById('btn-print-pdf');
+  var status   = document.getElementById('print-status');
   if (!btn) return;
-  var label = btn.innerHTML;
+  var buttons = [btn, btnShown, btnPdf].filter(Boolean);
+  var labels  = buttons.map(function (b) { return b.innerHTML; });
   // Past this many rows the reader is asked first: laying out a table of
   // that size takes the browser a long time, and it prints hundreds of
-  // pages.  The count is known only once the rows are here (no page shows a
-  // total), so the question comes after the fetch, before the table is built.
+  // pages, so a PDF made by the server is offered instead.  The count is
+  // known only once the rows are here (no page shows a total), so the
+  // question comes after the fetch, before the table is built.
   var PRINT_CONFIRM_ROWS = 10000;
 
   function say(msg) { if (status) status.textContent = msg; }
+
+  function busy(on, text) {
+    buttons.forEach(function (b, i) {
+      b.disabled  = on;
+      b.innerHTML = on && b === text.button ? text.html : labels[i];
+    });
+  }
 
   function cellText(v) {
     if (v === null || v === undefined) return '';
@@ -3128,25 +3160,34 @@ function biDetectColType(colName) {
     return String(v);
   }
 
-  function build(rows) {
-    var state   = window.biTableState ? window.biTableState() : null;
-    var columns = state && state.columns.length ? state.columns
-                : (rows.length ? Object.keys(rows[0]) : []);
-    var texts = rows.map(function (r) {
-      return columns.map(function (c) { return cellText(r[c]); });
+  // The heading the server wrote for this view (data-heading): its name, then
+  // its filters, time range and duplicate setting, then when it was printed.
+  function heading(extra) {
+    var tbl = document.getElementById('bi-table');
+    var h   = { title: '', lines: [] };
+    try {
+      var parsed = JSON.parse(tbl.getAttribute('data-heading') || '');
+      if (parsed && typeof parsed === 'object') h = parsed;
+    } catch (e) { /* no heading: the table alone */ }
+    var box = document.createElement('div');
+    box.className = 'print-heading';
+    var title = document.createElement('h1');
+    title.textContent = h.title || document.title;
+    box.appendChild(title);
+    (h.lines || []).concat(extra || [], ['Printed ' + new Date().toLocaleString()]).forEach(function (l) {
+      var p = document.createElement('p');
+      p.textContent = l;
+      box.appendChild(p);
     });
-    if (state && state.sortCol !== null) {
-      var at = columns.indexOf(state.sortCol);
-      if (at >= 0) {
-        var cmp = biValueComparator(texts.map(function (t) { return t[at]; }), state.sortAsc);
-        texts.sort(function (a, b) { return cmp(a[at], b[at]); });
-      }
-    }
+    return box;
+  }
 
+  function build(columns, texts, extra) {
     var old = document.getElementById('bi-print');
     if (old) old.parentNode.removeChild(old);
     var wrap  = document.createElement('div');
     wrap.id   = 'bi-print';
+    wrap.appendChild(heading(extra));
     var table = document.createElement('table');
     var head  = table.createTHead().insertRow();
     columns.forEach(function (c) {
@@ -3171,6 +3212,12 @@ function biDetectColType(colName) {
     return texts.length;
   }
 
+  function printNow(n, what) {
+    document.body.classList.add('bi-printing');
+    say('Printing ' + n + ' ' + (what || 'row') + (n === 1 ? '' : 's') + '.');
+    window.print();
+  }
+
   function done() {
     document.body.classList.remove('bi-printing');
     var old = document.getElementById('bi-print');
@@ -3178,9 +3225,43 @@ function biDetectColType(colName) {
   }
   window.addEventListener('afterprint', done);
 
+  // Every row, made into a PDF by the server, in the table's columns and sort.
+  function pdf() {
+    var params = biViewParams();
+    params.set('format', 'pdf');
+    var state = window.biTableState ? window.biTableState() : null;
+    if (state) {
+      state.columns.forEach(function (c) { params.append('xcol', c); });
+      if (state.sortCol !== null) {
+        params.set('sort', state.sortCol);
+        params.set('dir', state.sortAsc ? 'asc' : 'desc');
+      }
+    }
+    busy(true, { button: btnPdf || btn, html: '&#x2193; Making PDF&hellip;' });
+    say('');
+    return fetch('/export?' + params.toString(), { headers: { Accept: 'application/pdf' } })
+      .then(function (r) {
+        if (!r.ok) return r.text().then(function (t) { return Promise.reject(t || ('HTTP ' + r.status)); });
+        return r.blob();
+      })
+      .then(function (blob) {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = ((document.title || 'view').split(/\s+\u2014\s+/)[0].replace(/[^A-Za-z0-9_.-]+/g, '_') || 'view') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 60000);
+        say('PDF made.');
+      })
+      .catch(function (err) {
+        say(typeof err === 'string' ? err : 'The PDF could not be made.');
+      })
+      .finally(function () { busy(false, {}); });
+  }
+
   btn.addEventListener('click', function () {
-    btn.disabled  = true;
-    btn.innerHTML = '&#x2399; Preparing&hellip;';
+    busy(true, { button: btn, html: '&#x2399; Preparing&hellip;' });
     say('');
     var params = biViewParams();
     params.set('format', 'json');
@@ -3191,29 +3272,52 @@ function biDetectColType(colName) {
       })
       .then(function (rows) {
         if (!Array.isArray(rows)) return Promise.reject('The rows could not be read.');
-        if (rows.length > PRINT_CONFIRM_ROWS
-            && !window.confirm('This view has ' + rows.length + ' rows, which is a lot of pages '
-              + 'and may take the browser a while to lay out. Print them all?')) {
-          done();
-          say('Not printed. Filter the view to print fewer rows.');
-          return;
+        if (rows.length > PRINT_CONFIRM_ROWS) {
+          if (window.confirm('This view has ' + rows.length + ' rows, which is a lot of pages and may '
+              + 'take the browser a while to lay out.\n\nOK makes a PDF on the server instead. '
+              + 'Cancel lets you choose again.')) {
+            return pdf();
+          }
+          if (!window.confirm('Print all ' + rows.length + ' rows from the browser anyway?')) {
+            done();
+            say('Not printed. Filter the view to print fewer rows.');
+            return;
+          }
         }
-        var n = build(rows);
-        document.body.classList.add('bi-printing');
-        say('Printing ' + n + ' row' + (n === 1 ? '' : 's') + '.');
-        window.print();
+        var state   = window.biTableState ? window.biTableState() : null;
+        var columns = state && state.columns.length ? state.columns
+                    : (rows.length ? Object.keys(rows[0]) : []);
+        var texts = rows.map(function (r) {
+          return columns.map(function (c) { return cellText(r[c]); });
+        });
+        if (state && state.sortCol !== null) {
+          var at = columns.indexOf(state.sortCol);
+          if (at >= 0) {
+            var cmp = biValueComparator(texts.map(function (t) { return t[at]; }), state.sortAsc);
+            texts.sort(function (a, b) { return cmp(a[at], b[at]); });
+          }
+        }
+        printNow(build(columns, texts, [texts.length + ' row' + (texts.length === 1 ? '' : 's')]));
       })
       .catch(function (err) {
         done();
         say(typeof err === 'string' ? err : 'The rows could not be read.');
       })
-      .finally(function () {
-        btn.disabled  = false;
-        btn.innerHTML = label;
-      });
+      .finally(function () { busy(false, {}); });
   });
+
+  if (btnShown) btnShown.addEventListener('click', function () {
+    var shown = window.biShownRows ? window.biShownRows() : { columns: [], rows: [] };
+    var paged = document.getElementById('bi-table').getAttribute('data-paged') === '1';
+    printNow(build(shown.columns, shown.rows,
+      [shown.rows.length + ' row' + (shown.rows.length === 1 ? '' : 's') + ' shown'
+        + (paged ? ' (this page of the view only)' : '')]), 'row shown');
+  });
+
+  if (btnPdf) btnPdf.addEventListener('click', function () { pdf(); });
 }());
 
+// ---------------------------------------------------------------------------
 // Copy-link button -- copies the current URL (including all ?f= params) to the clipboard
 // ---------------------------------------------------------------------------
 (function () {
