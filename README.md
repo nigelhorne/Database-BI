@@ -2503,12 +2503,9 @@ works correctly in production without any special workarounds.
 Features planned for future releases (post-0.019.0).  Items are ordered by
 priority.  Items shipped before this release (XLSX export, the copy-link
 button, the column statistics panel, folder filter/join propagation, the
-aggregate/measure layer and the `between` and `in` filter operators) are no
-longer listed.
+aggregate/measure layer, multi-sheet XLSX and the `between` and `in` filter
+operators) are no longer listed.
 
-- **Multi-sheet XLSX** (Medium) -- `_detect_file_info` reads only the
-first worksheet.  A `?sheet=` URL param with a sheet-name picker would
-expose the full workbook.
 - **SSE streaming for large join results** (Low) -- The join pipeline
 blocks the HTTP response until all rows are assembled.  Mojolicious supports
 server-sent events, which could progressively stream rows to a JS table

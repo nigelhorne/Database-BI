@@ -1280,6 +1280,10 @@ my @FAQ = (
 		answer   => 'Check the end of the file name. The program reads CSV, TSV, PSV, XLSX, XML, JSON, SQLite and Berkeley DB files.',
 	},
 	{
+		question => 'Accents and symbols look wrong in my file.',
+		answer   => 'Drop the file on the page again. The program reads Windows-1252 and UTF-16 files as well as UTF-8, and the table page says which one it used.',
+	},
+	{
 		question => 'My JSON file shows a list of tables, not rows.',
 		answer   => 'The file holds more than one list of rows, such as findings and hosts. Each list is a table. Click the one you want.',
 	},

@@ -2626,14 +2626,10 @@ works correctly in production without any special workarounds.
 Features planned for future releases (post-0.019.0).  Items are ordered by
 priority.  Items shipped before this release (XLSX export, the copy-link
 button, the column statistics panel, folder filter/join propagation, the
-aggregate/measure layer and the C<between> and C<in> filter operators) are no
-longer listed.
+aggregate/measure layer, multi-sheet XLSX and the C<between> and C<in> filter
+operators) are no longer listed.
 
 =over 4
-
-=item * B<Multi-sheet XLSX> (Medium) -- C<_detect_file_info> reads only the
-first worksheet.  A C<?sheet=> URL param with a sheet-name picker would
-expose the full workbook.
 
 =item * B<SSE streaming for large join results> (Low) -- The join pipeline
 blocks the HTTP response until all rows are assembled.  Mojolicious supports
@@ -2674,12 +2670,8 @@ data is shipped or downloaded.
 #
 # Completed since 0.010.0, so no longer listed here: XLSX export (B), the
 # copy-link button on chart pages (C), the column statistics panel (D), and
-# folder-view filter/join propagation (F).  The same list lives in the POD
+# folder-view filter/join propagation (F), and multi-sheet XLSX (E).  The same list lives in the POD
 # ROADMAP above; keep the two in step.
-#
-# E. [NEW 0.010.0] Multi-sheet XLSX (Medium priority)
-#    _detect_file_info reads only worksheet index 0.  A ?sheet= URL param
-#    with a sheet-name picker would expose the full workbook.
 #
 # H. [NEW 0.010.0] SSE streaming for large join results (Low priority)
 #    The join pipeline blocks the HTTP response until all rows are assembled.

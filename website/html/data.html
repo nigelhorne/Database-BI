@@ -513,7 +513,9 @@ POST /export  l=...&amp;dir=/tmp&amp;filename=out.csv</code></pre>
 		at startup, and "Clear upload cache" empties it immediately.
 	</li>
 	<li>
-		Only the first worksheet of an XLSX workbook is read.
+		An XLSX workbook with several sheets opens the table picker, which lists
+		each sheet; <code>?sheet=NAME</code> (or <code>?it=NAME</code>) opens one,
+		including a sheet whose name has spaces.
 	</li>
 </ul>
 
