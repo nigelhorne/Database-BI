@@ -126,7 +126,7 @@ sub _fit {
 
     title   : string, optional; large text on the first page
     lines   : arrayref of strings, optional; under the title
-    columns : arrayref of names (one or more), required
+    columns : arrayref of names (at least one)
     rows    : arrayref of arrayrefs, one cell per column; may be empty
     footer  : string, optional; bottom left of every page
 
