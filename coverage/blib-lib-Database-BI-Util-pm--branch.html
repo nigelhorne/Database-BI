@@ -20,7 +20,7 @@ https://pjcj.net
 <h1>Branch Coverage</h1>
 <table>
 <tr><td class="h" align="right">File:</td><td align="left">blib/lib/Database/BI/Util.pm</td></tr>
-<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">91.7%</td></tr>
+<tr><td class="h" align="right">Coverage:</td><td align="left" class="c2">93.6%</td></tr>
 </table>
 <div><br/></div>
 <table>
@@ -41,9 +41,9 @@ https://pjcj.net
 <tr><td class="h"><a id="L123">123</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$sign eq &#39;-&#39; ? :</td></tr>
 <tr><td class="h"><a id="L137">137</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$ZONE &amp;&amp; $Database::BI::Util::ZONE-&gt;{&#39;kind&#39;} eq &#39;fixed&#39; ? :</td></tr>
 <tr><td class="h"><a id="L148">148</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $ZONE and $Database::BI::Util::ZONE-&gt;{&#39;kind&#39;} eq &quot;fixed&quot;</td></tr>
-<tr><td class="h"><a id="L157">157</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">$m &lt;= 2 ? :</td></tr>
+<tr><td class="h"><a id="L157">157</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$m &lt;= 2 ? :</td></tr>
 <tr><td class="h"><a id="L158">158</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$y &gt;= 0 ? :</td></tr>
-<tr><td class="h"><a id="L160">160</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$m &gt; 2 ? :</td></tr>
+<tr><td class="h"><a id="L160">160</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$m &gt; 2 ? :</td></tr>
 <tr><td class="h"><a id="L176">176</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$y % 4 == 0 &amp;&amp; $y % 100 != 0 || $y % 400 == 0 ? :</td></tr>
 <tr><td class="h"><a id="L177">177</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $mon &gt;= 1 and $mon &lt;= 12 and $dom &gt;= 1 and $dom &lt;= $dim[$mon - 1] and $hour &lt;= 23 and $minute &lt;= 59 and ($second // 0) &lt;= 59</td></tr>
 <tr><td class="h"><a id="L182">182</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">if ($zone_text =~ /\A([+-])([0-9]{2}):?([0-9]{2})?\z/)</td></tr>
@@ -55,6 +55,15 @@ https://pjcj.net
 <tr><td class="h"><a id="L209">209</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$zone =~ /\A[Zz]\z/ ? :</td></tr>
 <tr><td class="h"><a id="L220">220</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless @tm &gt;= 6</td></tr>
 <tr><td class="h"><a id="L226">226</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">defined $epoch ? :</td></tr>
+<tr><td class="h"><a id="L238">238</a></td><td class="c0">50</td><td class="c3">T</td><td class="c0">F</td><td class="s">$z &gt;= 0 ? :</td></tr>
+<tr><td class="h"><a id="L244">244</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$mp &lt; 10 ? :</td></tr>
+<tr><td class="h"><a id="L245">245</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">$m &lt;= 2 ? :</td></tr>
+<tr><td class="h"><a id="L255">255</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $m == 2 and $d == 29 and not $leap</td></tr>
+<tr><td class="h"><a id="L277">277</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless defined $day and not ref $day and $day =~ /\A([0-9]{4})-([0-9]{2})-([0-9]{2})\z/</td></tr>
+<tr><td class="h"><a id="L279">279</a></td><td class="c0">50</td><td class="c0">T</td><td class="c3">F</td><td class="s">unless $m &gt;= 1 and $m &lt;= 12 and $d &gt;= 1 and $d &lt;= 31</td></tr>
+<tr><td class="h"><a id="L281">281</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless join($&quot;, @back) eq &quot;$y $m $d&quot;</td></tr>
+<tr><td class="h"><a id="L286">286</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">if $first &gt; $last</td></tr>
+<tr><td class="h"><a id="L293">293</a></td><td class="c3">100</td><td class="c3">T</td><td class="c3">F</td><td class="s">unless $end &lt; $last</td></tr>
 </table>
 </body>
 </html>
