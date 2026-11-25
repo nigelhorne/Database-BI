@@ -261,6 +261,20 @@
 	canvases use the light colours, whichever <a href="index.html#preferences">theme</a>
 	the reader has chosen.
 </p>
+<h3 id="alerts">Alerts</h3>
+<p>
+	A saved canvas's <b>Alerts&hellip;</b> panel sets limits on numbers worked out
+	from its data &mdash; the rows, or a total, average, smallest, largest or count
+	of different values of a column &mdash; so that cron is not needed.
+	<b>Check now</b> checks at once and <b>Try it</b> does so without recording or
+	sending anything. A limit that stays crossed can be announced again at most
+	every period you choose, and the end of a crossing can be announced too. What
+	was announced is listed under <em>Recent alerts</em>. Set
+	<a href="install.html#settings"><code>alert_every</code></a> and the running
+	server checks on its own; set <code>alert_notify_cmd</code> and it runs that
+	command for each announcement. The memory that throttles an alert is the file
+	<code>script/bi-alert</code> uses, so the two agree.
+</p>
 <p>
 	The canvas itself can be kept as a file: the Share panel's <b>Download as
 	JSON</b> saves it, and <b>Import canvas</b> on the Canvases page (<code>/canvases</code>, the

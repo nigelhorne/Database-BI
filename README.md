@@ -1092,6 +1092,22 @@ perl Makefile.PL
     `/share/:id` link (`POST /api/analyses/:id/share`) and its `/embed/:id`
     code.
 
+- `GET /api/analyses/:id/alerts`
+
+    The canvas's alert settings as its Alerts panel shows them: `thresholds`
+    (each `{ measure, op, value }`, with `col` and `fn` when the panel defined
+    the measure), `suppress`, `recovery`, the `measures` the canvas already
+    defines, the `spec` of its data, the `recent` alerts (newest first, each with
+    `when`, `kind` and `text`), whether a delivery command is set (`notify`) and
+    how often the server checks (`every`).  The settings are saved with
+    `PATCH /api/analyses/:id` and an `alerts` key.
+
+- `POST /api/analyses/:id/alerts/check`
+
+    Checks the canvas's thresholds now, as the timer does, and returns
+    `{ lines, crossings, recoveries, delivered, problem, dry }`.  `{ "dry": true }`
+    reports without recording or delivering anything.  See ["Alerts"](#alerts).
+
 - `GET /calc/list`
 
     Returns `{ fields: { name: expr } }` for stored virtual calc fields
@@ -2152,6 +2168,46 @@ It prints a line for each extract it builds: the rows, the columns, the file
 and the time.  Exit status is 0 on success, 1 when an extract could not be built
 (the others still are), and 2 on bad arguments.  Run `--all` from cron after
 the data files are refreshed.
+
+### Alerts
+
+A saved canvas's **Alerts...** panel keeps limits on the numbers worked out from
+its first dataset (rows, or a total, average, smallest, largest or count of
+different values of a column) so that cron is not needed.  Each is a threshold
+as `script/bi-alert` understands it: `count gt 1000`.  The panel can also
+keep how often a crossing that stays crossed may be announced again
+(`suppress`, such as `6h`) and whether the end of a crossing is announced
+too.  They are stored on the canvas as `alerts`, so the JSON the Share panel
+downloads carries them.
+
+**Check now** checks at once, and **Try it** does the same without recording or
+sending anything.  With `alert_every` in `database_bi.conf` the running server
+checks every canvas that has thresholds on that timer (`'15m'`, `'1h'`, or a
+number of seconds; at least a minute; unset = never).  Every worker process has
+the timer, and a stamp in `alerts-run.json` lets one of them do each period.
+The check reads the file in the server's own process, so a very large dataset is
+better left to `script/bi-extract` and cron.
+
+What is announced is listed in the panel (the newest 200, across canvases, are
+kept in `alerts-log.json` in the model folder).  Nothing leaves the machine
+unless `alert_notify_cmd` is set, and it can be set only there, never from the
+browser, because it is a command:
+
+```perl
+alert_every      => '15m',
+alert_notify_cmd => 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com',
+```
+
+It is run through the shell, once for each check that announces something, with
+the text on standard input and `BI_ALERT_EVENT`, `BI_ALERT_SUBJECT` and
+`BI_ALERT_MESSAGE_FILE` set, exactly as `bi-alert --notify-cmd`, and is
+stopped after 30 seconds.  A delivery that fails is logged and records nothing,
+so the next check announces it again.  The memory that throttles and recovers an
+alert is `alerts-state.json`, the same file `script/bi-alert` uses, so cron
+and the application agree about what has been announced.  The panel's thresholds name their measure `count` or
+`<column>_<function>` (`amount_sum`); `script/bi-alert` works
+those out too, so `--threshold amount_sum:gt:1000` checks one the panel made,
+though the command line has its own thresholds and does not read the panel's.
 
 ### Script/Bi-Alert
 

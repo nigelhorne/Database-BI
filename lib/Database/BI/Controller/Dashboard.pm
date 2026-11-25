@@ -21,6 +21,8 @@ use Mojo::JSON		qw(encode_json decode_json from_json to_json);
 use Mojo::Parameters;
 use Mojo::URL;
 use Encode ();
+use Mojo::Transaction::HTTP ();
+use Database::BI::Alert ();
 use Mojo::Util		qw(url_escape encode xml_escape secure_compare);
 use Digest::SHA		qw(hmac_sha256_hex);
 use Scalar::Util ();
@@ -43,7 +45,7 @@ use version ();
 # As many digits as a request parameter may have and still be exact in a Perl
 # number.  More than this is not a page number or a limit, it is someone probing.
 Readonly my $MAX_WHOLE_NUMBER_DIGITS => 15;
-Readonly my %ANALYSIS_KEYS => map { $_ => 1 } qw(id version created updated name datasets joins combines fields measures params visuals layout bookmarks hierarchies);
+Readonly my %ANALYSIS_KEYS => map { $_ => 1 } qw(id version created updated name datasets joins combines fields measures params visuals layout bookmarks hierarchies alerts);
 Readonly my $MAX_HISTOGRAM_BINS      => 200;
 
 # What a text card on a canvas may be styled with.  The fonts are ones browsers
@@ -167,6 +169,9 @@ Readonly my %MESSAGES => (
 	error_upload_ext       => 'Unsupported file type. Accepted: CSV, TSV, PSV, XML, JSON, SQLite (.sql, .sqlite, .sqlite3), Berkeley DB (.db), XLSX',
 	error_upload_too_large => 'File too large (maximum %s MiB)',
 	error_upload_save      => 'Could not save uploaded file',
+	error_alerts_data      => 'The data of this canvas could not be read, so there is nothing to check',
+	error_alerts_store     => 'Alerts need the model folder, which is switched off or cannot be written',
+	error_alerts_none      => 'This canvas has no alert thresholds yet',
 	upload_encoding_note   => 'This file is not UTF-8, so it was read as %s and saved as UTF-8. If accented letters or symbols look wrong, it was in another encoding.',
 	error_uploads_clear    => 'Could not clear the uploaded files',
 	error_export_sqlite    => 'Could not build the SQLite export; the server log has the reason',
@@ -5349,7 +5354,7 @@ sub _tidy_analysis {
 	my $doc = $_[0];
 
 	delete $doc->{$_} for grep { ref $doc->{$_} ne 'ARRAY' } qw(datasets visuals joins measures combines bookmarks layout hierarchies);
-	delete $doc->{$_} for grep { ref $doc->{$_} ne 'HASH' } qw(fields params);
+	delete $doc->{$_} for grep { ref $doc->{$_} ne 'HASH' } qw(fields params alerts);
 	delete $doc->{$_} for grep { ref $doc->{$_} } qw(name updated);
 
 	if ($doc->{datasets}) {
@@ -5566,6 +5571,10 @@ sub _validate_analysis_parts :Protected ($self, $doc) {
 	if (defined $doc->{params}) {
 		return 'params must be a hash'
 			unless ref $doc->{params} eq 'HASH';
+	}
+	if (defined $doc->{alerts}) {
+		my $aerr = _alerts_error($doc->{alerts});
+		return $aerr if $aerr;
 	}
 	return undef;
 }
@@ -15989,6 +15998,257 @@ sub analyses_share ($self) {
 		token => $token, url => $url, expires => $expires,
 		lasts_restart => $self->_share_links_last ? Mojo::JSON::true() : Mojo::JSON::false(),
 	});
+}
+
+# ---------------------------------------------------------------------------
+# Alerts: thresholds kept on a canvas, checked from the panel or on a timer
+# ---------------------------------------------------------------------------
+
+Readonly my $ALERT_MAX_THRESHOLDS => 50;
+Readonly my $ALERT_RECENT         => 20;
+
+# _alerts_error(\%alerts) -> $message | undef
+#
+# Purpose: Refuse a canvas's alerts that the check could not read.
+# Entry:   { thresholds => [ { measure, op, value, col?, fn? } ], suppress?,
+#          recovery? }.
+# Exit:    A plain-English reason, or undef.
+sub _alerts_error {
+	my ($alerts) = @_;
+	return 'alerts must be an object' unless ref $alerts eq 'HASH';
+	my $list = $alerts->{thresholds} // [];
+	return 'alerts.thresholds must be an array' unless ref $list eq 'ARRAY';
+	return "alerts.thresholds may hold at most $ALERT_MAX_THRESHOLDS entries" if @$list > $ALERT_MAX_THRESHOLDS;
+	my %ops = map { $_ => 1 } Database::BI::Alert::operators();
+	my %fns = map { $_ => 1 } Database::BI::Alert::functions();
+	for my $t (@$list) {
+		return 'each alert threshold must be an object' unless ref $t eq 'HASH';
+		for my $k (qw(measure op value)) {
+			return "an alert threshold needs $k" unless defined $t->{$k} && !ref $t->{$k} && length $t->{$k};
+		}
+		return 'an alert threshold names a measure of 1 to 200 characters without control characters'
+			unless length $t->{measure} <= 200 && $t->{measure} !~ /[\x00-\x1f\x7f:|]/;
+		return "an alert threshold's comparison must be one of " . join(' ', sort keys %ops)
+			unless $ops{ $t->{op} };
+		return "an alert threshold's value must be a number"
+			unless $t->{value} =~ /\A-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\z/;
+		if (defined $t->{fn} || defined $t->{col}) {
+			return "an alert threshold's function must be one of " . join(' ', sort keys %fns)
+				unless defined $t->{fn} && !ref $t->{fn} && $fns{ $t->{fn} };
+			return 'an alert threshold needs a column unless it counts rows'
+				if $t->{fn} ne 'count' && !(defined $t->{col} && !ref $t->{col} && length $t->{col});
+			return 'an alert threshold names a column of up to 200 characters without control characters'
+				if defined $t->{col} && (ref $t->{col} || length $t->{col} > 200 || $t->{col} =~ /[\x00-\x1f\x7f]/);
+		}
+	}
+	if (defined $alerts->{suppress} && (ref $alerts->{suppress} || length $alerts->{suppress})) {
+		return 'alerts.suppress must be a time such as 30m, 6h or 1d'
+			unless !ref $alerts->{suppress} && defined Database::BI::Alert::parse_duration($alerts->{suppress});
+	}
+	return undef;
+}
+
+# _alerts_of(\%canvas) -> { thresholds, suppress, recovery }
+#
+# Purpose: The canvas's alerts in one shape, whether or not it has any.
+sub _alerts_of {
+	my ($a) = @_;
+	my $al = ref $a->{alerts} eq 'HASH' ? $a->{alerts} : {};
+	return {
+		thresholds => [ grep { ref $_ eq 'HASH' } @{ ref $al->{thresholds} eq 'ARRAY' ? $al->{thresholds} : [] } ],
+		suppress   => defined $al->{suppress} && !ref $al->{suppress} ? $al->{suppress} : '',
+		recovery   => $al->{recovery} ? 1 : 0,
+	};
+}
+
+# _alert_files($c) -> ($state_path, $log_path) | ()
+#
+# Purpose: Where alerts keep their memory and their log: the model folder,
+#          beside analyses.json, where script/bi-alert keeps its state too.
+sub _alert_files {
+	my ($c) = @_;
+	my $apath = $c->_analyses_path // return ();
+	my $dir = Mojo::File->new($apath)->dirname;
+	return ($dir->child('alerts-state.json')->to_string, $dir->child('alerts-log.json')->to_string,
+		$dir->child('alerts-run.json')->to_string);
+}
+
+# GET /api/analyses/:id/alerts
+#
+# What the canvas's Alerts panel shows: the thresholds, the measures the canvas
+# already defines, the recent alerts, and whether a delivery command is set.
+sub alerts_get ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+	my $a = $self->_read_analyses->{$id};
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
+		unless $a;
+
+	my $of = _alerts_of($a);
+	my (undef, $log) = _alert_files($self);
+	my @recent = grep { ($_->{id} // '') eq $id } Database::BI::Alert::load_log($log);
+	@recent = reverse @recent;
+	splice @recent, $ALERT_RECENT if @recent > $ALERT_RECENT;
+	for my $e (@recent) { $e->{when} = Database::BI::Alert::iso($e->{time}) }
+
+	my $every = $self->app->config('alert_every');
+	$self->render(json => {
+		%$of,
+		spec     => ($a->{datasets} && $a->{datasets}[0] ? $a->{datasets}[0]{spec} : undef),
+		measures => [ map { $_->{as} // $_->{alias} } grep { ref $_ eq 'HASH' } Database::BI::Alert::measures_of($a) ],
+		recent   => \@recent,
+		notify   => $self->app->config('alert_notify_cmd') ? Mojo::JSON::true() : Mojo::JSON::false(),
+		every    => (defined $every && length $every ? "$every" : undef),
+	});
+}
+
+# POST /api/analyses/:id/alerts/check   { "dry": true }
+#
+# Checks the canvas's thresholds now, exactly as the timer does.  "dry" reports
+# without recording anything or delivering.
+sub alerts_check ($self) {
+	my $id = $self->stash('id') // '';
+	return $self->render(json => { error => _message_text('error_analysis_id_invalid') }, status => 400)
+		unless $id =~ /\A[A-Za-z0-9]+\z/;
+	return $self->render(json => { error => sprintf(_message_text('error_analysis_not_found'), $id) }, status => 404)
+		unless $self->_read_analyses->{$id};
+	my $body = length($self->req->body // '') ? eval { decode_json($self->req->body) } : {};
+	return $self->render(json => { error => _analysis_json_error($@) }, status => 400)
+		unless ref $body eq 'HASH';
+
+	my $r = check_alerts($self, $id, dry => $body->{dry} ? 1 : 0);
+	return $self->render(json => { error => $r->{error} }, status => $r->{status} // 400) if $r->{error};
+	$self->render(json => $r);
+}
+
+# check_alerts($c, $id, %opt) -> \%result
+#
+# Purpose: Check one canvas's thresholds against its first dataset: what the
+#          Alerts panel's buttons and the timer both do.
+# Entry:   $c is a controller; $id a saved canvas.  dry => 1 reports only; now
+#          => $epoch replaces the clock (tests).
+# Exit:    { lines, crossings, recoveries, delivered, problem?, dry } -- or
+#          { error, status } when nothing could be checked.
+# Side Effects: Unless dry: records announced crossings in alerts-state.json
+#          (the throttle and recovery memory script/bi-alert shares), appends to
+#          alerts-log.json, and runs config alert_notify_cmd once when anything
+#          is announced.  A delivery that fails records nothing, so the next
+#          check announces it again.
+sub check_alerts {
+	my ($c, $id, %o) = @_;
+	croak 'check_alerts() needs a controller and a canvas id' unless ref $c && defined $id;
+	my $a = $c->_read_analyses->{$id}
+		or return { error => sprintf(_message_text('error_analysis_not_found'), $id), status => 404 };
+	my $of = _alerts_of($a);
+	return { error => _message_text('error_alerts_none'), status => 400 } unless @{ $of->{thresholds} };
+
+	my ($state_path, $log_path) = _alert_files($c);
+	return { error => _message_text('error_alerts_store'), status => 503 } unless defined $state_path;
+
+	my $spec = $a->{datasets} && $a->{datasets}[0] ? $a->{datasets}[0]{spec} : undef;
+	my ($source) = defined $spec ? $c->_open_spec($spec) : ();
+	my $records = $source ? eval { $source->fetch_all } : undef;
+	return { error => _message_text('error_alerts_data'), status => 400 } unless ref $records eq 'ARRAY';
+
+	my @measures = Database::BI::Alert::measures_of($a);
+	my $results = Database::BI::Alert::measure_results(\@measures, $records);
+
+	my $dry      = $o{dry} ? 1 : 0;
+	my $now      = $o{now} // time;
+	my $suppress = Database::BI::Alert::parse_duration($of->{suppress}) // 0;
+	my $lock     = _store_lock($c, $state_path);
+	my ($state, $problem) = Database::BI::Alert::load_state($state_path);
+	$c->app->log->warn("Alerts: $problem") if defined $problem;
+
+	my $outcome = Database::BI::Alert::evaluate(
+		id => $id, results => $results, now => $now, state => $state,
+		checks => [ map { Database::BI::Alert::check_for($_) } @{ $of->{thresholds} } ],
+		suppress => $suppress, suppress_text => $of->{suppress}, recovery => $of->{recovery}, keep => 1,
+	);
+	my @crossings  = @{ $outcome->{crossings} };
+	my @recoveries = @{ $outcome->{recoveries} };
+
+	my @text = (
+		'Analysis: ' . ($a->{name} // ''),
+		'Rows:     ' . scalar(@$records),
+		'Measures:',
+		(map { '  ' . $_ . ' = ' . ($results->{$_} // '(null)') } sort keys %$results),
+		@{ $outcome->{lines} },
+	);
+	my %result = (lines => \@text, crossings => \@crossings, recoveries => \@recoveries,
+		delivered => undef, dry => $dry);
+
+	my @announced = (@crossings, @recoveries);
+	my $failed = 0;
+	my $command = $c->app->config('alert_notify_cmd');
+	if (!$dry && @announced && defined $command && length $command) {
+		my @parts;
+		push @parts, sprintf('%d threshold crossing%s', scalar @crossings, @crossings == 1 ? '' : 's') if @crossings;
+		push @parts, sprintf('%d recover%s', scalar @recoveries, @recoveries == 1 ? 'y' : 'ies') if @recoveries;
+		my ($ok, $why) = Database::BI::Alert::deliver(
+			command => $command, event => (@crossings ? 'crossed' : 'recovery'),
+			subject => (@announced == 1 ? $announced[0] : join(', ', @parts)),
+			message => join("\n", @text) . "\n", timeout => 30,
+		);
+		$result{delivered} = $ok ? 1 : 0;
+		unless ($ok) {
+			$failed = 1;
+			$result{problem} = $why;
+			$c->app->log->warn("Alerts: $why; the alert is not recorded, so the next check announces it again");
+		}
+	}
+
+	# A failed delivery has told nobody, so the throttle must not remember it.
+	unless ($dry || $failed) {
+		if ($outcome->{changed}) {
+			my ($ok, $why) = Database::BI::Alert::save_state($state_path, $state);
+			$c->app->log->warn("Alerts: $why") unless $ok;
+		}
+		if (@announced) {
+			my ($ok, $why) = Database::BI::Alert::append_log($log_path, $now, $id, \@crossings, \@recoveries);
+			$c->app->log->warn("Alerts: $why") unless $ok;
+		}
+	}
+	return \%result;
+}
+
+# run_scheduled_alerts($app, %opt) -> $count
+#
+# Purpose: The timer's work: check every canvas that has thresholds.  Called
+#          every config alert_every seconds by every worker, so a stamp in
+#          alerts-run.json, taken under a lock, lets one worker in a period do it.
+# Entry:   every => seconds between checks; now => $epoch (tests).
+# Exit:    How many canvases were checked (0 when another worker had, or none).
+sub run_scheduled_alerts {
+	my ($app, %o) = @_;
+	# A controller of our own kind, as the scripts make one; it holds its
+	# transaction weakly, so this sub keeps it.
+	my $tx = Mojo::Transaction::HTTP->new;
+	my $c  = Database::BI::Controller::Dashboard->new(app => $app, tx => $tx);
+	my (undef, undef, $run_path) = _alert_files($c);
+	return 0 unless defined $run_path;
+	my $now = $o{now} // time;
+	my $every = $o{every} // 0;
+	{
+		my $lock = _store_lock($c, $run_path);
+		my ($run) = Database::BI::Alert::load_state($run_path);
+		return 0 if $run->{last_run} && $now - $run->{last_run} < $every * 0.9;
+		$run->{last_run} = $now;
+		Database::BI::Alert::save_state($run_path, $run);
+	}
+	my $count = 0;
+	my $all = $c->_read_analyses;
+	for my $id (sort keys %$all) {
+		next unless @{ _alerts_of($all->{$id})->{thresholds} };
+		my $r = eval { check_alerts($c, $id, now => $now) };
+		if (!$r || $r->{error}) {
+			$app->log->warn("Alerts: canvas $id not checked: " . ($r ? $r->{error} : _tidy_error($@)));
+			next;
+		}
+		$count++;
+	}
+	return $count;
 }
 
 # GET /share/:id?token=...

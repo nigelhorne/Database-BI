@@ -540,6 +540,18 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 .ac-actions button:disabled { opacity: 0.55; cursor: wait; }
 .ac-error { margin: 0.35rem 0 0; font-size: 0.78rem; color: var(--danger-fg, #c0392b); }
 .ac-error[hidden] { display: none; }
+/* The Alerts panel: its thresholds, the form that adds one, the last check. */
+.al-list, .al-recent { list-style: none; margin: 0 0 0.5rem; padding: 0; font-size: 0.82rem; }
+.al-list li, .al-recent li { display: flex; gap: 0.4rem; align-items: baseline; padding: 0.15rem 0; border-bottom: 1px solid var(--border, #dee2e6); }
+.al-list li span:first-child, .al-recent li span:last-child { flex: 1 1 auto; overflow-wrap: anywhere; }
+.al-list button { font-size: 0.75rem; padding: 0.05rem 0.4rem; }
+.al-add { display: grid; grid-template-columns: 1fr 1fr; gap: 0 0.5rem; margin-bottom: 0.4rem; }
+.al-add .ac-field[hidden] { display: none; }
+.al-check { display: flex; gap: 0.4rem; align-items: center; font-size: 0.8rem; margin-bottom: 0.45rem; }
+.al-result { margin: 0.5rem 0 0; padding: 0.4rem 0.5rem; font-size: 0.75rem; max-height: 14rem; overflow: auto; white-space: pre-wrap; background: var(--header-bg, #f8f9fa); border: 1px solid var(--border, #dee2e6); border-radius: 4px; }
+.al-result[hidden] { display: none; }
+.al-when { color: var(--muted, #6c757d); white-space: nowrap; }
+#alerts-panel h4 { margin: 0.6rem 0 0.2rem; font-size: 0.85rem; }
 /* A repair that would leave the card plotting a column the plan no longer
    makes: said while it can still be undone, not after the card has been
    redrawn with an error. */
@@ -1306,6 +1318,61 @@ button.ac-cs-chip-text:hover, button.ac-cs-chip-text:focus-visible { text-decora
 		</div>
 		<p class="ac-help" style="margin-top:0.6rem">Or keep the canvas as a file, which <a href="/canvases#cv-import">Import canvas</a> on the Canvases page reads back: <a id="share-export" href="/api/analyses/[% canvas_id | uri %]/export" download>Download as JSON</a>.</p>
 		<div class="ac-actions"><button type="button" id="share-close">Close</button></div>
+	</div>
+	<button id="btn-alerts" type="button"
+	        aria-haspopup="dialog" aria-expanded="false" aria-controls="alerts-panel"
+	        title="Set limits on the numbers in this canvas's data, check them, and see recent alerts">&#x1F514; Alerts&hellip;</button>
+	<div class="ac-panel" id="alerts-panel" role="dialog" aria-labelledby="alerts-heading" hidden>
+		<h3 id="alerts-heading">Alerts</h3>
+		<p class="ac-help">Say when a number worked out from this canvas's data crosses a limit. It is checked here, and on a timer when the server is set to.</p>
+		<ul class="al-list" id="al-list"></ul>
+		<p class="ac-help" id="al-none">No limits yet.</p>
+		<div class="al-add">
+			<label class="ac-field">Number
+				<select id="al-fn">
+					<option value="rows">Rows</option>
+					<option value="sum">Total of</option>
+					<option value="avg">Average of</option>
+					<option value="min">Smallest</option>
+					<option value="max">Largest</option>
+					<option value="count_distinct">Different values in</option>
+				</select>
+			</label>
+			<label class="ac-field" id="al-col-wrap" hidden>Column
+				<select id="al-col"></select>
+			</label>
+			<label class="ac-field">Alert when it is
+				<select id="al-op">
+					<option value="gt">greater than</option>
+					<option value="ge">at least</option>
+					<option value="lt">less than</option>
+					<option value="le">at most</option>
+					<option value="eq">equal to</option>
+					<option value="ne">not equal to</option>
+				</select>
+			</label>
+			<label class="ac-field">Limit
+				<input type="text" id="al-value" inputmode="decimal" autocomplete="off">
+			</label>
+		</div>
+		<div class="ac-actions"><button type="button" id="al-add">Add limit</button></div>
+		<label class="ac-field">Repeat an alert at most every
+			<input type="text" id="al-suppress" placeholder="no limit, or 30m, 6h, 1d" autocomplete="off">
+		</label>
+		<label class="al-check"><input type="checkbox" id="al-recovery"> Also say when it clears</label>
+		<p class="ac-help" id="al-where"></p>
+		<p class="ac-help" id="al-status" role="status" hidden></p>
+		<p class="ac-error" id="al-error" role="alert" hidden></p>
+		<div class="ac-actions">
+			<button type="button" class="ac-submit" id="al-save">Save</button>
+			<button type="button" id="al-check">Check now</button>
+			<button type="button" id="al-try" title="Check without recording or sending anything">Try it</button>
+			<button type="button" id="al-close">Close</button>
+		</div>
+		<pre class="al-result" id="al-result" hidden></pre>
+		<h4>Recent alerts</h4>
+		<ul class="al-recent" id="al-recent"></ul>
+		<p class="ac-help" id="al-recent-none">None yet.</p>
 	</div>
 	[% END %]
 	<button id="btn-print" type="button" title="Print or save as PDF (Ctrl+P)">&#x1F5A8; Print</button>
@@ -2594,6 +2661,148 @@ menu, so it reads without the menu being opened.</p>
 		});
 		copyBtn.addEventListener('click', function () { copy(urlInp.value, copyBtn); });
 		copyEmb.addEventListener('click', function () { copy(embedInp.value, copyEmb); });
+	}());
+
+	/* ---- alerts panel: limits on the canvas's numbers, a check, and what was announced ---- */
+	(function () {
+		var btn   = document.getElementById('btn-alerts');
+		var panel = document.getElementById('alerts-panel');
+		if (!btn || !panel) return;
+		var base = '/api/analyses/[% canvas_id | uri %]';
+		var $ = function (id) { return document.getElementById(id); };
+		var listEl = $('al-list'), noneEl = $('al-none'), fnSel = $('al-fn'), colSel = $('al-col'),
+			colWrap = $('al-col-wrap'), opSel = $('al-op'), valInp = $('al-value'),
+			supInp = $('al-suppress'), recChk = $('al-recovery'), whereEl = $('al-where'),
+			statusEl = $('al-status'), errEl = $('al-error'), resEl = $('al-result'),
+			recentEl = $('al-recent'), recentNone = $('al-recent-none');
+		var cfg = { thresholds: [], suppress: '', recovery: false };
+		var loaded = false;
+		var FN = { count: 'Rows', sum: 'Total of', avg: 'Average of', min: 'Smallest', max: 'Largest', count_distinct: 'Different values in' };
+		var OP = { gt: '>', ge: '>=', lt: '<', le: '<=', eq: '=', ne: '!=' };
+
+		function place() {
+			var r = btn.getBoundingClientRect();
+			var w = panel.offsetWidth;
+			panel.style.left = Math.max(8, Math.min(r.right - w, window.innerWidth - w - 8)) + 'px';
+			panel.style.top  = (r.bottom + 4) + 'px';
+			panel.style.maxHeight = Math.max(160, window.innerHeight - r.bottom - 12) + 'px';
+		}
+		function open() {
+			panel.hidden = false; btn.setAttribute('aria-expanded', 'true'); place();
+			if (!loaded) load();
+			fnSel.focus();
+		}
+		function close(f) { panel.hidden = true; btn.setAttribute('aria-expanded', 'false'); if (f) btn.focus(); }
+		btn.addEventListener('click', function () { if (panel.hidden) open(); else close(1); });
+		$('al-close').addEventListener('click', function () { close(1); });
+		panel.addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); close(1); } });
+		window.addEventListener('resize', function () { if (!panel.hidden) place(); });
+
+		function say(msg, bad) {
+			var el = bad ? errEl : statusEl;
+			errEl.hidden = statusEl.hidden = true;
+			if (msg) { el.textContent = msg; el.hidden = false; }
+		}
+		function words(t) {
+			var what = t.fn ? (t.fn === 'count' ? FN.count : FN[t.fn] + ' ' + t.col) : t.measure;
+			return what + ' ' + (OP[t.op] || t.op) + ' ' + t.value;
+		}
+		function render() {
+			listEl.textContent = '';
+			cfg.thresholds.forEach(function (t, i) {
+				var li = document.createElement('li');
+				var sp = document.createElement('span');
+				sp.textContent = words(t);
+				var rm = document.createElement('button');
+				rm.type = 'button'; rm.textContent = 'Remove';
+				rm.setAttribute('aria-label', 'Remove the limit ' + words(t));
+				rm.addEventListener('click', function () { cfg.thresholds.splice(i, 1); render(); });
+				li.appendChild(sp); li.appendChild(rm); listEl.appendChild(li);
+			});
+			noneEl.hidden = cfg.thresholds.length > 0;
+			supInp.value = cfg.suppress || '';
+			recChk.checked = !!cfg.recovery;
+		}
+		function renderRecent(list) {
+			recentEl.textContent = '';
+			(list || []).forEach(function (e) {
+				var li = document.createElement('li');
+				var w = document.createElement('span'); w.className = 'al-when'; w.textContent = e.when;
+				var t = document.createElement('span'); t.textContent = e.text;
+				li.appendChild(w); li.appendChild(t); recentEl.appendChild(li);
+			});
+			recentNone.hidden = !!(list && list.length);
+		}
+		function load() {
+			return fetch(base + '/alerts').then(function (r) { return r.json(); }).then(function (j) {
+				if (j.error) { say(j.error, 1); return; }
+				loaded = true;
+				cfg = { thresholds: j.thresholds || [], suppress: j.suppress || '', recovery: !!j.recovery };
+				render(); renderRecent(j.recent);
+				whereEl.textContent = (j.every ? 'The server checks every ' + j.every + '. ' : 'The server does not check on its own (alert_every is not set); use Check now. ')
+					+ (j.notify ? 'Announcements are also sent by the command the server is set to run.' : 'Announcements are listed here; nothing is sent anywhere.');
+				if (j.spec) {
+					return fetch('/api/columns?spec=' + encodeURIComponent(j.spec)).then(function (r) { return r.json(); }).then(function (c) {
+						colSel.textContent = '';
+						(c.columns || []).forEach(function (name) {
+							var o = document.createElement('option'); o.value = name; o.textContent = name; colSel.appendChild(o);
+						});
+					});
+				}
+			}).catch(function () { say('The alerts could not be loaded: the server could not be reached.', 1); });
+		}
+		fnSel.addEventListener('change', function () { colWrap.hidden = fnSel.value === 'rows'; });
+
+		$('al-add').addEventListener('click', function () {
+			say('');
+			var v = valInp.value.trim();
+			if (!/^-?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][+-]?[0-9]+)?$/.test(v)) { say('The limit must be a number.', 1); valInp.focus(); return; }
+			var fn = fnSel.value === 'rows' ? 'count' : fnSel.value, col = colSel.value;
+			if (fn !== 'count' && !col) { say('Choose a column.', 1); return; }
+			var t = { measure: fn === 'count' ? 'count' : col + '_' + fn, fn: fn, op: opSel.value, value: v };
+			if (fn !== 'count') t.col = col;
+			cfg.thresholds.push(t);
+			valInp.value = '';
+			render();
+		});
+
+		function save() {
+			cfg.suppress = supInp.value.trim();
+			cfg.recovery = recChk.checked;
+			return fetch(base, {
+				method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ alerts: { thresholds: cfg.thresholds, suppress: cfg.suppress, recovery: cfg.recovery } })
+			}).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+			.then(function (res) {
+				if (!res.ok) { say('Not saved: ' + ((res.j && res.j.error) || 'unknown error'), 1); return false; }
+				return true;
+			});
+		}
+		$('al-save').addEventListener('click', function () {
+			say(''); resEl.hidden = true;
+			save().then(function (ok) { if (ok) say('Saved.'); })
+				.catch(function () { say('Not saved: the server could not be reached.', 1); });
+		});
+		function check(dry) {
+			say(''); resEl.hidden = true;
+			save().then(function (ok) {
+				if (!ok) return;
+				return fetch(base + '/alerts/check', {
+					method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dry: dry })
+				}).then(function (r) { return r.json().then(function (j) { return { ok: r.ok, j: j }; }); })
+				.then(function (res) {
+					if (!res.ok) { say((res.j && res.j.error) || 'The check failed.', 1); return; }
+					resEl.textContent = res.j.lines.join('\n');
+					resEl.hidden = false;
+					var n = res.j.crossings.length + res.j.recoveries.length;
+					say((dry ? 'Tried: nothing was recorded or sent. ' : '') + (n ? n + (n === 1 ? ' alert' : ' alerts') + (dry ? ' would be announced.' : ' announced.') : 'Nothing to announce.')
+						+ (res.j.problem ? ' Delivery failed: ' + res.j.problem : ''));
+					if (!dry) return load();
+				});
+			}).catch(function () { say('The check failed: the server could not be reached.', 1); });
+		}
+		$('al-check').addEventListener('click', function () { check(false); });
+		$('al-try').addEventListener('click', function () { check(true); });
 	}());
 
 	/* ---- print button (3.7) ---- */

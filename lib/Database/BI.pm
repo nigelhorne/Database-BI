@@ -9,6 +9,8 @@ use Carp qw(croak);
 use Mojo::File ();
 use Mojo::URL;
 use Database::BI::I18N ();
+use Database::BI::Alert ();
+use Scalar::Util ();
 use Database::BI::Util ();
 use Database::BI::Sessions;
 use CHI	();
@@ -25,8 +27,6 @@ use version; our $VERSION = version->declare('0.024.0');
 # The roadmap after 0.021.0, from its gap analysis (2026-11-06).
 #
 # Features:
-# TODO: Alerts in the app: a canvas panel to set bi-alert's thresholds and
-#	see recent alerts, so they do not need cron.
 # TODO: More databases: PostgreSQL through Database::Join::Catalog, as MariaDB
 #	is, and a columnar backend (DuckDB or Parquet) for files too large for
 #	SQLite extracts.
@@ -1233,6 +1233,22 @@ that a canvas's Share panel downloads; that panel also makes the read-only
 C</share/:id> link (C<POST /api/analyses/:id/share>) and its C</embed/:id>
 code.
 
+=item C<GET /api/analyses/:id/alerts>
+
+The canvas's alert settings as its Alerts panel shows them: C<thresholds>
+(each C<{ measure, op, value }>, with C<col> and C<fn> when the panel defined
+the measure), C<suppress>, C<recovery>, the C<measures> the canvas already
+defines, the C<spec> of its data, the C<recent> alerts (newest first, each with
+C<when>, C<kind> and C<text>), whether a delivery command is set (C<notify>) and
+how often the server checks (C<every>).  The settings are saved with
+C<PATCH /api/analyses/:id> and an C<alerts> key.
+
+=item C<POST /api/analyses/:id/alerts/check>
+
+Checks the canvas's thresholds now, as the timer does, and returns
+C<{ lines, crossings, recoveries, delivered, problem, dry }>.  C<{ "dry": true }>
+reports without recording or delivering anything.  See L</Alerts>.
+
 =item C<GET /calc/list>
 
 Returns C<{ fields: { name: expr } }> for stored virtual calc fields
@@ -2260,6 +2276,44 @@ and the time.  Exit status is 0 on success, 1 when an extract could not be built
 (the others still are), and 2 on bad arguments.  Run C<--all> from cron after
 the data files are refreshed.
 
+=head2 Alerts
+
+A saved canvas's B<Alerts...> panel keeps limits on the numbers worked out from
+its first dataset (rows, or a total, average, smallest, largest or count of
+different values of a column) so that cron is not needed.  Each is a threshold
+as C<script/bi-alert> understands it: C<count gt 1000>.  The panel can also
+keep how often a crossing that stays crossed may be announced again
+(C<suppress>, such as C<6h>) and whether the end of a crossing is announced
+too.  They are stored on the canvas as C<alerts>, so the JSON the Share panel
+downloads carries them.
+
+B<Check now> checks at once, and B<Try it> does the same without recording or
+sending anything.  With C<alert_every> in C<database_bi.conf> the running server
+checks every canvas that has thresholds on that timer (C<'15m'>, C<'1h'>, or a
+number of seconds; at least a minute; unset = never).  Every worker process has
+the timer, and a stamp in C<alerts-run.json> lets one of them do each period.
+The check reads the file in the server's own process, so a very large dataset is
+better left to C<script/bi-extract> and cron.
+
+What is announced is listed in the panel (the newest 200, across canvases, are
+kept in C<alerts-log.json> in the model folder).  Nothing leaves the machine
+unless C<alert_notify_cmd> is set, and it can be set only there, never from the
+browser, because it is a command:
+
+    alert_every      => '15m',
+    alert_notify_cmd => 'mail -s "$BI_ALERT_SUBJECT" oncall@example.com',
+
+It is run through the shell, once for each check that announces something, with
+the text on standard input and C<BI_ALERT_EVENT>, C<BI_ALERT_SUBJECT> and
+C<BI_ALERT_MESSAGE_FILE> set, exactly as C<bi-alert --notify-cmd>, and is
+stopped after 30 seconds.  A delivery that fails is logged and records nothing,
+so the next check announces it again.  The memory that throttles and recovers an
+alert is C<alerts-state.json>, the same file C<script/bi-alert> uses, so cron
+and the application agree about what has been announced.  The panel's thresholds name their measure C<count> or
+C<E<lt>columnE<gt>_E<lt>functionE<gt>> (C<amount_sum>); C<script/bi-alert> works
+those out too, so C<--threshold amount_sum:gt:1000> checks one the panel made,
+though the command line has its own thresholds and does not read the panel's.
+
 =head2 script/bi-alert
 
 Reports one or more saved analyses, and turns a crossed threshold into a
@@ -2724,6 +2778,17 @@ sub startup ($self) {
 	_check_url_private_hosts($self->config('url_private_hosts'));
 	_check_map_bounds_ranks($self->config('map_bounds_ranks'));
 	_check_share_secret($self->config('share_secret'));
+	my $alert_every = _check_alerts($self->config('alert_every'), $self->config('alert_notify_cmd'));
+	if ($alert_every) {
+		# Every worker has this timer; run_scheduled_alerts lets one of them act a period.
+		my $weak = $self;
+		Scalar::Util::weaken($weak);
+		Mojo::IOLoop->recurring($alert_every => sub {
+			return unless $weak;
+			my $ok = eval { Database::BI::Controller::Dashboard::run_scheduled_alerts($weak, every => $alert_every); 1 };
+			$weak->log->warn("Alerts: the timed check failed: $@") unless $ok;
+		});
+	}
 	_check_export_dirs($self, $self->config('export_dirs'));
 	croak 'ai_calls_per_hour: give a whole number of provider calls an hour, or 0 for no limit'
 		if defined $self->config('ai_calls_per_hour') && $self->config('ai_calls_per_hour') !~ /\A[0-9]+\z/;
@@ -3316,6 +3381,8 @@ sub startup ($self) {
 	$r->patch('/api/analyses/:id/visuals/:visual')->to('Dashboard#analyses_update_visual');
 	$r->delete('/api/analyses/:id/visuals/:visual')->to('Dashboard#analyses_delete_visual');
 	$r->get('/api/analyses/:id/export') ->to('Dashboard#analyses_export');
+	$r->get('/api/analyses/:id/alerts')        ->to('Dashboard#alerts_get');
+	$r->post('/api/analyses/:id/alerts/check') ->to('Dashboard#alerts_check');
 
 	# extracts, catalog, sharing, embedding, per-visual downloads
 	$r->get('/canvases')                      ->to('Dashboard#canvases_view');
@@ -3587,6 +3654,25 @@ sub _check_map_bounds_ranks {
 	return if $ok;
 	(my $error = $@ // 'unknown error') =~ s/ at \S+ line \d+\.?\n?\z//;
 	croak "map_bounds_ranks: $error";
+}
+
+# _check_alerts( $every, $command ) -> $seconds | undef
+#
+# Purpose: Refuse alert settings that would not do what they say.  alert_every
+#          is how often the running server checks every canvas that has alert
+#          thresholds (a time such as 15m; at least a minute; unset = never);
+#          alert_notify_cmd is the shell command that delivers an announcement.
+sub _check_alerts {
+	my ($every, $command) = @_;
+	if (defined $command) {
+		croak 'alert_notify_cmd: give the shell command to run, as a string' if ref $command;
+	}
+	return undef unless defined $every && (ref $every || length $every);
+	croak 'alert_every: give a time such as 15m, 1h or 900' if ref $every;
+	my $seconds = Database::BI::Alert::parse_duration($every);
+	croak "alert_every: '$every' is not a time such as 15m, 1h or 900" unless defined $seconds;
+	croak 'alert_every: at least 60 seconds' if $seconds < 60;
+	return $seconds;
 }
 
 # _check_share_secret( $value ) -> void

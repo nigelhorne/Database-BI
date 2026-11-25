@@ -1056,6 +1056,23 @@ my @CHAPTERS = (
 	# For maintainers
 	# ---------------------------------------------------------------
 	{
+		id    => 'alerts-panel',
+		part  => 'Save and share',
+		title => 'Get alerts from a canvas without cron',
+		lead  => 'The Alerts panel of a saved canvas keeps limits on its numbers and tells you when one is crossed.',
+		steps => [
+			'Open a saved canvas and click Alerts... in the toolbar.',
+			'Choose a number: Rows, or a total, average, smallest, largest or count of different values of a column.',
+			'Choose a comparison and type a limit, then click Add limit. Add as many limits as you need.',
+			'To hear about a crossing that stays crossed only now and then, type a time such as 6h under Repeat an alert at most every.',
+			'Tick Also say when it clears to hear when the number is back inside its limit.',
+			'Click Save, then Check now. The panel shows the numbers and lists what was announced under Recent alerts.',
+			'Click Try it to see what would be announced, without recording or sending anything.',
+		],
+		tip   => 'The server checks on its own only when whoever runs it sets alert_every, and it sends mail or messages only when they set alert_notify_cmd. Without those, alerts are listed in the panel.',
+		routes => [],
+	},
+	{
 		id    => 'alerts',
 		part  => 'For maintainers',
 		title => 'Alert when a number crosses a limit',
@@ -1073,7 +1090,7 @@ my @CHAPTERS = (
 			'Pass --recovery to be told when the crossing ends as well as when it starts.',
 			'The script can only see a crossing end when it remembers one starting, so --recovery keeps its state file.',
 			'Pass --notify-cmd with a command such as mail to have the script deliver the alert and the recovery itself.',
-			'Wire the script into a cron job or a monitoring system to get automatic alerts.',
+			'Wire the script into a cron job or a monitoring system to get automatic alerts. Or set alert_every and use the Alerts panel on the canvas.',
 		],
 		tip   => 'Exit code 0 means no alert: the threshold was not crossed, or it was crossed and already reported in this period. Exit code 1 means it was crossed and reported now. Exit code 3 means a crossing that was reported has ended, which is what --recovery asks for. Exit code 2 means an error. When one run reports a crossing and a recovery together, exit code 1 wins.',
 		routes => [],
@@ -1112,6 +1129,7 @@ my @CHAPTERS = (
 			'cache_dir is where the places found for maps, the extracts and the page cache are kept. CACHEDIR or CACHE_DIR in the environment wins over it.',
 			'Set time_zone to UTC, local or an offset such as +05:30. A time that ends in Z or +01:00 is then read on that clock. Names such as Europe/London are not read.',
 			'Set json_flatten to 1 to split nested JSON objects into columns, named by their path, such as address.city. Both settings apply to the whole server, not to one file.',
+			'Set alert_every, such as 15m, to have the server check every canvas that has alert limits. Set alert_notify_cmd to a shell command, such as mail, that delivers what it announces.',
 			'Set ai_api_key to show the Ask button and the AI choice on the insights page.',
 			'Restart the program after you change the file.',
 		],
@@ -1423,6 +1441,7 @@ my %EXEMPT_ROUTES = (
 	'/api/analyses'            => 'JSON for the saved-canvas list',
 	'/api/analyses/:id'        => 'JSON for one saved canvas',
 	'/api/analyses/:id/export' => 'JSON export of one saved canvas',
+	'/api/analyses/:id/alerts' => 'JSON for the limits and recent alerts in a canvas\'s Alerts panel',
 	'/api/columns'             => 'JSON list of columns for the join and filter panels',
 	'/api/dirs'                => 'JSON folder list for the browse and export panels',
 	'/api/range'               => 'JSON min/max ISO dates for the filter date-picker constraints',

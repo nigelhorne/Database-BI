@@ -317,7 +317,7 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 	</p>
 </div>
 
-<h2>Configuration</h2>
+<h2 id="settings">Configuration</h2>
 <p>
 	This is for whoever runs the application. A reader's own choices, such as
 	light or dark, are not set here: see <a href="index.html#preferences">Preferences</a>.
@@ -506,6 +506,27 @@ BI_OPEN=/full/path/store.db hypnotoad script/database-bi</code></pre>
 				<code>1</code> shows a nested JSON object as a column for each value,
 				named by its path (<code>address.city</code>), instead of JSON text.
 				It applies to every file, not one. See <a href="data.html#json-flatten">JSON files</a>.
+			</td>
+		</tr>
+		<tr>
+			<td><code>alert_every</code></td>
+			<td>unset</td>
+			<td>
+				How often the running server checks every canvas that has limits set in
+				its <a href="canvas.html#alerts">Alerts panel</a>: <code>'15m'</code>,
+				<code>'1h'</code> or a number of seconds, at least 60. Unset, canvases
+				are checked only when someone presses <em>Check now</em>.
+			</td>
+		</tr>
+		<tr>
+			<td><code>alert_notify_cmd</code></td>
+			<td>unset</td>
+			<td>
+				A shell command that delivers what a check announces, run as
+				<code>bi-alert --notify-cmd</code> is (text on standard input,
+				<code>BI_ALERT_EVENT</code>, <code>BI_ALERT_SUBJECT</code> and
+				<code>BI_ALERT_MESSAGE_FILE</code> set). It can be set only here, never
+				from the browser. Unset, nothing leaves the machine.
 			</td>
 		</tr>
 		<tr>

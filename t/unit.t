@@ -3362,6 +3362,23 @@ subtest 'Geocode.models_with_cache -- does not mutate the caller hashref' => sub
 		message_ok(Dashboard => 'error_upload_ext', $tm->tx->res->json->{error});
 		$tm->post_ok('/upload' => form => { file => { content => "a,b\ncaf\xe9,1\n", filename => 'latin.csv' } })->status_is(200);
 		message_ok(Dashboard => 'upload_encoding_note', $tm->tx->res->json->{note}, ['Windows-1252']);
+
+		# The Alerts panel's check: no limits, unreadable data, no model folder.
+		my $ta = Test::Mojo->new('Database::BI', { data_dir => tempdir(CLEANUP => 1), model_dir => tempdir(CLEANUP => 1) });
+		$ta->post_ok('/api/analyses' => json => { name => 'A', datasets => [ { spec => 'table:nothing' } ],
+			visuals => [ { kind => 'bar', encode => { cat => 'a', value => 'b' } } ] })->status_is(201);
+		my $aid = $ta->tx->res->json->{id};
+		$ta->post_ok("/api/analyses/$aid/alerts/check" => json => {})->status_is(400);
+		message_ok(Dashboard => 'error_alerts_none', $ta->tx->res->json->{error});
+		$ta->patch_ok("/api/analyses/$aid" => json => { alerts => { thresholds => [ { measure => 'count', op => 'gt', value => 1 } ] } })->status_is(200);
+		$ta->post_ok("/api/analyses/$aid/alerts/check" => json => {})->status_is(400);
+		message_ok(Dashboard => 'error_alerts_data', $ta->tx->res->json->{error});
+		{
+			no warnings qw(redefine once);
+			local *Database::BI::Controller::Dashboard::_alert_files = sub { () };
+			$ta->post_ok("/api/analyses/$aid/alerts/check" => json => {})->status_is(503);
+			message_ok(Dashboard => 'error_alerts_store', $ta->tx->res->json->{error});
+		}
 		# The size is what is mocked, not the body.  A really oversized body has the
 		# server answer and close while the client still writes, which on Windows can
 		# lose the answer; the subtest for POST /upload above sends a real one.
